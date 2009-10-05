@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: $ $Date: $
+   .	$Revision: 1.1 $ $Date: 2009/10/02 21:58:31 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -21,9 +21,6 @@
 
 /* Length of a record in a Sigmet raw file */
 #define REC_LEN 6144
-
-/* Binary angle */
-typedef unsigned Angle;
 
 /* Year, month, day, second */
 struct ymds {
@@ -72,8 +69,10 @@ enum Sigmet_ScanMode {PPI_S = 1, RHI, MAN_SCAN, PPI_C, FILE_SCAN};
    Side comments indicate (record#,offset) to the value in a record
    from the raw product file.
 
-   Units are as indicated in the IRIS Programmer Manual (i.e. nothing is
-   converted during input).
+   Units for members taken directly from the Sigmet volume are as indicated
+   in the IRIS Programmer Manual (i.e. nothing is converted during input).
+   Units for derived members are as indicated.  In particular, angles from
+   the volume are unsigned integer binary angles.
  */
 
 struct Sigmet_Vol {
@@ -132,8 +131,8 @@ struct Sigmet_Vol {
     struct ymds oldest_ingest_input_time;		/* (1,364) */
     char ingest_site_name[16];				/* (1,422) */
     short minutes_ahead_gmt;				/* (1,438) */
-    Angle center_latitude;				/* (1,440) */
-    Angle center_longitude;				/* (1,444) */
+    unsigned center_latitude;				/* (1,440) */
+    unsigned center_longitude;				/* (1,444) */
     short ground_elevation;				/* (1,448) */
     short tower_height;					/* (1,450) */
     long prf;						/* (1,452) */
@@ -151,8 +150,8 @@ struct Sigmet_Vol {
     unsigned short prod_end_flag;			/* (1,500) */
     short num_ing_prod_files;				/* (1,502) */
     unsigned short log_based_filter_1st_bin;		/* (1,568) */
-    Angle projection_ref_lat;				/* (1,572) */
-    Angle projection_ref_lon;				/* (1,576) */
+    unsigned projection_ref_lat;			/* (1,572) */
+    unsigned projection_ref_lon;			/* (1,576) */
     short product_sequence_number;			/* (1,580) */
     int pic_color_nums[16];				/* (1,582) */
     short reference_height_meters;			/* (1,616) */
@@ -171,8 +170,8 @@ struct Sigmet_Vol {
     char IRIS_Open_version[8];				/* (2,136) */
     char site_name_1[16];				/* (2,162) */
     short minutes_ahead_gmt_1;				/* (2,178) */
-    Angle latitude;					/* (2,180) */
-    Angle longitude;					/* (2,184) */
+    unsigned latitude;					/* (2,180) */
+    unsigned longitude;					/* (2,184) */
     short ground_height;				/* (2,188) m above SL */
     short tower_height_1;				/* (2,190) m */
     short resolution; 					/* (2,192) rays/rev */
@@ -246,18 +245,18 @@ struct Sigmet_Vol {
      */
     union {
 	struct {
-	    Angle start_az;				/* (2,1432) */
-	    Angle end_az;				/* (2,1434) */
-	    Angle elevs[40];				/* (2,1436) */
+	    unsigned start_az;				/* (2,1432) */
+	    unsigned end_az;				/* (2,1434) */
+	    unsigned elevs[40];				/* (2,1436) */
 	} ppi;
 	struct {
-	    Angle start_elev;				/* (2,1432) */
-	    Angle end_elev;				/* (2,1434) */
-	    Angle az[40];				/* (2,1436) */
+	    unsigned start_elev;			/* (2,1432) */
+	    unsigned end_elev;				/* (2,1434) */
+	    unsigned az[40];				/* (2,1436) */
 	} rhi;
 	struct {
-	    Angle first_az;				/* (2,1432) */
-	    Angle first_elev;				/* (2,1434) */
+	    unsigned first_az;				/* (2,1432) */
+	    unsigned first_elev;			/* (2,1434) */
 	    char ant_ctrl[12];				/* (2,1436) */
 	} file;
 	struct {
@@ -283,28 +282,30 @@ struct Sigmet_Vol {
     long num_tasks_in_hybrid_task;			/* (2,2160) */
     unsigned short task_state;				/* (2,2164) */
 
-    /* Members not from programmer's manual */
+    /* Members NOT taken directly from the volume */
     unsigned num_types;				/* Number of data types */
     enum Sigmet_DataType types[SIGMET_NTYPES];	/* Data types */
     double *sweep_time;				/* Sweep start time, Julian day,
 						   dimensioned [sweep] */
-    double *sweep_angle;			/* Sweep angle,
+    double *sweep_angle;			/* Sweep angle, radians,
 						   dimensioned [sweep] */
     double **ray_time;				/* Ray time, Julian day,
 						   dimesioned [sweep][ray] */
     unsigned **ray_nbins;			/* Number of bins in ray,
 						   dimensioned [sweep][ray],
 						   varies from ray to ray */
-    double **ray_tilt0;				/* Tilt at start of ray,
+    double **ray_tilt0;				/* Tilt at start of ray, radians,
 						   dimensioned [sweep][ray] */
-    double **ray_tilt1;				/* Tilt at end of ray,
+    double **ray_tilt1;				/* Tilt at end of ray, radians,
 						   dimensioned [sweep][ray] */
-    double **ray_az0;				/* Azimuth at start of ray,
+    double **ray_az0;				/* Azimuth at start of ray, radians,
 						   dimensioned [sweep][ray] */
-    double **ray_az1;				/* Azimuth at end of ray,
+    double **ray_az1;				/* Azimuth at end of ray, radians,
 						   dimensioned [sweep][ray] */
     int ****dat;				/* Data.  Dimensioned
-						   [sweep][type][ray][bin] */
+						   [sweep][type][ray][bin]
+						   Units and encoding depend on
+						   type. */
     int truncated;				/* If true, volume does not
 						   have data for the number
 						   of sweeps and rays given
