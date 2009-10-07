@@ -1,0 +1,134 @@
+.\"
+.\" Copyright (c) 2004 Gordon D. Carrie
+.\" All rights reserved.
+.\"
+.\" Please send feedback to dev0@trekix.net
+.\"
+.\" $Revision: $ $Date: $
+.TH sigmet 1 Sigmet "Sigmet C functions"
+.SH NAME
+Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_ItoF,
+Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData,
+Sigmet_InitVol, Sigmet_FreeVol, Sigmet_ReadHdr, Sigmet_ReadVol,
+Sigmet_VolBinLatLon, Sigmet_VolBinOutline, Sigmet_ToDorade \- Sigmet
+functions.
+.SH VERSION
+1
+.SH SYNOPSIS
+.nf
+\fB#include <sigmet.h>\fP \fBchar *Sigmet_DataType_Abbrv\fP(\fBenum Sigmet_DataType\fP \fIy\fP);
+\fBchar *Sigmet_DataType_Descr\fP(\fBenum Sigmet_DataType\fP \fIy\fP);
+\fBfloat\fP \fBSigmet_NoData\fP(\fBvoid\fP);
+\fBint\fP \fBSigmet_IsData\fP(\fBfloat\fP \fIv\fP);
+\fBint\fP \fBSigmet_IsNoData\fP(\fBfloat\fP \fIv\fP);
+\fBfloat Sigmet_DataType_ItoF\fP(\fBenum Sigmet_DataType\fP \fIy\fP, \fBunsigned\fP \fIi\fP);
+\fBvoid Sigmet_InitVol\fP(\fBstruct Sigmet_Vol\fP *\fIsigPtr\fP);
+\fBvoid Sigmet_FreeVol\fP(\fBstruct Sigmet_Vol\fP *\fIsigPtr\fP);
+\fBint Sigmet_ReadHdr\fP(\fBFILE\fP *\fIf, \fBstruct Sigmet_Vol\fP *\fIsigPtr\fP);
+\fBint Sigmet_ReadVol\fP(\fBFILE\fP *\fIf\fP, \fBstruct Sigmet_Vol\fP *\fIsigPtr\fP);
+\fBint Sigmet_BadRay\fP(\fBstruct Sigmet_Vol\fP *\fIsigPtr\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP);
+\fBGeoPt Sigmet_VolBinLatLon\fP(\fBstruct Sigmet_Vol\fP *\fIsigPtr\fP, \fBunsigned\fP \fIs\fP, \fBunsigned\fP \fIy\fP,
+	\fBunsigned\fP \fIr\fP, \fBunsigned\fP \fIb\fP);
+\fBint Sigmet_VolLatLonToBin\fP(\fBstruct Sigmet_Vol\fP *\fIsigPtr\fP, \fBunsigned\fP \fIs\fP, \fBGeoPt\fP \fIgeoPt\fP,
+	\fBunsigned\fP *\fIr\fP, \fBunsigned\fP *\fIb\fP);
+\fBGeoLn Sigmet_VolBinOutline\fP(\fBstruct Sigmet_Vol\fP *\fIsigPtr\fP, \fBunsigned \fIs\fP, \fBunsigned \fIy\fP,
+	\fBunsigned \fIr\fP, \fBunsigned \fIb\fP);
+\fBint\fP \fBSigmet_ToDorade\fP(\fBstruct Sigmet_Vol\fP *\fIsigPtr\fP, \fBunsigned\fP \fIs\fP,
+	\fBstruct Dorade_Sweep *\fIdoradePtr\fP);
+.fi
+.SH DESCRIPTION
+These functions read and access data obtained from Sigmet raw product
+volumes.  The functions, structures, and nomenclature are based on
+the \fBIRIS Programmer's Manual, September 2002\fP.
+.SH SIGMET DATA TYPES
+A Sigmet data type is identified by an integer constant which must
+be member of:
+
+.nf
+enum Sigmet_DataType {
+    DB_XHDR,    DB_DBT,         DB_DBZ,         DB_VEL,         DB_WIDTH,
+    DB_ZDR,     DB_DBZC,        DB_DBT2,        DB_DBZ2,        DB_VEL2,
+    DB_WIDTH2,  DB_ZDR2,        DB_RAINRATE2,   DB_KDP,         DB_KDP2,
+    DB_PHIDP,   DB_VELC,        DB_SQI,         DB_RHOHV,       DB_RHOHV2,
+    DB_DBZC2,   DB_VELC2,       DB_SQI2,        DB_PHIDP2,      DB_LDRH,
+    DB_LDRH2,   DB_LDRV,        DB_LDRV2
+};
+.fi
+
+See the Sigmet documentation for discussion of each type.
+.PP
+\fBSigmet_DataType_Abbrv\fP returns a short abbreviation describing
+type \fIy\fP.  \fBSigmet_DataType_Descr\fP returns a longer
+description.  Return values of these functions should not be modified
+by the user.
+.PP
+\fBSigmet_NoData\fP returns a value indicating missing of invalid data.
+\fBSigmet_IsData\fP returns true if \fIv\fP is not the return value from
+\fBSigmet_NoData\fP.
+\fBSigmet_IsNoData\fP returns true if \fIv\fP is the return value from
+\fBSigmet_NoData\fP.
+.PP
+\fBSigmet_DataType_ItoF\fP returns a measurement value corresponding
+to integer storage value \fIi\fP, using the conversion method for
+data type \fIy\fP.  Storage value \fIi\fP is normally a value
+retrieved from a Sigmet raw product volume.
+.SH SIGMET RAW VOLUMES
+Data from Sigmet raw product volumes are stored in structures of
+type \fBstruct\ Sigmet_Vol\fP, which is declared in \fBsigmet.h\fP.
+.PP
+\fBSigmet_InitVol\fP initializes a Sigmet volume structure at
+\fIsigPtr\fP, whose previous contents are assumed to be garbage.
+Upon return, \fIsigPtr\fP can be safely passed to \fBSigmet_FreeVol\fP.
+.PP
+\fBSigmet_FreeVol\fP frees memory associated with a Sigmet volume
+structure at \fIsigPtr\fP and reinitializes the structure.
+.PP
+\fBSigmet_ReadHdr\fP reads and stores volume headers for a Sigmet raw product
+file from stream \fIf\fP into the volume structure at \fIsigPtr\fP.
+\fIf\fP should be at the start of a raw product file.  \fIsigPtr\fP
+should have already been initialized with a call to \fBSigmet_InitVol\fP.
+This function only reads volume headers. Sweep headers and rays are
+left in their bogus initialized state.
+\fBSigmet_ReadHdr\fP returns true if it succeeds. If something goes
+wrong it returns false, leaving an error message which can be
+retrieved with \fBerr_get\fP.  Memory allocated during read
+should eventually be freed with a call to \fISigmet_FreeVol\fP.
+.PP
+\fBSigmet_ReadVol\fP reads and stores a Sigmet raw product
+file from stream \fIf\fP into the volume structure at \fIsigPtr\fP.
+\fIf\fP should be at the start of a raw product file.  \fIsigPtr\fP
+should have already been initialized with a call to \fBSigmet_InitVol\fP.
+\fBSigmet_ReadVol\fP returns true if it succeeds. If something goes
+wrong it returns false, leaving an error message which can be
+retrieved with \fBerr_get\fP.  Memory allocated during read
+should eventually be freed with a call to \fISigmet_FreeVol\fP.
+.PP
+\fBSigmet_VolBinLatLon\fP returns the location of the center of the
+data bin from \fIsigPtr\fP for sweep \fIs\fP, data type \fIy\fP,
+ray \fIr\fP, bin \fIb\fP.  It returns the value from \fBGeoPtNowhere()\fP
+if any of the indices are out of bounds.  \fBSigmet_VolBinOutline\fP
+returns a geoline whose points define the outline of the data bin
+from \fIsigPtr\fP for sweep \fIs\fP, data type \fIy\fP, ray \fIr\fP,
+bin \fIb\fP.  It returns the \fBNULL\fP if any of the indices.  See
+the \fBGeoLn\fP (3) man page for more information on geolines.  User
+should eventually destroy the return value with a call to
+\fBGeoLnDestroy\fP.
+.PP
+\fBSigmet_BadRay\fP returns true if the ray in \fIsigPtr\fP at index
+\fIs\fP, \fIr\fP is unusable.
+.PP
+\fBSigmet_VolLatLonToBin\fP computes the ray and bin indices for
+sweep \fIs\fP in \fIsigPtr\fP above geographic location \fIgeoPt\fP.
+If successful, the function puts the ray and bin indices at addresses
+\fIr\fP and \fIb\fP and returns true.  If no bins in the volume are
+above the location, the function returns false.
+.PP
+\fBSigmet_ToDorade\fP copies the analogous data from sweep \fIs\fP
+of the Sigmet volume at \fIsigPtr\fP into the DORADE structure at
+\fIdoradePtr\fP.  It returns true if it is successful, otherwise
+it returns false and generates and error message which can be
+retrieved with \fBerr_get\fP.
+.SH KEYWORDS
+radar sigmet data
+.SH AUTHOR
+Gordon Carrie (user0@tkgeomap.org)
