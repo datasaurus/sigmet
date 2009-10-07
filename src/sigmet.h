@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.1 $ $Date: 2009/10/02 21:58:31 $
+   .	$Revision: 1.2 $ $Date: 2009/10/05 21:43:25 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -23,7 +23,7 @@
 #define REC_LEN 6144
 
 /* Year, month, day, second */
-struct ymds {
+struct Sigmet_YMDS {
     int sec;		/* Seconds since midnight */
     unsigned msec;	/* Milliseconds */
     char utc;		/* If true, time is UTC */
@@ -83,8 +83,8 @@ struct Sigmet_Vol {
     unsigned short product_type_code;			/* (1,24) */
     unsigned short scheduling_code;			/* (1,26) */
     long seconds_between_runs;				/* (1,28) */
-    struct ymds input_ingest_sweep_time;		/* (1,44) */
-    struct ymds input_ingest_file_time;			/* (1,56) */
+    struct Sigmet_YMDS input_ingest_sweep_time;		/* (1,44) */
+    struct Sigmet_YMDS input_ingest_file_time;		/* (1,56) */
     char prod_config_file[12];				/* (1,74) */
     char task_name[12];					/* (1,86) */
     unsigned short prod_config_flag_word;		/* (1,98) */
@@ -128,7 +128,7 @@ struct Sigmet_Vol {
     char site_name[16];					/* (1,332) */
     char prod_IRIS_Open_vsn[8];				/* (1,348) */
     char ing_IRIS_Open_vsn[8];				/* (1,356) */
-    struct ymds oldest_ingest_input_time;		/* (1,364) */
+    struct Sigmet_YMDS oldest_ingest_input_time;	/* (1,364) */
     char ingest_site_name[16];				/* (1,422) */
     short minutes_ahead_gmt;				/* (1,438) */
     unsigned center_latitude;				/* (1,440) */
@@ -163,7 +163,7 @@ struct Sigmet_Vol {
     char file_name[80];					/* (2,12) */
     short num_assoc_data_files;				/* (2,92) */
     long size_files;					/* (2,96) */
-    struct ymds volume_start_time;			/* (2,100) */
+    struct Sigmet_YMDS volume_start_time;		/* (2,100) */
     short ray_headers_sz;				/* (2,124) */
     short extended_ray_headers_sz;			/* (2,126) */
     short task_config_table_num;			/* (2,128) */
