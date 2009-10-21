@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.1 $ $Date: 2009/10/21 14:14:58 $
+   .	$Revision: 1.2 $ $Date: 2009/10/21 14:24:04 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -224,8 +224,16 @@ error:
 /* Write headers to a file in ASCII */
 void Sigmet_PrintHdr(struct Sigmet_Vol sig_vol, FILE *out)
 {
+    int y;
+    char elem_nm[STR_LEN];
+
     print_product_hdr("<product_hdr>.", sig_vol.ph, out);
     print_ingest_header("<ingest_hdr>.", sig_vol.ih, out);
+    fprintf(out, "%-40d ! %-80s ! %s\n", sig_vol.num_types, "num_types", "Number of Sigmet data types");
+    for (y = 0; y < sig_vol.num_types; y++) {
+	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
+	fprintf(out, "%-40s ! %-80s ! %s\n", Sigmet_DataType_Abbrv(sig_vol.types[y]), elem_nm, Sigmet_DataType_Descr(sig_vol.types[y]));
+    }
 }
 
 /* Read and store a Sigmet volume. */
@@ -868,7 +876,7 @@ void print_color_scale_def(char *pfx, struct color_scale_def csd, FILE *out)
     print_u(csd.iset_and_scale, prefix, "iset_and_scale", "iset_and_scale: Color set number in low byte, color scale number in high byte.", out);
     for (n = 0; n < 16; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "ilevel_seams[", n, "]");
-	fprintf(out, "%-40u | %-80s | %s\n", csd.ilevel_seams[n], struct_path, "ilevel_seams: Variable level starting values");
+	fprintf(out, "%-40u ! %-80s ! %s\n", csd.ilevel_seams[n], struct_path, "ilevel_seams: Variable level starting values");
     }
 }
 
@@ -1453,7 +1461,7 @@ void print_task_rhi_scan_info(char *pfx, struct task_rhi_scan_info trsi, FILE *o
     print_u(trsi.lo_elev, prefix, "lo_elev", "Lower elevation limit (binary angle, only for sector)", out);
     print_u(trsi.hi_elev, prefix, "hi_elev", "Upper elevation limit (binary angle, only for sector)", out);
     for (n = 0; n < 40; n++) {
-	fprintf(out, "%-40u | %s%s%d%s | %s\n", trsi.az[n], prefix, "az[", n, "]", "List of azimuths (binary angles) to scan at");
+	fprintf(out, "%-40u ! %s%s%d%s ! %s\n", trsi.az[n], prefix, "az[", n, "]", "List of azimuths (binary angles) to scan at");
     }
     print_u(trsi.start, prefix, "start", "Start of first sector sweep: 0=Nearest, 1=Lower, 2=Upper Sector sweeps alternate in direction.", out);
 }
@@ -1489,7 +1497,7 @@ void print_task_ppi_scan_info(char *pfx, struct task_ppi_scan_info tpsi, FILE *o
     print_u(tpsi.right_az, prefix, "right_az", "Right azimuth limit (binary angle, only for sector)", out);
     for (n = 0; n < 40; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "elevs[", n, "]");
-	fprintf(out, "%-40u | %-80s | %s\n", tpsi.elevs[n], struct_path, "List of elevations (binary angles) to scan at");
+	fprintf(out, "%-40u ! %-80s ! %s\n", tpsi.elevs[n], struct_path, "List of elevations (binary angles) to scan at");
     }
     print_u(tpsi.start, prefix, "start", "Start of first sector sweep: 0=Nearest, 1=Left, 2=Right Sector sweeps alternate in direction.", out);
 }
@@ -1579,7 +1587,7 @@ void print_task_misc_info(char *pfx, struct task_misc_info tmi, FILE *out)
     print_u(tmi.h_beam_width, prefix, "h_beam_width", "Horizontal beamwidth (binary angle, starting in 7.18)", out);
     for (n = 0; n < 10; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "custom[", n, "]");
-	fprintf(out, "%-40u | %-80s | %s\n", tmi.custom[n], struct_path, "Customer defined storage (starting in 7.27)");
+	fprintf(out, "%-40u ! %-80s ! %s\n", tmi.custom[n], struct_path, "Customer defined storage (starting in 7.27)");
     }
 }
 
@@ -1635,17 +1643,17 @@ void print_dsp_data_mask(char *pfx, struct dsp_data_mask ddm, char *suffix, FILE
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<dsp_data_mask>.");
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_0");
-    fprintf(out, "%-40u | %-80s | %s.  %s\n", ddm.mask_word_0, struct_path, "Mask word 0", suffix);
+    fprintf(out, "%-40u ! %-80s ! %s.  %s\n", ddm.mask_word_0, struct_path, "Mask word 0", suffix);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "ext_hdr_type");
-    fprintf(out, "%-40u | %-80s | %s.  %s\n", ddm.ext_hdr_type, struct_path, "Extended header type", suffix);
+    fprintf(out, "%-40u ! %-80s ! %s.  %s\n", ddm.ext_hdr_type, struct_path, "Extended header type", suffix);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_1");
-    fprintf(out, "%-40u | %-80s | %s.  %s\n", ddm.mask_word_1, struct_path, "Mask word 1 Contains bits set for all data recorded.", suffix);
+    fprintf(out, "%-40u ! %-80s ! %s.  %s\n", ddm.mask_word_1, struct_path, "Mask word 1 Contains bits set for all data recorded.", suffix);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_2");
-    fprintf(out, "%-40u | %-80s | %s.  %s\n", ddm.mask_word_2, struct_path, "Mask word 2 See parameter DB_* in Table 3­6 for", suffix);
+    fprintf(out, "%-40u ! %-80s ! %s.  %s\n", ddm.mask_word_2, struct_path, "Mask word 2 See parameter DB_* in Table 3­6 for", suffix);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_3");
-    fprintf(out, "%-40u | %-80s | %s.  %s\n", ddm.mask_word_3, struct_path, "Mask word 3 bit specification.", suffix);
+    fprintf(out, "%-40u ! %-80s ! %s.  %s\n", ddm.mask_word_3, struct_path, "Mask word 3 bit specification.", suffix);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_4");
-    fprintf(out, "%-40u | %-80s | %s.  %s\n", ddm.mask_word_4, struct_path, "Mask word 4", suffix);
+    fprintf(out, "%-40u ! %-80s ! %s.  %s\n", ddm.mask_word_4, struct_path, "Mask word 4", suffix);
 }
 
 /* get and/or print structure_header */
@@ -1697,7 +1705,7 @@ void print_ymds_time(char *prefix, struct ymds_time tm, char *suffix, FILE *out)
     fhour = modf(sec / 3600.0, &ihour);
     fmin = modf(fhour * 60.0, &imin);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "<ymds_time>");
-    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f.                  | %-80s | %s\n", tm.year, tm.month, tm.day,
+    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f.                  ! %-80s ! %s\n", tm.year, tm.month, tm.day,
 	    (int)ihour, (int)imin, fmin * 60.0, struct_path, suffix);
 }
 
@@ -1710,7 +1718,7 @@ void print_u(unsigned u, char *prefix, char *comp, char *desc, FILE *out)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%-40u | %-80s | %s\n", u, struct_path, desc);
+    fprintf(out, "%-40u ! %-80s ! %s\n", u, struct_path, desc);
 }
 
 /*
@@ -1722,7 +1730,7 @@ void print_x(unsigned u, char *prefix, char *comp, char *desc, FILE *out)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%-40x | %-80s | %s\n", u, struct_path, desc);
+    fprintf(out, "%-40x ! %-80s ! %s\n", u, struct_path, desc);
 }
 
 /*
@@ -1734,7 +1742,7 @@ void print_i(int u, char *prefix, char *comp, char *desc, FILE *out)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%-40d | %-80s | %s\n", u, struct_path, desc);
+    fprintf(out, "%-40d ! %-80s ! %s\n", u, struct_path, desc);
 }
 
 /*
@@ -1746,7 +1754,7 @@ void print_s(char *s, char *prefix, char *comp, char *desc, FILE *out)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%-40s | %-80s | %s\n", s, struct_path, desc);
+    fprintf(out, "%-40s ! %-80s ! %s\n", s, struct_path, desc);
 }
 
 /*
