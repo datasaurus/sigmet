@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.4 $ $Date: 2009/10/21 15:25:45 $
+   .	$Revision: 1.5 $ $Date: 2009/10/21 15:32:56 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -43,52 +43,52 @@ static void swap_arr16(void *r, int nw);
 #define STR_LEN 512
 
 /* Functions to read and print Sigmet raw volume structures */
-static struct ymds_time get_ymds_time(char *);
-static void print_ymds_time(char *, struct ymds_time, char *, FILE *);
-static struct structure_header get_structure_header(char *);
-static void print_structure_header(char *, struct structure_header, FILE *);
-static struct product_specific_info get_product_specific_info(char *);
-static void print_product_specific_info(char *, struct product_specific_info, FILE *);
-static struct color_scale_def get_color_scale_def(char *);
-static void print_color_scale_def(char *, struct color_scale_def, FILE *);
-static struct product_configuration get_product_configuration(char *);
-static void print_product_configuration(char *, struct product_configuration, FILE *);
-static struct product_end get_product_end(char *);
-static void print_product_end(char *, struct product_end, FILE *);
-static struct product_hdr get_product_hdr(char *);
-static void print_product_hdr(char *, struct product_hdr, FILE *);
-static struct ingest_configuration get_ingest_configuration(char *);
-static void print_ingest_configuration(char *, struct ingest_configuration, FILE *);
-static struct task_sched_info get_task_sched_info(char *);
-static void print_task_sched_info(char *, struct task_sched_info, FILE *);
-static struct dsp_data_mask get_dsp_data_mask(char *);
-static void print_dsp_data_mask(char *, struct dsp_data_mask, char *, FILE *);
-static struct task_dsp_mode_batch get_task_dsp_mode_batch(char *);
-static void print_task_dsp_mode_batch(char *, struct task_dsp_mode_batch, FILE *);
-static struct task_dsp_info get_task_dsp_info(char *);
-static void print_task_dsp_info(char *, struct task_dsp_info, FILE *);
-static struct task_calib_info get_task_calib_info(char *);
-static void print_task_calib_info(char *, struct task_calib_info, FILE *);
-static struct task_range_info get_task_range_info(char *);
-static void print_task_range_info(char *, struct task_range_info, FILE *);
-static struct task_rhi_scan_info get_task_rhi_scan_info(char *);
-static void print_task_rhi_scan_info(char *, struct task_rhi_scan_info, FILE *);
-static struct task_ppi_scan_info get_task_ppi_scan_info(char *);
-static void print_task_ppi_scan_info(char *, struct task_ppi_scan_info, FILE *);
-static struct task_file_scan_info get_task_file_scan_info(char *);
-static void print_task_file_scan_info(char *, struct task_file_scan_info, FILE *);
-static struct task_manual_scan_info get_task_manual_scan_info(char *);
-static void print_task_manual_scan_info(char *, struct task_manual_scan_info, FILE *);
-static struct task_scan_info get_task_scan_info(char *);
-static void print_task_scan_info(char *, struct task_scan_info, FILE *);
-static struct task_misc_info get_task_misc_info(char *);
-static void print_task_misc_info(char *, struct task_misc_info, FILE *);
-static struct task_end_info get_task_end_info(char *);
-static void print_task_end_info(char *, struct task_end_info, FILE *);
-static struct task_configuration get_task_configuration(char *);
-static void print_task_configuration(char *, struct task_configuration, FILE *);
-static struct ingest_header get_ingest_header(char *);
-static void print_ingest_header(char *, struct ingest_header, FILE *);
+static struct Sigmet_ymds_time get_ymds_time(char *);
+static void print_ymds_time(char *, struct Sigmet_ymds_time, char *, FILE *);
+static struct Sigmet_structure_header get_structure_header(char *);
+static void print_structure_header(char *, struct Sigmet_structure_header, FILE *);
+static struct Sigmet_product_specific_info get_product_specific_info(char *);
+static void print_product_specific_info(char *, struct Sigmet_product_specific_info, FILE *);
+static struct Sigmet_color_scale_def get_color_scale_def(char *);
+static void print_color_scale_def(char *, struct Sigmet_color_scale_def, FILE *);
+static struct Sigmet_product_configuration get_product_configuration(char *);
+static void print_product_configuration(char *, struct Sigmet_product_configuration, FILE *);
+static struct Sigmet_product_end get_product_end(char *);
+static void print_product_end(char *, struct Sigmet_product_end, FILE *);
+static struct Sigmet_product_hdr get_product_hdr(char *);
+static void print_product_hdr(char *, struct Sigmet_product_hdr, FILE *);
+static struct Sigmet_ingest_configuration get_ingest_configuration(char *);
+static void print_ingest_configuration(char *, struct Sigmet_ingest_configuration, FILE *);
+static struct Sigmet_task_sched_info get_task_sched_info(char *);
+static void print_task_sched_info(char *, struct Sigmet_task_sched_info, FILE *);
+static struct Sigmet_dsp_data_mask get_dsp_data_mask(char *);
+static void print_dsp_data_mask(char *, struct Sigmet_dsp_data_mask, char *, FILE *);
+static struct Sigmet_task_dsp_mode_batch get_task_dsp_mode_batch(char *);
+static void print_task_dsp_mode_batch(char *, struct Sigmet_task_dsp_mode_batch, FILE *);
+static struct Sigmet_task_dsp_info get_task_dsp_info(char *);
+static void print_task_dsp_info(char *, struct Sigmet_task_dsp_info, FILE *);
+static struct Sigmet_task_calib_info get_task_calib_info(char *);
+static void print_task_calib_info(char *, struct Sigmet_task_calib_info, FILE *);
+static struct Sigmet_task_range_info get_task_range_info(char *);
+static void print_task_range_info(char *, struct Sigmet_task_range_info, FILE *);
+static struct Sigmet_task_rhi_scan_info get_task_rhi_scan_info(char *);
+static void print_task_rhi_scan_info(char *, struct Sigmet_task_rhi_scan_info, FILE *);
+static struct Sigmet_task_ppi_scan_info get_task_ppi_scan_info(char *);
+static void print_task_ppi_scan_info(char *, struct Sigmet_task_ppi_scan_info, FILE *);
+static struct Sigmet_task_file_scan_info get_task_file_scan_info(char *);
+static void print_task_file_scan_info(char *, struct Sigmet_task_file_scan_info, FILE *);
+static struct Sigmet_task_manual_scan_info get_task_manual_scan_info(char *);
+static void print_task_manual_scan_info(char *, struct Sigmet_task_manual_scan_info, FILE *);
+static struct Sigmet_task_scan_info get_task_scan_info(char *);
+static void print_task_scan_info(char *, struct Sigmet_task_scan_info, FILE *);
+static struct Sigmet_task_misc_info get_task_misc_info(char *);
+static void print_task_misc_info(char *, struct Sigmet_task_misc_info, FILE *);
+static struct Sigmet_task_end_info get_task_end_info(char *);
+static void print_task_end_info(char *, struct Sigmet_task_end_info, FILE *);
+static struct Sigmet_task_configuration get_task_configuration(char *);
+static void print_task_configuration(char *, struct Sigmet_task_configuration, FILE *);
+static struct Sigmet_ingest_header get_ingest_header(char *);
+static void print_ingest_header(char *, struct Sigmet_ingest_header, FILE *);
 
 /* Print functions */
 static void print_u(unsigned , char *, char *, char *, FILE *);
@@ -697,9 +697,9 @@ int Sigmet_BadRay(sigPtr, s, r)
 
 /* get and/or print product_hdr (a.k.a. raw volume record 1) */
 
-struct product_hdr get_product_hdr(char *rec)
+struct Sigmet_product_hdr get_product_hdr(char *rec)
 {
-    struct product_hdr ph;
+    struct Sigmet_product_hdr ph;
 
     ph.sh = get_structure_header(rec);
     ph.pc = get_product_configuration(rec);
@@ -709,7 +709,7 @@ struct product_hdr get_product_hdr(char *rec)
     return ph;
 }
 
-void print_product_hdr(char *prefix, struct product_hdr ph, FILE *out)
+void print_product_hdr(char *prefix, struct Sigmet_product_hdr ph, FILE *out)
 {
     print_structure_header("<product_hdr>.", ph.sh, out);
     print_product_configuration("<product_hdr>.",  ph.pc, out);
@@ -718,9 +718,9 @@ void print_product_hdr(char *prefix, struct product_hdr ph, FILE *out)
 
 /* get and/or print product_configuration */
 
-struct product_configuration get_product_configuration(char *rec)
+struct Sigmet_product_configuration get_product_configuration(char *rec)
 {
-    struct product_configuration pc;
+    struct Sigmet_product_configuration pc;
 
     pc.sh = get_structure_header(rec);
     pc.type = get_uint16(rec + 12);
@@ -762,7 +762,7 @@ struct product_configuration get_product_configuration(char *rec)
     return pc;
 }
 
-void print_product_configuration(char *pfx, struct product_configuration pc, FILE *out)
+void print_product_configuration(char *pfx, struct Sigmet_product_configuration pc, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -804,9 +804,9 @@ void print_product_configuration(char *pfx, struct product_configuration pc, FIL
 
 /* get and/or print product_specific_info */
 
-struct product_specific_info get_product_specific_info(char *rec)
+struct Sigmet_product_specific_info get_product_specific_info(char *rec)
 {
-    struct product_specific_info psi;
+    struct Sigmet_product_specific_info psi;
 
     psi.data_type_mask = get_uint32(rec + 0);
     psi.rng_last_bin = get_sint32(rec + 4);
@@ -822,7 +822,7 @@ struct product_specific_info get_product_specific_info(char *rec)
     return psi;
 }
 
-void print_product_specific_info(char *pfx, struct product_specific_info psi, FILE *out)
+void print_product_specific_info(char *pfx, struct Sigmet_product_specific_info psi, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -842,9 +842,9 @@ void print_product_specific_info(char *pfx, struct product_specific_info psi, FI
 
 /* get and/or print color_scale_def */
 
-struct color_scale_def get_color_scale_def(char *rec)
+struct Sigmet_color_scale_def get_color_scale_def(char *rec)
 {
-    struct color_scale_def csd;
+    struct Sigmet_color_scale_def csd;
     char *p, *p1;
     unsigned *q;
 
@@ -862,7 +862,7 @@ struct color_scale_def get_color_scale_def(char *rec)
     return csd;
 }
 
-void print_color_scale_def(char *pfx, struct color_scale_def csd, FILE *out)
+void print_color_scale_def(char *pfx, struct Sigmet_color_scale_def csd, FILE *out)
 {
     int n;
     char prefix[STR_LEN];
@@ -882,9 +882,9 @@ void print_color_scale_def(char *pfx, struct color_scale_def csd, FILE *out)
 
 /* get and/or print product_end */
 
-struct product_end get_product_end(char *rec)
+struct Sigmet_product_end get_product_end(char *rec)
 {
-    struct product_end pe;
+    struct Sigmet_product_end pe;
 
     strncpy(pe.site_name_prod, rec + 0, 16);
     trimRight(pe.site_name_prod, 16);
@@ -948,7 +948,7 @@ struct product_end get_product_end(char *rec)
     return pe;
 }
 
-void print_product_end(char *pfx, struct product_end pe, FILE *out)
+void print_product_end(char *pfx, struct Sigmet_product_end pe, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1009,9 +1009,9 @@ void print_product_end(char *pfx, struct product_end pe, FILE *out)
 
 /* get and/or print ingest header (a.k.a. raw volume record 2) */
 
-struct ingest_header get_ingest_header(char *rec)
+struct Sigmet_ingest_header get_ingest_header(char *rec)
 {
-    struct ingest_header ih;
+    struct Sigmet_ingest_header ih;
 
     ih.sh = get_structure_header(rec);
     rec += 12;
@@ -1021,7 +1021,7 @@ struct ingest_header get_ingest_header(char *rec)
     return ih;
 }
 
-void print_ingest_header(char *prefix, struct ingest_header ih, FILE *out)
+void print_ingest_header(char *prefix, struct Sigmet_ingest_header ih, FILE *out)
 {
     print_structure_header(prefix, ih.sh, out);
     print_ingest_configuration(prefix, ih.ic, out);
@@ -1030,9 +1030,9 @@ void print_ingest_header(char *prefix, struct ingest_header ih, FILE *out)
 
 /* get and/or print ingest_configuration */
 
-struct ingest_configuration get_ingest_configuration(char *rec)
+struct Sigmet_ingest_configuration get_ingest_configuration(char *rec)
 {
-    struct ingest_configuration ic;
+    struct Sigmet_ingest_configuration ic;
     char *p, *p1;
     int *q;
 
@@ -1085,7 +1085,7 @@ struct ingest_configuration get_ingest_configuration(char *rec)
     return ic;
 }
 
-void print_ingest_configuration(char *pfx, struct ingest_configuration ic, FILE *out)
+void print_ingest_configuration(char *pfx, struct Sigmet_ingest_configuration ic, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1128,9 +1128,9 @@ void print_ingest_configuration(char *pfx, struct ingest_configuration ic, FILE 
 
 /* get and/or print task_configuration */
 
-struct task_configuration get_task_configuration(char *rec)
+struct Sigmet_task_configuration get_task_configuration(char *rec)
 {
-    struct task_configuration tc;
+    struct Sigmet_task_configuration tc;
 
     tc.sh = get_structure_header(rec);
     rec += 12;
@@ -1150,7 +1150,7 @@ struct task_configuration get_task_configuration(char *rec)
     return tc;
 }
 
-void print_task_configuration(char *prefix, struct task_configuration tc, FILE *out)
+void print_task_configuration(char *prefix, struct Sigmet_task_configuration tc, FILE *out)
 {
     print_structure_header(prefix, tc.sh, out);
     print_task_sched_info(prefix, tc.tsi, out);
@@ -1164,9 +1164,9 @@ void print_task_configuration(char *prefix, struct task_configuration tc, FILE *
 
 /* get and/or print task_sched_info */
 
-struct task_sched_info get_task_sched_info(char *rec)
+struct Sigmet_task_sched_info get_task_sched_info(char *rec)
 {
-    struct task_sched_info tsi;
+    struct Sigmet_task_sched_info tsi;
 
     tsi.start_time = get_sint32(rec + 0);
     tsi.stop_time = get_sint32(rec + 4);
@@ -1178,7 +1178,7 @@ struct task_sched_info get_task_sched_info(char *rec)
     return tsi;
 }
 
-void print_task_sched_info(char *pfx, struct task_sched_info tsi, FILE *out)
+void print_task_sched_info(char *pfx, struct Sigmet_task_sched_info tsi, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1194,9 +1194,9 @@ void print_task_sched_info(char *pfx, struct task_sched_info tsi, FILE *out)
 
 /* get and/or print task_dsp_mode_batch */
 
-struct task_dsp_mode_batch get_task_dsp_mode_batch(char *rec)
+struct Sigmet_task_dsp_mode_batch get_task_dsp_mode_batch(char *rec)
 {
-    struct task_dsp_mode_batch tdmb;
+    struct Sigmet_task_dsp_mode_batch tdmb;
 
     tdmb.lo_prf = get_uint16(rec + 0);
     tdmb.lo_prf_frac = get_uint16(rec + 2);
@@ -1208,7 +1208,7 @@ struct task_dsp_mode_batch get_task_dsp_mode_batch(char *rec)
     return tdmb;
 }
 
-void print_task_dsp_mode_batch(char *pfx, struct task_dsp_mode_batch tdmb, FILE *out)
+void print_task_dsp_mode_batch(char *pfx, struct Sigmet_task_dsp_mode_batch tdmb, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1224,9 +1224,9 @@ void print_task_dsp_mode_batch(char *pfx, struct task_dsp_mode_batch tdmb, FILE 
 
 /* get and/or print task_dsp_info */
 
-struct task_dsp_info get_task_dsp_info(char *rec)
+struct Sigmet_task_dsp_info get_task_dsp_info(char *rec)
 {
-    struct task_dsp_info tdi;
+    struct Sigmet_task_dsp_info tdi;
 
     tdi.major_mode = get_uint16(rec + 0);
     tdi.dsp_type = get_uint16(rec + 2);
@@ -1255,7 +1255,7 @@ struct task_dsp_info get_task_dsp_info(char *rec)
     return tdi;
 }
 
-void print_task_dsp_info(char *pfx, struct task_dsp_info tdi, FILE *out)
+void print_task_dsp_info(char *pfx, struct Sigmet_task_dsp_info tdi, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1286,9 +1286,9 @@ void print_task_dsp_info(char *pfx, struct task_dsp_info tdi, FILE *out)
 
 /* get and/or print task_calib_info */
 
-struct task_calib_info get_task_calib_info(char *rec)
+struct Sigmet_task_calib_info get_task_calib_info(char *rec)
 {
-    struct task_calib_info tci;
+    struct Sigmet_task_calib_info tci;
 
     tci.dbz_slope = get_sint16(rec + 0);
     tci.dbz_noise_thresh = get_sint16(rec + 2);
@@ -1317,7 +1317,7 @@ struct task_calib_info get_task_calib_info(char *rec)
     return tci;
 }
 
-void print_task_calib_info(char *pfx, struct task_calib_info tci, FILE *out)
+void print_task_calib_info(char *pfx, struct Sigmet_task_calib_info tci, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1350,9 +1350,9 @@ void print_task_calib_info(char *pfx, struct task_calib_info tci, FILE *out)
 
 /* get and/or print task_range_info */
 
-struct task_range_info get_task_range_info(char *rec)
+struct Sigmet_task_range_info get_task_range_info(char *rec)
 {
-    struct task_range_info tri;
+    struct Sigmet_task_range_info tri;
 
     tri.rng_1st_bin = get_sint32(rec + 0);
     tri.rng_last_bin = get_sint32(rec + 4);
@@ -1365,7 +1365,7 @@ struct task_range_info get_task_range_info(char *rec)
     return tri;
 }
 
-void print_task_range_info(char *pfx, struct task_range_info tri, FILE *out)
+void print_task_range_info(char *pfx, struct Sigmet_task_range_info tri, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1382,9 +1382,9 @@ void print_task_range_info(char *pfx, struct task_range_info tri, FILE *out)
 
 /* get and/or print task_scan_info */
 
-struct task_scan_info get_task_scan_info(char *rec)
+struct Sigmet_task_scan_info get_task_scan_info(char *rec)
 {
-    struct task_scan_info tsi;
+    struct Sigmet_task_scan_info tsi;
 
     tsi.scan_mode = get_uint16(rec + 0);
     tsi.resoln = get_sint16(rec + 2);
@@ -1407,7 +1407,7 @@ struct task_scan_info get_task_scan_info(char *rec)
     return tsi;
 }
 
-void print_task_scan_info(char *pfx, struct task_scan_info tsi, FILE *out)
+void print_task_scan_info(char *pfx, struct Sigmet_task_scan_info tsi, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1434,9 +1434,9 @@ void print_task_scan_info(char *pfx, struct task_scan_info tsi, FILE *out)
 
 /* get and/or print task_rhi_scan_info */
 
-struct task_rhi_scan_info get_task_rhi_scan_info(char *rec)
+struct Sigmet_task_rhi_scan_info get_task_rhi_scan_info(char *rec)
 {
-    struct task_rhi_scan_info trsi;
+    struct Sigmet_task_rhi_scan_info trsi;
     char *p, *p1;
     unsigned *q;
 
@@ -1452,7 +1452,7 @@ struct task_rhi_scan_info get_task_rhi_scan_info(char *rec)
     return trsi;
 }
 
-void print_task_rhi_scan_info(char *pfx, struct task_rhi_scan_info trsi, FILE *out)
+void print_task_rhi_scan_info(char *pfx, struct Sigmet_task_rhi_scan_info trsi, FILE *out)
 {
     int n;
     char prefix[STR_LEN];
@@ -1468,9 +1468,9 @@ void print_task_rhi_scan_info(char *pfx, struct task_rhi_scan_info trsi, FILE *o
 
 /* get and/or print task_ppi_scan_info */
 
-struct task_ppi_scan_info get_task_ppi_scan_info(char *rec)
+struct Sigmet_task_ppi_scan_info get_task_ppi_scan_info(char *rec)
 {
-    struct task_ppi_scan_info tpsi;
+    struct Sigmet_task_ppi_scan_info tpsi;
     char *p, *p1;
     unsigned *q;
 
@@ -1486,7 +1486,7 @@ struct task_ppi_scan_info get_task_ppi_scan_info(char *rec)
     return tpsi;
 }
 
-void print_task_ppi_scan_info(char *pfx, struct task_ppi_scan_info tpsi, FILE *out)
+void print_task_ppi_scan_info(char *pfx, struct Sigmet_task_ppi_scan_info tpsi, FILE *out)
 {
     int n;
     char prefix[STR_LEN];
@@ -1504,9 +1504,9 @@ void print_task_ppi_scan_info(char *pfx, struct task_ppi_scan_info tpsi, FILE *o
 
 /* get and/or print task_file_scan_info */
 
-struct task_file_scan_info get_task_file_scan_info(char *rec)
+struct Sigmet_task_file_scan_info get_task_file_scan_info(char *rec)
 {
-    struct task_file_scan_info tfsi;
+    struct Sigmet_task_file_scan_info tfsi;
 
     tfsi.az0 = get_uint16(rec + 0);
     tfsi.elev0 = get_uint16(rec + 2);
@@ -1515,7 +1515,7 @@ struct task_file_scan_info get_task_file_scan_info(char *rec)
     return tfsi;
 }
 
-void print_task_file_scan_info(char *pfx, struct task_file_scan_info tfsi, FILE *out)
+void print_task_file_scan_info(char *pfx, struct Sigmet_task_file_scan_info tfsi, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1527,15 +1527,15 @@ void print_task_file_scan_info(char *pfx, struct task_file_scan_info tfsi, FILE 
 
 /* get and/or print task_manual_scan_info */
 
-struct task_manual_scan_info get_task_manual_scan_info(char *rec)
+struct Sigmet_task_manual_scan_info get_task_manual_scan_info(char *rec)
 {
-    struct task_manual_scan_info tmsi;
+    struct Sigmet_task_manual_scan_info tmsi;
 
     tmsi.flags = get_uint16(rec + 0);
     return tmsi;
 }
 
-void print_task_manual_scan_info(char *pfx, struct task_manual_scan_info tmsi, FILE *out)
+void print_task_manual_scan_info(char *pfx, struct Sigmet_task_manual_scan_info tmsi, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1545,9 +1545,9 @@ void print_task_manual_scan_info(char *pfx, struct task_manual_scan_info tmsi, F
 
 /* get and/or print task_misc_info */
 
-struct task_misc_info get_task_misc_info(char *rec)
+struct Sigmet_task_misc_info get_task_misc_info(char *rec)
 {
-    struct task_misc_info tmi;
+    struct Sigmet_task_misc_info tmi;
     char *p, *p1;
     unsigned *q;
 
@@ -1570,7 +1570,7 @@ struct task_misc_info get_task_misc_info(char *rec)
     return tmi;
 }
 
-void print_task_misc_info(char *pfx, struct task_misc_info tmi, FILE *out)
+void print_task_misc_info(char *pfx, struct Sigmet_task_misc_info tmi, FILE *out)
 {
     int n;
     char prefix[STR_LEN];
@@ -1591,9 +1591,9 @@ void print_task_misc_info(char *pfx, struct task_misc_info tmi, FILE *out)
     }
 }
 
-struct task_end_info get_task_end_info(char *rec)
+struct Sigmet_task_end_info get_task_end_info(char *rec)
 {
-    struct task_end_info tei;
+    struct Sigmet_task_end_info tei;
 
     tei.task_major = get_sint16(rec + 0);
     tei.task_minor = get_sint16(rec + 2);
@@ -1607,7 +1607,7 @@ struct task_end_info get_task_end_info(char *rec)
     return tei;
 }
 
-void print_task_end_info(char *pfx, struct task_end_info tei, FILE *out)
+void print_task_end_info(char *pfx, struct Sigmet_task_end_info tei, FILE *out)
 {
     char prefix[STR_LEN];
 
@@ -1623,9 +1623,9 @@ void print_task_end_info(char *pfx, struct task_end_info tei, FILE *out)
 
 /* get and/or print dsp_data_mask */
 
-struct dsp_data_mask get_dsp_data_mask(char *rec)
+struct Sigmet_dsp_data_mask get_dsp_data_mask(char *rec)
 {
-    struct dsp_data_mask ddm;
+    struct Sigmet_dsp_data_mask ddm;
 
     ddm.mask_word_0 = get_uint32(rec + 0);
     ddm.ext_hdr_type = get_uint32(rec + 4);
@@ -1636,7 +1636,7 @@ struct dsp_data_mask get_dsp_data_mask(char *rec)
     return ddm;
 }
 
-void print_dsp_data_mask(char *pfx, struct dsp_data_mask ddm, char *suffix, FILE *out)
+void print_dsp_data_mask(char *pfx, struct Sigmet_dsp_data_mask ddm, char *suffix, FILE *out)
 {
     char prefix[STR_LEN];
     char struct_path[STR_LEN];
@@ -1658,9 +1658,9 @@ void print_dsp_data_mask(char *pfx, struct dsp_data_mask ddm, char *suffix, FILE
 
 /* get and/or print structure_header */
 
-struct structure_header get_structure_header(char *rec)
+struct Sigmet_structure_header get_structure_header(char *rec)
 {
-    struct structure_header sh;
+    struct Sigmet_structure_header sh;
 
     sh.id = get_sint16(rec + 0);
     sh.format = get_sint16(rec + 2);
@@ -1669,7 +1669,7 @@ struct structure_header get_structure_header(char *rec)
     return sh;
 }
 
-void print_structure_header(char *prefix, struct structure_header sh, FILE *out)
+void print_structure_header(char *prefix, struct Sigmet_structure_header sh, FILE *out)
 {
     print_i(sh.id, prefix, "<structure_header>.id", "Structure identifier: 22 => Task_configuration.  23 => Ingest_header.  24 => Ingest_data_header.  25 => Tape_inventory.  26 => Product_configuration.  27 => Product_hdr.  28 => Tape_header_record", out);
     print_i(sh.format, prefix, "<structure_header>.format", "Format version number (see headers.h)", out);
@@ -1679,10 +1679,10 @@ void print_structure_header(char *prefix, struct structure_header sh, FILE *out)
 
 /* get and/or print ymds_time */
 
-struct ymds_time get_ymds_time(char *b)
+struct Sigmet_ymds_time get_ymds_time(char *b)
 {
     unsigned short msec;
-    struct ymds_time tm;
+    struct Sigmet_ymds_time tm;
 
     tm.sec = get_sint32(b);
     msec = get_uint16(b + 4);
@@ -1694,7 +1694,7 @@ struct ymds_time get_ymds_time(char *b)
     return tm;
 }
 
-void print_ymds_time(char *prefix, struct ymds_time tm, char *suffix, FILE *out)
+void print_ymds_time(char *prefix, struct Sigmet_ymds_time tm, char *suffix, FILE *out)
 {
     double fhour, fmin;
     double ihour, imin;

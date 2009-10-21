@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.3 $ $Date: 2009/10/07 17:06:48 $
+   .	$Revision: 1.4 $ $Date: 2009/10/21 15:19:45 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -61,7 +61,7 @@ enum Sigmet_ScanMode {PPI_S = 1, RHI, MAN_SCAN, PPI_C, FILE_SCAN};
 /* The following structures store data from volume headers.  Ref. IRIS Programmer's Manual */
 
 /* Year, month, day, second */
-struct ymds_time {
+struct Sigmet_ymds_time {
     int sec;		/* Seconds since midnight */
     unsigned msec;	/* Milliseconds */
     char utc;		/* If true, time is UTC */
@@ -70,7 +70,7 @@ struct ymds_time {
     int day;
 };
 
-struct structure_header {
+struct Sigmet_structure_header {
     int id;
     int format;
     int sz;
@@ -78,7 +78,7 @@ struct structure_header {
 };
 
 /* For raw volume, product_specific_info is raw_psi_struct */
-struct product_specific_info {
+struct Sigmet_product_specific_info {
     unsigned data_type_mask;
     int rng_last_bin;
     unsigned format_conv_flag;
@@ -92,7 +92,7 @@ struct product_specific_info {
     unsigned playback_vsn;
 };
 
-struct color_scale_def {
+struct Sigmet_color_scale_def {
     unsigned flags;
     int istart;
     int istep;
@@ -101,14 +101,14 @@ struct color_scale_def {
     unsigned ilevel_seams[16];
 };
 
-struct product_configuration {
-    struct structure_header sh;
+struct Sigmet_product_configuration {
+    struct Sigmet_structure_header sh;
     unsigned type;
     unsigned schedule;
     int skip;
-    struct ymds_time gen_tm;
-    struct ymds_time ingest_sweep_tm;
-    struct ymds_time ingest_file_tm;
+    struct Sigmet_ymds_time gen_tm;
+    struct Sigmet_ymds_time ingest_sweep_tm;
+    struct Sigmet_ymds_time ingest_file_tm;
     char config_file[12];
     char task_name[12];
     unsigned flag;
@@ -132,12 +132,12 @@ struct product_configuration {
     int zr_exp;
     int x_smooth;
     int y_smooth;
-    struct product_specific_info psi;
+    struct Sigmet_product_specific_info psi;
     char suffixes[16];
-    struct color_scale_def csd;
+    struct Sigmet_color_scale_def csd;
 };
 
-struct product_end {
+struct Sigmet_product_end {
     char site_name_prod[16];
     char iris_prod_vsn[8];
     char iris_ing_vsn[8];
@@ -192,18 +192,18 @@ struct product_end {
     char tz[8];
 };
 
-struct product_hdr {
-    struct structure_header sh;
-    struct product_configuration pc;
-    struct product_end pe;
+struct Sigmet_product_hdr {
+    struct Sigmet_structure_header sh;
+    struct Sigmet_product_configuration pc;
+    struct Sigmet_product_end pe;
 };
 
-struct ingest_configuration {
+struct Sigmet_ingest_configuration {
     char file_name[80];
     int num_assoc_files;
     int n_sweeps;
     int size_files;
-    struct ymds_time vol_start_time;
+    struct Sigmet_ymds_time vol_start_time;
     int ray_headers_sz;
     int extended_ray_headers_sz;
     int task_config_table_num;
@@ -231,7 +231,7 @@ struct ingest_configuration {
     char config_name[16];
 };
 
-struct task_sched_info {
+struct Sigmet_task_sched_info {
     int start_time;
     int stop_time;
     int skip;
@@ -241,7 +241,7 @@ struct task_sched_info {
     unsigned flag;
 };
 
-struct dsp_data_mask {
+struct Sigmet_dsp_data_mask {
     unsigned mask_word_0;
     unsigned ext_hdr_type;
     unsigned mask_word_1;
@@ -250,7 +250,7 @@ struct dsp_data_mask {
     unsigned mask_word_4;
 };
 
-struct task_dsp_mode_batch {
+struct Sigmet_task_dsp_mode_batch {
     unsigned lo_prf;
     unsigned lo_prf_frac;
     int lo_prf_sampl;
@@ -260,12 +260,12 @@ struct task_dsp_mode_batch {
     int sw_unfold_thresh;
 };
 
-struct task_dsp_info {
+struct Sigmet_task_dsp_info {
     unsigned major_mode;
     unsigned dsp_type;
-    struct dsp_data_mask curr_data_mask;
-    struct dsp_data_mask orig_data_mask;
-    struct task_dsp_mode_batch mb;
+    struct Sigmet_dsp_data_mask curr_data_mask;
+    struct Sigmet_dsp_data_mask orig_data_mask;
+    struct Sigmet_task_dsp_mode_batch mb;
     int prf;
     int pulse_w;
     enum Sigmet_Multi_PRF m_prf_mode;
@@ -285,7 +285,7 @@ struct task_dsp_info {
     char custom_ray_hdr[16];
 };
 
-struct task_calib_info {
+struct Sigmet_task_calib_info {
     int dbz_slope;
     int dbz_noise_thresh;
     int clutter_corr_thesh;
@@ -312,7 +312,7 @@ struct task_calib_info {
     unsigned flags2;
 };
 
-struct task_range_info {
+struct Sigmet_task_range_info {
     int rng_1st_bin;
     int rng_last_bin;
     int nbins_in;
@@ -323,43 +323,43 @@ struct task_range_info {
     int rng_avg_flag;
 };
 
-struct task_rhi_scan_info {
+struct Sigmet_task_rhi_scan_info {
     unsigned lo_elev;
     unsigned hi_elev;
     unsigned az[40];
     unsigned start;
 };
 
-struct task_ppi_scan_info {
+struct Sigmet_task_ppi_scan_info {
     unsigned left_az;
     unsigned right_az;
     unsigned elevs[40];
     unsigned start;
 };
 
-struct task_file_scan_info {
+struct Sigmet_task_file_scan_info {
     unsigned az0;
     unsigned elev0;
     char ant_ctrl[12];
 };
 
-struct task_manual_scan_info {
+struct Sigmet_task_manual_scan_info {
     unsigned flags;
 };
 
-struct task_scan_info {
+struct Sigmet_task_scan_info {
     unsigned scan_mode;
     int resoln;
     int n_sweeps;
     union {
-	struct task_rhi_scan_info rhi_info;
-	struct task_ppi_scan_info ppi_info;
-	struct task_file_scan_info file_info;
-	struct task_manual_scan_info man_info;
+	struct Sigmet_task_rhi_scan_info rhi_info;
+	struct Sigmet_task_ppi_scan_info ppi_info;
+	struct Sigmet_task_file_scan_info file_info;
+	struct Sigmet_task_manual_scan_info man_info;
     } scan_info;
 };
 
-struct task_misc_info {
+struct Sigmet_task_misc_info {
     int wave_len;
     char tr_ser[16];
     int power;
@@ -372,31 +372,31 @@ struct task_misc_info {
     unsigned custom[10];
 };
 
-struct task_end_info {
+struct Sigmet_task_end_info {
     int task_major;
     int task_minor;
     char task_config[12];
     char task_descr[80];
     int hybrid_ntasks;
     unsigned task_state;
-    struct ymds_time data_time;
+    struct Sigmet_ymds_time data_time;
 };
 
-struct task_configuration {
-    struct structure_header sh;
-    struct task_sched_info tsi;
-    struct task_dsp_info tdi;
-    struct task_calib_info tci;
-    struct task_range_info tri;
-    struct task_scan_info tni;
-    struct task_misc_info tmi;
-    struct task_end_info tei;
+struct Sigmet_task_configuration {
+    struct Sigmet_structure_header sh;
+    struct Sigmet_task_sched_info tsi;
+    struct Sigmet_task_dsp_info tdi;
+    struct Sigmet_task_calib_info tci;
+    struct Sigmet_task_range_info tri;
+    struct Sigmet_task_scan_info tni;
+    struct Sigmet_task_misc_info tmi;
+    struct Sigmet_task_end_info tei;
 };
 
-struct ingest_header {
-    struct structure_header sh;
-    struct ingest_configuration ic;
-    struct task_configuration tc;
+struct Sigmet_ingest_header {
+    struct Sigmet_structure_header sh;
+    struct Sigmet_ingest_configuration ic;
+    struct Sigmet_task_configuration tc;
 };
 
 /*
@@ -415,8 +415,8 @@ struct ingest_header {
 struct Sigmet_Vol {
 
     /* Volume headers */
-    struct product_hdr ph;		/* Record #1 */
-    struct ingest_header ih;		/* Record #2 */
+    struct Sigmet_product_hdr ph;		/* Record #1 */
+    struct Sigmet_ingest_header ih;		/* Record #2 */
 
     /* Ray headers and data */
     int num_types;				/* Number of data types */
