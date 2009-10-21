@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.10 $ $Date: 2009/10/21 21:36:34 $
+   .	$Revision: 1.11 $ $Date: 2009/10/21 21:41:18 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -97,56 +97,59 @@ static void print_i(FILE *, int , char *, char *, char *);
 static void print_s(FILE *, char *, char *, char *, char *);
 
 /* Initialize a Sigmet raw volume structure. */
-void Sigmet_InitVol(struct Sigmet_Vol *sigPtr)
+void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 {
     int n;
 
-    if (!sigPtr) {
+    if (!vol_p) {
 	return;
     }
-    memset(sigPtr, 0, sizeof(struct Sigmet_Vol));
-    sigPtr->num_types = SIGMET_NTYPES;
+    memset(vol_p, 0, sizeof(struct Sigmet_Vol));
+    vol_p->num_types = SIGMET_NTYPES;
     for (n = 0; n < SIGMET_NTYPES; n++) {
-	sigPtr->types[n] = DB_XHDR;
+	vol_p->types[n] = DB_XHDR;
     }
-    sigPtr->sweep_time = NULL;
-    sigPtr->sweep_angle = NULL;
-    sigPtr->ray_tilt0 = sigPtr->ray_tilt1
-	= sigPtr->ray_az0 = sigPtr->ray_az1 = NULL;
-    sigPtr->dat = NULL;
-    sigPtr->truncated = 0;
+    vol_p->sweep_time = NULL;
+    vol_p->sweep_angle = NULL;
+    vol_p->ray_tilt0 = vol_p->ray_tilt1
+	= vol_p->ray_az0 = vol_p->ray_az1 = NULL;
+    vol_p->dat = NULL;
+    vol_p->truncated = 0;
     return;
 }
 
 /* Free storage associated with a Sigmet raw volume. */
-void Sigmet_FreeVol(struct Sigmet_Vol *sigPtr)
+void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 {
-    if (!sigPtr) {
+    if (!vol_p) {
 	return;
     }
-    FREE(sigPtr->sweep_time);
-    FREE(sigPtr->sweep_angle);
-    FREE(sigPtr->ray_time);
-    FREE(sigPtr->ray_num_bins);
-    FREE(sigPtr->ray_tilt0);
-    FREE(sigPtr->ray_tilt1);
-    FREE(sigPtr->ray_az0);
-    FREE(sigPtr->ray_az1);
-    FREE(sigPtr->dat);
-    Sigmet_InitVol(sigPtr);
+    FREE(vol_p->sweep_time);
+    FREE(vol_p->sweep_angle);
+    FREE(vol_p->ray_time);
+    FREE(vol_p->ray_num_bins);
+    FREE(vol_p->ray_tilt0);
+    FREE(vol_p->ray_tilt1);
+    FREE(vol_p->ray_az0);
+    FREE(vol_p->ray_az1);
+    FREE(vol_p->dat);
+    Sigmet_InitVol(vol_p);
 }
 
 /* Read and store a headers from a Sigmet raw product volume. */
-int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *sigPtr)
+int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
 
     /*
        num_types_fl will receive the number of types in the f.
-       types_fl will store type identifiers from the file.
+       types_fl array will store type identifiers from the file.
+
        num_types will receive the number of types in the volume.
+       vol_p->types array will store type identifiers from the file.
+
        If the volume uses extended headers, num_types_fl = num_types+1,
-       and types_fl will have one more element than sigPtr->types.
+       and types_fl will have one more element than vol_p->types.
        The extra type is the "extended header type".
      */
     int num_types_fl;
@@ -185,59 +188,59 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *sigPtr)
 	}
     }
 
-    sigPtr->ph = get_product_hdr(rec);
+    vol_p->ph = get_product_hdr(rec);
 
     /* record 2, <ingest_header> */
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 	Err_Append("Could not read record 2 of Sigmet volume.  ");
 	goto error;
     }
-    sigPtr->ih = get_ingest_header(rec);
+    vol_p->ih = get_ingest_header(rec);
 
     /*
        Loop through the bits in the data type mask.  If bit is set, add the
        corresponding type to types array.
      */
 
-    data_type_mask = sigPtr->ih.tc.tdi.curr_data_mask.mask_word_0;
+    data_type_mask = vol_p->ih.tc.tdi.curr_data_mask.mask_word_0;
     for (y = 0, num_types_fl = 0, num_types = 0; y < SIGMET_NTYPES; y++) {
 	if (data_type_mask & type_masks[y]) {
 	    if (y == DB_XHDR) {
 		haveXHDR = 1;
 	    } else {
-		sigPtr->types[num_types] = y;
+		vol_p->types[num_types] = y;
 		num_types++;
 	    }
 	    types_fl[num_types_fl] = y;
 	    num_types_fl++;
 	}
     }
-    sigPtr->num_types = num_types;
+    vol_p->num_types = num_types;
 
     return 1;
 
 error:
-    Sigmet_FreeVol(sigPtr);
+    Sigmet_FreeVol(vol_p);
     return 0;
 }
 
 /* Write headers to a file in ASCII */
-void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol sig_vol)
+void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
 {
     int y;
     char elem_nm[STR_LEN];
 
-    print_product_hdr(out, "<product_hdr>.", sig_vol.ph);
-    print_ingest_header(out, "<ingest_hdr>.", sig_vol.ih);
-    fprintf(out, "%d ! %s ! %s\n", sig_vol.num_types, "num_types", "Number of Sigmet data types");
-    for (y = 0; y < sig_vol.num_types; y++) {
+    print_product_hdr(out, "<product_hdr>.", vol.ph);
+    print_ingest_header(out, "<ingest_hdr>.", vol.ih);
+    fprintf(out, "%d ! %s ! %s\n", vol.num_types, "num_types", "Number of Sigmet data types");
+    for (y = 0; y < vol.num_types; y++) {
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
-	fprintf(out, "%s ! %s ! %s\n", Sigmet_DataType_Abbrv(sig_vol.types[y]), elem_nm, Sigmet_DataType_Descr(sig_vol.types[y]));
+	fprintf(out, "%s ! %s ! %s\n", Sigmet_DataType_Abbrv(vol.types[y]), elem_nm, Sigmet_DataType_Descr(vol.types[y]));
     }
 }
 
 /* Read and store a Sigmet volume. */
-int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
+int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
 
@@ -249,19 +252,19 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
     int iRec;				/* Current record index (0 is first) */
     short nSwp;				/* Current sweep number (1 is first) */
 
-    int num_sweeps;			/* Number of sweeps in sig_vol */
+    int num_sweeps;			/* Number of sweeps in vol_p */
     int num_types_fl;			/* Number of types in the file.
 					 * This will be one more than
 					 * num_types if the volume contains
 					 * extended headers. */
     int num_types;			/* Number of types in the volume. */
-    int num_rays;				/* Number of rays per sweep */
+    int num_rays;			/* Number of rays per sweep */
     int num_rays_tot;			/* Total number of rays */
-    int num_bins;				/* Number of output bins */
+    int num_bins;			/* Number of output bins */
 
     /*
        Array of types in the file.  This will be different from the types
-       array in sigPtr  if the volume contains extended headers.
+       array in vol_p  if the volume contains extended headers.
      */
     enum Sigmet_DataType types_fl[SIGMET_NTYPES];
 
@@ -287,86 +290,86 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
     unsigned char *cePtr;		/* End of ray */
     unsigned short *sPtr;		/* Pointer into ray (2 byte values) */
     unsigned short *sePtr;		/* End of ray */
-    int *df;				/* Pointer into ray in sigPtr
+    int *df;				/* Pointer into ray in vol_p
 					 * structure when data will
 					 * be stored in memory as
 					 * floats */
     int tm_incr;			/* Ray time adjustment */
 
     /* Read headers */
-    if ( !Sigmet_ReadHdr(f, sigPtr) ) {
+    if ( !Sigmet_ReadHdr(f, vol_p) ) {
 	Err_Append("Could not read volume headers.\n");
 	goto error;
     }
 
     /*
-     * Allocate arrays in sigPtr.
+     * Allocate arrays in vol_p.
      */
 
-    num_sweeps = sigPtr->ih.tc.tni.num_sweeps;
-    num_rays = sigPtr->ih.ic.num_rays;
+    num_sweeps = vol_p->ih.tc.tni.num_sweeps;
+    num_rays = vol_p->ih.ic.num_rays;
     num_rays_tot = num_sweeps * num_rays;
-    num_bins = sigPtr->ph.pe.num_out_bins;
-    sigPtr->sweep_time = (double *)MALLOC(num_sweeps * sizeof(double));
-    sigPtr->sweep_angle = (double *)MALLOC(num_sweeps * sizeof(double));
+    num_bins = vol_p->ph.pe.num_out_bins;
+    vol_p->sweep_time = (double *)MALLOC(num_sweeps * sizeof(double));
+    vol_p->sweep_angle = (double *)MALLOC(num_sweeps * sizeof(double));
     sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
-    sigPtr->ray_time = (double **)MALLOC(sz);
-    sigPtr->ray_time[0] = (double *)(sigPtr->ray_time + num_sweeps);
+    vol_p->ray_time = (double **)MALLOC(sz);
+    vol_p->ray_time[0] = (double *)(vol_p->ray_time + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_time[s] = sigPtr->ray_time[s - 1] + num_rays;
+	vol_p->ray_time[s] = vol_p->ray_time[s - 1] + num_rays;
     }
 
     sz = num_sweeps * (sizeof(unsigned *) + num_rays * sizeof(unsigned));
-    sigPtr->ray_num_bins = (unsigned **)MALLOC(sz);
-    sigPtr->ray_num_bins[0] = (unsigned *)(sigPtr->ray_num_bins + num_sweeps);
+    vol_p->ray_num_bins = (unsigned **)MALLOC(sz);
+    vol_p->ray_num_bins[0] = (unsigned *)(vol_p->ray_num_bins + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_num_bins[s] = sigPtr->ray_num_bins[s - 1] + num_rays;
+	vol_p->ray_num_bins[s] = vol_p->ray_num_bins[s - 1] + num_rays;
     }
 
     sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
-    sigPtr->ray_tilt0 = (double **)MALLOC(sz);
-    sigPtr->ray_tilt0[0] = (double *)(sigPtr->ray_tilt0 + num_sweeps);
+    vol_p->ray_tilt0 = (double **)MALLOC(sz);
+    vol_p->ray_tilt0[0] = (double *)(vol_p->ray_tilt0 + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_tilt0[s] = sigPtr->ray_tilt0[s - 1] + num_rays;
+	vol_p->ray_tilt0[s] = vol_p->ray_tilt0[s - 1] + num_rays;
     }
 
     sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
-    sigPtr->ray_tilt1 = (double **)MALLOC(sz);
-    sigPtr->ray_tilt1[0] = (double *)(sigPtr->ray_tilt1 + num_sweeps);
+    vol_p->ray_tilt1 = (double **)MALLOC(sz);
+    vol_p->ray_tilt1[0] = (double *)(vol_p->ray_tilt1 + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_tilt1[s] = sigPtr->ray_tilt1[s - 1] + num_rays;
+	vol_p->ray_tilt1[s] = vol_p->ray_tilt1[s - 1] + num_rays;
     }
 
     sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
-    sigPtr->ray_az0 = (double **)MALLOC(sz);
-    sigPtr->ray_az0[0] = (double *)(sigPtr->ray_az0 + num_sweeps);
+    vol_p->ray_az0 = (double **)MALLOC(sz);
+    vol_p->ray_az0[0] = (double *)(vol_p->ray_az0 + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_az0[s] = sigPtr->ray_az0[s - 1] + num_rays;
+	vol_p->ray_az0[s] = vol_p->ray_az0[s - 1] + num_rays;
     }
 
     sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
-    sigPtr->ray_az1 = (double **)MALLOC(sz);
-    sigPtr->ray_az1[0] = (double *)(sigPtr->ray_az1 + num_sweeps);
+    vol_p->ray_az1 = (double **)MALLOC(sz);
+    vol_p->ray_az1[0] = (double *)(vol_p->ray_az1 + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_az1[s] = sigPtr->ray_az1[s - 1] + num_rays;
+	vol_p->ray_az1[s] = vol_p->ray_az1[s - 1] + num_rays;
     }
 
     sz = num_sweeps * (sizeof(int ***) + num_types * (sizeof(int **) 
 		+ num_rays * (sizeof(int *) + num_bins * sizeof(int))));
-    sigPtr->dat = (int ****)MALLOC(sz);
-    sigPtr->dat[0] = (int ***)(sigPtr->dat + num_sweeps);
-    sigPtr->dat[0][0] = (int **)(sigPtr->dat[0] + num_sweeps * num_types);
-    sigPtr->dat[0][0][0] = (int *)(sigPtr->dat[0][0] + num_sweeps * num_types * num_rays);
+    vol_p->dat = (int ****)MALLOC(sz);
+    vol_p->dat[0] = (int ***)(vol_p->dat + num_sweeps);
+    vol_p->dat[0][0] = (int **)(vol_p->dat[0] + num_sweeps * num_types);
+    vol_p->dat[0][0][0] = (int *)(vol_p->dat[0][0] + num_sweeps * num_types * num_rays);
     for (n = 1, ne = num_sweeps; n < ne; n++) {
-	sigPtr->dat[n] = sigPtr->dat[n - 1] + num_types;
+	vol_p->dat[n] = vol_p->dat[n - 1] + num_types;
     }
     for (n = 1, ne = num_sweeps * num_types; n < ne; n++) {
-	sigPtr->dat[0][n] = sigPtr->dat[0][n - 1] + num_rays;
+	vol_p->dat[0][n] = vol_p->dat[0][n - 1] + num_rays;
     }
     for (n = 1, ne = num_sweeps * num_types * num_rays; n < ne; n++) {
-	sigPtr->dat[0][0][n] = sigPtr->dat[0][0][n - 1] + num_bins;
+	vol_p->dat[0][0][n] = vol_p->dat[0][0][n - 1] + num_bins;
     }
-    d = sigPtr->dat[0][0][0];
+    d = vol_p->dat[0][0][0];
     e = d + num_sweeps * num_types * num_rays *  num_bins;
     while (d < e) {
 	*d++ = Sigmet_NoData();
@@ -377,8 +380,8 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
      * Data will be decompressed from rec and copied into ray.
      */
 
-    raySz = SZ_RAY_HDR + sigPtr->ih.ic.extended_ray_headers_sz
-	+ sigPtr->ph.pe.num_out_bins * sizeof(unsigned short);
+    raySz = SZ_RAY_HDR + vol_p->ih.ic.extended_ray_headers_sz
+	+ vol_p->ph.pe.num_out_bins * sizeof(unsigned short);
     ray = (unsigned short *)MALLOC(raySz);
     rayd = (unsigned char *)ray + SZ_RAY_HDR;
 
@@ -420,7 +423,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 
 	    n = get_sint16(rec + 36);
 	    if (n == 0) {
-		sigPtr->ih.tc.tni.num_sweeps = nSwp - 1;
+		vol_p->ih.tc.tni.num_sweeps = nSwp - 1;
 		break;
 	    }
 
@@ -444,8 +447,8 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 
 	    swpTm = Tm_CalToJul(year, month, day, 0, 0, sec + 0.001 * msec);
 	    angle = Sigmet_Bin2Rad(get_uint16(rec + 46));
-	    sigPtr->sweep_time[s] = swpTm;
-	    sigPtr->sweep_angle[s] = angle;
+	    vol_p->sweep_time[s] = swpTm;
+	    vol_p->sweep_angle[s] = angle;
 
 	    /*
 	     * Byte swap data segment in record, if necessary
@@ -565,13 +568,13 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 			    " maximum ray count.  ");
 		    goto error;
 		}
-		sigPtr->ray_az0[s][r] = Sigmet_Bin2Rad(ray[0]);
-		sigPtr->ray_tilt0[s][r] = Sigmet_Bin2Rad(ray[1]);
-		sigPtr->ray_az1[s][r] = Sigmet_Bin2Rad(ray[2]);
-		sigPtr->ray_tilt1[s][r] = Sigmet_Bin2Rad(ray[3]);
-		sigPtr->ray_num_bins[s][r] = ray[4];
+		vol_p->ray_az0[s][r] = Sigmet_Bin2Rad(ray[0]);
+		vol_p->ray_tilt0[s][r] = Sigmet_Bin2Rad(ray[1]);
+		vol_p->ray_az1[s][r] = Sigmet_Bin2Rad(ray[2]);
+		vol_p->ray_tilt1[s][r] = Sigmet_Bin2Rad(ray[3]);
+		vol_p->ray_num_bins[s][r] = ray[4];
 		if ( !haveXHDR ) {
-		    sigPtr->ray_time[s][r] = swpTm + ray[5];
+		    vol_p->ray_time[s][r] = swpTm + ray[5];
 		}
 
 		/*
@@ -588,7 +591,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 
 			swap_arr16(ray + SZ_RAY_HDR, 2);
 			tm_incr = get_sint32(ray + SZ_RAY_HDR);
-			sigPtr->ray_time[s][r] = swpTm + 0.001 * tm_incr;
+			vol_p->ray_time[s][r] = swpTm + 0.001 * tm_incr;
 			break;
 		    case DB_DBT:
 		    case DB_DBZ:
@@ -604,8 +607,8 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 		    case DB_LDRH:
 		    case DB_LDRV:
 			for (cPtr = rayd,
-				cePtr = cPtr + sigPtr->ray_num_bins[s][r],
-				df = sigPtr->dat[s][y - haveXHDR][r];
+				cePtr = cPtr + vol_p->ray_num_bins[s][r],
+				df = vol_p->dat[s][y - haveXHDR][r];
 				cPtr < cePtr;
 				cPtr++, df++)  {
 			    *df = Sigmet_DataType_ItoF(types_fl[y], *cPtr);
@@ -626,8 +629,8 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 		    case DB_LDRH2:
 		    case DB_LDRV2:
 			for (sPtr = (unsigned short *)rayd,
-				sePtr = sPtr + sigPtr->ray_num_bins[s][r],
-				df = sigPtr->dat[s][y - haveXHDR][r];
+				sePtr = sPtr + vol_p->ray_num_bins[s][r],
+				df = vol_p->dat[s][y - haveXHDR][r];
 				sPtr < sePtr; sPtr++, df++) {
 			    *df = Sigmet_DataType_ItoF(types_fl[y], *sPtr);
 			}
@@ -659,14 +662,14 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
     }
 
     if ( !feof(f) ) {
-	sigPtr->truncated = 1;
+	vol_p->truncated = 1;
     }
     FREE(ray);
     return 1;
 
 error:
     FREE(ray);
-    Sigmet_FreeVol(sigPtr);
+    Sigmet_FreeVol(vol_p);
     return 0;
 }
 
@@ -686,13 +689,13 @@ error:
  *-------------------------------------------------------------------------
  */
 
-int Sigmet_BadRay(sigPtr, s, r)
-    struct Sigmet_Vol *sigPtr;		/* Sigmet volume */
+int Sigmet_BadRay(vol_p, s, r)
+    struct Sigmet_Vol *vol_p;		/* Sigmet volume */
 
     int s;				/* Sweep index */
     int r;				/* Ray index */
 {
-    return sigPtr->ray_az0[s][r] == sigPtr->ray_az1[s][r];
+    return vol_p->ray_az0[s][r] == vol_p->ray_az1[s][r];
 }
 
 /* get and/or print product_hdr (a.k.a. raw volume record 1) */
