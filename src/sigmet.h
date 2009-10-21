@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.5 $ $Date: 2009/10/21 15:39:19 $
+   .	$Revision: 1.6 $ $Date: 2009/10/21 15:48:33 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -454,7 +454,7 @@ struct Sigmet_Vol {
 void Sigmet_InitVol(struct Sigmet_Vol *sigPtr);
 void Sigmet_FreeVol(struct Sigmet_Vol *sigPtr);
 int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *sigPtr);
-void Sigmet_PrintHdr(struct Sigmet_Vol vol, FILE *out);
+void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol);
 int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr);
 int Sigmet_BadRay(struct Sigmet_Vol *sigPtr, int s, int r);
 
