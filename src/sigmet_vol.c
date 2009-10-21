@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: $ $Date: $
+   .	$Revision: 1.1 $ $Date: 2009/10/21 14:14:58 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -44,57 +44,58 @@ static void swap_arr16(void *r, int nw);
 
 /* Functions to read and print Sigmet raw volume structures */
 static struct ymds_time get_ymds_time(char *);
-static void print_ymds_time(char *prefix, struct ymds_time, char *, FILE *);
+static void print_ymds_time(char *, struct ymds_time, char *, FILE *);
 static struct structure_header get_structure_header(char *);
-static void print_structure_header(char *prefix, struct structure_header, FILE *);
+static void print_structure_header(char *, struct structure_header, FILE *);
 static struct product_specific_info get_product_specific_info(char *);
-static void print_product_specific_info(char *prefix, struct product_specific_info, FILE *);
+static void print_product_specific_info(char *, struct product_specific_info, FILE *);
 static struct color_scale_def get_color_scale_def(char *);
-static void print_color_scale_def(char *prefix, struct color_scale_def, FILE *);
+static void print_color_scale_def(char *, struct color_scale_def, FILE *);
 static struct product_configuration get_product_configuration(char *);
-static void print_product_configuration(char *prefix, struct product_configuration, FILE *);
+static void print_product_configuration(char *, struct product_configuration, FILE *);
 static struct product_end get_product_end(char *);
-static void print_product_end(char *prefix, struct product_end, FILE *);
+static void print_product_end(char *, struct product_end, FILE *);
 static struct product_hdr get_product_hdr(char *);
-static void print_product_hdr(char *prefix, struct product_hdr, FILE *);
+static void print_product_hdr(char *, struct product_hdr, FILE *);
 static struct ingest_configuration get_ingest_configuration(char *);
-static void print_ingest_configuration(char *prefix, struct ingest_configuration, FILE *);
+static void print_ingest_configuration(char *, struct ingest_configuration, FILE *);
 static struct task_sched_info get_task_sched_info(char *);
-static void print_task_sched_info(char *prefix, struct task_sched_info, FILE *);
+static void print_task_sched_info(char *, struct task_sched_info, FILE *);
 static struct dsp_data_mask get_dsp_data_mask(char *);
-static void print_dsp_data_mask(char *prefix, struct dsp_data_mask, char *, FILE *);
+static void print_dsp_data_mask(char *, struct dsp_data_mask, char *, FILE *);
 static struct task_dsp_mode_batch get_task_dsp_mode_batch(char *);
-static void print_task_dsp_mode_batch(char *prefix, struct task_dsp_mode_batch, FILE *);
+static void print_task_dsp_mode_batch(char *, struct task_dsp_mode_batch, FILE *);
 static struct task_dsp_info get_task_dsp_info(char *);
-static void print_task_dsp_info(char *prefix, struct task_dsp_info, FILE *);
+static void print_task_dsp_info(char *, struct task_dsp_info, FILE *);
 static struct task_calib_info get_task_calib_info(char *);
-static void print_task_calib_info(char *prefix, struct task_calib_info, FILE *);
+static void print_task_calib_info(char *, struct task_calib_info, FILE *);
 static struct task_range_info get_task_range_info(char *);
-static void print_task_range_info(char *prefix, struct task_range_info, FILE *);
+static void print_task_range_info(char *, struct task_range_info, FILE *);
 static struct task_rhi_scan_info get_task_rhi_scan_info(char *);
-static void print_task_rhi_scan_info(char *prefix, struct task_rhi_scan_info, FILE *);
+static void print_task_rhi_scan_info(char *, struct task_rhi_scan_info, FILE *);
 static struct task_ppi_scan_info get_task_ppi_scan_info(char *);
-static void print_task_ppi_scan_info(char *prefix, struct task_ppi_scan_info, FILE *);
+static void print_task_ppi_scan_info(char *, struct task_ppi_scan_info, FILE *);
 static struct task_file_scan_info get_task_file_scan_info(char *);
-static void print_task_file_scan_info(char *prefix, struct task_file_scan_info, FILE *);
+static void print_task_file_scan_info(char *, struct task_file_scan_info, FILE *);
 static struct task_manual_scan_info get_task_manual_scan_info(char *);
-static void print_task_manual_scan_info(char *prefix, struct task_manual_scan_info, FILE *);
+static void print_task_manual_scan_info(char *, struct task_manual_scan_info, FILE *);
 static struct task_scan_info get_task_scan_info(char *);
-static void print_task_scan_info(char *prefix, struct task_scan_info, FILE *);
+static void print_task_scan_info(char *, struct task_scan_info, FILE *);
 static struct task_misc_info get_task_misc_info(char *);
-static void print_task_misc_info(char *prefix, struct task_misc_info, FILE *);
+static void print_task_misc_info(char *, struct task_misc_info, FILE *);
 static struct task_end_info get_task_end_info(char *);
-static void print_task_end_info(char *prefix, struct task_end_info, FILE *);
+static void print_task_end_info(char *, struct task_end_info, FILE *);
 static struct task_configuration get_task_configuration(char *);
-static void print_task_configuration(char *prefix, struct task_configuration, FILE *);
+static void print_task_configuration(char *, struct task_configuration, FILE *);
 static struct ingest_header get_ingest_header(char *);
-static void print_ingest_header(char *prefix, struct ingest_header, FILE *);
+static void print_ingest_header(char *, struct ingest_header, FILE *);
 
-static void print_u(unsigned u, char *prefix, char *comp, char *desc, FILE *out);
-static void print_x(unsigned u, char *prefix, char *comp, char *desc, FILE *out);
-static void print_i(int i, char *prefix, char *comp, char *desc, FILE *out);
-static void print_s(char *s, char *prefix, char *comp, char *desc, FILE *out);
-
+/* Print functions */
+static void print_u(unsigned , char *, char *, char *, FILE *);
+static void print_x(unsigned , char *, char *, char *, FILE *);
+static void print_i(int , char *, char *, char *, FILE *);
+static void print_s(char *, char *, char *, char *, FILE *);
+
 /* Initialize a Sigmet raw volume structure. */
 void Sigmet_InitVol(struct Sigmet_Vol *sigPtr)
 {
@@ -260,10 +261,8 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
     double swpTm;
     double angle;			/* Sweep angle.  Ref. geography (n) */
 
-    int haveXHDR = 0;			/* If true, volume uses extended
-					 * headers */
-    int have_hdrs;			/* If true, ray headers have been
-					 * stored */
+    int haveXHDR = 0;			/* true => volume uses extended headers */
+    int have_hdrs;			/* If true, ray headers have been stored */
 
     unsigned short *ray = NULL;		/* Buffer ray, receives data from rec */
     unsigned short *rayP = NULL;	/* Point into ray while looping */
@@ -272,16 +271,13 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
     unsigned char *rayd;		/* Pointer to start of data in ray */
     size_t sz;				/* Tmp value */
     unsigned short numWds;		/* Number of words in a run of data */
-    int s, y, r;			/* Sweep, type, ray, bin indeces (0
-					 * based) */
+    int s, y, r;			/* Sweep, type, ray indeces (0 based) */
     int i, n, ne;			/* Temporary values */
     int *d, *e;
 
-    unsigned char *cPtr;		/* Pointer into ray, assumed
-					 * to be array of char's */
+    unsigned char *cPtr;		/* Pointer into ray (1 byte values) */
     unsigned char *cePtr;		/* End of ray */
-    unsigned short *sPtr;		/* Pointer into ray, assumed
-					 * to be array of shorts */
+    unsigned short *sPtr;		/* Pointer into ray (2 byte values) */
     unsigned short *sePtr;		/* End of ray */
     int *df;				/* Pointer into ray in sigPtr
 					 * structure when data will
