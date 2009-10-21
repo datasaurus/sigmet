@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.6 $ $Date: 2009/10/21 15:48:33 $
+   .	$Revision: 1.7 $ $Date: 2009/10/21 20:43:05 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -127,7 +127,7 @@ struct Sigmet_Product_Configuration {
     unsigned inp_data_type;
     unsigned proj_type;
     int rad_smoother;
-    int run_cnt;
+    int num_runs;
     int zr_const;
     int zr_exp;
     int x_smooth;
@@ -153,22 +153,22 @@ struct Sigmet_Product_End {
     int pulse_w;
     unsigned proc_type;
     unsigned trigger_rate_scheme;
-    int n_samples;
+    int num_samples;
     char clutter_filter[12];
     unsigned lin_filter;
     int wave_len;
     int trunc_ht;
     int rng_bin0;
     int rng_last_bin;
-    int n_out_bins;
+    int num_out_bins;
     unsigned flag;
     unsigned polarization;
-    int io_cal_hpol;
-    int noise_cal_hpol;
-    int radar_const;
+    int hpol_io_cal;
+    int hpol_cal_noise;
+    int hpol_radar_const;
     unsigned recv_bandw;
-    int noise_hpol;
-    int noise_vpol;
+    int hpol_noise;
+    int vpol_noise;
     int ldr_offset;
     int zdr_offset;
     unsigned tcf_cal_flags;
@@ -179,14 +179,14 @@ struct Sigmet_Product_End {
     unsigned flatten;
     unsigned fault;
     unsigned insites_mask;
-    unsigned n_logfilter;
+    unsigned logfilter_num;
     unsigned cluttermap_used;
     unsigned proj_lat;
     unsigned proj_lon;
     int i_prod;
     int melt_level;
     int radar_ht_ref;
-    int n_elem;
+    int num_elem;
     unsigned wind_spd;
     unsigned wind_dir;
     char tz[8];
@@ -201,7 +201,7 @@ struct Sigmet_Product_Hdr {
 struct Sigmet_Ingest_Configuration {
     char file_name[80];
     int num_assoc_files;
-    int n_sweeps;
+    int num_sweeps;
     int size_files;
     struct Sigmet_YMDS_Time vol_start_time;
     int ray_headers_sz;
@@ -220,12 +220,12 @@ struct Sigmet_Ingest_Configuration {
     unsigned resolution;
     unsigned index_first_ray;
     unsigned rays_in_sweep;
-    int nbytes_gparam;
+    int num_bytes_gparam;
     int altitude;
     int velocity[3];
     int offset_inu[3];
     unsigned fault;
-    int meltz;
+    int melt_level;
     char tz[8];
     unsigned flags;
     char config_name[16];
@@ -302,12 +302,12 @@ struct Sigmet_Task_Calib_Info {
     int zdr_bias;
     int nx_clutter_thresh;
     unsigned nx_clutter_skip;
-    int h_io_cal;
-    int v_io_cal;
-    int h_noise;
-    int v_noise;
-    int h_radar_const;
-    int v_radar_const;
+    int hpol_io_cal;
+    int vpol_io_cal;
+    int hpol_noise;
+    int vpol_noise;
+    int hpol_radar_const;
+    int vpol_radar_const;
     unsigned bandwidth;
     unsigned flags2;
 };
@@ -315,8 +315,8 @@ struct Sigmet_Task_Calib_Info {
 struct Sigmet_Task_Range_Info {
     int rng_1st_bin;
     int rng_last_bin;
-    int nbins_in;
-    int nbins_out;
+    int num_bins_in;
+    int num_bins_out;
     int step_in;
     int step_out;
     unsigned flag;
@@ -350,7 +350,7 @@ struct Sigmet_Task_Manual_Scan_Info {
 struct Sigmet_Task_Scan_Info {
     unsigned scan_mode;
     int resoln;
-    int n_sweeps;
+    int num_sweeps;
     union {
 	struct Sigmet_Task_RHI_Scan_Info rhi_info;
 	struct Sigmet_Task_PPI_Scan_Info ppi_info;
@@ -367,7 +367,7 @@ struct Sigmet_Task_Misc_Info {
     unsigned polarization;
     int trunc_ht;
     int comment_sz;
-    unsigned h_beam_width;
+    unsigned horiz_beam_width;
     unsigned v_beam_width;
     unsigned custom[10];
 };
@@ -427,7 +427,7 @@ struct Sigmet_Vol {
 						   dimensioned [sweep] */
     double **ray_time;				/* Ray time, Julian day,
 						   dimesioned [sweep][ray] */
-    unsigned **ray_nbins;			/* Number of bins in ray,
+    unsigned **ray_num_bins;			/* Number of bins in ray,
 						   dimensioned [sweep][ray],
 						   varies from ray to ray */
     double **ray_tilt0;				/* Tilt at start of ray, radians,

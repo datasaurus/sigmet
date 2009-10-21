@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.8 $ $Date: 2009/10/21 16:16:34 $
+   .	$Revision: 1.9 $ $Date: 2009/10/21 20:42:28 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -127,7 +127,7 @@ void Sigmet_FreeVol(struct Sigmet_Vol *sigPtr)
     FREE(sigPtr->sweep_time);
     FREE(sigPtr->sweep_angle);
     FREE(sigPtr->ray_time);
-    FREE(sigPtr->ray_nbins);
+    FREE(sigPtr->ray_num_bins);
     FREE(sigPtr->ray_tilt0);
     FREE(sigPtr->ray_tilt1);
     FREE(sigPtr->ray_az0);
@@ -249,7 +249,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
     int iRec;				/* Current record index (0 is first) */
     short nSwp;				/* Current sweep number (1 is first) */
 
-    int n_sweeps;			/* Number of sweeps in sig_vol */
+    int num_sweeps;			/* Number of sweeps in sig_vol */
     int n_types_fl;			/* Number of types in the file.
 					 * This will be one more than
 					 * n_types if the volume contains
@@ -303,71 +303,71 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
      * Allocate arrays in sigPtr.
      */
 
-    n_sweeps = sigPtr->ih.tc.tni.n_sweeps;
+    num_sweeps = sigPtr->ih.tc.tni.num_sweeps;
     n_rays = sigPtr->ih.ic.rays_in_sweep;
-    n_rays_tot = n_sweeps * n_rays;
-    n_bins = sigPtr->ph.pe.n_out_bins;
-    sigPtr->sweep_time = (double *)MALLOC(n_sweeps * sizeof(double));
-    sigPtr->sweep_angle = (double *)MALLOC(n_sweeps * sizeof(double));
-    sz = n_sweeps * (sizeof(double *) + n_rays * sizeof(double));
+    n_rays_tot = num_sweeps * n_rays;
+    n_bins = sigPtr->ph.pe.num_out_bins;
+    sigPtr->sweep_time = (double *)MALLOC(num_sweeps * sizeof(double));
+    sigPtr->sweep_angle = (double *)MALLOC(num_sweeps * sizeof(double));
+    sz = num_sweeps * (sizeof(double *) + n_rays * sizeof(double));
     sigPtr->ray_time = (double **)MALLOC(sz);
-    sigPtr->ray_time[0] = (double *)(sigPtr->ray_time + n_sweeps);
-    for (s = 1; s < n_sweeps; s++) {
+    sigPtr->ray_time[0] = (double *)(sigPtr->ray_time + num_sweeps);
+    for (s = 1; s < num_sweeps; s++) {
 	sigPtr->ray_time[s] = sigPtr->ray_time[s - 1] + n_rays;
     }
 
-    sz = n_sweeps * (sizeof(unsigned *) + n_rays * sizeof(unsigned));
-    sigPtr->ray_nbins = (unsigned **)MALLOC(sz);
-    sigPtr->ray_nbins[0] = (unsigned *)(sigPtr->ray_nbins + n_sweeps);
-    for (s = 1; s < n_sweeps; s++) {
-	sigPtr->ray_nbins[s] = sigPtr->ray_nbins[s - 1] + n_rays;
+    sz = num_sweeps * (sizeof(unsigned *) + n_rays * sizeof(unsigned));
+    sigPtr->ray_num_bins = (unsigned **)MALLOC(sz);
+    sigPtr->ray_num_bins[0] = (unsigned *)(sigPtr->ray_num_bins + num_sweeps);
+    for (s = 1; s < num_sweeps; s++) {
+	sigPtr->ray_num_bins[s] = sigPtr->ray_num_bins[s - 1] + n_rays;
     }
 
-    sz = n_sweeps * (sizeof(double *) + n_rays * sizeof(double));
+    sz = num_sweeps * (sizeof(double *) + n_rays * sizeof(double));
     sigPtr->ray_tilt0 = (double **)MALLOC(sz);
-    sigPtr->ray_tilt0[0] = (double *)(sigPtr->ray_tilt0 + n_sweeps);
-    for (s = 1; s < n_sweeps; s++) {
+    sigPtr->ray_tilt0[0] = (double *)(sigPtr->ray_tilt0 + num_sweeps);
+    for (s = 1; s < num_sweeps; s++) {
 	sigPtr->ray_tilt0[s] = sigPtr->ray_tilt0[s - 1] + n_rays;
     }
 
-    sz = n_sweeps * (sizeof(double *) + n_rays * sizeof(double));
+    sz = num_sweeps * (sizeof(double *) + n_rays * sizeof(double));
     sigPtr->ray_tilt1 = (double **)MALLOC(sz);
-    sigPtr->ray_tilt1[0] = (double *)(sigPtr->ray_tilt1 + n_sweeps);
-    for (s = 1; s < n_sweeps; s++) {
+    sigPtr->ray_tilt1[0] = (double *)(sigPtr->ray_tilt1 + num_sweeps);
+    for (s = 1; s < num_sweeps; s++) {
 	sigPtr->ray_tilt1[s] = sigPtr->ray_tilt1[s - 1] + n_rays;
     }
 
-    sz = n_sweeps * (sizeof(double *) + n_rays * sizeof(double));
+    sz = num_sweeps * (sizeof(double *) + n_rays * sizeof(double));
     sigPtr->ray_az0 = (double **)MALLOC(sz);
-    sigPtr->ray_az0[0] = (double *)(sigPtr->ray_az0 + n_sweeps);
-    for (s = 1; s < n_sweeps; s++) {
+    sigPtr->ray_az0[0] = (double *)(sigPtr->ray_az0 + num_sweeps);
+    for (s = 1; s < num_sweeps; s++) {
 	sigPtr->ray_az0[s] = sigPtr->ray_az0[s - 1] + n_rays;
     }
 
-    sz = n_sweeps * (sizeof(double *) + n_rays * sizeof(double));
+    sz = num_sweeps * (sizeof(double *) + n_rays * sizeof(double));
     sigPtr->ray_az1 = (double **)MALLOC(sz);
-    sigPtr->ray_az1[0] = (double *)(sigPtr->ray_az1 + n_sweeps);
-    for (s = 1; s < n_sweeps; s++) {
+    sigPtr->ray_az1[0] = (double *)(sigPtr->ray_az1 + num_sweeps);
+    for (s = 1; s < num_sweeps; s++) {
 	sigPtr->ray_az1[s] = sigPtr->ray_az1[s - 1] + n_rays;
     }
 
-    sz = n_sweeps * (sizeof(int ***) + n_types * (sizeof(int **) 
+    sz = num_sweeps * (sizeof(int ***) + n_types * (sizeof(int **) 
 		+ n_rays * (sizeof(int *) + n_bins * sizeof(int))));
     sigPtr->dat = (int ****)MALLOC(sz);
-    sigPtr->dat[0] = (int ***)(sigPtr->dat + n_sweeps);
-    sigPtr->dat[0][0] = (int **)(sigPtr->dat[0] + n_sweeps * n_types);
-    sigPtr->dat[0][0][0] = (int *)(sigPtr->dat[0][0] + n_sweeps * n_types * n_rays);
-    for (n = 1, ne = n_sweeps; n < ne; n++) {
+    sigPtr->dat[0] = (int ***)(sigPtr->dat + num_sweeps);
+    sigPtr->dat[0][0] = (int **)(sigPtr->dat[0] + num_sweeps * n_types);
+    sigPtr->dat[0][0][0] = (int *)(sigPtr->dat[0][0] + num_sweeps * n_types * n_rays);
+    for (n = 1, ne = num_sweeps; n < ne; n++) {
 	sigPtr->dat[n] = sigPtr->dat[n - 1] + n_types;
     }
-    for (n = 1, ne = n_sweeps * n_types; n < ne; n++) {
+    for (n = 1, ne = num_sweeps * n_types; n < ne; n++) {
 	sigPtr->dat[0][n] = sigPtr->dat[0][n - 1] + n_rays;
     }
-    for (n = 1, ne = n_sweeps * n_types * n_rays; n < ne; n++) {
+    for (n = 1, ne = num_sweeps * n_types * n_rays; n < ne; n++) {
 	sigPtr->dat[0][0][n] = sigPtr->dat[0][0][n - 1] + n_bins;
     }
     d = sigPtr->dat[0][0][0];
-    e = d + n_sweeps * n_types * n_rays *  n_bins;
+    e = d + num_sweeps * n_types * n_rays *  n_bins;
     while (d < e) {
 	*d++ = Sigmet_NoData();
     }
@@ -378,7 +378,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
      */
 
     raySz = SZ_RAY_HDR + sigPtr->ih.ic.extended_ray_headers_sz
-	+ sigPtr->ph.pe.n_out_bins * sizeof(unsigned short);
+	+ sigPtr->ph.pe.num_out_bins * sizeof(unsigned short);
     ray = (unsigned short *)MALLOC(raySz);
     rayd = (unsigned char *)ray + SZ_RAY_HDR;
 
@@ -420,7 +420,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 
 	    n = get_sint16(rec + 36);
 	    if (n == 0) {
-		sigPtr->ih.tc.tni.n_sweeps = nSwp - 1;
+		sigPtr->ih.tc.tni.num_sweeps = nSwp - 1;
 		break;
 	    }
 
@@ -555,7 +555,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 		 * End of ray.
 		 */
 
-		if (s > n_sweeps) {
+		if (s > num_sweeps) {
 		    Err_Append("Volume storage went beyond"
 			    " maximum sweep count.  ");
 		    goto error;
@@ -569,7 +569,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 		sigPtr->ray_tilt0[s][r] = Sigmet_Bin2Rad(ray[1]);
 		sigPtr->ray_az1[s][r] = Sigmet_Bin2Rad(ray[2]);
 		sigPtr->ray_tilt1[s][r] = Sigmet_Bin2Rad(ray[3]);
-		sigPtr->ray_nbins[s][r] = ray[4];
+		sigPtr->ray_num_bins[s][r] = ray[4];
 		if ( !haveXHDR ) {
 		    sigPtr->ray_time[s][r] = swpTm + ray[5];
 		}
@@ -604,7 +604,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 		    case DB_LDRH:
 		    case DB_LDRV:
 			for (cPtr = rayd,
-				cePtr = cPtr + sigPtr->ray_nbins[s][r],
+				cePtr = cPtr + sigPtr->ray_num_bins[s][r],
 				df = sigPtr->dat[s][y - haveXHDR][r];
 				cPtr < cePtr;
 				cPtr++, df++)  {
@@ -626,7 +626,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 		    case DB_LDRH2:
 		    case DB_LDRV2:
 			for (sPtr = (unsigned short *)rayd,
-				sePtr = sPtr + sigPtr->ray_nbins[s][r],
+				sePtr = sPtr + sigPtr->ray_num_bins[s][r],
 				df = sigPtr->dat[s][y - haveXHDR][r];
 				sPtr < sePtr; sPtr++, df++) {
 			    *df = Sigmet_DataType_ItoF(types_fl[y], *sPtr);
@@ -750,7 +750,7 @@ struct Sigmet_Product_Configuration get_product_configuration(char *rec)
     pc.inp_data_type = get_uint16(rec + 144);
     pc.proj_type = *(unsigned char *)(rec + 146);
     pc.rad_smoother = get_sint16(rec + 148);
-    pc.run_cnt = get_sint16(rec + 150);
+    pc.num_runs = get_sint16(rec + 150);
     pc.zr_const = get_sint32(rec + 152);
     pc.zr_exp = get_sint32(rec + 156);
     pc.x_smooth = get_sint16(rec + 160);
@@ -792,7 +792,7 @@ void print_product_configuration(FILE *out, char *pfx, struct Sigmet_Product_Con
     print_u(out, pc.inp_data_type, prefix, "inp_data_type", "Data type used as input (See Section 3.8 for values)");
     print_u(out, pc.proj_type, prefix, "proj_type", "Projection type: 0=Centered Azimuthal, 1=Mercator");
     print_i(out, pc.rad_smoother, prefix, "rad_smoother", "Radial smoother in 1/100 of km");
-    print_i(out, pc.run_cnt, prefix, "run_cnt", "Number of times this product configuration has run");
+    print_i(out, pc.num_runs, prefix, "num_runs", "Number of times this product configuration has run");
     print_i(out, pc.zr_const, prefix, "zr_const", "Z/R relationship constant in 1/1000");
     print_i(out, pc.zr_exp, prefix, "zr_exp", "Z/R relationship exponent in 1/1000");
     print_i(out, pc.x_smooth, prefix, "x_smooth", "X-direction smoother in 1/100 of km");
@@ -906,7 +906,7 @@ struct Sigmet_Product_End get_product_end(char *rec)
     pe.pulse_w = get_sint32(rec + 124);
     pe.proc_type = get_uint16(rec + 128);
     pe.trigger_rate_scheme = get_uint16(rec + 130);
-    pe.n_samples = get_sint16(rec + 132);
+    pe.num_samples = get_sint16(rec + 132);
     strncpy(pe.clutter_filter, rec + 134, 12);
     trimRight(pe.clutter_filter, 12);
     pe.lin_filter = get_uint16(rec + 146);
@@ -914,15 +914,15 @@ struct Sigmet_Product_End get_product_end(char *rec)
     pe.trunc_ht = get_sint32(rec + 152);
     pe.rng_bin0 = get_sint32(rec + 156);
     pe.rng_last_bin = get_sint32(rec + 160);
-    pe.n_out_bins = get_sint32(rec + 164);
+    pe.num_out_bins = get_sint32(rec + 164);
     pe.flag = get_uint16(rec + 168);
     pe.polarization = get_uint16(rec + 172);
-    pe.io_cal_hpol = get_sint16(rec + 174);
-    pe.noise_cal_hpol = get_sint16(rec + 176);
-    pe.radar_const = get_sint16(rec + 178);
+    pe.hpol_io_cal = get_sint16(rec + 174);
+    pe.hpol_cal_noise = get_sint16(rec + 176);
+    pe.hpol_radar_const = get_sint16(rec + 178);
     pe.recv_bandw = get_uint16(rec + 180);
-    pe.noise_hpol = get_sint16(rec + 182);
-    pe.noise_vpol = get_sint16(rec + 184);
+    pe.hpol_noise = get_sint16(rec + 182);
+    pe.vpol_noise = get_sint16(rec + 184);
     pe.ldr_offset = get_sint16(rec + 186);
     pe.zdr_offset = get_sint16(rec + 188);
     pe.tcf_cal_flags = get_uint16(rec + 190);
@@ -933,14 +933,14 @@ struct Sigmet_Product_End get_product_end(char *rec)
     pe.flatten = get_uint32(rec + 224);
     pe.fault = get_uint32(rec + 228);
     pe.insites_mask = get_uint32(rec + 232);
-    pe.n_logfilter = get_uint16(rec + 236);
+    pe.logfilter_num = get_uint16(rec + 236);
     pe.cluttermap_used = get_uint16(rec + 238);
     pe.proj_lat = get_uint32(rec + 240);
     pe.proj_lon = get_uint32(rec + 244);
     pe.i_prod = get_sint16(rec + 248);
     pe.melt_level = get_sint16(rec + 282);
     pe.radar_ht_ref = get_sint16(rec + 284);
-    pe.n_elem = get_sint16(rec + 286);
+    pe.num_elem = get_sint16(rec + 286);
     pe.wind_spd = *(unsigned char *)(rec + 288);
     pe.wind_dir = *(unsigned char *)(rec + 289);
     strncpy(pe.tz, rec + 292, 8);
@@ -968,22 +968,22 @@ void print_product_end(FILE *out, char *pfx, struct Sigmet_Product_End pe)
     print_i(out, pe.pulse_w, prefix, "pulse_w", "Pulse width in 1/100 of microseconds");
     print_u(out, pe.proc_type, prefix, "proc_type", "Type of signal processor used");
     print_u(out, pe.trigger_rate_scheme, prefix, "trigger_rate_scheme", "Trigger rate scheme");
-    print_i(out, pe.n_samples, prefix, "n_samples", "Number of samples used");
+    print_i(out, pe.num_samples, prefix, "num_samples", "Number of samples used");
     print_s(out, pe.clutter_filter, prefix, "clutter_filter", "Clutter filter file name");
     print_u(out, pe.lin_filter, prefix, "lin_filter", "Number of linear based filter for the first bin");
     print_i(out, pe.wave_len, prefix, "wave_len", "Wavelength in 1/100 of centimeters");
     print_i(out, pe.trunc_ht, prefix, "trunc_ht", "Truncation height (cm above the radar)");
     print_i(out, pe.rng_bin0, prefix, "rng_bin0", "Range of the first bin in cm");
     print_i(out, pe.rng_last_bin, prefix, "rng_last_bin", "Range of the last bin in cm");
-    print_i(out, pe.n_out_bins, prefix, "n_out_bins", "Number of output bins");
+    print_i(out, pe.num_out_bins, prefix, "num_out_bins", "Number of output bins");
     print_u(out, pe.flag, prefix, "flag", "Flag word Bit0:Disdrometer failed, we used setup for Z/R source instead");
     print_u(out, pe.polarization, prefix, "polarization", "Type of polarization used");
-    print_i(out, pe.io_cal_hpol, prefix, "io_cal_hpol", "I0 cal value, horizontal pol, in 1/100 dBm");
-    print_i(out, pe.noise_cal_hpol, prefix, "noise_cal_hpol", "Noise at calibration, horizontal pol, in 1/100 dBm");
-    print_i(out, pe.radar_const, prefix, "radar_const", "Radar constant, horizontal pol, in 1/100 dB");
+    print_i(out, pe.hpol_io_cal, prefix, "hpol_io_cal", "I0 cal value, horizontal pol, in 1/100 dBm");
+    print_i(out, pe.hpol_cal_noise, prefix, "hpol_cal_noise", "Noise at calibration, horizontal pol, in 1/100 dBm");
+    print_i(out, pe.hpol_radar_const, prefix, "hpol_radar_const", "Radar constant, horizontal pol, in 1/100 dB");
     print_u(out, pe.recv_bandw, prefix, "recv_bandw", "Receiver bandwidth in kHz");
-    print_i(out, pe.noise_hpol, prefix, "noise_hpol", "Current noise level, horizontal pol, in 1/100 dBm");
-    print_i(out, pe.noise_vpol, prefix, "noise_vpol", "Current noise level, vertical pol, in 1/100 dBm");
+    print_i(out, pe.hpol_noise, prefix, "hpol_noise", "Current noise level, horizontal pol, in 1/100 dBm");
+    print_i(out, pe.vpol_noise, prefix, "vpol_noise", "Current noise level, vertical pol, in 1/100 dBm");
     print_i(out, pe.ldr_offset, prefix, "ldr_offset", "LDR offset, in 1/100 dB");
     print_i(out, pe.zdr_offset, prefix, "zdr_offset", "ZDR offset, in 1/100 dB");
     print_u(out, pe.tcf_cal_flags, prefix, "tcf_cal_flags", "TCF Cal flags, see struct task_calib_info (added in 8.12.3)");
@@ -994,14 +994,14 @@ void print_product_end(FILE *out, char *pfx, struct Sigmet_Product_End pe)
     print_u(out, pe.flatten, prefix, "flatten", "1/Flattening in 1/1000000 (zero = sphere)");
     print_u(out, pe.fault, prefix, "fault", "Fault status of task, see ingest_configuration 3.2.14 for details");
     print_u(out, pe.insites_mask, prefix, "insites_mask", "Mask of input sites used in a composite");
-    print_u(out, pe.n_logfilter, prefix, "n_logfilter", "Number of log based filter for the first bin");
+    print_u(out, pe.logfilter_num, prefix, "logfilter_num", "Number of log based filter for the first bin");
     print_u(out, pe.cluttermap_used, prefix, "cluttermap_used", "Nonzero if cluttermap applied to the ingest data");
     print_u(out, pe.proj_lat, prefix, "proj_lat", "Latitude of projection reference *");
     print_u(out, pe.proj_lon, prefix, "proj_lon", "Longitude of projection reference *");
     print_i(out, pe.i_prod, prefix, "i_prod", "Product sequence number");
     print_i(out, pe.melt_level, prefix, "melt_level", "Melting level in meters, msb complemented (0=unknown)");
     print_i(out, pe.radar_ht_ref, prefix, "radar_ht_ref", "Height of radar above reference height in meters");
-    print_i(out, pe.n_elem, prefix, "n_elem", "Number of elements in product results array");
+    print_i(out, pe.num_elem, prefix, "num_elem", "Number of elements in product results array");
     print_u(out, pe.wind_spd, prefix, "wind_spd", "Mean wind speed");
     print_u(out, pe.wind_dir, prefix, "wind_dir", "Mean wind direction (unknown if speed and direction 0)");
     print_s(out, pe.tz, prefix, "tz", "TZ Name of recorded data");
@@ -1039,7 +1039,7 @@ struct Sigmet_Ingest_Configuration get_ingest_configuration(char *rec)
     strncpy(ic.file_name, rec + 0, 80);
     trimRight(ic.file_name, 80);
     ic.num_assoc_files = get_sint16(rec + 80);
-    ic.n_sweeps = get_sint16(rec + 82);
+    ic.num_sweeps = get_sint16(rec + 82);
     ic.size_files = get_sint32(rec + 84);
     ic.vol_start_time = get_ymds_time(rec + 88);
     ic.ray_headers_sz = get_sint16(rec + 112);
@@ -1061,7 +1061,7 @@ struct Sigmet_Ingest_Configuration get_ingest_configuration(char *rec)
     ic.resolution = get_uint16(rec + 180);
     ic.index_first_ray = get_uint16(rec + 182);
     ic.rays_in_sweep = get_uint16(rec + 184);
-    ic.nbytes_gparam = get_sint16(rec + 186);
+    ic.num_bytes_gparam = get_sint16(rec + 186);
     ic.altitude = get_sint32(rec + 188);
     q = ic.velocity;
     p = rec + 192;
@@ -1076,7 +1076,7 @@ struct Sigmet_Ingest_Configuration get_ingest_configuration(char *rec)
 	*q = get_sint32(p);
     }
     ic.fault = get_uint32(rec + 216);
-    ic.meltz = get_sint16(rec + 220);
+    ic.melt_level = get_sint16(rec + 220);
     strncpy(ic.tz, rec + 224, 8);
     trimRight(ic.tz, 8);
     ic.flags = get_uint32(rec + 232);
@@ -1092,7 +1092,7 @@ void print_ingest_configuration(FILE *out, char *pfx, struct Sigmet_Ingest_Confi
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<ingest_configuration>.");
     print_s(out, ic.file_name, prefix, "file_name", "Name of file on disk");
     print_i(out, ic.num_assoc_files, prefix, "num_assoc_files", "Number of associated data files extant");
-    print_i(out, ic.n_sweeps, prefix, "n_sweeps", "Number of sweeps completed so far");
+    print_i(out, ic.num_sweeps, prefix, "num_sweeps", "Number of sweeps completed so far");
     print_i(out, ic.size_files, prefix, "size_files", "Total size of all files in bytes");
     print_ymds_time(out, ic.vol_start_time, prefix, "vol_start_time","Time that volume scan was started, TZ spec in bytes 166 & 224");
     print_i(out, ic.ray_headers_sz, prefix, "ray_headers_sz", "Number of bytes in the ray headers");
@@ -1111,7 +1111,7 @@ void print_ingest_configuration(FILE *out, char *pfx, struct Sigmet_Ingest_Confi
     print_u(out, ic.resolution, prefix, "resolution", "Resolution specified in number of rays in a 360_ sweep");
     print_u(out, ic.index_first_ray, prefix, "index_first_ray", "Index of first ray from above set of rays");
     print_u(out, ic.rays_in_sweep, prefix, "rays_in_sweep", "Number of rays in a sweep");
-    print_i(out, ic.nbytes_gparam, prefix, "nbytes_gparam", "Number of bytes in each gparam");
+    print_i(out, ic.num_bytes_gparam, prefix, "num_bytes_gparam", "Number of bytes in each gparam");
     print_i(out, ic.altitude, prefix, "altitude", "Altitude of radar (cm above sea level)");
     print_i(out, ic.velocity[0], prefix, "velocity east", "Velocity of radar platform (cm/sec) east");
     print_i(out, ic.velocity[1], prefix, "velocity north", "Velocity of radar platform (cm/sec) north");
@@ -1120,7 +1120,7 @@ void print_ingest_configuration(FILE *out, char *pfx, struct Sigmet_Ingest_Confi
     print_i(out, ic.offset_inu[1], prefix, "offset_inu bow", "Antenna offset from INU (cm) bow");
     print_i(out, ic.offset_inu[2], prefix, "offset_inu up", "Antenna offset from INU (cm) up");
     print_u(out, ic.fault, prefix, "fault", "Fault status at the time the task was started, bits: 0:Normal BITE 1:Critical BITE 2:Normal RCP 3:Critical RCP 4:Critical system 5:Product gen. 6:Output 7:Normal system ");
-    print_i(out, ic.meltz, prefix, "meltz", "Height of melting layer (meters above sea level) MSB is complemented, zero=Unknown");
+    print_i(out, ic.melt_level, prefix, "melt_level", "Height of melting layer (meters above sea level) MSB is complemented, zero=Unknown");
     print_s(out, ic.tz, prefix, "tz", "Local timezone string, null terminated");
     print_u(out, ic.flags, prefix, "flags", "Flags, Bit 0=First ray not centered on zero degrees");
     print_s(out, ic.config_name, prefix, "config_name", "Configuration name in the dpolapp.conf file, null terminated");
@@ -1306,12 +1306,12 @@ struct Sigmet_Task_Calib_Info get_task_calib_info(char *rec)
     tci.zdr_bias = get_sint16(rec + 42);
     tci.nx_clutter_thresh = get_sint16(rec + 44);
     tci.nx_clutter_skip = get_uint16(rec + 46);
-    tci.h_io_cal = get_sint16(rec + 48);
-    tci.v_io_cal = get_sint16(rec + 50);
-    tci.h_noise = get_sint16(rec + 52);
-    tci.v_noise = get_sint16(rec + 54);
-    tci.h_radar_const = get_sint16(rec + 56);
-    tci.v_radar_const = get_sint16(rec + 58);
+    tci.hpol_io_cal = get_sint16(rec + 48);
+    tci.vpol_io_cal = get_sint16(rec + 50);
+    tci.hpol_noise = get_sint16(rec + 52);
+    tci.vpol_noise = get_sint16(rec + 54);
+    tci.hpol_radar_const = get_sint16(rec + 56);
+    tci.vpol_radar_const = get_sint16(rec + 58);
     tci.bandwidth = get_uint16(rec + 60);
     tci.flags2 = get_uint16(rec + 62);
     return tci;
@@ -1340,12 +1340,12 @@ void print_task_calib_info(FILE *out, char *pfx, struct Sigmet_Task_Calib_Info t
     print_i(out, tci.zdr_bias, prefix, "zdr_bias", "ZDR bias in signed 1/16 dB");
     print_i(out, tci.nx_clutter_thresh, prefix, "nx_clutter_thresh", "NEXRAD point clutter threshold in 1/100 of dB");
     print_u(out, tci.nx_clutter_skip, prefix, "nx_clutter_skip", "NEXRAD point clutter bin skip in low 4 bits");
-    print_i(out, tci.h_io_cal, prefix, "h_io_cal", "I0 cal value, horizontal pol, in 1/100 dBm");
-    print_i(out, tci.v_io_cal, prefix, "v_io_cal", "I0 cal value, vertical pol, in 1/100 dBm");
-    print_i(out, tci.h_noise, prefix, "h_noise", "Noise at calibration, horizontal pol, in 1/100 dBm");
-    print_i(out, tci.v_noise, prefix, "v_noise", "Noise at calibration, vertical pol, in 1/100 dBm");
-    print_i(out, tci.h_radar_const, prefix, "h_radar_const", "Radar constant, horizontal pol, in 1/100 dB");
-    print_i(out, tci.v_radar_const, prefix, "v_radar_const", "Radar constant, vertical pol, in 1/100 dB");
+    print_i(out, tci.hpol_io_cal, prefix, "hpol_io_cal", "I0 cal value, horizontal pol, in 1/100 dBm");
+    print_i(out, tci.vpol_io_cal, prefix, "vpol_io_cal", "I0 cal value, vertical pol, in 1/100 dBm");
+    print_i(out, tci.hpol_noise, prefix, "hpol_noise", "Noise at calibration, horizontal pol, in 1/100 dBm");
+    print_i(out, tci.vpol_noise, prefix, "vpol_noise", "Noise at calibration, vertical pol, in 1/100 dBm");
+    print_i(out, tci.hpol_radar_const, prefix, "hpol_radar_const", "Radar constant, horizontal pol, in 1/100 dB");
+    print_i(out, tci.vpol_radar_const, prefix, "vpol_radar_const", "Radar constant, vertical pol, in 1/100 dB");
     print_u(out, tci.bandwidth, prefix, "bandwidth", "Receiver bandwidth in kHz");
     print_u(out, tci.flags2, prefix, "flags2", "Flags2: Bit 0: Zc and ZDRc has DP attenuation correction Bit 1: Z and ZDR has DP attenuation correction");
 }
@@ -1358,8 +1358,8 @@ struct Sigmet_Task_Range_Info get_task_range_info(char *rec)
 
     tri.rng_1st_bin = get_sint32(rec + 0);
     tri.rng_last_bin = get_sint32(rec + 4);
-    tri.nbins_in = get_sint16(rec + 8);
-    tri.nbins_out = get_sint16(rec + 10);
+    tri.num_bins_in = get_sint16(rec + 8);
+    tri.num_bins_out = get_sint16(rec + 10);
     tri.step_in = get_sint32(rec + 12);
     tri.step_out = get_sint32(rec + 16);
     tri.flag = get_uint16(rec + 20);
@@ -1374,8 +1374,8 @@ void print_task_range_info(FILE *out, char *pfx, struct Sigmet_Task_Range_Info t
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_range_info>.");
     print_i(out, tri.rng_1st_bin, prefix, "rng_1st_bin", "Range of first bin in centimeters");
     print_i(out, tri.rng_last_bin, prefix, "rng_last_bin", "Range of last bin in centimeters");
-    print_i(out, tri.nbins_in, prefix, "nbins_in", "Number of input bins");
-    print_i(out, tri.nbins_out, prefix, "nbins_out", "Number of output range bins");
+    print_i(out, tri.num_bins_in, prefix, "num_bins_in", "Number of input bins");
+    print_i(out, tri.num_bins_out, prefix, "num_bins_out", "Number of output range bins");
     print_i(out, tri.step_in, prefix, "step_in", "Step between input bins");
     print_i(out, tri.step_out, prefix, "step_out", "Step between output bins (in centimeters)");
     print_u(out, tri.flag, prefix, "flag", "Flag for variable range bin spacing (1=var, 0=fixed)");
@@ -1390,7 +1390,7 @@ struct Sigmet_Task_Scan_Info get_task_scan_info(char *rec)
 
     tsi.scan_mode = get_uint16(rec + 0);
     tsi.resoln = get_sint16(rec + 2);
-    tsi.n_sweeps = get_sint16(rec + 6);
+    tsi.num_sweeps = get_sint16(rec + 6);
     switch (tsi.scan_mode) {
 	case RHI:
 	    tsi.scan_info.rhi_info = get_task_rhi_scan_info(rec + 8);
@@ -1416,7 +1416,7 @@ void print_task_scan_info(FILE *out, char *pfx, struct Sigmet_Task_Scan_Info tsi
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_scan_info>.");
     print_u(out, tsi.scan_mode, prefix, "scan_mode", "Antenna scan mode 1:PPI sector, 2:RHI, 3:Manual, 4:PPI cont, 5:file");
     print_i(out, tsi.resoln, prefix, "resoln", "Desired angular resolution in 1/1000 of degrees");
-    print_i(out, tsi.n_sweeps, prefix, "n_sweeps", "Number of sweeps to perform");
+    print_i(out, tsi.num_sweeps, prefix, "num_sweeps", "Number of sweeps to perform");
     switch (tsi.scan_mode) {
 	case RHI:
 	    print_task_rhi_scan_info(out, prefix, tsi.scan_info.rhi_info);
@@ -1561,7 +1561,7 @@ struct Sigmet_Task_Misc_Info get_task_misc_info(char *rec)
     tmi.polarization = get_uint16(rec + 26);
     tmi.trunc_ht = get_sint32(rec + 28);
     tmi.comment_sz = get_sint16(rec + 62);
-    tmi.h_beam_width = get_uint32(rec + 64);
+    tmi.horiz_beam_width = get_uint32(rec + 64);
     tmi.v_beam_width = get_uint32(rec + 68);
     q = tmi.custom;
     p = rec + 72;
@@ -1586,7 +1586,7 @@ void print_task_misc_info(FILE *out, char *pfx, struct Sigmet_Task_Misc_Info tmi
     print_u(out, tmi.polarization, prefix, "polarization", "Type of polarization");
     print_i(out, tmi.trunc_ht, prefix, "trunc_ht", "Truncation height (centimeters above the radar)");
     print_i(out, tmi.comment_sz, prefix, "comment_sz", "Number of bytes of comments entered");
-    print_u(out, tmi.h_beam_width, prefix, "h_beam_width", "Horizontal beamwidth (binary angle, starting in 7.18)");
+    print_u(out, tmi.horiz_beam_width, prefix, "horiz_beam_width", "Horizontal beamwidth (binary angle, starting in 7.18)");
     for (n = 0; n < 10; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "custom[", n, "]");
 	fprintf(out, "%u ! %s ! %s\n", tmi.custom[n], struct_path, "Customer defined storage (starting in 7.27)");
