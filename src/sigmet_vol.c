@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.3 $ $Date: 2009/10/21 15:22:56 $
+   .	$Revision: 1.4 $ $Date: 2009/10/21 15:25:45 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1705,7 +1705,7 @@ void print_ymds_time(char *prefix, struct ymds_time tm, char *suffix, FILE *out)
     fhour = modf(sec / 3600.0, &ihour);
     fmin = modf(fhour * 60.0, &imin);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "<ymds_time>");
-    fprintf(out, "%d/%d/%d %d:%d:%05.2f.                  ! %s ! %s\n", tm.year, tm.month, tm.day,
+    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f. ! %s ! %s\n", tm.year, tm.month, tm.day,
 	    (int)ihour, (int)imin, fmin * 60.0, struct_path, suffix);
 }
 
