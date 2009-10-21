@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.9 $ $Date: 2009/10/21 20:42:28 $
+   .	$Revision: 1.10 $ $Date: 2009/10/21 21:36:34 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -142,15 +142,15 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *sigPtr)
     char rec[REC_LEN];			/* Input record from file */
 
     /*
-       n_types_fl will receive the number of types in the f.
+       num_types_fl will receive the number of types in the f.
        types_fl will store type identifiers from the file.
-       n_types will receive the number of types in the volume.
-       If the volume uses extended headers, n_types_fl = n_types+1,
+       num_types will receive the number of types in the volume.
+       If the volume uses extended headers, num_types_fl = num_types+1,
        and types_fl will have one more element than sigPtr->types.
        The extra type is the "extended header type".
      */
-    int n_types_fl;
-    int n_types;
+    int num_types_fl;
+    int num_types;
     enum Sigmet_DataType types_fl[SIGMET_NTYPES];
     int y;				/* Type index (0 based) */
     int haveXHDR = 0;			/* If true, volume has extended headers */
@@ -200,19 +200,19 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *sigPtr)
      */
 
     data_type_mask = sigPtr->ih.tc.tdi.curr_data_mask.mask_word_0;
-    for (y = 0, n_types_fl = 0, n_types = 0; y < SIGMET_NTYPES; y++) {
+    for (y = 0, num_types_fl = 0, num_types = 0; y < SIGMET_NTYPES; y++) {
 	if (data_type_mask & type_masks[y]) {
 	    if (y == DB_XHDR) {
 		haveXHDR = 1;
 	    } else {
-		sigPtr->types[n_types] = y;
-		n_types++;
+		sigPtr->types[num_types] = y;
+		num_types++;
 	    }
-	    types_fl[n_types_fl] = y;
-	    n_types_fl++;
+	    types_fl[num_types_fl] = y;
+	    num_types_fl++;
 	}
     }
-    sigPtr->num_types = n_types;
+    sigPtr->num_types = num_types;
 
     return 1;
 
@@ -250,14 +250,14 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
     short nSwp;				/* Current sweep number (1 is first) */
 
     int num_sweeps;			/* Number of sweeps in sig_vol */
-    int n_types_fl;			/* Number of types in the file.
+    int num_types_fl;			/* Number of types in the file.
 					 * This will be one more than
-					 * n_types if the volume contains
+					 * num_types if the volume contains
 					 * extended headers. */
-    int n_types;			/* Number of types in the volume. */
-    int n_rays;				/* Number of rays per sweep */
-    int n_rays_tot;			/* Total number of rays */
-    int n_bins;				/* Number of output bins */
+    int num_types;			/* Number of types in the volume. */
+    int num_rays;				/* Number of rays per sweep */
+    int num_rays_tot;			/* Total number of rays */
+    int num_bins;				/* Number of output bins */
 
     /*
        Array of types in the file.  This will be different from the types
@@ -304,70 +304,70 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
      */
 
     num_sweeps = sigPtr->ih.tc.tni.num_sweeps;
-    n_rays = sigPtr->ih.ic.rays_in_sweep;
-    n_rays_tot = num_sweeps * n_rays;
-    n_bins = sigPtr->ph.pe.num_out_bins;
+    num_rays = sigPtr->ih.ic.num_rays;
+    num_rays_tot = num_sweeps * num_rays;
+    num_bins = sigPtr->ph.pe.num_out_bins;
     sigPtr->sweep_time = (double *)MALLOC(num_sweeps * sizeof(double));
     sigPtr->sweep_angle = (double *)MALLOC(num_sweeps * sizeof(double));
-    sz = num_sweeps * (sizeof(double *) + n_rays * sizeof(double));
+    sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
     sigPtr->ray_time = (double **)MALLOC(sz);
     sigPtr->ray_time[0] = (double *)(sigPtr->ray_time + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_time[s] = sigPtr->ray_time[s - 1] + n_rays;
+	sigPtr->ray_time[s] = sigPtr->ray_time[s - 1] + num_rays;
     }
 
-    sz = num_sweeps * (sizeof(unsigned *) + n_rays * sizeof(unsigned));
+    sz = num_sweeps * (sizeof(unsigned *) + num_rays * sizeof(unsigned));
     sigPtr->ray_num_bins = (unsigned **)MALLOC(sz);
     sigPtr->ray_num_bins[0] = (unsigned *)(sigPtr->ray_num_bins + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_num_bins[s] = sigPtr->ray_num_bins[s - 1] + n_rays;
+	sigPtr->ray_num_bins[s] = sigPtr->ray_num_bins[s - 1] + num_rays;
     }
 
-    sz = num_sweeps * (sizeof(double *) + n_rays * sizeof(double));
+    sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
     sigPtr->ray_tilt0 = (double **)MALLOC(sz);
     sigPtr->ray_tilt0[0] = (double *)(sigPtr->ray_tilt0 + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_tilt0[s] = sigPtr->ray_tilt0[s - 1] + n_rays;
+	sigPtr->ray_tilt0[s] = sigPtr->ray_tilt0[s - 1] + num_rays;
     }
 
-    sz = num_sweeps * (sizeof(double *) + n_rays * sizeof(double));
+    sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
     sigPtr->ray_tilt1 = (double **)MALLOC(sz);
     sigPtr->ray_tilt1[0] = (double *)(sigPtr->ray_tilt1 + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_tilt1[s] = sigPtr->ray_tilt1[s - 1] + n_rays;
+	sigPtr->ray_tilt1[s] = sigPtr->ray_tilt1[s - 1] + num_rays;
     }
 
-    sz = num_sweeps * (sizeof(double *) + n_rays * sizeof(double));
+    sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
     sigPtr->ray_az0 = (double **)MALLOC(sz);
     sigPtr->ray_az0[0] = (double *)(sigPtr->ray_az0 + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_az0[s] = sigPtr->ray_az0[s - 1] + n_rays;
+	sigPtr->ray_az0[s] = sigPtr->ray_az0[s - 1] + num_rays;
     }
 
-    sz = num_sweeps * (sizeof(double *) + n_rays * sizeof(double));
+    sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
     sigPtr->ray_az1 = (double **)MALLOC(sz);
     sigPtr->ray_az1[0] = (double *)(sigPtr->ray_az1 + num_sweeps);
     for (s = 1; s < num_sweeps; s++) {
-	sigPtr->ray_az1[s] = sigPtr->ray_az1[s - 1] + n_rays;
+	sigPtr->ray_az1[s] = sigPtr->ray_az1[s - 1] + num_rays;
     }
 
-    sz = num_sweeps * (sizeof(int ***) + n_types * (sizeof(int **) 
-		+ n_rays * (sizeof(int *) + n_bins * sizeof(int))));
+    sz = num_sweeps * (sizeof(int ***) + num_types * (sizeof(int **) 
+		+ num_rays * (sizeof(int *) + num_bins * sizeof(int))));
     sigPtr->dat = (int ****)MALLOC(sz);
     sigPtr->dat[0] = (int ***)(sigPtr->dat + num_sweeps);
-    sigPtr->dat[0][0] = (int **)(sigPtr->dat[0] + num_sweeps * n_types);
-    sigPtr->dat[0][0][0] = (int *)(sigPtr->dat[0][0] + num_sweeps * n_types * n_rays);
+    sigPtr->dat[0][0] = (int **)(sigPtr->dat[0] + num_sweeps * num_types);
+    sigPtr->dat[0][0][0] = (int *)(sigPtr->dat[0][0] + num_sweeps * num_types * num_rays);
     for (n = 1, ne = num_sweeps; n < ne; n++) {
-	sigPtr->dat[n] = sigPtr->dat[n - 1] + n_types;
+	sigPtr->dat[n] = sigPtr->dat[n - 1] + num_types;
     }
-    for (n = 1, ne = num_sweeps * n_types; n < ne; n++) {
-	sigPtr->dat[0][n] = sigPtr->dat[0][n - 1] + n_rays;
+    for (n = 1, ne = num_sweeps * num_types; n < ne; n++) {
+	sigPtr->dat[0][n] = sigPtr->dat[0][n - 1] + num_rays;
     }
-    for (n = 1, ne = num_sweeps * n_types * n_rays; n < ne; n++) {
-	sigPtr->dat[0][0][n] = sigPtr->dat[0][0][n - 1] + n_bins;
+    for (n = 1, ne = num_sweeps * num_types * num_rays; n < ne; n++) {
+	sigPtr->dat[0][0][n] = sigPtr->dat[0][0][n - 1] + num_bins;
     }
     d = sigPtr->dat[0][0][0];
-    e = d + num_sweeps * n_types * n_rays *  n_bins;
+    e = d + num_sweeps * num_types * num_rays *  num_bins;
     while (d < e) {
 	*d++ = Sigmet_NoData();
     }
@@ -452,7 +452,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 	     */
 
 	    recP = (unsigned short *)(rec + SZ_RAW_PROD_BHDR
-		    + n_types_fl * SZ_INGEST_DATA_HDR);
+		    + num_types_fl * SZ_INGEST_DATA_HDR);
 	    swap_arr16(recP, recEnd - recP);
 
 	    /*
@@ -560,7 +560,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 			    " maximum sweep count.  ");
 		    goto error;
 		}
-		if (r > n_rays) {
+		if (r > num_rays) {
 		    Err_Append("Volume storage went beyond"
 			    " maximum ray count.  ");
 		    goto error;
@@ -640,7 +640,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr)
 
 		memset(ray, 0, raySz);
 		rayP = ray;
-		if (++y == n_types_fl) {
+		if (++y == num_types_fl) {
 		    r++;
 		    y = 0;
 		    have_hdrs = 0;
@@ -1060,7 +1060,7 @@ struct Sigmet_Ingest_Configuration get_ingest_configuration(char *rec)
     ic.radar_ht = get_sint16(rec + 178);
     ic.resolution = get_uint16(rec + 180);
     ic.index_first_ray = get_uint16(rec + 182);
-    ic.rays_in_sweep = get_uint16(rec + 184);
+    ic.num_rays = get_uint16(rec + 184);
     ic.num_bytes_gparam = get_sint16(rec + 186);
     ic.altitude = get_sint32(rec + 188);
     q = ic.velocity;
@@ -1110,7 +1110,7 @@ void print_ingest_configuration(FILE *out, char *pfx, struct Sigmet_Ingest_Confi
     print_i(out, ic.radar_ht, prefix, "radar_ht", "Height of radar above ground (meters)");
     print_u(out, ic.resolution, prefix, "resolution", "Resolution specified in number of rays in a 360_ sweep");
     print_u(out, ic.index_first_ray, prefix, "index_first_ray", "Index of first ray from above set of rays");
-    print_u(out, ic.rays_in_sweep, prefix, "rays_in_sweep", "Number of rays in a sweep");
+    print_u(out, ic.num_rays, prefix, "num_rays", "Number of rays in a sweep");
     print_i(out, ic.num_bytes_gparam, prefix, "num_bytes_gparam", "Number of bytes in each gparam");
     print_i(out, ic.altitude, prefix, "altitude", "Altitude of radar (cm above sea level)");
     print_i(out, ic.velocity[0], prefix, "velocity east", "Velocity of radar platform (cm/sec) east");

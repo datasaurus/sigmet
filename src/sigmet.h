@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.7 $ $Date: 2009/10/21 20:43:05 $
+   .	$Revision: 1.8 $ $Date: 2009/10/21 21:36:34 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -219,7 +219,7 @@ struct Sigmet_Ingest_Configuration {
     int radar_ht;
     unsigned resolution;
     unsigned index_first_ray;
-    unsigned rays_in_sweep;
+    unsigned num_rays;
     int num_bytes_gparam;
     int altitude;
     int velocity[3];
