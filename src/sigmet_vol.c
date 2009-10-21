@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.6 $ $Date: 2009/10/21 15:39:19 $
+   .	$Revision: 1.7 $ $Date: 2009/10/21 15:48:33 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1320,6 +1320,7 @@ struct Sigmet_Task_Calib_Info get_task_calib_info(char *rec)
 void print_task_calib_info(char *pfx, struct Sigmet_Task_Calib_Info tci, FILE *out)
 {
     char prefix[STR_LEN];
+    char *desc;
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_calib_info>.");
     print_i(tci.dbz_slope, prefix, "dbz_slope", "Reflectivity slope (4096*dB/ A/D count)", out);
@@ -1333,7 +1334,8 @@ void print_task_calib_info(char *pfx, struct Sigmet_Task_Calib_Info tci, FILE *o
     print_u(tci.vel_flags, prefix, "vel_flags", "Threshold flags for velocity", out);
     print_u(tci.sw_flags, prefix, "sw_flags", "Threshold flags for width", out);
     print_u(tci.zdr_flags, prefix, "zdr_flags", "Threshold flags for ZDR", out);
-    print_u(tci.flags, prefix, "flags", "Flags: Bit 0: Speckle remover for log channel Bit 3: Speckle remover for linear channel Bit 4: Flag to indicate data is range normalized Bit 5: Flag to indicate pulse at beginning of ray Bit 6: Flag to indicate pulse at end of ray Bit 7: Vary number of pulses in dual PRF Bit 8: Use 3 lag processing in PP02 Bit 9: Apply velocity correction for ship motion Bit 10: Vc is unfolded Bit 11: Vc has fallspeed correction Bit 12: Zc has beam blockage correction Bit 13: Zc has Z-based attenuation correction Bit 14: Zc has target detection Bit 15: Vc has storm relative velocity correction", out);
+    desc = "Flags. Bits: 0: Speckle remover for log channel 3: Speckle remover for linear channel 4:  data is range normalized 5:  pulse at beginning of ray 6:  pulse at end of ray 7: Vary number of pulses in dual PRF 8: Use 3 lag processing in PP02 9: Apply vel correction for ship motion 10: Vc is unfolded 11: Vc has fallspeed correction 12: Zc has beam blockage correction 13: Zc has Z-based attenuation correction 14: Zc has target detection 15: Vc has storm relative vel correction";
+    print_u(tci.flags, prefix, "flags", desc, out);
     print_i(tci.ldr_bias, prefix, "ldr_bias", "LDR bias in signed 1/100 dB", out);
     print_i(tci.zdr_bias, prefix, "zdr_bias", "ZDR bias in signed 1/16 dB", out);
     print_i(tci.nx_clutter_thresh, prefix, "nx_clutter_thresh", "NEXRAD point clutter threshold in 1/100 of dB", out);
