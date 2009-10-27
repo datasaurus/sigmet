@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.13 $ $Date: 2009/10/21 21:58:32 $
+   .	$Revision: 1.14 $ $Date: 2009/10/21 22:23:58 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -108,6 +108,7 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
     vol_p->num_types = SIGMET_NTYPES;
     for (n = 0; n < SIGMET_NTYPES; n++) {
 	vol_p->types[n] = DB_XHDR;
+	vol_p->types_fl[n] = DB_XHDR;
     }
     vol_p->sweep_time = NULL;
     vol_p->sweep_angle = NULL;
@@ -154,9 +155,7 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
      */
     int num_types_fl;
     int num_types;
-    enum Sigmet_DataType types_fl[SIGMET_NTYPES];
     int y;				/* Type index (0 based) */
-    int haveXHDR = 0;			/* If true, volume has extended headers */
 
     /* These masks are placed against the data type mask in the volume structure
        to determine what data types are in the volume. */
@@ -199,12 +198,12 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     for (y = 0, num_types_fl = 0, num_types = 0; y < SIGMET_NTYPES; y++) {
 	if (data_type_mask & type_masks[y]) {
 	    if (y == DB_XHDR) {
-		haveXHDR = 1;
+		vol_p->xhdr = 1;
 	    } else {
 		vol_p->types[num_types] = y;
 		num_types++;
 	    }
-	    types_fl[num_types_fl] = y;
+	    vol_p->types_fl[num_types_fl] = y;
 	    num_types_fl++;
 	}
     }
@@ -224,7 +223,7 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
     char elem_nm[STR_LEN];
 
     print_product_hdr(out, "<product_hdr>.", vol.ph);
-    print_ingest_header(out, "<ingest_hdr>.", vol.ih);
+    print_ingest_header(out, "<ingest_header>.", vol.ih);
     fprintf(out, "%d ! %s ! %s\n", vol.num_types, "num_types", "Number of Sigmet data types");
     for (y = 0; y < vol.num_types; y++) {
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
@@ -254,17 +253,10 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     int num_rays_tot;			/* Total number of rays */
     int num_bins;			/* Number of output bins */
 
-    /*
-       Array of types in the file.  This will be different from the types
-       array in vol_p  if the volume contains extended headers.
-     */
-    enum Sigmet_DataType types_fl[SIGMET_NTYPES];
-
     int year, month, day, sec, msec;
     double swpTm;
     double angle;			/* Sweep angle.  Ref. geography (n) */
 
-    int haveXHDR = 0;			/* true => volume uses extended headers */
     int have_hdrs;			/* If true, ray headers have been stored */
 
     unsigned short *ray = NULL;		/* Buffer ray, receives data from rec */
@@ -295,10 +287,12 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     }
 
     /* Allocate arrays in vol_p.  */
+    num_types = vol_p->num_types;
+    num_types_fl = num_types + vol_p->xhdr;
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     num_rays_tot = num_sweeps * num_rays;
-    num_bins = vol_p->ph.pe.num_out_bins;
+    num_bins = vol_p->ih.tc.tri.num_bins_out;
     vol_p->sweep_time = (double *)MALLOC(num_sweeps * sizeof(double));
     vol_p->sweep_angle = (double *)MALLOC(num_sweeps * sizeof(double));
     sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
@@ -366,7 +360,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
     /* Allocate and partition largest possible ray buffer.  Data will be decompressed from rec and copied into ray.  */
     raySz = SZ_RAY_HDR + vol_p->ih.ic.extended_ray_headers_sz
-	+ vol_p->ph.pe.num_out_bins * sizeof(unsigned short);
+	+ vol_p->ph.pe.num_bins_out * sizeof(unsigned short);
     ray = (unsigned short *)MALLOC(raySz);
     rayd = (unsigned char *)ray + SZ_RAY_HDR;
 
@@ -389,6 +383,10 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	if (n != sweep_num) {
 	    /* Record is start of new sweep.  */
 	    sweep_num = n;
+	    if (sweep_num > num_sweeps) {
+		Err_Append("Volume has excess sweeps.  ");
+		goto error;
+	    }
 	    s = sweep_num - 1;
 	    r = 0;
 
@@ -497,12 +495,12 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		vol_p->ray_az1[s][r] = Sigmet_Bin2Rad(ray[2]);
 		vol_p->ray_tilt1[s][r] = Sigmet_Bin2Rad(ray[3]);
 		vol_p->ray_num_bins[s][r] = ray[4];
-		if ( !haveXHDR ) {
+		if ( !vol_p->xhdr ) {
 		    vol_p->ray_time[s][r] = swpTm + ray[5];
 		}
 
 		/* Store ray data.  */
-		switch (types_fl[y]) {
+		switch (vol_p->types_fl[y]) {
 		    case DB_XHDR:
 			/* For extended header, undo the call to swap_arr16 above, then apply byte swapping to the raw input.  */
 			swap_arr16(ray + SZ_RAY_HDR, 2);
@@ -524,10 +522,10 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_LDRV:
 			for (cPtr = rayd,
 				cePtr = cPtr + vol_p->ray_num_bins[s][r],
-				df = vol_p->dat[s][y - haveXHDR][r];
+				df = vol_p->dat[s][y - vol_p->xhdr][r];
 				cPtr < cePtr;
 				cPtr++, df++)  {
-			    *df = Sigmet_DataType_ItoF(types_fl[y], *cPtr);
+			    *df = Sigmet_DataType_ItoF(vol_p->types_fl[y], *cPtr);
 			}
 			break;
 		    case DB_DBT2:
@@ -546,9 +544,9 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_LDRV2:
 			for (sPtr = (unsigned short *)rayd,
 				sePtr = sPtr + vol_p->ray_num_bins[s][r],
-				df = vol_p->dat[s][y - haveXHDR][r];
+				df = vol_p->dat[s][y - vol_p->xhdr][r];
 				sPtr < sePtr; sPtr++, df++) {
-			    *df = Sigmet_DataType_ItoF(types_fl[y], *sPtr);
+			    *df = Sigmet_DataType_ItoF(vol_p->types_fl[y], *sPtr);
 			}
 			break;
 		}
@@ -812,7 +810,7 @@ struct Sigmet_Product_End get_product_end(char *rec)
     pe.trunc_ht = get_sint32(rec + 152);
     pe.rng_bin0 = get_sint32(rec + 156);
     pe.rng_last_bin = get_sint32(rec + 160);
-    pe.num_out_bins = get_sint32(rec + 164);
+    pe.num_bins_out = get_sint32(rec + 164);
     pe.flag = get_uint16(rec + 168);
     pe.polarization = get_uint16(rec + 172);
     pe.hpol_io_cal = get_sint16(rec + 174);
@@ -873,7 +871,7 @@ void print_product_end(FILE *out, char *pfx, struct Sigmet_Product_End pe)
     print_i(out, pe.trunc_ht, prefix, "trunc_ht", "Truncation height (cm above the radar)");
     print_i(out, pe.rng_bin0, prefix, "rng_bin0", "Range of the first bin in cm");
     print_i(out, pe.rng_last_bin, prefix, "rng_last_bin", "Range of the last bin in cm");
-    print_i(out, pe.num_out_bins, prefix, "num_out_bins", "Number of output bins");
+    print_i(out, pe.num_bins_out, prefix, "num_bins_out", "Number of output bins");
     print_x(out, pe.flag, prefix, "flag", "Flag word Bit0:Disdrometer failed, we used setup for Z/R source instead");
     print_u(out, pe.polarization, prefix, "polarization", "Type of polarization used");
     print_i(out, pe.hpol_io_cal, prefix, "hpol_io_cal", "I0 cal value, horizontal pol, in 1/100 dBm");
@@ -1048,8 +1046,11 @@ struct Sigmet_Task_Configuration get_task_configuration(char *rec)
     return tc;
 }
 
-void print_task_configuration(FILE *out, char *prefix, struct Sigmet_Task_Configuration tc)
+void print_task_configuration(FILE *out, char *pfx, struct Sigmet_Task_Configuration tc)
 {
+    char prefix[STR_LEN];
+
+    snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_configuration>.");
     print_structure_header(out, prefix, tc.sh);
     print_task_sched_info(out, prefix, tc.tsi);
     print_task_dsp_info(out, prefix, tc.tdi);
