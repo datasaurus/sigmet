@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.14 $ $Date: 2009/10/21 22:23:58 $
+   .	$Revision: 1.15 $ $Date: 2009/10/27 20:55:01 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -44,41 +44,56 @@ static void swap_arr16(void *r, int nw);
 
 /* Functions to read and print Sigmet raw volume structures */
 static struct Sigmet_YMDS_Time get_ymds_time(char *);
-static void print_ymds_time(FILE *, struct Sigmet_YMDS_Time, char *, char *, char *);
+static void print_ymds_time(FILE *, struct Sigmet_YMDS_Time,
+	char *, char *, char *);
 static struct Sigmet_Structure_Header get_structure_header(char *);
-static void print_structure_header(FILE *, char *, struct Sigmet_Structure_Header);
+static void print_structure_header(FILE *, char *,
+	struct Sigmet_Structure_Header);
 static struct Sigmet_Product_Specific_Info get_product_specific_info(char *);
-static void print_product_specific_info(FILE *, char *, struct Sigmet_Product_Specific_Info);
+static void print_product_specific_info(FILE *, char *,
+	struct Sigmet_Product_Specific_Info);
 static struct Sigmet_Color_Scale_Def get_color_scale_def(char *);
-static void print_color_scale_def(FILE *, char *, struct Sigmet_Color_Scale_Def);
+static void print_color_scale_def(FILE *, char *,
+	struct Sigmet_Color_Scale_Def);
 static struct Sigmet_Product_Configuration get_product_configuration(char *);
-static void print_product_configuration(FILE *, char *, struct Sigmet_Product_Configuration);
+static void print_product_configuration(FILE *, char *,
+	struct Sigmet_Product_Configuration);
 static struct Sigmet_Product_End get_product_end(char *);
 static void print_product_end(FILE *, char *, struct Sigmet_Product_End);
 static struct Sigmet_Product_Hdr get_product_hdr(char *);
 static void print_product_hdr(FILE *, char *, struct Sigmet_Product_Hdr);
 static struct Sigmet_Ingest_Configuration get_ingest_configuration(char *);
-static void print_ingest_configuration(FILE *, char *, struct Sigmet_Ingest_Configuration);
+static void print_ingest_configuration(FILE *, char *,
+	struct Sigmet_Ingest_Configuration);
 static struct Sigmet_Task_Sched_Info get_task_sched_info(char *);
-static void print_task_sched_info(FILE *, char *, struct Sigmet_Task_Sched_Info);
+static void print_task_sched_info(FILE *, char *,
+	struct Sigmet_Task_Sched_Info);
 static struct Sigmet_DSP_Data_Mask get_dsp_data_mask(char *);
-static void print_dsp_data_mask(FILE *, char *, struct Sigmet_DSP_Data_Mask, char *);
+static void print_dsp_data_mask(FILE *, char *, struct Sigmet_DSP_Data_Mask,
+	char *);
 static struct Sigmet_Task_DSP_Mode_Batch get_task_dsp_mode_batch(char *);
-static void print_task_dsp_mode_batch(FILE *, char *, struct Sigmet_Task_DSP_Mode_Batch);
+static void print_task_dsp_mode_batch(FILE *, char *,
+	struct Sigmet_Task_DSP_Mode_Batch);
 static struct Sigmet_Task_DSP_Info get_task_dsp_info(char *);
 static void print_task_dsp_info(FILE *, char *, struct Sigmet_Task_DSP_Info);
 static struct Sigmet_Task_Calib_Info get_task_calib_info(char *);
-static void print_task_calib_info(FILE *, char *, struct Sigmet_Task_Calib_Info);
+static void print_task_calib_info(FILE *, char *,
+	struct Sigmet_Task_Calib_Info);
 static struct Sigmet_Task_Range_Info get_task_range_info(char *);
-static void print_task_range_info(FILE *, char *, struct Sigmet_Task_Range_Info);
+static void print_task_range_info(FILE *, char *,
+	struct Sigmet_Task_Range_Info);
 static struct Sigmet_Task_RHI_Scan_Info get_task_rhi_scan_info(char *);
-static void print_task_rhi_scan_info(FILE *, char *, struct Sigmet_Task_RHI_Scan_Info);
+static void print_task_rhi_scan_info(FILE *, char *,
+	struct Sigmet_Task_RHI_Scan_Info);
 static struct Sigmet_Task_PPI_Scan_Info get_task_ppi_scan_info(char *);
-static void print_task_ppi_scan_info(FILE *, char *, struct Sigmet_Task_PPI_Scan_Info);
+static void print_task_ppi_scan_info(FILE *, char *,
+	struct Sigmet_Task_PPI_Scan_Info);
 static struct Sigmet_Task_File_Scan_Info get_task_file_scan_info(char *);
-static void print_task_file_scan_info(FILE *, char *, struct Sigmet_Task_File_Scan_Info);
+static void print_task_file_scan_info(FILE *, char *,
+	struct Sigmet_Task_File_Scan_Info);
 static struct Sigmet_Task_Manual_Scan_Info get_task_manual_scan_info(char *);
-static void print_task_manual_scan_info(FILE *, char *, struct Sigmet_Task_Manual_Scan_Info);
+static void print_task_manual_scan_info(FILE *, char *,
+	struct Sigmet_Task_Manual_Scan_Info);
 static struct Sigmet_Task_Scan_Info get_task_scan_info(char *);
 static void print_task_scan_info(FILE *, char *, struct Sigmet_Task_Scan_Info);
 static struct Sigmet_Task_Misc_Info get_task_misc_info(char *);
@@ -86,7 +101,8 @@ static void print_task_misc_info(FILE *, char *, struct Sigmet_Task_Misc_Info);
 static struct Sigmet_Task_End_Info get_task_end_info(char *);
 static void print_task_end_info(FILE *, char *, struct Sigmet_Task_End_Info);
 static struct Sigmet_Task_Configuration get_task_configuration(char *);
-static void print_task_configuration(FILE *, char *, struct Sigmet_Task_Configuration);
+static void print_task_configuration(FILE *, char *,
+	struct Sigmet_Task_Configuration);
 static struct Sigmet_Ingest_Header get_ingest_header(char *);
 static void print_ingest_header(FILE *, char *, struct Sigmet_Ingest_Header);
 
@@ -157,8 +173,10 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     int num_types;
     int y;				/* Type index (0 based) */
 
-    /* These masks are placed against the data type mask in the volume structure
-       to determine what data types are in the volume. */
+    /*
+       These masks are placed against the data type mask in the volume
+       structure to determine what data types are in the volume.
+     */
     static unsigned type_masks[SIGMET_NTYPES] = {
 	(1 <<  0), (1 <<  1), (1 <<  2), (1 <<  3), (1 <<  4),
 	(1 <<  5), (1 <<  7), (1 <<  8), (1 <<  9), (1 << 10),
@@ -175,11 +193,14 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	goto error;
     }
 
-    /* If first 16 bits of product header != 27, turn on byte swapping and check again.  If still not 27, give up.  */
+    /*
+       If first 16 bits of product header != 27, turn on byte swapping
+       and check again.  If still not 27, give up.
+     */
     if (get_sint16(rec) != 27) {
 	Toggle_Swap();
 	if (get_sint16(rec) != 27) {
-	    Err_Append( "Sigmet volume has bad magic number (should be 27).  ");
+	    Err_Append( "Bad magic number (should be 27).  ");
 	    return 0;
 	}
     }
@@ -193,7 +214,10 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     }
     vol_p->ih = get_ingest_header(rec);
 
-    /* Loop through the bits in the data type mask.  If bit is set, add the corresponding type to types array. */
+    /*
+       Loop through the bits in the data type mask. 
+       If bit is set, add the corresponding type to types array.
+     */
     data_type_mask = vol_p->ih.tc.tdi.curr_data_mask.mask_word_0;
     for (y = 0, num_types_fl = 0, num_types = 0; y < SIGMET_NTYPES; y++) {
 	if (data_type_mask & type_masks[y]) {
@@ -224,10 +248,14 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
 
     print_product_hdr(out, "<product_hdr>.", vol.ph);
     print_ingest_header(out, "<ingest_header>.", vol.ih);
-    fprintf(out, "%d ! %s ! %s\n", vol.num_types, "num_types", "Number of Sigmet data types");
+    fprintf(out, "%d ! %s ! %s\n",
+	    vol.num_types, "num_types", "Number of Sigmet data types");
     for (y = 0; y < vol.num_types; y++) {
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
-	fprintf(out, "%s ! %s ! %s\n", Sigmet_DataType_Abbrv(vol.types[y]), elem_nm, Sigmet_DataType_Descr(vol.types[y]));
+	fprintf(out, "%s ! %s ! %s\n",
+		Sigmet_DataType_Abbrv(vol.types[y]),
+		elem_nm,
+		Sigmet_DataType_Descr(vol.types[y]));
     }
 }
 
@@ -239,7 +267,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
     unsigned short *recP;		/* Pointer into rec */
     unsigned short *recN;		/* Stopping point in rec */
-    unsigned short *recEnd = (unsigned short *)(rec + REC_LEN); /* End of rec */
+    unsigned short *recEnd = (unsigned short *)(rec + REC_LEN); /* End rec */
     int rec_idx;			/* Current record index (0 is first) */
     short sweep_num;			/* Current sweep number (1 is first) */
 
@@ -257,23 +285,23 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     double swpTm;
     double angle;			/* Sweep angle.  Ref. geography (n) */
 
-    int have_hdrs;			/* If true, ray headers have been stored */
+    int have_hdrs;			/* true => ray headers are stored */
 
-    unsigned short *ray = NULL;		/* Buffer ray, receives data from rec */
+    unsigned short *ray = NULL;		/* Buffer, receives data from rec */
     unsigned short *rayP = NULL;	/* Point into ray while looping */
 
     size_t raySz;			/* Allocation size for a ray */
     unsigned char *rayd;		/* Pointer to start of data in ray */
     size_t sz;				/* Tmp value */
     unsigned short numWds;		/* Number of words in a run of data */
-    int s, y, r;			/* Sweep, type, ray indeces (0 based) */
+    int s, y, r;			/* Sweep, type, ray indeces */
     int i, n, ne;			/* Temporary values */
     int *d, *e;
 
-    unsigned char *cPtr;		/* Pointer into ray (1 byte values) */
-    unsigned char *cePtr;		/* End of ray */
-    unsigned short *sPtr;		/* Pointer into ray (2 byte values) */
-    unsigned short *sePtr;		/* End of ray */
+    unsigned char *p1;			/* Pointer into ray (1 byte values) */
+    unsigned char *q1;			/* End of ray */
+    unsigned short *p2;			/* Pointer into ray (2 byte values) */
+    unsigned short *q2;			/* End of ray */
     int *df;				/* Pointer into ray in vol_p
 					 * structure when data will
 					 * be stored in memory as
@@ -342,7 +370,8 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->dat = (int ****)MALLOC(sz);
     vol_p->dat[0] = (int ***)(vol_p->dat + num_sweeps);
     vol_p->dat[0][0] = (int **)(vol_p->dat[0] + num_sweeps * num_types);
-    vol_p->dat[0][0][0] = (int *)(vol_p->dat[0][0] + num_sweeps * num_types * num_rays);
+    vol_p->dat[0][0][0]
+	= (int *)(vol_p->dat[0][0] + num_sweeps * num_types * num_rays);
     for (n = 1, ne = num_sweeps; n < ne; n++) {
 	vol_p->dat[n] = vol_p->dat[n - 1] + num_types;
     }
@@ -358,7 +387,10 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	*d++ = Sigmet_NoData();
     }
 
-    /* Allocate and partition largest possible ray buffer.  Data will be decompressed from rec and copied into ray.  */
+    /*
+       Allocate and partition largest possible ray buffer.
+       Data will be decompressed from rec and copied into ray.
+     */
     raySz = SZ_RAY_HDR + vol_p->ih.ic.extended_ray_headers_sz
 	+ vol_p->ph.pe.num_bins_out * sizeof(unsigned short);
     ray = (unsigned short *)MALLOC(raySz);
@@ -390,7 +422,10 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    s = sweep_num - 1;
 	    r = 0;
 
-	    /* If sweep number from <ingest_data_header> has gone back to 0, there are no more sweeps in volume.  */
+	    /*
+	       If sweep number from <ingest_data_header> has gone back to 0,
+	       there are no more sweeps in volume.
+	     */
 	    n = get_sint16(rec + 36);
 	    if (n == 0) {
 		vol_p->ih.tc.tni.num_sweeps = sweep_num - 1;
@@ -427,20 +462,30 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
 	} else {
 
-	    /* Record continues a sweep started in an earlier record Byte swap data segment in record, if necessary */
+	    /*
+	       Record continues a sweep started in an earlier record Byte
+	       swap data segment in record, if necessary.
+	     */
 	    recP = (unsigned short *)(rec + SZ_RAW_PROD_BHDR);
 	    swap_arr16(recP, recEnd - recP);
 
 	}
 
-	/* Decompress and store ray data.  Reference: IRIS/Open Programmers Manual, April 2000, p. 3-38 to 3-40.  */
+	/*
+	   Decompress and store ray data.
+	   See IRIS/Open Programmers Manual, April 2000, p. 3-38 to 3-40.
+	 */
 	while (recP < recEnd) {
 
 	    if ((0x8000 & *recP) == 0x8000) {
 		/* Run of data words */
 		numWds = 0x7FFF & *recP;
 		if (numWds > recEnd - recP - 1) {
-		    /* Data run crosses record boundary.  Store number of words in second part of data run.  We will need this when we get to the next record.  */
+		    /*
+		       Data run crosses record boundary.  Store number of
+		       words in second part of data run.  We will need this
+		       when we get to the next record.
+		     */
 		    numWds = numWds - (recEnd - recP - 1);
 
 		    /* Read rest of current record */
@@ -448,21 +493,27 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			*rayP = *recP;
 		    }
 
-		    /* Get next record.  Check record number from <raw_prod_bhdr>.  */
+		    /*
+		       Get next record.  Check record number from
+		       <raw_prod_bhdr>.
+		     */
 		    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 			Err_Append( "Failed to read record "
-				"from Sigmet raw file.  ");
+				" from Sigmet raw file.  ");
 			goto error;
 		    }
 		    i = get_sint16(rec);
 		    if (i != rec_idx + 1) {
 			Err_Append("Sigmet raw product file records "
-				"out of sequence.  ");
+				" out of sequence.  ");
 			goto error;
 		    }
 		    rec_idx = i;
 
-		    /* Position record pointer at start of data segment and byte swap data segment in record, if necessary */
+		    /*
+		       Position record pointer at start of data segment and
+		       byte swap data segment in record, if necessary
+		     */
 		    recP = (unsigned short *)(rec + SZ_RAW_PROD_BHDR);
 		    swap_arr16(recP, recEnd - recP);
 
@@ -502,7 +553,10 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		/* Store ray data.  */
 		switch (vol_p->types_fl[y]) {
 		    case DB_XHDR:
-			/* For extended header, undo the call to swap_arr16 above, then apply byte swapping to the raw input.  */
+			/*
+			   For extended header, undo the call to swap_arr16
+			   above, then apply byte swapping to the raw input.
+			 */
 			swap_arr16(ray + SZ_RAY_HDR, 2);
 			tm_incr = get_sint32(ray + SZ_RAY_HDR);
 			vol_p->ray_time[s][r] = swpTm + 0.001 * tm_incr;
@@ -520,12 +574,12 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_RHOHV:
 		    case DB_LDRH:
 		    case DB_LDRV:
-			for (cPtr = rayd,
-				cePtr = cPtr + vol_p->ray_num_bins[s][r],
+			for (p1 = rayd,
+				q1 = p1 + vol_p->ray_num_bins[s][r],
 				df = vol_p->dat[s][y - vol_p->xhdr][r];
-				cPtr < cePtr;
-				cPtr++, df++)  {
-			    *df = Sigmet_DataType_ItoF(vol_p->types_fl[y], *cPtr);
+				p1 < q1;
+				p1++, df++)  {
+			    *df = vol_p->types_fl[y];
 			}
 			break;
 		    case DB_DBT2:
@@ -542,11 +596,11 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_PHIDP2:
 		    case DB_LDRH2:
 		    case DB_LDRV2:
-			for (sPtr = (unsigned short *)rayd,
-				sePtr = sPtr + vol_p->ray_num_bins[s][r],
+			for (p2 = (unsigned short *)rayd,
+				q2 = p2 + vol_p->ray_num_bins[s][r],
 				df = vol_p->dat[s][y - vol_p->xhdr][r];
-				sPtr < sePtr; sPtr++, df++) {
-			    *df = Sigmet_DataType_ItoF(vol_p->types_fl[y], *sPtr);
+				p2 < q2; p2++, df++) {
+			    *df = vol_p->types_fl[y];
 			}
 			break;
 		}
@@ -658,43 +712,83 @@ struct Sigmet_Product_Configuration get_product_configuration(char *rec)
     return pc;
 }
 
-void print_product_configuration(FILE *out, char *pfx, struct Sigmet_Product_Configuration pc)
+void print_product_configuration(FILE *out, char *pfx,
+	struct Sigmet_Product_Configuration pc)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<product_configuration>.");
     print_structure_header(out, prefix, pc.sh);
-    print_u(out, pc.type, prefix, "type", "Product type code: 1:PPI 2:RHI 3:CAPPI 4:CROSS 5:TOPS 6:TRACK 7:RAIN1 8:RAINN 9:VVP 10:VIL 11:SHEAR 12:WARN 13:CATCH 14:RTI 15:RAW 16:MAX 17:USER 18:USERV 19:OTHER 20:STATUS 21:SLINE 22:WIND 23:BEAM 24:TEXT 25:FCAST 26:NDOP 27:IMAGE 28:COMP 29:TDWR 30:GAGE 31:DWELL 32:SRI 33:BASE 34:HMAX");
-    print_u(out, pc.schedule, prefix, "schedule", "Scheduling code: 0:hold; 1:next; 2:all");
-    print_i(out, pc.skip, prefix, "skip", "Number of seconds to skip between runs");
-    print_ymds_time(out, pc.gen_tm, prefix, "gen_tm","Time product was generated (UTC)");
-    print_ymds_time(out, pc.ingest_sweep_tm, prefix, "ingest_sweep_tm","Time of input ingest sweep (TZ flex)");
-    print_ymds_time(out, pc.ingest_file_tm, prefix, "ingest_file_tm","Time of input ingest file (TZ flexible)");
-    print_s(out, pc.config_file, prefix, "config_file", "Name of the product configuration file");
-    print_s(out, pc.task_name, prefix, "task_name", "Name of the task used to generate the data");
-    print_x(out, pc.flag, prefix, "flag", "Flag word: (Bits 0,2,3,4,8,9,10 used internally). Bit1: TDWR style messages. Bit5: Keep this file. Bit6: This is a clutter map. Bit7: Speak warning messages. Bit11: This product has been composited. Bit12: This product has been dwelled. Bit13: Z/R source0, 0:Type­in; 1:Setup; 2:Disdrometer. Bit14: Z/R source1");
-    print_i(out, pc.x_scale, prefix, "x_scale", "X scale in cm/pixel");
-    print_i(out, pc.y_scale, prefix, "y_scale", "Y scale in cm/pixel");
-    print_i(out, pc.z_scale, prefix, "z_scale", "Z scale in cm/pixel");
-    print_i(out, pc.x_size, prefix, "x_size", "X direction size of data array");
-    print_i(out, pc.y_size, prefix, "y_size", "Y direction size of data array");
-    print_i(out, pc.z_size, prefix, "z_size", "Z direction size of data array");
-    print_i(out, pc.x_loc, prefix, "x_loc", "X location of radar in data array (signed 1/1000 of pixels)");
-    print_i(out, pc.y_loc, prefix, "y_loc", "Y location of radar in data array (signed 1/1000 of pixels)");
-    print_i(out, pc.z_loc, prefix, "z_loc", "Z location of radar in data array (signed 1/1000 of pixels)");
-    print_i(out, pc.max_rng, prefix, "max_rng", "Maximum range in cm (used only in version 2.0, raw products)");
-    print_u(out, pc.data_type, prefix, "data_type", "Data type generated (See Section 3.8 for values)");
-    print_s(out, pc.proj, prefix, "proj", "Name of projection used");
-    print_u(out, pc.inp_data_type, prefix, "inp_data_type", "Data type used as input (See Section 3.8 for values)");
-    print_u(out, pc.proj_type, prefix, "proj_type", "Projection type: 0=Centered Azimuthal, 1=Mercator");
-    print_i(out, pc.rad_smoother, prefix, "rad_smoother", "Radial smoother in 1/100 of km");
-    print_i(out, pc.num_runs, prefix, "num_runs", "Number of times this product configuration has run");
-    print_i(out, pc.zr_const, prefix, "zr_const", "Z/R relationship constant in 1/1000");
-    print_i(out, pc.zr_exp, prefix, "zr_exp", "Z/R relationship exponent in 1/1000");
-    print_i(out, pc.x_smooth, prefix, "x_smooth", "X-direction smoother in 1/100 of km");
-    print_i(out, pc.y_smooth, prefix, "y_smooth", "Y-direction smoother in 1/100 of km");
+    print_u(out, pc.type, prefix, "type",
+	    "Product type code: 1:PPI 2:RHI 3:CAPPI 4:CROSS 5:TOPS 6:TRACK"
+	    " 7:RAIN1 8:RAINN 9:VVP 10:VIL 11:SHEAR 12:WARN 13:CATCH 14:RTI"
+	    " 15:RAW 16:MAX 17:USER 18:USERV 19:OTHER 20:STATUS 21:SLINE"
+	    " 22:WIND 23:BEAM 24:TEXT 25:FCAST 26:NDOP 27:IMAGE 28:COMP"
+	    " 29:TDWR 30:GAGE 31:DWELL 32:SRI 33:BASE 34:HMAX");
+    print_u(out, pc.schedule, prefix, "schedule",
+	    "Scheduling code: 0:hold; 1:next; 2:all");
+    print_i(out, pc.skip, prefix, "skip",
+	    "Number of seconds to skip between runs");
+    print_ymds_time(out, pc.gen_tm, prefix, "gen_tm",
+	    "Time product was generated (UTC)");
+    print_ymds_time(out, pc.ingest_sweep_tm, prefix,
+	    "ingest_sweep_tm","Time of input ingest sweep (TZ flex)");
+    print_ymds_time(out, pc.ingest_file_tm, prefix,
+	    "ingest_file_tm","Time of input ingest file (TZ flexible)");
+    print_s(out, pc.config_file, prefix, "config_file",
+	    "Name of the product configuration file");
+    print_s(out, pc.task_name, prefix, "task_name",
+	    "Name of the task used to generate the data");
+    print_x(out, pc.flag, prefix, "flag",
+	    "Flag word: (Bits 0,2,3,4,8,9,10 used internally)."
+	    " Bit1: TDWR style messages. Bit5: Keep this file. Bit6: This is a"
+	    " clutter map. Bit7: Speak warning messages. Bit11: This product"
+	    " has been composited. Bit12: This product has been dwelled."
+	    " Bit13: Z/R source0, 0:Type­in; 1:Setup; 2:Disdrometer."
+	    " Bit14: Z/R source1");
+    print_i(out, pc.x_scale, prefix, "x_scale",
+	    "X scale in cm/pixel");
+    print_i(out, pc.y_scale, prefix, "y_scale",
+	    "Y scale in cm/pixel");
+    print_i(out, pc.z_scale, prefix, "z_scale",
+	    "Z scale in cm/pixel");
+    print_i(out, pc.x_size, prefix, "x_size",
+	    "X direction size of data array");
+    print_i(out, pc.y_size, prefix, "y_size",
+	    "Y direction size of data array");
+    print_i(out, pc.z_size, prefix, "z_size",
+	    "Z direction size of data array");
+    print_i(out, pc.x_loc, prefix, "x_loc",
+	    "X location of radar in data array (signed 1/1000 of pixels)");
+    print_i(out, pc.y_loc, prefix, "y_loc",
+	    "Y location of radar in data array (signed 1/1000 of pixels)");
+    print_i(out, pc.z_loc, prefix, "z_loc",
+	    "Z location of radar in data array (signed 1/1000 of pixels)");
+    print_i(out, pc.max_rng, prefix, "max_rng",
+	    "Maximum range in cm (used only in version 2.0, raw products)");
+    print_u(out, pc.data_type, prefix, "data_type",
+	    "Data type generated (See Section 3.8 for values)");
+    print_s(out, pc.proj, prefix, "proj",
+	    "Name of projection used");
+    print_u(out, pc.inp_data_type, prefix, "inp_data_type",
+	    "Data type used as input (See Section 3.8 for values)");
+    print_u(out, pc.proj_type, prefix, "proj_type",
+	    "Projection type: 0=Centered Azimuthal, 1=Mercator");
+    print_i(out, pc.rad_smoother, prefix, "rad_smoother",
+	    "Radial smoother in 1/100 of km");
+    print_i(out, pc.num_runs, prefix, "num_runs",
+	    "Number of times this product configuration has run");
+    print_i(out, pc.zr_const, prefix, "zr_const",
+	    "Z/R relationship constant in 1/1000");
+    print_i(out, pc.zr_exp, prefix, "zr_exp",
+	    "Z/R relationship exponent in 1/1000");
+    print_i(out, pc.x_smooth, prefix, "x_smooth",
+	    "X-direction smoother in 1/100 of km");
+    print_i(out, pc.y_smooth, prefix, "y_smooth",
+	    "Y-direction smoother in 1/100 of km");
     print_product_specific_info(out, prefix, pc.psi);
-    print_s(out, pc.suffixes, prefix, "suffixes", "List of minor task suffixes, null terminated");
+    print_s(out, pc.suffixes, prefix, "suffixes",
+	    "List of minor task suffixes, null terminated");
     print_color_scale_def(out, prefix, pc.csd);
 }
 
@@ -718,22 +812,37 @@ struct Sigmet_Product_Specific_Info get_product_specific_info(char *rec)
     return psi;
 }
 
-void print_product_specific_info(FILE *out, char *pfx, struct Sigmet_Product_Specific_Info psi)
+void print_product_specific_info(FILE *out, char *pfx,
+	struct Sigmet_Product_Specific_Info psi)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<product_specific_info>.");
-    print_x(out, psi.data_type_mask, prefix, "data_type_mask", "Data type mask word 0");
-    print_i(out, psi.rng_last_bin, prefix, "rng_last_bin", "Range of last bin in cm");
-    print_u(out, psi.format_conv_flag, prefix, "format_conv_flag", "Format conversion flag: 0=Preserve all ingest data 1=Convert 8-bit data to 16-bit data 2=Convert 16-bit data to 8-bit data");
-    print_x(out, psi.flag, prefix, "flag", "Flag word: Bit 0=Separate product files by sweep Bit 1=Mask data by supplied mask");
-    print_i(out, psi.sweep_num, prefix, "sweep_num", "Sweep number if separate files, origin 1");
-    print_u(out, psi.xhdr_type, prefix, "xhdr_type", "Xhdr type (unused)");
-    print_x(out, psi.data_type_mask1, prefix, "data_type_mask1", "Data type mask 1");
-    print_x(out, psi.data_type_mask2, prefix, "data_type_mask2", "Data type mask 2");
-    print_x(out, psi.data_type_mask3, prefix, "data_type_mask3", "Data type mask 3");
-    print_x(out, psi.data_type_mask4, prefix, "data_type_mask4", "Data type mask 4");
-    print_u(out, psi.playback_vsn, prefix, "playback_vsn", "Playback version (low 16-bits)");
+    print_x(out, psi.data_type_mask, prefix, "data_type_mask",
+	    "Data type mask word 0");
+    print_i(out, psi.rng_last_bin, prefix, "rng_last_bin",
+	    "Range of last bin in cm");
+    print_u(out, psi.format_conv_flag, prefix, "format_conv_flag",
+	    "Format conversion flag: 0=Preserve all ingest data"
+	    " 1=Convert 8-bit data to 16-bit data"
+	    " 2=Convert 16-bit data to 8-bit data");
+    print_x(out, psi.flag, prefix, "flag",
+	    "Flag word: Bit 0=Separate product files by sweep Bit 1=Mask data"
+	    " by supplied mask");
+    print_i(out, psi.sweep_num, prefix, "sweep_num",
+	    "Sweep number if separate files, origin 1");
+    print_u(out, psi.xhdr_type, prefix, "xhdr_type",
+	    "Xhdr type (unused)");
+    print_x(out, psi.data_type_mask1, prefix, "data_type_mask1",
+	    "Data type mask 1");
+    print_x(out, psi.data_type_mask2, prefix, "data_type_mask2",
+	    "Data type mask 2");
+    print_x(out, psi.data_type_mask3, prefix, "data_type_mask3",
+	    "Data type mask 3");
+    print_x(out, psi.data_type_mask4, prefix, "data_type_mask4",
+	    "Data type mask 4");
+    print_u(out, psi.playback_vsn, prefix, "playback_vsn",
+	    "Playback version (low 16-bits)");
 }
 
 /* get / print color_scale_def */
@@ -758,21 +867,31 @@ struct Sigmet_Color_Scale_Def get_color_scale_def(char *rec)
     return csd;
 }
 
-void print_color_scale_def(FILE *out, char *pfx, struct Sigmet_Color_Scale_Def csd)
+void print_color_scale_def(FILE *out, char *pfx,
+	struct Sigmet_Color_Scale_Def csd)
 {
     int n;
     char prefix[STR_LEN];
     char struct_path[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<color_scale_def>.");
-    print_x(out, csd.flags, prefix, "flags", "iflags: Bit 8=COLOR_SCALE_VARIABLE Bit 10=COLOR_SCALE_TOP_SAT Bit 11=COLOR_SCALE_BOT_SAT");
-    print_i(out, csd.istart, prefix, "istart", "istart: Starting level");
-    print_i(out, csd.istep, prefix, "istep", "istep: Level step");
-    print_i(out, csd.icolcnt, prefix, "icolcnt", "icolcnt: Number of colors in scale");
-    print_u(out, csd.iset_and_scale, prefix, "iset_and_scale", "iset_and_scale: Color set number in low byte, color scale number in high byte.");
+    print_x(out, csd.flags, prefix, "flags",
+	    "iflags: Bit 8=COLOR_SCALE_VARIABLE Bit 10=COLOR_SCALE_TOP_SAT Bit"
+	    " 11=COLOR_SCALE_BOT_SAT");
+    print_i(out, csd.istart, prefix, "istart",
+	    "istart: Starting level");
+    print_i(out, csd.istep, prefix, "istep",
+	    "istep: Level step");
+    print_i(out, csd.icolcnt, prefix, "icolcnt",
+	    "icolcnt: Number of colors in scale");
+    print_u(out, csd.iset_and_scale, prefix, "iset_and_scale",
+	    "iset_and_scale: Color set number in low byte, color scale number"
+	    " in high byte.");
     for (n = 0; n < 16; n++) {
-	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "ilevel_seams[", n, "]");
-	fprintf(out, "%u ! %s ! %s\n", csd.ilevel_seams[n], struct_path, "ilevel_seams: Variable level starting values");
+	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix,
+		"ilevel_seams[", n, "]");
+	fprintf(out, "%u ! %s ! %s\n", csd.ilevel_seams[n], struct_path,
+		"ilevel_seams: Variable level starting values");
     }
 }
 
@@ -849,58 +968,112 @@ void print_product_end(FILE *out, char *pfx, struct Sigmet_Product_End pe)
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<product_end>.");
-    print_s(out, pe.site_name_prod, prefix, "site_name_prod", "Site name -- where product was made (space padded)");
-    print_s(out, pe.iris_prod_vsn, prefix, "iris_prod_vsn", "IRIS version where product was made (null terminated)");
-    print_s(out, pe.iris_ing_vsn, prefix, "iris_ing_vsn", "IRIS version where ingest data came from");
-    print_i(out, pe.local_wgmt, prefix, "local_wgmt", "Number of minutes local standard time is west of GMT");
-    print_s(out, pe.hw_name, prefix, "hw_name", "Hardware name where ingest data came from (space padded)");
-    print_s(out, pe.site_name_ing, prefix, "site_name_ing", "Site name where ingest data came from (space padded)");
-    print_i(out, pe.rec_wgmt, prefix, "rec_wgmt", "Number of minutes recorded standard time is west of GMT");
-    print_u(out, pe.center_latitude, prefix, "center_latitude", "Latitude of center (binary angle) *");
-    print_u(out, pe.center_longitude, prefix, "center_longitude", "Longitude of center (binary angle) *");
-    print_i(out, pe.ground_elev, prefix, "ground_elev", "Signed ground height in meters relative to sea level");
-    print_i(out, pe.radar_ht, prefix, "radar_ht", "Height of radar above the ground in meters");
-    print_i(out, pe.prf, prefix, "prf", "PRF in hertz");
-    print_i(out, pe.pulse_w, prefix, "pulse_w", "Pulse width in 1/100 of microseconds");
-    print_u(out, pe.proc_type, prefix, "proc_type", "Type of signal processor used");
-    print_u(out, pe.trigger_rate_scheme, prefix, "trigger_rate_scheme", "Trigger rate scheme");
-    print_i(out, pe.num_samples, prefix, "num_samples", "Number of samples used");
-    print_s(out, pe.clutter_filter, prefix, "clutter_filter", "Clutter filter file name");
-    print_u(out, pe.lin_filter, prefix, "lin_filter", "Number of linear based filter for the first bin");
-    print_i(out, pe.wave_len, prefix, "wave_len", "Wavelength in 1/100 of centimeters");
-    print_i(out, pe.trunc_ht, prefix, "trunc_ht", "Truncation height (cm above the radar)");
-    print_i(out, pe.rng_bin0, prefix, "rng_bin0", "Range of the first bin in cm");
-    print_i(out, pe.rng_last_bin, prefix, "rng_last_bin", "Range of the last bin in cm");
-    print_i(out, pe.num_bins_out, prefix, "num_bins_out", "Number of output bins");
-    print_x(out, pe.flag, prefix, "flag", "Flag word Bit0:Disdrometer failed, we used setup for Z/R source instead");
-    print_u(out, pe.polarization, prefix, "polarization", "Type of polarization used");
-    print_i(out, pe.hpol_io_cal, prefix, "hpol_io_cal", "I0 cal value, horizontal pol, in 1/100 dBm");
-    print_i(out, pe.hpol_cal_noise, prefix, "hpol_cal_noise", "Noise at calibration, horizontal pol, in 1/100 dBm");
-    print_i(out, pe.hpol_radar_const, prefix, "hpol_radar_const", "Radar constant, horizontal pol, in 1/100 dB");
-    print_u(out, pe.recv_bandw, prefix, "recv_bandw", "Receiver bandwidth in kHz");
-    print_i(out, pe.hpol_noise, prefix, "hpol_noise", "Current noise level, horizontal pol, in 1/100 dBm");
-    print_i(out, pe.vpol_noise, prefix, "vpol_noise", "Current noise level, vertical pol, in 1/100 dBm");
-    print_i(out, pe.ldr_offset, prefix, "ldr_offset", "LDR offset, in 1/100 dB");
-    print_i(out, pe.zdr_offset, prefix, "zdr_offset", "ZDR offset, in 1/100 dB");
-    print_u(out, pe.tcf_cal_flags, prefix, "tcf_cal_flags", "TCF Cal flags, see struct task_calib_info (added in 8.12.3)");
-    print_u(out, pe.tcf_cal_flags2, prefix, "tcf_cal_flags2", "TCF Cal flags2, see struct task_calib_info (added in 8.12.3)");
-    print_u(out, pe.std_parallel1, prefix, "std_parallel1", "More projection info these 4 words: Standard parallel #1");
-    print_u(out, pe.std_parallel2, prefix, "std_parallel2", "Standard parallel #2");
-    print_u(out, pe.rearth, prefix, "rearth", "Equatorial radius of the earth, cm (zero = 6371km sphere)");
-    print_u(out, pe.flatten, prefix, "flatten", "1/Flattening in 1/1000000 (zero = sphere)");
-    print_u(out, pe.fault, prefix, "fault", "Fault status of task, see ingest_configuration 3.2.14 for details");
-    print_u(out, pe.insites_mask, prefix, "insites_mask", "Mask of input sites used in a composite");
-    print_u(out, pe.logfilter_num, prefix, "logfilter_num", "Number of log based filter for the first bin");
-    print_u(out, pe.cluttermap_used, prefix, "cluttermap_used", "Nonzero if cluttermap applied to the ingest data");
-    print_u(out, pe.proj_lat, prefix, "proj_lat", "Latitude of projection reference *");
-    print_u(out, pe.proj_lon, prefix, "proj_lon", "Longitude of projection reference *");
-    print_i(out, pe.i_prod, prefix, "i_prod", "Product sequence number");
-    print_i(out, pe.melt_level, prefix, "melt_level", "Melting level in meters, msb complemented (0=unknown)");
-    print_i(out, pe.radar_ht_ref, prefix, "radar_ht_ref", "Height of radar above reference height in meters");
-    print_i(out, pe.num_elem, prefix, "num_elem", "Number of elements in product results array");
-    print_u(out, pe.wind_spd, prefix, "wind_spd", "Mean wind speed");
-    print_u(out, pe.wind_dir, prefix, "wind_dir", "Mean wind direction (unknown if speed and direction 0)");
-    print_s(out, pe.tz, prefix, "tz", "TZ Name of recorded data");
+    print_s(out, pe.site_name_prod, prefix, "site_name_prod",
+	    "Site name -- where product was made (space padded)");
+    print_s(out, pe.iris_prod_vsn, prefix, "iris_prod_vsn",
+	    "IRIS version where product was made (null terminated)");
+    print_s(out, pe.iris_ing_vsn, prefix, "iris_ing_vsn",
+	    "IRIS version where ingest data came from");
+    print_i(out, pe.local_wgmt, prefix, "local_wgmt",
+	    "Number of minutes local standard time is west of GMT");
+    print_s(out, pe.hw_name, prefix, "hw_name",
+	    "Hardware name where ingest data came from (space padded)");
+    print_s(out, pe.site_name_ing, prefix, "site_name_ing",
+	    "Site name where ingest data came from (space padded)");
+    print_i(out, pe.rec_wgmt, prefix, "rec_wgmt",
+	    "Number of minutes recorded standard time is west of GMT");
+    print_u(out, pe.center_latitude, prefix, "center_latitude",
+	    "Latitude of center (binary angle) *");
+    print_u(out, pe.center_longitude, prefix, "center_longitude",
+	    "Longitude of center (binary angle) *");
+    print_i(out, pe.ground_elev, prefix, "ground_elev",
+	    "Signed ground height in meters relative to sea level");
+    print_i(out, pe.radar_ht, prefix, "radar_ht",
+	    "Height of radar above the ground in meters");
+    print_i(out, pe.prf, prefix, "prf",
+	    "PRF in hertz");
+    print_i(out, pe.pulse_w, prefix, "pulse_w",
+	    "Pulse width in 1/100 of microseconds");
+    print_u(out, pe.proc_type, prefix, "proc_type",
+	    "Type of signal processor used");
+    print_u(out, pe.trigger_rate_scheme, prefix, "trigger_rate_scheme",
+	    "Trigger rate scheme");
+    print_i(out, pe.num_samples, prefix, "num_samples",
+	    "Number of samples used");
+    print_s(out, pe.clutter_filter, prefix, "clutter_filter",
+	    "Clutter filter file name");
+    print_u(out, pe.lin_filter, prefix, "lin_filter",
+	    "Number of linear based filter for the first bin");
+    print_i(out, pe.wave_len, prefix, "wave_len",
+	    "Wavelength in 1/100 of centimeters");
+    print_i(out, pe.trunc_ht, prefix, "trunc_ht",
+	    "Truncation height (cm above the radar)");
+    print_i(out, pe.rng_bin0, prefix, "rng_bin0",
+	    "Range of the first bin in cm");
+    print_i(out, pe.rng_last_bin, prefix, "rng_last_bin",
+	    "Range of the last bin in cm");
+    print_i(out, pe.num_bins_out, prefix, "num_bins_out",
+	    "Number of output bins");
+    print_x(out, pe.flag, prefix, "flag",
+	    "Flag word Bit0:Disdrometer failed, we used setup for Z/R source"
+	    " instead");
+    print_u(out, pe.polarization, prefix, "polarization",
+	    "Type of polarization used");
+    print_i(out, pe.hpol_io_cal, prefix, "hpol_io_cal",
+	    "I0 cal value, horizontal pol, in 1/100 dBm");
+    print_i(out, pe.hpol_cal_noise, prefix, "hpol_cal_noise",
+	    "Noise at calibration, horizontal pol, in 1/100 dBm");
+    print_i(out, pe.hpol_radar_const, prefix, "hpol_radar_const",
+	    "Radar constant, horizontal pol, in 1/100 dB");
+    print_u(out, pe.recv_bandw, prefix, "recv_bandw",
+	    "Receiver bandwidth in kHz");
+    print_i(out, pe.hpol_noise, prefix, "hpol_noise",
+	    "Current noise level, horizontal pol, in 1/100 dBm");
+    print_i(out, pe.vpol_noise, prefix, "vpol_noise",
+	    "Current noise level, vertical pol, in 1/100 dBm");
+    print_i(out, pe.ldr_offset, prefix, "ldr_offset",
+	    "LDR offset, in 1/100 dB");
+    print_i(out, pe.zdr_offset, prefix, "zdr_offset",
+	    "ZDR offset, in 1/100 dB");
+    print_u(out, pe.tcf_cal_flags, prefix, "tcf_cal_flags",
+	    "TCF Cal flags, see struct task_calib_info (added in 8.12.3)");
+    print_u(out, pe.tcf_cal_flags2, prefix, "tcf_cal_flags2",
+	    "TCF Cal flags2, see struct task_calib_info (added in 8.12.3)");
+    print_u(out, pe.std_parallel1, prefix, "std_parallel1",
+	    "More projection info these 4 words: Standard parallel #1");
+    print_u(out, pe.std_parallel2, prefix, "std_parallel2",
+	    "Standard parallel #2");
+    print_u(out, pe.rearth, prefix, "rearth",
+	    "Equatorial radius of the earth, cm (zero = 6371km sphere)");
+    print_u(out, pe.flatten, prefix, "flatten",
+	    "1/Flattening in 1/1000000 (zero = sphere)");
+    print_u(out, pe.fault, prefix, "fault",
+	    "Fault status of task, see ingest_configuration 3.2.14 "
+	    " for details");
+    print_u(out, pe.insites_mask, prefix, "insites_mask",
+	    "Mask of input sites used in a composite");
+    print_u(out, pe.logfilter_num, prefix, "logfilter_num",
+	    "Number of log based filter for the first bin");
+    print_u(out, pe.cluttermap_used, prefix, "cluttermap_used",
+	    "Nonzero if cluttermap applied to the ingest data");
+    print_u(out, pe.proj_lat, prefix, "proj_lat",
+	    "Latitude of projection reference *");
+    print_u(out, pe.proj_lon, prefix, "proj_lon",
+	    "Longitude of projection reference *");
+    print_i(out, pe.i_prod, prefix, "i_prod",
+	    "Product sequence number");
+    print_i(out, pe.melt_level, prefix, "melt_level",
+	    "Melting level in meters, msb complemented (0=unknown)");
+    print_i(out, pe.radar_ht_ref, prefix, "radar_ht_ref",
+	    "Height of radar above reference height in meters");
+    print_i(out, pe.num_elem, prefix, "num_elem",
+	    "Number of elements in product results array");
+    print_u(out, pe.wind_spd, prefix, "wind_spd",
+	    "Mean wind speed");
+    print_u(out, pe.wind_dir, prefix, "wind_dir",
+	    "Mean wind direction (unknown if speed and direction 0)");
+    print_s(out, pe.tz, prefix, "tz",
+	    "TZ Name of recorded data");
 }
 
 /* get / print ingest header (a.k.a. raw volume record 2) */
@@ -917,7 +1090,8 @@ struct Sigmet_Ingest_Header get_ingest_header(char *rec)
     return ih;
 }
 
-void print_ingest_header(FILE *out, char *prefix, struct Sigmet_Ingest_Header ih)
+void print_ingest_header(FILE *out, char *prefix,
+	struct Sigmet_Ingest_Header ih)
 {
     print_structure_header(out, prefix, ih.sh);
     print_ingest_configuration(out, prefix, ih.ic);
@@ -981,45 +1155,84 @@ struct Sigmet_Ingest_Configuration get_ingest_configuration(char *rec)
     return ic;
 }
 
-void print_ingest_configuration(FILE *out, char *pfx, struct Sigmet_Ingest_Configuration ic)
+void print_ingest_configuration(FILE *out, char *pfx,
+	struct Sigmet_Ingest_Configuration ic)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<ingest_configuration>.");
-    print_s(out, ic.file_name, prefix, "file_name", "Name of file on disk");
-    print_i(out, ic.num_assoc_files, prefix, "num_assoc_files", "Number of associated data files extant");
-    print_i(out, ic.num_sweeps, prefix, "num_sweeps", "Number of sweeps completed so far");
-    print_i(out, ic.size_files, prefix, "size_files", "Total size of all files in bytes");
-    print_ymds_time(out, ic.vol_start_time, prefix, "vol_start_time","Time that volume scan was started, TZ spec in bytes 166 & 224");
-    print_i(out, ic.ray_headers_sz, prefix, "ray_headers_sz", "Number of bytes in the ray headers");
-    print_i(out, ic.extended_ray_headers_sz, prefix, "extended_ray_headers_sz", "Number of bytes in extended ray headers (includes normal ray header)");
-    print_i(out, ic.task_config_table_num, prefix, "task_config_table_num", "Number of task configuration table");
-    print_i(out, ic.playback_vsn, prefix, "playback_vsn", "Playback version number");
-    print_s(out, ic.IRIS_vsn, prefix, "IRIS_vsn", "IRIS version, null terminated");
-    print_s(out, ic.hw_site_name, prefix, "hw_site_name", "Hardware name of site");
-    print_i(out, ic.local_wgmt, prefix, "local_wgmt", "Time zone of local standard time, minutes west of GMT");
-    print_s(out, ic.su_site_name, prefix, "su_site_name", "Name of site, from setup utility");
-    print_i(out, ic.rec_wgmt, prefix, "rec_wgmt", "Time zone of recorded standard time, minutes west of GMT");
-    print_u(out, ic.latitude, prefix, "latitude", "Latitude of radar (binary angle: 20000000 hex is 45_ North)");
-    print_u(out, ic.longitude, prefix, "longitude", "Longitude of radar (binary angle: 20000000 hex is 45_ East)");
-    print_i(out, ic.ground_elev, prefix, "ground_elev", "Height of ground at site (meters above sea level)");
-    print_i(out, ic.radar_ht, prefix, "radar_ht", "Height of radar above ground (meters)");
-    print_u(out, ic.resolution, prefix, "resolution", "Resolution specified in number of rays in a 360_ sweep");
-    print_u(out, ic.index_first_ray, prefix, "index_first_ray", "Index of first ray from above set of rays");
-    print_u(out, ic.num_rays, prefix, "num_rays", "Number of rays in a sweep");
-    print_i(out, ic.num_bytes_gparam, prefix, "num_bytes_gparam", "Number of bytes in each gparam");
-    print_i(out, ic.altitude, prefix, "altitude", "Altitude of radar (cm above sea level)");
-    print_i(out, ic.velocity[0], prefix, "velocity east", "Velocity of radar platform (cm/sec) east");
-    print_i(out, ic.velocity[1], prefix, "velocity north", "Velocity of radar platform (cm/sec) north");
-    print_i(out, ic.velocity[2], prefix, "velocity up", "Velocity of radar platform (cm/sec) up");
-    print_i(out, ic.offset_inu[0], prefix, "offset_inu starboard", "Antenna offset from INU (cm) starboard");
-    print_i(out, ic.offset_inu[1], prefix, "offset_inu bow", "Antenna offset from INU (cm) bow");
-    print_i(out, ic.offset_inu[2], prefix, "offset_inu up", "Antenna offset from INU (cm) up");
-    print_u(out, ic.fault, prefix, "fault", "Fault status at the time the task was started, bits: 0:Normal BITE 1:Critical BITE 2:Normal RCP 3:Critical RCP 4:Critical system 5:Product gen. 6:Output 7:Normal system ");
-    print_i(out, ic.melt_level, prefix, "melt_level", "Height of melting layer (meters above sea level) MSB is complemented, zero=Unknown");
-    print_s(out, ic.tz, prefix, "tz", "Local timezone string, null terminated");
-    print_x(out, ic.flags, prefix, "flags", "Flags, Bit 0=First ray not centered on zero degrees");
-    print_s(out, ic.config_name, prefix, "config_name", "Configuration name in the dpolapp.conf file, null terminated");
+    print_s(out, ic.file_name, prefix, "file_name",
+	    "Name of file on disk");
+    print_i(out, ic.num_assoc_files, prefix, "num_assoc_files",
+	    "Number of associated data files extant");
+    print_i(out, ic.num_sweeps, prefix, "num_sweeps",
+	    "Number of sweeps completed so far");
+    print_i(out, ic.size_files, prefix, "size_files",
+	    "Total size of all files in bytes");
+    print_ymds_time(out, ic.vol_start_time, prefix, "vol_start_time",
+	    "Time that volume scan was started, TZ spec in bytes 166 & 224");
+    print_i(out, ic.ray_headers_sz, prefix, "ray_headers_sz",
+	    "Number of bytes in the ray headers");
+    print_i(out, ic.extended_ray_headers_sz, prefix, "extended_ray_headers_sz",
+	    "Number of bytes in extended ray headers"
+	    " (includes normal ray header)");
+    print_i(out, ic.task_config_table_num, prefix, "task_config_table_num",
+	    "Number of task configuration table");
+    print_i(out, ic.playback_vsn, prefix, "playback_vsn",
+	    "Playback version number");
+    print_s(out, ic.IRIS_vsn, prefix, "IRIS_vsn",
+	    "IRIS version, null terminated");
+    print_s(out, ic.hw_site_name, prefix, "hw_site_name",
+	    "Hardware name of site");
+    print_i(out, ic.local_wgmt, prefix, "local_wgmt",
+	    "Time zone of local standard time, minutes west of GMT");
+    print_s(out, ic.su_site_name, prefix, "su_site_name",
+	    "Name of site, from setup utility");
+    print_i(out, ic.rec_wgmt, prefix, "rec_wgmt",
+	    "Time zone of recorded standard time, minutes west of GMT");
+    print_u(out, ic.latitude, prefix, "latitude",
+	    "Latitude of radar (binary angle: 20000000 hex is 45_ North)");
+    print_u(out, ic.longitude, prefix, "longitude",
+	    "Longitude of radar (binary angle: 20000000 hex is 45_ East)");
+    print_i(out, ic.ground_elev, prefix, "ground_elev",
+	    "Height of ground at site (meters above sea level)");
+    print_i(out, ic.radar_ht, prefix, "radar_ht",
+	    "Height of radar above ground (meters)");
+    print_u(out, ic.resolution, prefix, "resolution",
+	    "Resolution specified in number of rays in a 360_ sweep");
+    print_u(out, ic.index_first_ray, prefix, "index_first_ray",
+	    "Index of first ray from above set of rays");
+    print_u(out, ic.num_rays, prefix, "num_rays",
+	    "Number of rays in a sweep");
+    print_i(out, ic.num_bytes_gparam, prefix, "num_bytes_gparam",
+	    "Number of bytes in each gparam");
+    print_i(out, ic.altitude, prefix, "altitude",
+	    "Altitude of radar (cm above sea level)");
+    print_i(out, ic.velocity[0], prefix, "velocity east",
+	    "Velocity of radar platform (cm/sec) east");
+    print_i(out, ic.velocity[1], prefix, "velocity north",
+	    "Velocity of radar platform (cm/sec) north");
+    print_i(out, ic.velocity[2], prefix, "velocity up",
+	    "Velocity of radar platform (cm/sec) up");
+    print_i(out, ic.offset_inu[0], prefix, "offset_inu starboard",
+	    "Antenna offset from INU (cm) starboard");
+    print_i(out, ic.offset_inu[1], prefix, "offset_inu bow",
+	    "Antenna offset from INU (cm) bow");
+    print_i(out, ic.offset_inu[2], prefix, "offset_inu up",
+	    "Antenna offset from INU (cm) up");
+    print_u(out, ic.fault, prefix, "fault",
+	    "Fault status at the time the task was started, bits:"
+	    " 0:Normal BITE 1:Critical BITE 2:Normal RCP 3:Critical RCP"
+	    " 4:Critical system 5:Product gen. 6:Output 7:Normal system ");
+    print_i(out, ic.melt_level, prefix, "melt_level",
+	    "Height of melting layer (meters above sea level) MSB is"
+	    " complemented, zero=Unknown");
+    print_s(out, ic.tz, prefix, "tz",
+	    "Local timezone string, null terminated");
+    print_x(out, ic.flags, prefix, "flags",
+	    "Flags, Bit 0=First ray not centered on zero degrees");
+    print_s(out, ic.config_name, prefix, "config_name",
+	    "Configuration name in the dpolapp.conf file, null terminated");
 }
 
 /* get / print task_configuration */
@@ -1046,7 +1259,8 @@ struct Sigmet_Task_Configuration get_task_configuration(char *rec)
     return tc;
 }
 
-void print_task_configuration(FILE *out, char *pfx, struct Sigmet_Task_Configuration tc)
+void print_task_configuration(FILE *out, char *pfx,
+	struct Sigmet_Task_Configuration tc)
 {
     char prefix[STR_LEN];
 
@@ -1077,18 +1291,27 @@ struct Sigmet_Task_Sched_Info get_task_sched_info(char *rec)
     return tsi;
 }
 
-void print_task_sched_info(FILE *out, char *pfx, struct Sigmet_Task_Sched_Info tsi)
+void print_task_sched_info(FILE *out, char *pfx,
+	struct Sigmet_Task_Sched_Info tsi)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_sched_info>.");
-    print_i(out, tsi.start_time, prefix, "start_time", "Start time (seconds within a day)");
-    print_i(out, tsi.stop_time, prefix, "stop_time", "Stop time (seconds within a day)");
-    print_i(out, tsi.skip, prefix, "skip", "Desired skip time (seconds)");
-    print_i(out, tsi.time_last_run, prefix, "time_last_run", "Time last run (seconds within a day)(0 for passive ingest)");
-    print_i(out, tsi.time_used_last_run, prefix, "time_used_last_run", "Time used on last run (seconds) (in file time to writeout)");
-    print_i(out, tsi.rel_day_last_run, prefix, "rel_day_last_run", "Relative day of last run (zero for passive ingest)");
-    print_x(out, tsi.flag, prefix, "flag", "Flag: Bit 0 = ASAP Bit 1 = Mandatory Bit 2 = Late skip Bit 3 = Time used has been measured Bit 4 = Stop after running");
+    print_i(out, tsi.start_time, prefix, "start_time",
+	    "Start time (seconds within a day)");
+    print_i(out, tsi.stop_time, prefix, "stop_time",
+	    "Stop time (seconds within a day)");
+    print_i(out, tsi.skip, prefix, "skip",
+	    "Desired skip time (seconds)");
+    print_i(out, tsi.time_last_run, prefix, "time_last_run",
+	    "Time last run (seconds within a day)(0 for passive ingest)");
+    print_i(out, tsi.time_used_last_run, prefix, "time_used_last_run",
+	    "Time used on last run (seconds) (in file time to writeout)");
+    print_i(out, tsi.rel_day_last_run, prefix, "rel_day_last_run",
+	    "Relative day of last run (zero for passive ingest)");
+    print_x(out, tsi.flag, prefix, "flag",
+	    "Flag: Bit 0 = ASAP Bit 1 = Mandatory Bit 2 = Late skip"
+	    " Bit 3 = Time used has been measured Bit 4 = Stop after running");
 }
 
 /* get / print task_dsp_mode_batch */
@@ -1107,18 +1330,26 @@ struct Sigmet_Task_DSP_Mode_Batch get_task_dsp_mode_batch(char *rec)
     return tdmb;
 }
 
-void print_task_dsp_mode_batch(FILE *out, char *pfx, struct Sigmet_Task_DSP_Mode_Batch tdmb)
+void print_task_dsp_mode_batch(FILE *out, char *pfx,
+	struct Sigmet_Task_DSP_Mode_Batch tdmb)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_dsp_mode_batch>.");
-    print_u(out, tdmb.lo_prf, prefix, "lo_prf", "Low PRF in Hz");
-    print_u(out, tdmb.lo_prf_frac, prefix, "lo_prf_frac", "Low PRF fraction part, scaled by 2**­16");
-    print_i(out, tdmb.lo_prf_sampl, prefix, "lo_prf_sampl", "Low PRF sample size");
-    print_i(out, tdmb.lo_prf_avg, prefix, "lo_prf_avg", "Low PRF range averaging in bins");
-    print_i(out, tdmb.dz_unfold_thresh, prefix, "dz_unfold_thresh", "Theshold for reflectivity unfolding in 1/100 of dB");
-    print_i(out, tdmb.vr_unfold_thresh, prefix, "vr_unfold_thresh", "Threshold for velocity unfolding in 1/100 of dB");
-    print_i(out, tdmb.sw_unfold_thresh, prefix, "sw_unfold_thresh", "Threshold for width unfolding in 1/100 of dB");
+    print_u(out, tdmb.lo_prf, prefix, "lo_prf",
+	    "Low PRF in Hz");
+    print_u(out, tdmb.lo_prf_frac, prefix, "lo_prf_frac",
+	    "Low PRF fraction part, scaled by 2**­16");
+    print_i(out, tdmb.lo_prf_sampl, prefix, "lo_prf_sampl",
+	    "Low PRF sample size");
+    print_i(out, tdmb.lo_prf_avg, prefix, "lo_prf_avg",
+	    "Low PRF range averaging in bins");
+    print_i(out, tdmb.dz_unfold_thresh, prefix, "dz_unfold_thresh",
+	    "Theshold for reflectivity unfolding in 1/100 of dB");
+    print_i(out, tdmb.vr_unfold_thresh, prefix, "vr_unfold_thresh",
+	    "Threshold for velocity unfolding in 1/100 of dB");
+    print_i(out, tdmb.sw_unfold_thresh, prefix, "sw_unfold_thresh",
+	    "Threshold for width unfolding in 1/100 of dB");
 }
 
 /* get / print task_dsp_info */
@@ -1154,33 +1385,56 @@ struct Sigmet_Task_DSP_Info get_task_dsp_info(char *rec)
     return tdi;
 }
 
-void print_task_dsp_info(FILE *out, char *pfx, struct Sigmet_Task_DSP_Info tdi)
+void print_task_dsp_info(FILE *out, char *pfx,
+	struct Sigmet_Task_DSP_Info tdi)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_dsp_info>.");
-    print_u(out, tdi.major_mode, prefix, "major_mode", "Major mode");
-    print_u(out, tdi.dsp_type, prefix, "dsp_type", "DSP type");
-    print_dsp_data_mask(out, prefix, tdi.curr_data_mask, "Current Data type mask");
-    print_dsp_data_mask(out, prefix, tdi.orig_data_mask, "Original Data type mask");
+    print_u(out, tdi.major_mode, prefix, "major_mode",
+	    "Major mode");
+    print_u(out, tdi.dsp_type, prefix, "dsp_type",
+	    "DSP type");
+    print_dsp_data_mask(out, prefix, tdi.curr_data_mask,
+	    "Current Data type mask");
+    print_dsp_data_mask(out, prefix, tdi.orig_data_mask,
+	    "Original Data type mask");
     print_task_dsp_mode_batch(out, prefix, tdi.mb);
-    print_i(out, tdi.prf, prefix, "prf", "PRF in Hertz");
-    print_i(out, tdi.pulse_w, prefix, "pulse_w", "Pulse width in 1/100 of microseconds");
-    print_i(out, tdi.m_prf_mode, prefix, "m_prf_mode", "Multi PRF mode flag: 0=1:1, 1=2:3, 2=3:4, 3=4:5");
-    print_i(out, tdi.dual_prf, prefix, "dual_prf", "Dual PRF delay");
-    print_u(out, tdi.agc_feebk, prefix, "agc_feebk", "AGC feedback code");
-    print_i(out, tdi.sampl_sz, prefix, "sampl_sz", "Sample size");
-    print_u(out, tdi.gain_flag, prefix, "gain_flag", "Gain Control flag (0=fixed, 1=STC, 2=AGC)");
-    print_s(out, tdi.clutter_file, prefix, "clutter_file", "Name of file used for clutter filter");
-    print_u(out, tdi.lin_filter_num, prefix, "lin_filter_num", "Linear based filter number for first bin");
-    print_u(out, tdi.log_filter_num, prefix, "log_filter_num", "Log based filter number for first bin");
-    print_i(out, tdi.attenuation, prefix, "attenuation", "Attenuation in 1/10 dB applied in fixed gain mode");
-    print_u(out, tdi.gas_attenuation, prefix, "gas_attenuation", "Gas attenuation in 1/100000 dB/km for first 10000, then stepping in 1/10000 dB/km");
-    print_u(out, tdi.clutter_flag, prefix, "clutter_flag", "Flag nonzero means cluttermap used");
-    print_u(out, tdi.xmt_phase, prefix, "xmt_phase", "XMT phase sequence: 0:Fixed, 1:Random, 3:SZ8/64");
-    print_x(out, tdi.ray_hdr_mask, prefix, "ray_hdr_mask", "Mask used for to configure the ray header.");
-    print_u(out, tdi.time_series_flag, prefix, "time_series_flag", "Time series playback flags, see OPTS_* in dsp.h");
-    print_s(out, tdi.custom_ray_hdr, prefix, "custom_ray_hdr", "Name of custom ray header");
+    print_i(out, tdi.prf, prefix, "prf",
+	    "PRF in Hertz");
+    print_i(out, tdi.pulse_w, prefix, "pulse_w",
+	    "Pulse width in 1/100 of microseconds");
+    print_i(out, tdi.m_prf_mode, prefix, "m_prf_mode",
+	    "Multi PRF mode flag: 0=1:1, 1=2:3, 2=3:4, 3=4:5");
+    print_i(out, tdi.dual_prf, prefix, "dual_prf",
+	    "Dual PRF delay");
+    print_u(out, tdi.agc_feebk, prefix, "agc_feebk",
+	    "AGC feedback code");
+    print_i(out, tdi.sampl_sz, prefix, "sampl_sz",
+	    "Sample size");
+    print_u(out, tdi.gain_flag, prefix, "gain_flag",
+	    "Gain Control flag (0=fixed, 1=STC, 2=AGC)");
+    print_s(out, tdi.clutter_file, prefix, "clutter_file",
+	    "Name of file used for clutter filter");
+    print_u(out, tdi.lin_filter_num, prefix, "lin_filter_num",
+	    "Linear based filter number for first bin");
+    print_u(out, tdi.log_filter_num, prefix, "log_filter_num",
+	    "Log based filter number for first bin");
+    print_i(out, tdi.attenuation, prefix, "attenuation",
+	    "Attenuation in 1/10 dB applied in fixed gain mode");
+    print_u(out, tdi.gas_attenuation, prefix, "gas_attenuation",
+	    "Gas attenuation in 1/100000 dB/km for first 10000, then"
+	    " stepping in 1/10000 dB/km");
+    print_u(out, tdi.clutter_flag, prefix, "clutter_flag",
+	    "Flag nonzero means cluttermap used");
+    print_u(out, tdi.xmt_phase, prefix, "xmt_phase",
+	    "XMT phase sequence: 0:Fixed, 1:Random, 3:SZ8/64");
+    print_x(out, tdi.ray_hdr_mask, prefix, "ray_hdr_mask",
+	    "Mask used for to configure the ray header.");
+    print_u(out, tdi.time_series_flag, prefix, "time_series_flag",
+	    "Time series playback flags, see OPTS_* in dsp.h");
+    print_s(out, tdi.custom_ray_hdr, prefix, "custom_ray_hdr",
+	    "Name of custom ray header");
 }
 
 /* get / print task_calib_info */
@@ -1216,37 +1470,69 @@ struct Sigmet_Task_Calib_Info get_task_calib_info(char *rec)
     return tci;
 }
 
-void print_task_calib_info(FILE *out, char *pfx, struct Sigmet_Task_Calib_Info tci)
+void print_task_calib_info(FILE *out, char *pfx,
+	struct Sigmet_Task_Calib_Info tci)
 {
     char prefix[STR_LEN];
     char *desc;
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_calib_info>.");
-    print_i(out, tci.dbz_slope, prefix, "dbz_slope", "Reflectivity slope (4096*dB/ A/D count)");
-    print_i(out, tci.dbz_noise_thresh, prefix, "dbz_noise_thresh", "Reflectivity noise threshold (1/16 dB above Noise)");
-    print_i(out, tci.clutter_corr_thesh, prefix, "clutter_corr_thesh", "Clutter Correction threshold (1/16 dB)");
-    print_i(out, tci.sqi_thresh, prefix, "sqi_thresh", "SQI threshold (0­1)*256");
-    print_i(out, tci.pwr_thresh, prefix, "pwr_thresh", "Power threshold (1/16 dBZ)");
-    print_i(out, tci.cal_dbz, prefix, "cal_dbz", "Calibration Reflectivity (1/16 dBZ at 1 km)");
-    print_u(out, tci.dbt_flags, prefix, "dbt_flags", "Threshold flags for uncorrected reflectivity");
-    print_u(out, tci.dbz_flags, prefix, "dbz_flags", "Threshold flags for corrected reflectivity");
-    print_u(out, tci.vel_flags, prefix, "vel_flags", "Threshold flags for velocity");
-    print_u(out, tci.sw_flags, prefix, "sw_flags", "Threshold flags for width");
-    print_u(out, tci.zdr_flags, prefix, "zdr_flags", "Threshold flags for ZDR");
-    desc = "Flags. Bits: 0: Speckle remover for log channel 3: Speckle remover for linear channel 4:  data is range normalized 5:  pulse at beginning of ray 6:  pulse at end of ray 7: Vary number of pulses in dual PRF 8: Use 3 lag processing in PP02 9: Apply vel correction for ship motion 10: Vc is unfolded 11: Vc has fallspeed correction 12: Zc has beam blockage correction 13: Zc has Z-based attenuation correction 14: Zc has target detection 15: Vc has storm relative vel correction";
+    print_i(out, tci.dbz_slope, prefix, "dbz_slope",
+	    "Reflectivity slope (4096*dB/ A/D count)");
+    print_i(out, tci.dbz_noise_thresh, prefix, "dbz_noise_thresh",
+	    "Reflectivity noise threshold (1/16 dB above Noise)");
+    print_i(out, tci.clutter_corr_thesh, prefix, "clutter_corr_thesh",
+	    "Clutter Correction threshold (1/16 dB)");
+    print_i(out, tci.sqi_thresh, prefix, "sqi_thresh",
+	    "SQI threshold (0­1)*256");
+    print_i(out, tci.pwr_thresh, prefix, "pwr_thresh",
+	    "Power threshold (1/16 dBZ)");
+    print_i(out, tci.cal_dbz, prefix, "cal_dbz",
+	    "Calibration Reflectivity (1/16 dBZ at 1 km)");
+    print_u(out, tci.dbt_flags, prefix, "dbt_flags",
+	    "Threshold flags for uncorrected reflectivity");
+    print_u(out, tci.dbz_flags, prefix, "dbz_flags",
+	    "Threshold flags for corrected reflectivity");
+    print_u(out, tci.vel_flags, prefix, "vel_flags",
+	    "Threshold flags for velocity");
+    print_u(out, tci.sw_flags, prefix, "sw_flags",
+	    "Threshold flags for width");
+    print_u(out, tci.zdr_flags, prefix, "zdr_flags",
+	    "Threshold flags for ZDR");
+    desc = "Flags. Bits: 0: Speckle remover for log channel 3: Speckle"
+	" remover for linear channel 4:  data is range normalized 5:  pulse"
+	" at beginning of ray 6:  pulse at end of ray 7: Vary number of"
+	" pulses in dual PRF 8: Use 3 lag processing in PP02 9: Apply vel"
+	" correction for ship motion 10: Vc is unfolded 11: Vc has fallspeed"
+	" correction 12: Zc has beam blockage correction 13: Zc has Z-based"
+	" attenuation correction 14: Zc has target detection 15: Vc has storm"
+	" relative vel correction";
     print_u(out, tci.flags, prefix, "flags", desc);
-    print_i(out, tci.ldr_bias, prefix, "ldr_bias", "LDR bias in signed 1/100 dB");
-    print_i(out, tci.zdr_bias, prefix, "zdr_bias", "ZDR bias in signed 1/16 dB");
-    print_i(out, tci.nx_clutter_thresh, prefix, "nx_clutter_thresh", "NEXRAD point clutter threshold in 1/100 of dB");
-    print_u(out, tci.nx_clutter_skip, prefix, "nx_clutter_skip", "NEXRAD point clutter bin skip in low 4 bits");
-    print_i(out, tci.hpol_io_cal, prefix, "hpol_io_cal", "I0 cal value, horizontal pol, in 1/100 dBm");
-    print_i(out, tci.vpol_io_cal, prefix, "vpol_io_cal", "I0 cal value, vertical pol, in 1/100 dBm");
-    print_i(out, tci.hpol_noise, prefix, "hpol_noise", "Noise at calibration, horizontal pol, in 1/100 dBm");
-    print_i(out, tci.vpol_noise, prefix, "vpol_noise", "Noise at calibration, vertical pol, in 1/100 dBm");
-    print_i(out, tci.hpol_radar_const, prefix, "hpol_radar_const", "Radar constant, horizontal pol, in 1/100 dB");
-    print_i(out, tci.vpol_radar_const, prefix, "vpol_radar_const", "Radar constant, vertical pol, in 1/100 dB");
-    print_u(out, tci.bandwidth, prefix, "bandwidth", "Receiver bandwidth in kHz");
-    print_x(out, tci.flags2, prefix, "flags2", "Flags2: Bit 0: Zc and ZDRc has DP attenuation correction Bit 1: Z and ZDR has DP attenuation correction");
+    print_i(out, tci.ldr_bias, prefix, "ldr_bias",
+	    "LDR bias in signed 1/100 dB");
+    print_i(out, tci.zdr_bias, prefix, "zdr_bias",
+	    "ZDR bias in signed 1/16 dB");
+    print_i(out, tci.nx_clutter_thresh, prefix, "nx_clutter_thresh",
+	    "NEXRAD point clutter threshold in 1/100 of dB");
+    print_u(out, tci.nx_clutter_skip, prefix, "nx_clutter_skip",
+	    "NEXRAD point clutter bin skip in low 4 bits");
+    print_i(out, tci.hpol_io_cal, prefix, "hpol_io_cal",
+	    "I0 cal value, horizontal pol, in 1/100 dBm");
+    print_i(out, tci.vpol_io_cal, prefix, "vpol_io_cal",
+	    "I0 cal value, vertical pol, in 1/100 dBm");
+    print_i(out, tci.hpol_noise, prefix, "hpol_noise",
+	    "Noise at calibration, horizontal pol, in 1/100 dBm");
+    print_i(out, tci.vpol_noise, prefix, "vpol_noise",
+	    "Noise at calibration, vertical pol, in 1/100 dBm");
+    print_i(out, tci.hpol_radar_const, prefix, "hpol_radar_const",
+	    "Radar constant, horizontal pol, in 1/100 dB");
+    print_i(out, tci.vpol_radar_const, prefix, "vpol_radar_const",
+	    "Radar constant, vertical pol, in 1/100 dB");
+    print_u(out, tci.bandwidth, prefix, "bandwidth",
+	    "Receiver bandwidth in kHz");
+    print_x(out, tci.flags2, prefix, "flags2",
+	    "Flags2: Bit 0: Zc and ZDRc has DP attenuation correction"
+	    " Bit 1: Z and ZDR has DP attenuation correction");
 }
 
 /* get / print task_range_info */
@@ -1266,19 +1552,28 @@ struct Sigmet_Task_Range_Info get_task_range_info(char *rec)
     return tri;
 }
 
-void print_task_range_info(FILE *out, char *pfx, struct Sigmet_Task_Range_Info tri)
+void print_task_range_info(FILE *out, char *pfx,
+	struct Sigmet_Task_Range_Info tri)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_range_info>.");
-    print_i(out, tri.rng_1st_bin, prefix, "rng_1st_bin", "Range of first bin in centimeters");
-    print_i(out, tri.rng_last_bin, prefix, "rng_last_bin", "Range of last bin in centimeters");
-    print_i(out, tri.num_bins_in, prefix, "num_bins_in", "Number of input bins");
-    print_i(out, tri.num_bins_out, prefix, "num_bins_out", "Number of output range bins");
-    print_i(out, tri.step_in, prefix, "step_in", "Step between input bins");
-    print_i(out, tri.step_out, prefix, "step_out", "Step between output bins (in centimeters)");
-    print_u(out, tri.flag, prefix, "flag", "Flag for variable range bin spacing (1=var, 0=fixed)");
-    print_i(out, tri.rng_avg_flag, prefix, "rng_avg_flag", "Range bin averaging flag");
+    print_i(out, tri.rng_1st_bin, prefix, "rng_1st_bin",
+	    "Range of first bin in centimeters");
+    print_i(out, tri.rng_last_bin, prefix, "rng_last_bin",
+	    "Range of last bin in centimeters");
+    print_i(out, tri.num_bins_in, prefix, "num_bins_in",
+	    "Number of input bins");
+    print_i(out, tri.num_bins_out, prefix, "num_bins_out",
+	    "Number of output range bins");
+    print_i(out, tri.step_in, prefix, "step_in",
+	    "Step between input bins");
+    print_i(out, tri.step_out, prefix, "step_out",
+	    "Step between output bins (in centimeters)");
+    print_u(out, tri.flag, prefix, "flag",
+	    "Flag for variable range bin spacing (1=var, 0=fixed)");
+    print_i(out, tri.rng_avg_flag, prefix, "rng_avg_flag",
+	    "Range bin averaging flag");
 }
 
 /* get / print task_scan_info */
@@ -1308,14 +1603,19 @@ struct Sigmet_Task_Scan_Info get_task_scan_info(char *rec)
     return tsi;
 }
 
-void print_task_scan_info(FILE *out, char *pfx, struct Sigmet_Task_Scan_Info tsi)
+void print_task_scan_info(FILE *out, char *pfx,
+	struct Sigmet_Task_Scan_Info tsi)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_scan_info>.");
-    print_u(out, tsi.scan_mode, prefix, "scan_mode", "Antenna scan mode 1:PPI sector, 2:RHI, 3:Manual, 4:PPI cont, 5:file");
-    print_i(out, tsi.resoln, prefix, "resoln", "Desired angular resolution in 1/1000 of degrees");
-    print_i(out, tsi.num_sweeps, prefix, "num_sweeps", "Number of sweeps to perform");
+    print_u(out, tsi.scan_mode, prefix, "scan_mode",
+	    "Antenna scan mode 1:PPI sector, 2:RHI, 3:Manual,"
+	    " 4:PPI cont, 5:file");
+    print_i(out, tsi.resoln, prefix, "resoln",
+	    "Desired angular resolution in 1/1000 of degrees");
+    print_i(out, tsi.num_sweeps, prefix, "num_sweeps",
+	    "Number of sweeps to perform");
     switch (tsi.scan_mode) {
 	case RHI:
 	    print_task_rhi_scan_info(out, prefix, tsi.scan_info.rhi_info);
@@ -1353,18 +1653,24 @@ struct Sigmet_Task_RHI_Scan_Info get_task_rhi_scan_info(char *rec)
     return trsi;
 }
 
-void print_task_rhi_scan_info(FILE *out, char *pfx, struct Sigmet_Task_RHI_Scan_Info trsi)
+void print_task_rhi_scan_info(FILE *out, char *pfx,
+	struct Sigmet_Task_RHI_Scan_Info trsi)
 {
     int n;
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<rhi_scan_info>.");
-    print_u(out, trsi.lo_elev, prefix, "lo_elev", "Lower elevation limit (binary angle, only for sector)");
-    print_u(out, trsi.hi_elev, prefix, "hi_elev", "Upper elevation limit (binary angle, only for sector)");
+    print_u(out, trsi.lo_elev, prefix, "lo_elev",
+	    "Lower elevation limit (binary angle, only for sector)");
+    print_u(out, trsi.hi_elev, prefix, "hi_elev",
+	    "Upper elevation limit (binary angle, only for sector)");
     for (n = 0; n < 40; n++) {
-	fprintf(out, "%u ! %s%s%d%s ! %s\n", trsi.az[n], prefix, "az[", n, "]", "List of azimuths (binary angles) to scan at");
+	fprintf(out, "%u ! %s%s%d%s ! %s\n", trsi.az[n], prefix,
+		"az[", n, "]", "List of azimuths (binary angles) to scan at");
     }
-    print_u(out, trsi.start, prefix, "start", "Start of first sector sweep: 0=Nearest, 1=Lower, 2=Upper Sector sweeps alternate in direction.");
+    print_u(out, trsi.start, prefix, "start",
+	    "Start of first sector sweep: 0=Nearest, 1=Lower,"
+	    " 2=Upper Sector sweeps alternate in direction.");
 }
 
 /* get / print task_ppi_scan_info */
@@ -1387,20 +1693,27 @@ struct Sigmet_Task_PPI_Scan_Info get_task_ppi_scan_info(char *rec)
     return tpsi;
 }
 
-void print_task_ppi_scan_info(FILE *out, char *pfx, struct Sigmet_Task_PPI_Scan_Info tpsi)
+void print_task_ppi_scan_info(FILE *out, char *pfx,
+	struct Sigmet_Task_PPI_Scan_Info tpsi)
 {
     int n;
     char prefix[STR_LEN];
     char struct_path[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_ppi_scan_info>.");
-    print_u(out, tpsi.left_az, prefix, "left_az", "Left azimuth limit (binary angle, only for sector)");
-    print_u(out, tpsi.right_az, prefix, "right_az", "Right azimuth limit (binary angle, only for sector)");
+    print_u(out, tpsi.left_az, prefix, "left_az",
+	    "Left azimuth limit (binary angle, only for sector)");
+    print_u(out, tpsi.right_az, prefix, "right_az",
+	    "Right azimuth limit (binary angle, only for sector)");
     for (n = 0; n < 40; n++) {
-	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "elevs[", n, "]");
-	fprintf(out, "%u ! %s ! %s\n", tpsi.elevs[n], struct_path, "List of elevations (binary angles) to scan at");
+	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "elevs[", n,
+		"]");
+	fprintf(out, "%u ! %s ! %s\n", tpsi.elevs[n], struct_path,
+		"List of elevations (binary angles) to scan at");
     }
-    print_u(out, tpsi.start, prefix, "start", "Start of first sector sweep: 0=Nearest, 1=Left, 2=Right Sector sweeps alternate in direction.");
+    print_u(out, tpsi.start, prefix, "start",
+	    "Start of first sector sweep: 0=Nearest, 1=Left, 2=Right Sector"
+	    " sweeps alternate in direction.");
 }
 
 /* get / print task_file_scan_info */
@@ -1416,14 +1729,18 @@ struct Sigmet_Task_File_Scan_Info get_task_file_scan_info(char *rec)
     return tfsi;
 }
 
-void print_task_file_scan_info(FILE *out, char *pfx, struct Sigmet_Task_File_Scan_Info tfsi)
+void print_task_file_scan_info(FILE *out, char *pfx,
+	struct Sigmet_Task_File_Scan_Info tfsi)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_file_scan_info>.");
-    print_u(out, tfsi.az0, prefix, "az0", "First azimuth angle (binary angle)");
-    print_u(out, tfsi.elev0, prefix, "elev0", "First elevation angle (binary angle)");
-    print_s(out, tfsi.ant_ctrl, prefix, "ant_ctrl", "Filename for antenna control");
+    print_u(out, tfsi.az0, prefix, "az0",
+	    "First azimuth angle (binary angle)");
+    print_u(out, tfsi.elev0, prefix, "elev0",
+	    "First elevation angle (binary angle)");
+    print_s(out, tfsi.ant_ctrl, prefix, "ant_ctrl",
+	    "Filename for antenna control");
 }
 
 /* get / print task_manual_scan_info */
@@ -1436,12 +1753,14 @@ struct Sigmet_Task_Manual_Scan_Info get_task_manual_scan_info(char *rec)
     return tmsi;
 }
 
-void print_task_manual_scan_info(FILE *out, char *pfx, struct Sigmet_Task_Manual_Scan_Info tmsi)
+void print_task_manual_scan_info(FILE *out, char *pfx,
+	struct Sigmet_Task_Manual_Scan_Info tmsi)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_manual_scan_info>.");
-    print_x(out, tmsi.flags, prefix, "flags", "Flags: bit 0=Continuous recording");
+    print_x(out, tmsi.flags, prefix, "flags",
+	    "Flags: bit 0=Continuous recording");
 }
 
 /* get / print task_misc_info */
@@ -1471,24 +1790,35 @@ struct Sigmet_Task_Misc_Info get_task_misc_info(char *rec)
     return tmi;
 }
 
-void print_task_misc_info(FILE *out, char *pfx, struct Sigmet_Task_Misc_Info tmi)
+void print_task_misc_info(FILE *out, char *pfx,
+	struct Sigmet_Task_Misc_Info tmi)
 {
     int n;
     char prefix[STR_LEN];
     char struct_path[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_misc_info>.");
-    print_i(out, tmi.wave_len, prefix, "wave_len", "Wavelength in 1/100 of cm");
-    print_s(out, tmi.tr_ser, prefix, "tr_ser", "T/R Serial Number");
-    print_i(out, tmi.power, prefix, "power", "Transmit Power in watts");
-    print_x(out, tmi.flags, prefix, "flags", "Flags: Bit 0: Digital signal simulator in use Bit 1: Polarization in use Bit 4: Keep bit");
-    print_u(out, tmi.polarization, prefix, "polarization", "Type of polarization");
-    print_i(out, tmi.trunc_ht, prefix, "trunc_ht", "Truncation height (centimeters above the radar)");
-    print_i(out, tmi.comment_sz, prefix, "comment_sz", "Number of bytes of comments entered");
-    print_u(out, tmi.horiz_beam_width, prefix, "horiz_beam_width", "Horizontal beamwidth (binary angle, starting in 7.18)");
+    print_i(out, tmi.wave_len, prefix, "wave_len",
+	    "Wavelength in 1/100 of cm");
+    print_s(out, tmi.tr_ser, prefix, "tr_ser",
+	    "T/R Serial Number");
+    print_i(out, tmi.power, prefix, "power",
+	    "Transmit Power in watts");
+    print_x(out, tmi.flags, prefix, "flags",
+	    "Flags: Bit 0: Digital signal simulator in use"
+	    " Bit 1: Polarization in use Bit 4: Keep bit");
+    print_u(out, tmi.polarization, prefix, "polarization",
+	    "Type of polarization");
+    print_i(out, tmi.trunc_ht, prefix, "trunc_ht",
+	    "Truncation height (centimeters above the radar)");
+    print_i(out, tmi.comment_sz, prefix, "comment_sz",
+	    "Number of bytes of comments entered");
+    print_u(out, tmi.horiz_beam_width, prefix, "horiz_beam_width",
+	    "Horizontal beamwidth (binary angle, starting in 7.18)");
     for (n = 0; n < 10; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "custom[", n, "]");
-	fprintf(out, "%u ! %s ! %s\n", tmi.custom[n], struct_path, "Customer defined storage (starting in 7.27)");
+	fprintf(out, "%u ! %s ! %s\n", tmi.custom[n], struct_path,
+		"Customer defined storage (starting in 7.27)");
     }
 }
 
@@ -1508,18 +1838,27 @@ struct Sigmet_Task_End_Info get_task_end_info(char *rec)
     return tei;
 }
 
-void print_task_end_info(FILE *out, char *pfx, struct Sigmet_Task_End_Info tei)
+void print_task_end_info(FILE *out, char *pfx,
+	struct Sigmet_Task_End_Info tei)
 {
     char prefix[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<task_end_info>.");
-    print_i(out, tei.task_major, prefix, "task_major", "Task major number");
-    print_i(out, tei.task_minor, prefix, "task_minor", "Task minor number");
-    print_s(out, tei.task_config, prefix, "task_config", "Name of task configuration file");
-    print_s(out, tei.task_descr, prefix, "task_descr", "Task description");
-    print_i(out, tei.hybrid_ntasks, prefix, "hybrid_ntasks", "Number of tasks in hybrid task");
-    print_u(out, tei.task_state, prefix, "task_state", "Task state: 0=no task; 1=task being modified; 2=inactive; 3=scheduled, 4=running.");
-    print_ymds_time(out, tei.data_time, prefix, "data_time","Data time of task (TZ flexible)");
+    print_i(out, tei.task_major, prefix, "task_major",
+	    "Task major number");
+    print_i(out, tei.task_minor, prefix, "task_minor",
+	    "Task minor number");
+    print_s(out, tei.task_config, prefix, "task_config",
+	    "Name of task configuration file");
+    print_s(out, tei.task_descr, prefix, "task_descr",
+	    "Task description");
+    print_i(out, tei.hybrid_ntasks, prefix, "hybrid_ntasks",
+	    "Number of tasks in hybrid task");
+    print_u(out, tei.task_state, prefix, "task_state",
+	    "Task state: 0=no task; 1=task being modified; 2=inactive;"
+	    " 3=scheduled, 4=running.");
+    print_ymds_time(out, tei.data_time, prefix, "data_time",
+	    "Data time of task (TZ flexible)");
 }
 
 /* get / print dsp_data_mask */
@@ -1537,24 +1876,36 @@ struct Sigmet_DSP_Data_Mask get_dsp_data_mask(char *rec)
     return ddm;
 }
 
-void print_dsp_data_mask(FILE *out, char *pfx, struct Sigmet_DSP_Data_Mask ddm, char *suffix)
+void print_dsp_data_mask(FILE *out, char *pfx, struct Sigmet_DSP_Data_Mask ddm,
+	char *suffix)
 {
     char prefix[STR_LEN];
     char struct_path[STR_LEN];
 
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<dsp_data_mask>.");
-    snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_0");
-    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_0, struct_path, "Mask word 0", suffix);
-    snprintf(struct_path, STR_LEN, "%s%s", prefix, "ext_hdr_type");
-    fprintf(out, "%u ! %s ! %s.  %s\n", ddm.ext_hdr_type, struct_path, "Extended header type", suffix);
-    snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_1");
-    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_1, struct_path, "Mask word 1 Contains bits set for all data recorded.", suffix);
-    snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_2");
-    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_2, struct_path, "Mask word 2 See parameter DB_* in Table 3­6 for", suffix);
-    snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_3");
-    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_3, struct_path, "Mask word 3 bit specification.", suffix);
+    snprintf(struct_path, STR_LEN, "%s%s",
+	    prefix, "mask_word_0");
+    fprintf(out, "%#X ! %s ! %s.  %s\n",
+	    ddm.mask_word_0, struct_path, "Mask word 0", suffix);
+    snprintf(struct_path, STR_LEN, "%s%s",
+	    prefix, "ext_hdr_type");
+    fprintf(out, "%u ! %s ! %s.  %s\n",
+	    ddm.ext_hdr_type, struct_path, "Extended header type", suffix);
+    snprintf(struct_path, STR_LEN, "%s%s",
+	    prefix, "mask_word_1");
+    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_1, struct_path,
+	    "Mask word 1 Contains bits set for all data recorded.", suffix);
+    snprintf(struct_path, STR_LEN, "%s%s",
+	    prefix, "mask_word_2");
+    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_2, struct_path,
+	    "Mask word 2 See parameter DB_* in Table 3­6 for", suffix);
+    snprintf(struct_path, STR_LEN, "%s%s", prefix,
+	    "mask_word_3");
+    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_3, struct_path,
+	    "Mask word 3 bit specification.", suffix);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_4");
-    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_4, struct_path, "Mask word 4", suffix);
+    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_4, struct_path,
+	    "Mask word 4", suffix);
 }
 
 /* get / print structure_header */
@@ -1570,12 +1921,20 @@ struct Sigmet_Structure_Header get_structure_header(char *rec)
     return sh;
 }
 
-void print_structure_header(FILE *out, char *prefix, struct Sigmet_Structure_Header sh)
+void print_structure_header(FILE *out, char *prefix,
+	struct Sigmet_Structure_Header sh)
 {
-    print_i(out, sh.id, prefix, "<structure_header>.id", "Structure identifier: 22 => Task_configuration.  23 => Ingest_header.  24 => Ingest_data_header.  25 => Tape_inventory.  26 => Product_configuration.  27 => Product_hdr.  28 => Tape_header_record");
-    print_i(out, sh.format, prefix, "<structure_header>.format", "Format version number (see headers.h)");
-    print_i(out, sh.sz, prefix, "<structure_header>.sz", "Number of bytes in the entire structure");
-    print_x(out, sh.flags, prefix, "<structure_header>.flags", "Flags: bit0=structure complete");
+    print_i(out, sh.id, prefix, "<structure_header>.id",
+	    "Structure identifier: 22 => Task_configuration."
+	    " 23 => Ingest_header.  24 => Ingest_data_header."
+	    " 25 => Tape_inventory.  26 => Product_configuration."
+	    " 27 => Product_hdr.  28 => Tape_header_record");
+    print_i(out, sh.format, prefix, "<structure_header>.format",
+	    "Format version number (see headers.h)");
+    print_i(out, sh.sz, prefix, "<structure_header>.sz",
+	    "Number of bytes in the entire structure");
+    print_x(out, sh.flags, prefix, "<structure_header>.flags",
+	    "Flags: bit0=structure complete");
 }
 
 /* get / print ymds_time */
@@ -1595,7 +1954,8 @@ struct Sigmet_YMDS_Time get_ymds_time(char *b)
     return tm;
 }
 
-void print_ymds_time(FILE *out, struct Sigmet_YMDS_Time tm, char *prefix, char *comp, char *desc)
+void print_ymds_time(FILE *out, struct Sigmet_YMDS_Time tm, char *prefix,
+	char *comp, char *desc)
 {
     double fhour, fmin;
     double ihour, imin;
@@ -1606,13 +1966,15 @@ void print_ymds_time(FILE *out, struct Sigmet_YMDS_Time tm, char *prefix, char *
     fhour = modf(sec / 3600.0, &ihour);
     fmin = modf(fhour * 60.0, &imin);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f. ! %s ! %s\n", tm.year, tm.month, tm.day,
-	    (int)ihour, (int)imin, fmin * 60.0, struct_path, desc);
+    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f. ! %s ! %s\n",
+	    tm.year, tm.month, tm.day,
+	    (int)ihour, (int)imin, fmin * 60.0,
+	    struct_path, desc);
 }
 
 /*
-   Print an unsigned integer member, the structure hierarchy and component where it is stored,
-   and a descriptor for it to stream out.
+   Print an unsigned integer member, the structure hierarchy and component
+   where it is stored, and a descriptor for it to stream out.
  */
 void print_u(FILE *out, unsigned u, char *prefix, char *comp, char *desc)
 {
@@ -1623,8 +1985,8 @@ void print_u(FILE *out, unsigned u, char *prefix, char *comp, char *desc)
 }
 
 /*
-   Print an unsigned integer member in hex format, the structure hierarchy and component where
-   it is stored, and a descriptor for it to stream out.
+   Print an unsigned integer member in hex format, the structure hierarchy
+   and component where it is stored, and a descriptor for it to stream out.
  */
 void print_x(FILE *out, unsigned u, char *prefix, char *comp, char *desc)
 {
@@ -1635,8 +1997,8 @@ void print_x(FILE *out, unsigned u, char *prefix, char *comp, char *desc)
 }
 
 /*
-   Print an integer member, the structure hierarchy and component where it is stored,
-   and a descriptor for it to stream out.
+   Print an integer member, the structure hierarchy and component where it is
+   stored, and a descriptor for it to stream out.
  */
 void print_i(FILE *out, int u, char *prefix, char *comp, char *desc)
 {
@@ -1647,8 +2009,8 @@ void print_i(FILE *out, int u, char *prefix, char *comp, char *desc)
 }
 
 /*
-   Print a string member, the structure hierarchy and component where it is stored,
-   and a descriptor for it to stream out.
+   Print a string member, the structure hierarchy and component where it is
+   stored, and a descriptor for it to stream out.
  */
 void print_s(FILE *out, char *s, char *prefix, char *comp, char *desc)
 {
