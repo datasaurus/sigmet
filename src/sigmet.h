@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.9 $ $Date: 2009/10/21 21:41:18 $
+   .	$Revision: 1.10 $ $Date: 2009/10/27 20:56:09 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -58,7 +58,10 @@ double Sigmet_Bin2Rad(unsigned short a);
 /* Volume scan modes.  Refer to task_scan_info struct in IRIS Programmer's Manual */
 enum Sigmet_ScanMode {PPI_S = 1, RHI, MAN_SCAN, PPI_C, FILE_SCAN};
 
-/* The following structures store data from volume headers.  Ref. IRIS Programmer's Manual */
+/*
+   The following structures store data from volume headers.
+   Ref. IRIS Programmer's Manual
+ */
 
 /* Year, month, day, second */
 struct Sigmet_YMDS_Time {
@@ -419,7 +422,7 @@ struct Sigmet_Vol {
     struct Sigmet_Ingest_Header ih;		/* Record #2 */
 
     /* Ray headers and data */
-    int xhdr;					/* If true, volume uses extended headers */
+    int xhdr;					/* true => use extended headers */
     int num_types;				/* Number of data types */
     enum Sigmet_DataType types[SIGMET_NTYPES];	/* Data types */
     enum Sigmet_DataType types_fl[SIGMET_NTYPES];/* Data types */

@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.1 $ $Date: 2009/10/02 21:59:06 $
+   .	$Revision: 1.2 $ $Date: 2009/10/21 15:21:18 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -143,7 +143,7 @@ float Sigmet_DataType_ItoF(enum Sigmet_DataType y, unsigned i)
     return (*itof[y])(i);
 }
 
-/* Placeholder for the "conversion function" for the extended header "data type." */
+/* Placeholder for the "conversion function" for extended header "data type." */
 static float itof_XHDR(unsigned i)
 {
     return Sigmet_NoData();
@@ -287,7 +287,8 @@ static float itof_SQI2(unsigned i)
 
 static float itof_PHIDP2(unsigned i)
 {
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 360.0 / 65534.0 * (i - 1.0);
+    return (i == 0 || i > 65535)
+	? Sigmet_NoData() : 360.0 / 65534.0 * (i - 1.0);
 }
 
 static float itof_LDRH(unsigned i)
