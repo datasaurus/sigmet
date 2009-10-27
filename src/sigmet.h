@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.8 $ $Date: 2009/10/21 21:36:34 $
+   .	$Revision: 1.9 $ $Date: 2009/10/21 21:41:18 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -160,7 +160,7 @@ struct Sigmet_Product_End {
     int trunc_ht;
     int rng_bin0;
     int rng_last_bin;
-    int num_out_bins;
+    int num_bins_out;
     unsigned flag;
     unsigned polarization;
     int hpol_io_cal;
@@ -419,8 +419,10 @@ struct Sigmet_Vol {
     struct Sigmet_Ingest_Header ih;		/* Record #2 */
 
     /* Ray headers and data */
+    int xhdr;					/* If true, volume uses extended headers */
     int num_types;				/* Number of data types */
     enum Sigmet_DataType types[SIGMET_NTYPES];	/* Data types */
+    enum Sigmet_DataType types_fl[SIGMET_NTYPES];/* Data types */
     double *sweep_time;				/* Sweep start time, Julian day,
 						   dimensioned [sweep] */
     double *sweep_angle;			/* Sweep angle, radians,
