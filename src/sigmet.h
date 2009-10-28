@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.10 $ $Date: 2009/10/27 20:56:09 $
+   .	$Revision: 1.11 $ $Date: 2009/10/27 20:59:00 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -432,7 +432,7 @@ struct Sigmet_Vol {
 						   dimensioned [sweep] */
     double **ray_time;				/* Ray time, Julian day,
 						   dimesioned [sweep][ray] */
-    unsigned **ray_num_bins;			/* Number of bins in ray,
+    int **ray_num_bins;				/* Number of bins in ray,
 						   dimensioned [sweep][ray],
 						   varies from ray to ray */
     double **ray_tilt0;				/* Tilt at start of ray, radians,
