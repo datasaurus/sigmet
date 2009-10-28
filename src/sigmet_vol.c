@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.15 $ $Date: 2009/10/27 20:55:01 $
+   .	$Revision: 1.16 $ $Date: 2009/10/27 21:46:44 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -112,6 +112,14 @@ static void print_x(FILE *, unsigned , char *, char *, char *);
 static void print_i(FILE *, int , char *, char *, char *);
 static void print_s(FILE *, char *, char *, char *, char *);
 
+/* Allocators */
+static double ** calloc2d(long, long);
+static void free2d(double **dat);
+static int ** calloc2i(long, long);
+static void free2i(int **dat);
+static int **** calloc4i(long, long, long, long);
+static void free4i(int ****dat);
+
 /* Initialize a Sigmet raw volume structure. */
 void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 {
@@ -143,13 +151,13 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
     }
     FREE(vol_p->sweep_time);
     FREE(vol_p->sweep_angle);
-    FREE(vol_p->ray_time);
-    FREE(vol_p->ray_num_bins);
-    FREE(vol_p->ray_tilt0);
-    FREE(vol_p->ray_tilt1);
-    FREE(vol_p->ray_az0);
-    FREE(vol_p->ray_az1);
-    FREE(vol_p->dat);
+    free2d(vol_p->ray_time);
+    free2i(vol_p->ray_num_bins);
+    free2d(vol_p->ray_tilt0);
+    free2d(vol_p->ray_tilt1);
+    free2d(vol_p->ray_az0);
+    free2d(vol_p->ray_az1);
+    free4i(vol_p->dat);
     Sigmet_InitVol(vol_p);
 }
 
@@ -292,10 +300,9 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
     size_t raySz;			/* Allocation size for a ray */
     unsigned char *rayd;		/* Pointer to start of data in ray */
-    size_t sz;				/* Tmp value */
     unsigned short numWds;		/* Number of words in a run of data */
     int s, y, r;			/* Sweep, type, ray indeces */
-    int i, n, ne;			/* Temporary values */
+    int i, n;				/* Temporary values */
     int *d, *e;
 
     unsigned char *p1;			/* Pointer into ray (1 byte values) */
@@ -321,65 +328,59 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     num_rays = vol_p->ih.ic.num_rays;
     num_rays_tot = num_sweeps * num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
-    vol_p->sweep_time = (double *)MALLOC(num_sweeps * sizeof(double));
-    vol_p->sweep_angle = (double *)MALLOC(num_sweeps * sizeof(double));
-    sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
-    vol_p->ray_time = (double **)MALLOC(sz);
-    vol_p->ray_time[0] = (double *)(vol_p->ray_time + num_sweeps);
-    for (s = 1; s < num_sweeps; s++) {
-	vol_p->ray_time[s] = vol_p->ray_time[s - 1] + num_rays;
+
+    vol_p->sweep_time = (double *)CALLOC(num_sweeps, sizeof(double));
+    if ( !vol_p->sweep_time ) {
+	Err_Append("Could not allocate sweep time array.  ");
+	goto error;
     }
 
-    sz = num_sweeps * (sizeof(unsigned *) + num_rays * sizeof(unsigned));
-    vol_p->ray_num_bins = (unsigned **)MALLOC(sz);
-    vol_p->ray_num_bins[0] = (unsigned *)(vol_p->ray_num_bins + num_sweeps);
-    for (s = 1; s < num_sweeps; s++) {
-	vol_p->ray_num_bins[s] = vol_p->ray_num_bins[s - 1] + num_rays;
+    vol_p->sweep_angle = (double *)CALLOC(num_sweeps, sizeof(double));
+    if ( !vol_p->sweep_angle ) {
+	Err_Append("Could not allocate sweep angle array.  ");
+	goto error;
     }
 
-    sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
-    vol_p->ray_tilt0 = (double **)MALLOC(sz);
-    vol_p->ray_tilt0[0] = (double *)(vol_p->ray_tilt0 + num_sweeps);
-    for (s = 1; s < num_sweeps; s++) {
-	vol_p->ray_tilt0[s] = vol_p->ray_tilt0[s - 1] + num_rays;
+    vol_p->ray_time = calloc2d(num_sweeps, num_rays);
+    if ( !vol_p->ray_time ) {
+	Err_Append("Could not allocate ray time array.  ");
+	goto error;
     }
 
-    sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
-    vol_p->ray_tilt1 = (double **)MALLOC(sz);
-    vol_p->ray_tilt1[0] = (double *)(vol_p->ray_tilt1 + num_sweeps);
-    for (s = 1; s < num_sweeps; s++) {
-	vol_p->ray_tilt1[s] = vol_p->ray_tilt1[s - 1] + num_rays;
+    vol_p->ray_num_bins = calloc2i(num_sweeps, num_rays);
+    if ( !vol_p->ray_num_bins ) {
+	Err_Append("Could not allocate array of ray bin counts.  ");
+	goto error;
     }
 
-    sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
-    vol_p->ray_az0 = (double **)MALLOC(sz);
-    vol_p->ray_az0[0] = (double *)(vol_p->ray_az0 + num_sweeps);
-    for (s = 1; s < num_sweeps; s++) {
-	vol_p->ray_az0[s] = vol_p->ray_az0[s - 1] + num_rays;
+    vol_p->ray_tilt0 = calloc2d(num_sweeps, num_rays);
+    if ( !vol_p->ray_tilt0 ) {
+	Err_Append("Could not allocate array of ray initial tilts.  ");
+	goto error;
     }
 
-    sz = num_sweeps * (sizeof(double *) + num_rays * sizeof(double));
-    vol_p->ray_az1 = (double **)MALLOC(sz);
-    vol_p->ray_az1[0] = (double *)(vol_p->ray_az1 + num_sweeps);
-    for (s = 1; s < num_sweeps; s++) {
-	vol_p->ray_az1[s] = vol_p->ray_az1[s - 1] + num_rays;
+    vol_p->ray_tilt1 = calloc2d(num_sweeps, num_rays);
+    if ( !vol_p->ray_tilt1 ) {
+	Err_Append("Could not allocate array of ray final tilts.  ");
+	goto error;
     }
 
-    sz = num_sweeps * (sizeof(int ***) + num_types * (sizeof(int **) 
-		+ num_rays * (sizeof(int *) + num_bins * sizeof(int))));
-    vol_p->dat = (int ****)MALLOC(sz);
-    vol_p->dat[0] = (int ***)(vol_p->dat + num_sweeps);
-    vol_p->dat[0][0] = (int **)(vol_p->dat[0] + num_sweeps * num_types);
-    vol_p->dat[0][0][0]
-	= (int *)(vol_p->dat[0][0] + num_sweeps * num_types * num_rays);
-    for (n = 1, ne = num_sweeps; n < ne; n++) {
-	vol_p->dat[n] = vol_p->dat[n - 1] + num_types;
+    vol_p->ray_az0 = calloc2d(num_sweeps, num_rays);
+    if ( !vol_p->ray_az0 ) {
+	Err_Append("Could not allocate array of ray initial azimuths.  ");
+	goto error;
     }
-    for (n = 1, ne = num_sweeps * num_types; n < ne; n++) {
-	vol_p->dat[0][n] = vol_p->dat[0][n - 1] + num_rays;
+
+    vol_p->ray_az1 = calloc2d(num_sweeps, num_rays);
+    if ( !vol_p->ray_az0 ) {
+	Err_Append("Could not allocate array of ray final azimuths.  ");
+	goto error;
     }
-    for (n = 1, ne = num_sweeps * num_types * num_rays; n < ne; n++) {
-	vol_p->dat[0][0][n] = vol_p->dat[0][0][n - 1] + num_bins;
+
+    vol_p->dat = calloc4i(num_sweeps, num_types, num_rays, num_bins);
+    if ( !vol_p->dat ) {
+	Err_Append("Could not allocate data array.  ");
+	goto error;
     }
     d = vol_p->dat[0][0][0];
     e = d + num_sweeps * num_types * num_rays *  num_bins;
@@ -392,8 +393,12 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
        Data will be decompressed from rec and copied into ray.
      */
     raySz = SZ_RAY_HDR + vol_p->ih.ic.extended_ray_headers_sz
-	+ vol_p->ph.pe.num_bins_out * sizeof(unsigned short);
+	+ num_bins * sizeof(unsigned short);
     ray = (unsigned short *)MALLOC(raySz);
+    if ( !ray ) {
+	Err_Append("Could not allocate input ray buffer.  ");
+	goto error;
+    }
     rayd = (unsigned char *)ray + SZ_RAY_HDR;
 
     /* Process data records */
@@ -579,7 +584,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 				df = vol_p->dat[s][y - vol_p->xhdr][r];
 				p1 < q1;
 				p1++, df++)  {
-			    *df = vol_p->types_fl[y];
+			    *df = *p1;
 			}
 			break;
 		    case DB_DBT2:
@@ -600,7 +605,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 				q2 = p2 + vol_p->ray_num_bins[s][r],
 				df = vol_p->dat[s][y - vol_p->xhdr][r];
 				p2 < q2; p2++, df++) {
-			    *df = vol_p->types_fl[y];
+			    *df = *p2;
 			}
 			break;
 		}
@@ -2076,5 +2081,180 @@ static void swap_arr16(void *r, int nw) {
 
     for (p = r, pe = p + nw; p < pe; p++) {
 	Swap_16Bit(p);
+    }
+}
+
+/* Allocate a 2 dimensional array of doubles */
+static double ** calloc2d(long j, long i)
+{
+    double **dat = NULL;
+    long n;
+    size_t jj, ii;		/* Addends for pointer arithmetic */
+    size_t ji;
+
+    /* Make sure casting to size_t does not overflow anything.  */
+    if (j <= 0 || i <= 0) {
+	Err_Append("Array dimensions must be positive.\n");
+	return NULL;
+    }
+    jj = (size_t)j;
+    ii = (size_t)i;
+    ji = jj * ii;
+    if (ji / jj != ii) {
+	Err_Append("Dimensions too big for pointer arithmetic.\n");
+	return NULL;
+    }
+
+    dat = (double **)CALLOC(jj + 2, sizeof(double *));
+    if ( !dat ) {
+	Err_Append("Could not allocate memory for 1st dimension of two dimensional"
+		" array.\n");
+	return NULL;
+    }
+    dat[0] = (double *)CALLOC(ji, sizeof(double));
+    if ( !dat[0] ) {
+	FREE(dat);
+	Err_Append("Could not allocate memory for values of two dimensional "
+		"array.\n");
+	return NULL;
+    }
+    for (n = 1; n <= j; n++) {
+	dat[n] = dat[n - 1] + i;
+    }
+    return dat;
+}
+
+/* Free array created by calloc2d */
+static void free2d(double **dat)
+{
+    if (dat && dat[0]) {
+	FREE(dat[0]);
+    }
+    FREE(dat);
+}
+
+/* Allocate a 2 dimensional array of ints */
+static int ** calloc2i(long j, long i)
+{
+    int **dat = NULL;
+    long n;
+    size_t jj, ii;		/* Addends for pointer arithmetic */
+    size_t ji;
+
+    /* Make sure casting to size_t does not overflow anything.  */
+    if (j <= 0 || i <= 0) {
+	Err_Append("Array dimensions must be positive.\n");
+	return NULL;
+    }
+    jj = (size_t)j;
+    ii = (size_t)i;
+    ji = jj * ii;
+    if (ji / jj != ii) {
+	Err_Append("Dimensions too big for pointer arithmetic.\n");
+	return NULL;
+    }
+
+    dat = (int **)CALLOC(jj + 2, sizeof(int *));
+    if ( !dat ) {
+	Err_Append("Could not allocate memory for 1st dimension of two dimensional"
+		" array.\n");
+	return NULL;
+    }
+    dat[0] = (int *)CALLOC(ji, sizeof(int));
+    if ( !dat[0] ) {
+	FREE(dat);
+	Err_Append("Could not allocate memory for values of two dimensional "
+		"array.\n");
+	return NULL;
+    }
+    for (n = 1; n <= j; n++) {
+	dat[n] = dat[n - 1] + i;
+    }
+    return dat;
+}
+
+/* Free array created by calloc2d */
+static void free2i(int **dat)
+{
+    if (dat && dat[0]) {
+	FREE(dat[0]);
+    }
+    FREE(dat);
+}
+
+/* Allocate a 4 dimensional array of ints */
+static int **** calloc4i(long lmax, long kmax, long jmax, long imax)
+{
+    int ****dat;
+    long k, j, l;
+    size_t ll, kk, jj, ii;
+
+    /* Make sure casting to size_t does not overflow anything.  */
+    if (lmax <= 0 || kmax <= 0 || jmax <= 0 || imax <= 0) {
+	Err_Append("Array dimensions must be positive.\n");
+	return NULL;
+    }
+    ll = (size_t)lmax;
+    kk = (size_t)kmax;
+    jj = (size_t)jmax;
+    ii = (size_t)imax;
+    if ((ll * kk) / ll != kk || (ll * kk * jj) / (ll * kk) != jj
+	    || (ll * kk * jj * ii) / (ll * kk * jj) != ii) {
+	Err_Append("Dimensions too big for pointer arithmetic.\n");
+	return NULL;
+    }
+
+    dat = (int ****)CALLOC(ll + 2, sizeof(int ***));
+    if ( !dat ) {
+	Err_Append("Could not allocate 3rd dimension.\n");
+	return NULL;
+    }
+    dat[0] = (int ***)CALLOC(ll * kk + 1, sizeof(int **));
+    if ( !dat[0] ) {
+	FREE(dat);
+	Err_Append("Could not allocate 2nd dimension.\n");
+	return NULL;
+    }
+    dat[0][0] = (int **)CALLOC(ll * kk * jj + 1, sizeof(int *));
+    if ( !dat[0][0] ) {
+	FREE(dat[0]);
+	FREE(dat);
+	Err_Append("Could not allocate 1st dimension.\n");
+	return NULL;
+    }
+    dat[0][0][0] = (int *)CALLOC(ll * kk * jj * ii, sizeof(int));
+    if ( !dat[0][0][0] ) {
+	FREE(dat[0][0]);
+	FREE(dat[0]);
+	FREE(dat);
+	Err_Append("Could not allocate array of values.\n");
+	return NULL;
+    }
+    for (l = 1; l <= lmax; l++) {
+	dat[l] = dat[l - 1] + kmax;
+    }
+    for (k = 1; k <= lmax * kmax; k++) {
+	dat[0][k] = dat[0][k - 1] + jmax;
+    }
+    for (j = 1; j <= lmax * kmax * jmax; j++) {
+	dat[0][0][j] = dat[0][0][j - 1] + imax;
+    }
+    return dat;
+}
+
+/* Free array created by calloc4d */
+static void free4i(int ****dat)
+{
+    if (dat) {
+	if (dat[0]) {
+	    if (dat[0][0]) {
+		if (dat[0][0][0]) {
+		    FREE(dat[0][0][0]);
+		}
+		FREE(dat[0][0]);
+	    }
+	    FREE(dat[0]);
+	}
+	FREE(dat);
     }
 }
