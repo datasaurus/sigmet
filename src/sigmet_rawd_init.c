@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: $ $Date: $
+ .	$Revision: 1.1 $ $Date: 2009/10/27 21:04:15 $
  */
 
 #include <stdlib.h>
@@ -114,6 +114,7 @@ int volume_headers_cb(int argc, char *argv[])
     /* Write */
     Sigmet_PrintHdr(stdout, sig_vol);
 
+    Sigmet_FreeVol(&sig_vol);
     return 1;
 }
 
@@ -184,6 +185,7 @@ int ray_headers_cb(int argc, char *argv[])
 	}
     }
 
+    Sigmet_FreeVol(&sig_vol);
     return 1;
 }
 
@@ -230,6 +232,8 @@ int data_cb(int argc, char *argv[])
 	fclose(in);
     }
 
-    /* Dump */
+    /* Write */
+
+    Sigmet_FreeVol(&sig_vol);
     return 1;
 }
