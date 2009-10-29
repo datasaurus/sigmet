@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.2 $ $Date: 2009/10/21 15:21:18 $
+   .	$Revision: 1.3 $ $Date: 2009/10/27 21:02:16 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -287,8 +287,7 @@ static float itof_SQI2(unsigned i)
 
 static float itof_PHIDP2(unsigned i)
 {
-    return (i == 0 || i > 65535)
-	? Sigmet_NoData() : 360.0 / 65534.0 * (i - 1.0);
+    return (i == 0 || i > 65535) ? Sigmet_NoData() : 360.0 / 65534.0 * (i - 1.0);
 }
 
 static float itof_LDRH(unsigned i)
