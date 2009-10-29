@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.20 $ $Date: 2009/10/29 16:22:45 $
+   .	$Revision: 1.21 $ $Date: 2009/10/29 20:21:16 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1869,8 +1869,8 @@ struct Sigmet_Task_RHI_Scan_Info get_task_rhi_scan_info(char *rec)
     trsi.hi_elev = get_uint16(rec + 2);
     q = trsi.az;
     p = rec + 4;
-    p1 = p + sizeof(*trsi.az) * 40;
-    for ( ; p < p1; p += sizeof(*trsi.az), q++) {
+    p1 = p + sizeof(U16BIT) * 40;
+    for ( ; p < p1; p += sizeof(U16BIT), q++) {
 	*q = get_uint16(p);
     }
     trsi.start = *(unsigned char *)(rec + 199);
@@ -1908,9 +1908,9 @@ struct Sigmet_Task_PPI_Scan_Info get_task_ppi_scan_info(char *rec)
     tpsi.left_az = get_uint16(rec + 0);
     tpsi.right_az = get_uint16(rec + 2);
     q = tpsi.elevs;
-    p = rec + 16;
-    p1 = p + sizeof(*tpsi.elevs) * 40;
-    for ( ; p < p1; p += sizeof(*tpsi.elevs), q++) {
+    p = rec + 4;
+    p1 = p + sizeof(U16BIT) * 40;
+    for ( ; p < p1; p += sizeof(U16BIT), q++) {
 	*q = get_uint16(p);
     }
     tpsi.start = *(unsigned char *)(rec + 199);
