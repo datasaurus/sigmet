@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.18 $ $Date: 2009/10/29 15:47:41 $
+   .	$Revision: 1.19 $ $Date: 2009/10/29 15:48:58 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -285,15 +285,13 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 					 * num_types if the volume contains
 					 * extended headers. */
     int num_types;			/* Number of types in the volume. */
-    int num_rays;			/* Number of rays per sweep */
-    int num_rays_tot;			/* Total number of rays */
+    unsigned num_rays;			/* Number of rays per sweep */
     int num_bins;			/* Number of output bins */
 
-    int year, month, day, sec, msec;
+    int year, month, day, sec;
+    unsigned msec;
     double swpTm;
     double angle;			/* Sweep angle.  Ref. geography (n) */
-
-    int have_hdrs;			/* true => ray headers are stored */
 
     U16BIT *ray = NULL;			/* Buffer, receives data from rec */
     U16BIT *rayP = NULL;		/* Point into ray while looping */
@@ -303,7 +301,6 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     unsigned numWds;			/* Number of words in a run of data */
     int s, y, r;			/* Sweep, type, ray indeces */
     int i, n;				/* Temporary values */
-    int *d, *e;
 
     unsigned char *p1;			/* Pointer into ray (1 byte values) */
     unsigned char *q1;			/* End of ray */
@@ -326,7 +323,6 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     num_types_fl = num_types + vol_p->xhdr;
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
-    num_rays_tot = num_sweeps * num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
 
     vol_p->sweep_time = (double *)CALLOC(num_sweeps, sizeof(double));
@@ -381,11 +377,6 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     if ( !vol_p->dat ) {
 	Err_Append("Could not allocate data array.  ");
 	goto error;
-    }
-    d = vol_p->dat[0][0][0];
-    e = d + num_sweeps * num_types * num_rays *  num_bins;
-    while (d < e) {
-	*d++ = Sigmet_NoData();
     }
 
     /*
@@ -460,7 +451,6 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    swap_arr16(recP, recEnd - recP);
 
 	    /* Initialize ray */
-	    have_hdrs = 0;
 	    memset(ray, 0, raySz);
 	    rayP = ray;
 	    y = 0;
@@ -616,7 +606,6 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		if (++y == num_types_fl) {
 		    r++;
 		    y = 0;
-		    have_hdrs = 0;
 		}
 		recP++;
 	    } else {
@@ -666,9 +655,9 @@ struct Sigmet_Product_Hdr get_product_hdr(char *rec)
 
 void print_product_hdr(FILE *out, char *prefix, struct Sigmet_Product_Hdr ph)
 {
-    print_structure_header(out, "<product_hdr>.", ph.sh);
-    print_product_configuration(out, "<product_hdr>.",  ph.pc);
-    print_product_end(out, "<product_hdr>.", ph.pe);
+    print_structure_header(out, prefix, ph.sh);
+    print_product_configuration(out, prefix,  ph.pc);
+    print_product_end(out, prefix, ph.pe);
 }
 
 /* get / print product_configuration */
@@ -1370,7 +1359,7 @@ struct Sigmet_Task_DSP_Info get_task_dsp_info(char *rec)
     tdi.mb = get_task_dsp_mode_batch(rec + 52);
     tdi.prf = get_sint32(rec + 136);
     tdi.pulse_w = get_sint32(rec + 140);
-    tdi.m_prf_mode = get_uint16(rec + 144);
+    tdi.m_prf_mode = (enum Sigmet_Multi_PRF)get_uint16(rec + 144);
     tdi.dual_prf = get_sint16(rec + 146);
     tdi.agc_feebk = get_uint16(rec + 148);
     tdi.sampl_sz = get_sint16(rec + 150);
@@ -1938,7 +1927,7 @@ void print_structure_header(FILE *out, char *prefix,
 	    "Format version number (see headers.h)");
     print_i(out, sh.sz, prefix, "<structure_header>.sz",
 	    "Number of bytes in the entire structure");
-    print_x(out, sh.flags, prefix, "<structure_header>.flags",
+    print_x(out, (unsigned)sh.flags, prefix, "<structure_header>.flags",
 	    "Flags: bit0=structure complete");
 }
 
