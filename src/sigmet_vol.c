@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.16 $ $Date: 2009/10/27 21:46:44 $
+   .	$Revision: 1.17 $ $Date: 2009/10/28 22:18:50 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -273,11 +273,11 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     char rec[REC_LEN];			/* Input record from file */
 
 
-    unsigned short *recP;		/* Pointer into rec */
-    unsigned short *recN;		/* Stopping point in rec */
-    unsigned short *recEnd = (unsigned short *)(rec + REC_LEN); /* End rec */
+    U16BIT *recP;		/* Pointer into rec */
+    U16BIT *recN;		/* Stopping point in rec */
+    U16BIT *recEnd = (U16BIT *)(rec + REC_LEN); /* End rec */
     int rec_idx;			/* Current record index (0 is first) */
-    short sweep_num;			/* Current sweep number (1 is first) */
+    int sweep_num;			/* Current sweep number (1 is first) */
 
     int num_sweeps;			/* Number of sweeps in vol_p */
     int num_types_fl;			/* Number of types in the file.
@@ -295,20 +295,20 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
     int have_hdrs;			/* true => ray headers are stored */
 
-    unsigned short *ray = NULL;		/* Buffer, receives data from rec */
-    unsigned short *rayP = NULL;	/* Point into ray while looping */
+    U16BIT *ray = NULL;		/* Buffer, receives data from rec */
+    U16BIT *rayP = NULL;	/* Point into ray while looping */
 
     size_t raySz;			/* Allocation size for a ray */
     unsigned char *rayd;		/* Pointer to start of data in ray */
-    unsigned short numWds;		/* Number of words in a run of data */
+    unsigned numWds;		/* Number of words in a run of data */
     int s, y, r;			/* Sweep, type, ray indeces */
     int i, n;				/* Temporary values */
     int *d, *e;
 
     unsigned char *p1;			/* Pointer into ray (1 byte values) */
     unsigned char *q1;			/* End of ray */
-    unsigned short *p2;			/* Pointer into ray (2 byte values) */
-    unsigned short *q2;			/* End of ray */
+    U16BIT *p2;			/* Pointer into ray (2 byte values) */
+    U16BIT *q2;			/* End of ray */
     int *df;				/* Pointer into ray in vol_p
 					 * structure when data will
 					 * be stored in memory as
@@ -393,8 +393,8 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
        Data will be decompressed from rec and copied into ray.
      */
     raySz = SZ_RAY_HDR + vol_p->ih.ic.extended_ray_headers_sz
-	+ num_bins * sizeof(unsigned short);
-    ray = (unsigned short *)MALLOC(raySz);
+	+ num_bins * sizeof(U16BIT);
+    ray = (U16BIT *)MALLOC(raySz);
     if ( !ray ) {
 	Err_Append("Could not allocate input ray buffer.  ");
 	goto error;
@@ -455,7 +455,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    vol_p->sweep_angle[s] = angle;
 
 	    /* Byte swap data segment in record, if necessary */
-	    recP = (unsigned short *)(rec + SZ_RAW_PROD_BHDR
+	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR
 		    + num_types_fl * SZ_INGEST_DATA_HDR);
 	    swap_arr16(recP, recEnd - recP);
 
@@ -471,7 +471,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	       Record continues a sweep started in an earlier record Byte
 	       swap data segment in record, if necessary.
 	     */
-	    recP = (unsigned short *)(rec + SZ_RAW_PROD_BHDR);
+	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
 	    swap_arr16(recP, recEnd - recP);
 
 	}
@@ -519,7 +519,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		       Position record pointer at start of data segment and
 		       byte swap data segment in record, if necessary
 		     */
-		    recP = (unsigned short *)(rec + SZ_RAW_PROD_BHDR);
+		    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
 		    swap_arr16(recP, recEnd - recP);
 
 		    /* Get second part of data run from the new record.  */
@@ -601,7 +601,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_PHIDP2:
 		    case DB_LDRH2:
 		    case DB_LDRV2:
-			for (p2 = (unsigned short *)rayd,
+			for (p2 = (U16BIT *)rayd,
 				q2 = p2 + vol_p->ray_num_bins[s][r],
 				df = vol_p->dat[s][y - vol_p->xhdr][r];
 				p2 < q2; p2++, df++) {
@@ -1946,7 +1946,7 @@ void print_structure_header(FILE *out, char *prefix,
 
 struct Sigmet_YMDS_Time get_ymds_time(char *b)
 {
-    unsigned short msec;
+    unsigned msec;
     struct Sigmet_YMDS_Time tm;
 
     tm.sec = get_sint32(b);
