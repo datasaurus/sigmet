@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.17 $ $Date: 2009/10/28 22:18:50 $
+   .	$Revision: 1.18 $ $Date: 2009/10/29 15:47:41 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -273,8 +273,8 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     char rec[REC_LEN];			/* Input record from file */
 
 
-    U16BIT *recP;		/* Pointer into rec */
-    U16BIT *recN;		/* Stopping point in rec */
+    U16BIT *recP;			/* Pointer into rec */
+    U16BIT *recN;			/* Stopping point in rec */
     U16BIT *recEnd = (U16BIT *)(rec + REC_LEN); /* End rec */
     int rec_idx;			/* Current record index (0 is first) */
     int sweep_num;			/* Current sweep number (1 is first) */
@@ -295,20 +295,20 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
     int have_hdrs;			/* true => ray headers are stored */
 
-    U16BIT *ray = NULL;		/* Buffer, receives data from rec */
-    U16BIT *rayP = NULL;	/* Point into ray while looping */
+    U16BIT *ray = NULL;			/* Buffer, receives data from rec */
+    U16BIT *rayP = NULL;		/* Point into ray while looping */
 
     size_t raySz;			/* Allocation size for a ray */
     unsigned char *rayd;		/* Pointer to start of data in ray */
-    unsigned numWds;		/* Number of words in a run of data */
+    unsigned numWds;			/* Number of words in a run of data */
     int s, y, r;			/* Sweep, type, ray indeces */
     int i, n;				/* Temporary values */
     int *d, *e;
 
     unsigned char *p1;			/* Pointer into ray (1 byte values) */
     unsigned char *q1;			/* End of ray */
-    U16BIT *p2;			/* Pointer into ray (2 byte values) */
-    U16BIT *q2;			/* End of ray */
+    U16BIT *p2;				/* Pointer into ray (2 byte values) */
+    U16BIT *q2;				/* End of ray */
     int *df;				/* Pointer into ray in vol_p
 					 * structure when data will
 					 * be stored in memory as
