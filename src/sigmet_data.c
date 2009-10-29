@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.3 $ $Date: 2009/10/27 21:02:16 $
+   .	$Revision: 1.4 $ $Date: 2009/10/29 16:02:20 $
    .
    .	Reference: IRIS Programmers Manual
  */
