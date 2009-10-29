@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.19 $ $Date: 2009/10/29 15:48:58 $
+   .	$Revision: 1.20 $ $Date: 2009/10/29 16:22:45 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -267,6 +267,236 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
     }
 }
 
+/* Tell if a Sigmet raw file is good. */
+int Sigmet_GoodVol(FILE *f)
+{
+    struct Sigmet_Vol vol;
+    char rec[REC_LEN];			/* Input record from file */
+    int num_types_fl;
+    int num_types;
+    static unsigned type_masks[SIGMET_NTYPES] = {
+	(1 <<  0), (1 <<  1), (1 <<  2), (1 <<  3), (1 <<  4),
+	(1 <<  5), (1 <<  7), (1 <<  8), (1 <<  9), (1 << 10),
+	(1 << 11), (1 << 12), (1 << 13), (1 << 14), (1 << 15),
+	(1 << 16), (1 << 17), (1 << 18), (1 << 19), (1 << 20),
+	(1 << 21), (1 << 22), (1 << 23), (1 << 24), (1 << 25),
+	(1 << 26), (1 << 27), (1 << 28)
+    };
+    unsigned data_type_mask;
+    U16BIT *recP;			/* Pointer into rec */
+    U16BIT *recN;			/* Stopping point in rec */
+    U16BIT *recEnd = (U16BIT *)(rec + REC_LEN); /* End rec */
+    int rec_idx;			/* Current record index (0 is first) */
+    int sweep_num;			/* Current sweep number (1 is first) */
+
+    int num_sweeps;			/* Number of sweeps in volume */
+    unsigned num_rays;			/* Number of rays per sweep */
+    int num_bins;			/* Number of output bins */
+
+    int year, month, day, sec;
+    unsigned msec;
+
+    unsigned numWds;			/* Number of words in a run of data */
+    int s, y, r;			/* Sweep, type, ray indeces */
+    int i, n;				/* Temporary values */
+
+    Sigmet_InitVol(&vol);
+
+    /* record 1, <product_header> */
+    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
+	return 0;
+    }
+
+    /*
+       If first 16 bits of product header != 27, turn on byte swapping
+       and check again.  If still not 27, give up.
+     */
+    if (get_sint16(rec) != 27) {
+	Toggle_Swap();
+	if (get_sint16(rec) != 27) {
+	    return 0;
+	}
+    }
+
+    vol.ph = get_product_hdr(rec);
+
+    /* record 2, <ingest_header> */
+    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
+	return 0;
+    }
+    vol.ih = get_ingest_header(rec);
+
+    /*
+       Loop through the bits in the data type mask. 
+       If bit is set, add the corresponding type to types array.
+     */
+    data_type_mask = vol.ih.tc.tdi.curr_data_mask.mask_word_0;
+    for (y = 0, num_types_fl = 0, num_types = 0; y < SIGMET_NTYPES; y++) {
+	if (data_type_mask & type_masks[y]) {
+	    if (y == DB_XHDR) {
+		vol.xhdr = 1;
+	    } else {
+		vol.types[num_types] = y;
+		num_types++;
+	    }
+	    vol.types_fl[num_types_fl] = y;
+	    num_types_fl++;
+	}
+    }
+    vol.num_types = num_types;
+
+    /* Allocate arrays in vol.  */
+    num_types = vol.num_types;
+    num_types_fl = num_types + vol.xhdr;
+    num_sweeps = vol.ih.tc.tni.num_sweeps;
+    num_rays = vol.ih.ic.num_rays;
+    num_bins = vol.ih.tc.tri.num_bins_out;
+
+    /* Process data records */
+    rec_idx = 1;
+    sweep_num = 0;
+    while (fread(rec, 1, REC_LEN, f) == REC_LEN) {
+
+	/* Get record number and sweep number from <raw_prod_bhdr> */
+	i = get_sint16(rec);
+	n = get_sint16(rec + 2);
+
+	if (i != rec_idx + 1) {
+	    return 0;
+	}
+	rec_idx = i;
+
+	if (n != sweep_num) {
+	    /* Record is start of new sweep.  */
+	    sweep_num = n;
+	    if (sweep_num > num_sweeps) {
+		return 0;
+	    }
+	    s = sweep_num - 1;
+	    r = 0;
+
+	    /*
+	       If sweep number from <ingest_data_header> has gone back to 0,
+	       there are no more sweeps in volume.
+	     */
+	    n = get_sint16(rec + 36);
+	    if (n == 0) {
+		vol.ih.tc.tni.num_sweeps = sweep_num - 1;
+		break;
+	    }
+
+	    /* Store sweep time and angle (from first <ingest_data_header>) */
+	    sec = get_sint32(rec + 24);
+	    msec = get_uint16(rec + 28);
+	    year = get_sint16(rec + 30);
+	    month = get_sint16(rec + 32);
+	    day = get_sint16(rec + 34);
+	    if (year == 0 || month == 0 || day == 0) {
+		return 0;
+	    }
+
+	    /* Set sweep in volume */
+
+	    /* Byte swap data segment in record, if necessary */
+	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR
+		    + num_types_fl * SZ_INGEST_DATA_HDR);
+	    swap_arr16(recP, recEnd - recP);
+	    y = 0;
+
+	} else {
+
+	    /*
+	       Record continues a sweep started in an earlier record Byte
+	       swap data segment in record, if necessary.
+	     */
+	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
+	    swap_arr16(recP, recEnd - recP);
+
+	}
+
+	/*
+	   Decompress and store ray data.
+	   See IRIS/Open Programmers Manual, April 2000, p. 3-38 to 3-40.
+	 */
+	while (recP < recEnd) {
+
+	    if ((0x8000 & *recP) == 0x8000) {
+		/* Run of data words */
+		numWds = 0x7FFF & *recP;
+		if (numWds > recEnd - recP - 1) {
+		    /*
+		       Data run crosses record boundary.  Store number of
+		       words in second part of data run.  We will need this
+		       when we get to the next record.
+		     */
+		    numWds = numWds - (recEnd - recP - 1);
+
+		    /* Read rest of current record */
+		    for (recP++; recP < recEnd; recP++) {
+		    }
+
+		    /*
+		       Get next record.  Check record number from
+		       <raw_prod_bhdr>.
+		     */
+		    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
+			return 0;
+		    }
+		    i = get_sint16(rec);
+		    if (i != rec_idx + 1) {
+			return 0;
+		    }
+		    rec_idx = i;
+
+		    /*
+		       Position record pointer at start of data segment and
+		       byte swap data segment in record, if necessary
+		     */
+		    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
+		    swap_arr16(recP, recEnd - recP);
+
+		    /* Get second part of data run from the new record.  */
+		    for (recN = recP + numWds; recP < recN; recP++) {
+		    }
+
+		} else {
+		    /* Current record contains entire data run */
+		    for (recP++, recN = recP + numWds; recP < recN; recP++) {
+		    }
+		}
+	    } else if (*recP == 1) {
+		/* End of ray.  */
+		if (s > num_sweeps) {
+		    return 0;
+		}
+		if (r > num_rays) {
+		    return 0;
+		}
+
+		/* Skip ray data.  */
+
+		/* Reset for next ray */
+		if (++y == num_types_fl) {
+		    r++;
+		    y = 0;
+		}
+		recP++;
+	    } else {
+		/* Run of zeros */
+		numWds = 0x7FFF & *recP;
+		recP++;
+	    }
+	}
+    }
+    if (s + 1 != num_sweeps) {
+	return 0;
+    }
+    if ( !feof(f) ) {
+	return 0;
+    }
+    return 1;
+}
+
 /* Read and store a Sigmet volume. */
 int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 {
@@ -368,7 +598,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     }
 
     vol_p->ray_az1 = calloc2d(num_sweeps, num_rays);
-    if ( !vol_p->ray_az0 ) {
+    if ( !vol_p->ray_az1 ) {
 	Err_Append("Could not allocate array of ray final azimuths.  ");
 	goto error;
     }

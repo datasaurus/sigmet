@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.1 $ $Date: 2009/10/27 21:04:15 $
+ .	$Revision: 1.2 $ $Date: 2009/10/28 22:17:38 $
  */
 
 #include <stdlib.h>
@@ -22,13 +22,14 @@
 char *cmd, *cmd1;
 
 /* Subcommands */
-#define NCMD 3
-char *cmd1v[NCMD] = {"volume_headers", "ray_headers", "data"};
+#define NCMD 4
+char *cmd1v[NCMD] = {"good", "volume_headers", "ray_headers", "data"};
 typedef int (callback)(int , char **);
+callback good_cb;
 callback volume_headers_cb;
 callback ray_headers_cb;
 callback data_cb;
-callback *cb1v[NCMD] = {volume_headers_cb, ray_headers_cb, data_cb};
+callback *cb1v[NCMD] = {good_cb, volume_headers_cb, ray_headers_cb, data_cb};
 
 int main(int argc, char *argv[])
 {
@@ -66,6 +67,47 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "\n");
     }
     return !rslt;
+}
+
+int good_cb(int argc, char *argv[])
+{
+    char *inFlNm;
+    FILE *in;
+
+    /* Identify input */
+    if (argc == 1) {
+	inFlNm = "-";
+    } else if (argc == 2) {
+	inFlNm = argv[1];
+    } else {
+	Err_Append("Usage: ");
+	Err_Append(cmd);
+	Err_Append(" ");
+	Err_Append(cmd1);
+	Err_Append(" [sigmet_volume]");
+	return 0;
+    }
+    if (strcmp(inFlNm, "-") == 0) {
+	in = stdin;
+    } else if ( !(in = fopen(inFlNm, "r")) ) {
+	Err_Append("Could not open ");
+	Err_Append(inFlNm);
+	Err_Append(" for input.\n");
+	return 0;
+    }
+
+    /* See if good volume */
+    if ( !Sigmet_GoodVol(in) ) {
+	if (in != stdin) {
+	    fclose(in);
+	}
+	/* Skip output messages */
+	exit(1);
+    }
+    if (in != stdin) {
+	fclose(in);
+    }
+    return 1;
 }
 
 int volume_headers_cb(int argc, char *argv[])
