@@ -7,13 +7,15 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.4 $ $Date: 2009/10/29 16:02:20 $
+   .	$Revision: 1.5 $ $Date: 2009/10/29 16:04:18 $
    .
    .	Reference: IRIS Programmers Manual
  */
 
 #include <stdlib.h>
 #include <math.h>
+#include "err_msg.h"
+#include "hash.h"
 #include "sigmet.h"
 
 /* Short names for Sigmet data types.  Index with enum Sigmet_DataType. */
@@ -23,8 +25,13 @@ static char *abbrv[SIGMET_NTYPES] = {
     "DB_WIDTH2","DB_ZDR2",	"DB_RAINRATE2",	"DB_KDP",	"DB_KDP2",
     "DB_PHIDP",	"DB_VELC",	"DB_SQI",	"DB_RHOHV",	"DB_RHOHV2",
     "DB_DBZC2",	"DB_VELC2",	"DB_SQI2",	"DB_PHIDP2",	"DB_LDRH",
-    "DB_LDRH2",	"DB_LDRV",	"DB_LDRV2"
+    "DB_LDRH2",	"DB_LDRV",	"DB_LDRV2", 	""
 };
+
+/* This table maps abbreviations to Sigmet_DataType indeces */
+static struct Hash_Tbl type_tbl;
+static int init_type_tbl;
+static void clear_tbl(void);
 
 /* Descriptors for Sigmet data types. Index with enum Sigmet_DataType. */
 static char *descr[SIGMET_NTYPES] = {
@@ -55,7 +62,8 @@ static char *descr[SIGMET_NTYPES] = {
     "Horizontal linear depolarization ratio (1 byte)",
     "Horizontal linear depolarization ratio (2 byte)",
     "Vertical linear depolarization ratio (1 byte)",
-    "Vertical linear depolarization ratio (2 byte)"
+    "Vertical linear depolarization ratio (2 byte)",
+    ""
 };
 
 static float itof_XHDR(unsigned i);
@@ -107,6 +115,39 @@ double Sigmet_Bin4Rad(unsigned long a)
 double Sigmet_Bin2Rad(unsigned short a)
 {
     return (double)a / (unsigned)0xFFFF * 2 * PI;
+}
+
+/* Get index corresponding to abbreviation */
+enum Sigmet_DataType Sigmet_DataType(char *a)
+{
+    int y;
+
+    if ( !init_type_tbl ) {
+	if ( !Hash_Init(&type_tbl, 2 * SIGMET_NTYPES) ) {
+	    Err_Append("Could not initialize Sigmet data type table.  ");
+	    return DB_ERROR;
+	}
+	for (y = 0; y < SIGMET_NTYPES; y++) {
+	    if ( !Hash_Add(&type_tbl, abbrv[y], y) ) {
+		Err_Append("Could not set Sigmet data type table.  ");
+		return DB_ERROR;
+	    }
+	}
+	atexit(clear_tbl);
+	init_type_tbl = 1;
+    }
+
+    if (Hash_Get(&type_tbl, a, &y)) {
+	return y;
+    } else {
+	return DB_ERROR;
+    }
+}
+static void clear_tbl(void)
+{
+    if (init_type_tbl) {
+	Hash_Clear(&type_tbl);
+    }
 }
 
 /* Fetch the short name of a Sigmet data type */

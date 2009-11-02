@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.12 $ $Date: 2009/10/28 22:16:34 $
+   .	$Revision: 1.13 $ $Date: 2009/10/29 20:21:30 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -32,20 +32,21 @@
 #define ISNODAT(x) (x == FLT_MAX)
 
 /* These constants identify the Sigmet data types */
-#define SIGMET_NTYPES 28
+#define SIGMET_NTYPES 29
 enum Sigmet_DataType {
     DB_XHDR,	DB_DBT,		DB_DBZ,		DB_VEL,		DB_WIDTH,
     DB_ZDR,	DB_DBZC,	DB_DBT2,	DB_DBZ2,	DB_VEL2,
     DB_WIDTH2,	DB_ZDR2,	DB_RAINRATE2,	DB_KDP,		DB_KDP2,
     DB_PHIDP,	DB_VELC,	DB_SQI,		DB_RHOHV,	DB_RHOHV2,
     DB_DBZC2,	DB_VELC2,	DB_SQI2,	DB_PHIDP2,	DB_LDRH,
-    DB_LDRH2,	DB_LDRV,	DB_LDRV2
+    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_ERROR
 };
 
 /* Multi PRF mode flags */
 enum Sigmet_Multi_PRF {ONE_ONE, TWO_THREE, THREE_FOUR, FOUR_FIVE};
 
 /* Functions to use with Sigmet data types  */
+enum Sigmet_DataType Sigmet_DataType(char *abbrv);
 char *Sigmet_DataType_Abbrv(enum Sigmet_DataType y);
 char *Sigmet_DataType_Descr(enum Sigmet_DataType y);
 float Sigmet_NoData(void);

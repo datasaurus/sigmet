@@ -4,10 +4,10 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: $ $Date: $
+.\" $Revision: 1.1 $ $Date: 2009/10/07 20:12:07 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
-Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_ItoF,
+Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_ItoF,
 Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData,
 Sigmet_InitVol, Sigmet_FreeVol, Sigmet_ReadHdr, Sigmet_ReadVol,
 Sigmet_VolBinLatLon, Sigmet_VolBinOutline, Sigmet_ToDorade \- Sigmet
@@ -16,7 +16,9 @@ functions.
 1
 .SH SYNOPSIS
 .nf
-\fB#include <sigmet.h>\fP \fBchar *Sigmet_DataType_Abbrv\fP(\fBenum Sigmet_DataType\fP \fIy\fP);
+\fB#include <sigmet.h>\fP
+\fBenum Sigmet_DataType Sigmet_DataType\fP(\fBchar\fP *\fIa\fP)
+\fBchar *Sigmet_DataType_Abbrv\fP(\fBenum Sigmet_DataType\fP \fIy\fP);
 \fBchar *Sigmet_DataType_Descr\fP(\fBenum Sigmet_DataType\fP \fIy\fP);
 \fBfloat\fP \fBSigmet_NoData\fP(\fBvoid\fP);
 \fBint\fP \fBSigmet_IsData\fP(\fBfloat\fP \fIv\fP);
@@ -51,11 +53,14 @@ enum Sigmet_DataType {
     DB_WIDTH2,  DB_ZDR2,        DB_RAINRATE2,   DB_KDP,         DB_KDP2,
     DB_PHIDP,   DB_VELC,        DB_SQI,         DB_RHOHV,       DB_RHOHV2,
     DB_DBZC2,   DB_VELC2,       DB_SQI2,        DB_PHIDP2,      DB_LDRH,
-    DB_LDRH2,   DB_LDRV,        DB_LDRV2
+    DB_LDRH2,   DB_LDRV,        DB_LDRV2,       DB_ERROR
 };
 .fi
 
 See the Sigmet documentation for discussion of each type.
+.PP
+\fBSigmet_DataType\fP returns the Sigmet data type enumerator corresponding
+to short abbreviation \fIa\fP, or \fBDB_ERROR\fP if there is none.
 .PP
 \fBSigmet_DataType_Abbrv\fP returns a short abbreviation describing
 type \fIy\fP.  \fBSigmet_DataType_Descr\fP returns a longer
