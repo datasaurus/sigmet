@@ -1,0 +1,54 @@
+.\" 
+.\" Copyright (c) 2009 Gordon D. Carrie
+.\" All rights reserved
+.\" 
+.\" Please address questions and feedback to dev0@trekix.net
+.\" 
+.\" $Revision: $ $Date: $
+.\"
+.TH sigmet_raw 3 "Sigmet raw product"
+.SH NAME
+sigmet_raw \- access Sigmet raw product volumes
+.SH SYNOPSIS
+.nf
+\fBsigmet_raw\fP \fBvolume_headers\fP \fIraw_volume\fP
+\fBsigmet_raw\fP \fBray_headers\fP \fIraw_volume\fP
+\fBsigmet_raw\fP \fBdata\fP \fIraw_volume\fP
+.fi
+.SH DESCRIPTION
+The \fBsigmet_raw\fP application reads and prints information
+from Sigmet raw product volumes.
+.TP
+\fBsigmet_raw\fP \fBvolume_headers\fP \fIraw_volume\fP
+Reads and prints volume headers from \fIraw_volume\fP, which
+must be a Sigmet raw product file. A \fB-\fP denotes standard
+input.  Ray headers and data are not printed.  Output lines
+have form:
+.sp 1
+.ti +4
+\fIvalue\fP \fB|\fP \fIhierarchy\fP \fB|\fP \fIdescriptor\fP
+.sp 1
+In this context, \fIhierarchy\fP refers to the Sigmet data
+structures that contain the member.  For a hierarchy with two
+levels, it would look like
+.sp 1
+.ti +4
+\fI<struct1>.<struct2>.member\fP.
+.sp 1
+Be aware that the same member might reside in several structure
+hierarchies.  See the IRIS Programmers Manual for details.
+.TP
+\fBsigmet_raw\fP \fBray_headers\fP \fIraw_volume\fP
+Reads and prints ray times, azimuths, and tilts from
+\fIraw_volume\fP, which must be a Sigmet raw product file.
+A \fB-\fP denotes standard.  input.  Volume headers and data
+are not printed.
+.TP
+\fBsigmet_raw\fP \fBdata\fP \fIraw_volume\fP
+Reads and prints ray headers and  data from \fIraw_volume\fP, which
+must be a Sigmet raw product file. A \fB-\fP denotes standard input.
+Volume headers are not printed.
+.SH SEE ALSO
+IRIS Programmer's Manual (http://sigmet.com)
+.SH AUTHOR
+Gordon Carrie (dev0@trekix.net)
