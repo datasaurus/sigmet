@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.21 $ $Date: 2009/10/29 20:21:16 $
+   .	$Revision: 1.22 $ $Date: 2009/10/29 21:40:11 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -28,6 +28,9 @@
 #define SZ_RAW_PROD_BHDR 12
 #define SZ_INGEST_DATA_HDR 76
 #define SZ_RAY_HDR 12
+
+/* Field separator in printf output */
+#define FS "|"
 
 /* Sigmet scan modes */
 enum SCAN_MODE {ppi_sec = 1, rhi, man, ppi_cont, file};
@@ -256,11 +259,11 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
 
     print_product_hdr(out, "<product_hdr>.", vol.ph);
     print_ingest_header(out, "<ingest_header>.", vol.ih);
-    fprintf(out, "%d ! %s ! %s\n",
+    fprintf(out, "%d " FS " %s " FS " %s\n",
 	    vol.num_types, "num_types", "Number of Sigmet data types");
     for (y = 0; y < vol.num_types; y++) {
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
-	fprintf(out, "%s ! %s ! %s\n",
+	fprintf(out, "%s " FS " %s " FS " %s\n",
 		Sigmet_DataType_Abbrv(vol.types[y]),
 		elem_nm,
 		Sigmet_DataType_Descr(vol.types[y]));
@@ -1114,7 +1117,7 @@ void print_color_scale_def(FILE *out, char *pfx,
     for (n = 0; n < 16; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix,
 		"ilevel_seams[", n, "]");
-	fprintf(out, "%u ! %s ! %s\n", csd.ilevel_seams[n], struct_path,
+	fprintf(out, "%u " FS " %s " FS " %s\n", csd.ilevel_seams[n], struct_path,
 		"ilevel_seams: Variable level starting values");
     }
 }
@@ -1889,7 +1892,7 @@ void print_task_rhi_scan_info(FILE *out, char *pfx,
     print_u(out, trsi.hi_elev, prefix, "hi_elev",
 	    "Upper elevation limit (binary angle, only for sector)");
     for (n = 0; n < 40; n++) {
-	fprintf(out, "%u ! %s%s%d%s ! %s\n", trsi.az[n], prefix,
+	fprintf(out, "%u " FS " %s%s%d%s " FS " %s\n", trsi.az[n], prefix,
 		"az[", n, "]", "List of azimuths (binary angles) to scan at");
     }
     print_u(out, trsi.start, prefix, "start",
@@ -1932,7 +1935,7 @@ void print_task_ppi_scan_info(FILE *out, char *pfx,
     for (n = 0; n < 40; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "elevs[", n,
 		"]");
-	fprintf(out, "%u ! %s ! %s\n", tpsi.elevs[n], struct_path,
+	fprintf(out, "%u " FS " %s " FS " %s\n", tpsi.elevs[n], struct_path,
 		"List of elevations (binary angles) to scan at");
     }
     print_u(out, tpsi.start, prefix, "start",
@@ -2041,7 +2044,7 @@ void print_task_misc_info(FILE *out, char *pfx,
 	    "Horizontal beamwidth (binary angle, starting in 7.18)");
     for (n = 0; n < 10; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "custom[", n, "]");
-	fprintf(out, "%u ! %s ! %s\n", tmi.custom[n], struct_path,
+	fprintf(out, "%u " FS " %s " FS " %s\n", tmi.custom[n], struct_path,
 		"Customer defined storage (starting in 7.27)");
     }
 }
@@ -2109,26 +2112,26 @@ void print_dsp_data_mask(FILE *out, char *pfx, struct Sigmet_DSP_Data_Mask ddm,
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<dsp_data_mask>.");
     snprintf(struct_path, STR_LEN, "%s%s",
 	    prefix, "mask_word_0");
-    fprintf(out, "%#X ! %s ! %s.  %s\n",
+    fprintf(out, "%#X " FS " %s " FS " %s.  %s\n",
 	    ddm.mask_word_0, struct_path, "Mask word 0", suffix);
     snprintf(struct_path, STR_LEN, "%s%s",
 	    prefix, "ext_hdr_type");
-    fprintf(out, "%u ! %s ! %s.  %s\n",
+    fprintf(out, "%u " FS " %s " FS " %s.  %s\n",
 	    ddm.ext_hdr_type, struct_path, "Extended header type", suffix);
     snprintf(struct_path, STR_LEN, "%s%s",
 	    prefix, "mask_word_1");
-    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_1, struct_path,
+    fprintf(out, "%#X " FS " %s " FS " %s.  %s\n", ddm.mask_word_1, struct_path,
 	    "Mask word 1 Contains bits set for all data recorded.", suffix);
     snprintf(struct_path, STR_LEN, "%s%s",
 	    prefix, "mask_word_2");
-    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_2, struct_path,
+    fprintf(out, "%#X " FS " %s " FS " %s.  %s\n", ddm.mask_word_2, struct_path,
 	    "Mask word 2 See parameter DB_* in Table 3­6 for", suffix);
     snprintf(struct_path, STR_LEN, "%s%s", prefix,
 	    "mask_word_3");
-    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_3, struct_path,
+    fprintf(out, "%#X " FS " %s " FS " %s.  %s\n", ddm.mask_word_3, struct_path,
 	    "Mask word 3 bit specification.", suffix);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_4");
-    fprintf(out, "%#X ! %s ! %s.  %s\n", ddm.mask_word_4, struct_path,
+    fprintf(out, "%#X " FS " %s " FS " %s.  %s\n", ddm.mask_word_4, struct_path,
 	    "Mask word 4", suffix);
 }
 
@@ -2190,7 +2193,7 @@ void print_ymds_time(FILE *out, struct Sigmet_YMDS_Time tm, char *prefix,
     fhour = modf(sec / 3600.0, &ihour);
     fmin = modf(fhour * 60.0, &imin);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f. ! %s ! %s\n",
+    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f. " FS " %s " FS " %s\n",
 	    tm.year, tm.month, tm.day,
 	    (int)ihour, (int)imin, fmin * 60.0,
 	    struct_path, desc);
@@ -2205,7 +2208,7 @@ void print_u(FILE *out, unsigned u, char *prefix, char *comp, char *desc)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%u ! %s ! %s\n", u, struct_path, desc);
+    fprintf(out, "%u " FS " %s " FS " %s\n", u, struct_path, desc);
 }
 
 /*
@@ -2217,7 +2220,7 @@ void print_x(FILE *out, unsigned u, char *prefix, char *comp, char *desc)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%#X ! %s ! %s\n", u, struct_path, desc);
+    fprintf(out, "%#X " FS " %s " FS " %s\n", u, struct_path, desc);
 }
 
 /*
@@ -2229,7 +2232,7 @@ void print_i(FILE *out, int u, char *prefix, char *comp, char *desc)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%d ! %s ! %s\n", u, struct_path, desc);
+    fprintf(out, "%d " FS " %s " FS " %s\n", u, struct_path, desc);
 }
 
 /*
@@ -2241,7 +2244,7 @@ void print_s(FILE *out, char *s, char *prefix, char *comp, char *desc)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%s ! %s ! %s\n", s, struct_path, desc);
+    fprintf(out, "%s " FS " %s " FS " %s\n", s, struct_path, desc);
 }
 
 /*
