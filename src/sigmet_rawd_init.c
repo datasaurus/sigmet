@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.3 $ $Date: 2009/10/29 20:21:16 $
+ .	$Revision: 1.4 $ $Date: 2009/11/05 22:51:18 $
  */
 
 #include <stdlib.h>
@@ -78,6 +78,13 @@ int types_cb(int argc, char *argv[])
 {
     int y;
 
+    if (argc != 1) {
+	Err_Append("Usage: ");
+	Err_Append(cmd);
+	Err_Append(" ");
+	Err_Append(cmd1);
+	return 0;
+    }
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	printf("%s | %s\n", Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
     }
