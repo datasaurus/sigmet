@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.4 $ $Date: 2009/11/05 22:51:18 $
+ .	$Revision: 1.5 $ $Date: 2009/11/05 22:56:08 $
  */
 
 #include <stdlib.h>
@@ -311,7 +311,7 @@ int data_cb(int argc, char *argv[])
 	Err_Append(cmd);
 	Err_Append(" ");
 	Err_Append(cmd1);
-	Err_Append(" [sigmet_volume]");
+	Err_Append(" [type] [sweep] [ray] [bin] [sigmet_volume]");
 	return 0;
     }
 
