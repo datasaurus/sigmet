@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.22 $ $Date: 2009/10/29 21:40:11 $
+   .	$Revision: 1.23 $ $Date: 2009/11/02 22:02:48 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -606,7 +606,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	goto error;
     }
 
-    vol_p->dat = calloc4i(num_sweeps, num_types, num_rays, num_bins);
+    vol_p->dat = calloc4i(num_types, num_sweeps, num_rays, num_bins);
     if ( !vol_p->dat ) {
 	Err_Append("Could not allocate data array.  ");
 	goto error;
@@ -804,7 +804,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_LDRV:
 			for (p1 = rayd,
 				q1 = p1 + vol_p->ray_num_bins[s][r],
-				df = vol_p->dat[s][y - vol_p->xhdr][r];
+				df = vol_p->dat[y - vol_p->xhdr][s][r];
 				p1 < q1;
 				p1++, df++)  {
 			    *df = *p1;
@@ -826,10 +826,14 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_LDRV2:
 			for (p2 = (U16BIT *)rayd,
 				q2 = p2 + vol_p->ray_num_bins[s][r],
-				df = vol_p->dat[s][y - vol_p->xhdr][r];
+				df = vol_p->dat[y - vol_p->xhdr][s][r];
 				p2 < q2; p2++, df++) {
 			    *df = *p2;
 			}
+			break;
+		    case DB_ERROR:
+			Err_Append("Volume has unknown data type.  ");
+			goto error;
 			break;
 		}
 
