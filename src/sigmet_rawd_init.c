@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.2 $ $Date: 2009/10/28 22:17:38 $
+ .	$Revision: 1.3 $ $Date: 2009/10/29 20:21:16 $
  */
 
 #include <stdlib.h>
@@ -22,14 +22,19 @@
 char *cmd, *cmd1;
 
 /* Subcommands */
-#define NCMD 4
-char *cmd1v[NCMD] = {"good", "volume_headers", "ray_headers", "data"};
+#define NCMD 5
+char *cmd1v[NCMD] = {
+    "types", "good", "volume_headers", "ray_headers", "data"
+};
 typedef int (callback)(int , char **);
+callback types_cb;
 callback good_cb;
 callback volume_headers_cb;
 callback ray_headers_cb;
 callback data_cb;
-callback *cb1v[NCMD] = {good_cb, volume_headers_cb, ray_headers_cb, data_cb};
+callback *cb1v[NCMD] = {
+    types_cb, good_cb, volume_headers_cb, ray_headers_cb, data_cb
+};
 
 int main(int argc, char *argv[])
 {
@@ -67,6 +72,16 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "\n");
     }
     return !rslt;
+}
+
+int types_cb(int argc, char *argv[])
+{
+    int y;
+
+    for (y = 0; y < SIGMET_NTYPES; y++) {
+	printf("%s | %s\n", Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
+    }
+    return 1;
 }
 
 int good_cb(int argc, char *argv[])
@@ -114,7 +129,7 @@ int volume_headers_cb(int argc, char *argv[])
 {
     char *inFlNm;
     FILE *in;
-    struct Sigmet_Vol sig_vol;
+    struct Sigmet_Vol vol;
 
     /* Identify input */
     if (argc == 1) {
@@ -139,8 +154,8 @@ int volume_headers_cb(int argc, char *argv[])
     }
 
     /* Read */
-    Sigmet_InitVol(&sig_vol);
-    if ( !Sigmet_ReadHdr(in, &sig_vol) ) {
+    Sigmet_InitVol(&vol);
+    if ( !Sigmet_ReadHdr(in, &vol) ) {
 	Err_Append("Could not read ");
 	Err_Append(inFlNm);
 	Err_Append(".\n");
@@ -154,9 +169,9 @@ int volume_headers_cb(int argc, char *argv[])
     }
 
     /* Write */
-    Sigmet_PrintHdr(stdout, sig_vol);
+    Sigmet_PrintHdr(stdout, vol);
 
-    Sigmet_FreeVol(&sig_vol);
+    Sigmet_FreeVol(&vol);
     return 1;
 }
 
@@ -164,7 +179,7 @@ int ray_headers_cb(int argc, char *argv[])
 {
     char *inFlNm;
     FILE *in;
-    struct Sigmet_Vol sig_vol;
+    struct Sigmet_Vol vol;
     int s, r;
 
     /* Identify input */
@@ -190,8 +205,8 @@ int ray_headers_cb(int argc, char *argv[])
     }
 
     /* Read */
-    Sigmet_InitVol(&sig_vol);
-    if ( !Sigmet_ReadVol(in, &sig_vol) ) {
+    Sigmet_InitVol(&vol);
+    if ( !Sigmet_ReadVol(in, &vol) ) {
 	Err_Append("Could not read ");
 	Err_Append(inFlNm);
 	Err_Append(".\n");
@@ -205,13 +220,13 @@ int ray_headers_cb(int argc, char *argv[])
     }
 
     /* Write */
-    for (s = 0; s < sig_vol.ih.tc.tni.num_sweeps; s++) {
-	for (r = 0; r < sig_vol.ih.ic.num_rays; r++) {
+    for (s = 0; s < vol.ih.tc.tni.num_sweeps; s++) {
+	for (r = 0; r < vol.ih.ic.num_rays; r++) {
 	    int yr, mon, da, hr, min;
 	    double sec;
 
 	    printf("sweep %3d ray %4d | ", s, r);
-	    if ( !Tm_JulToCal(sig_vol.ray_time[s][r],
+	    if ( !Tm_JulToCal(vol.ray_time[s][r],
 			&yr, &mon, &da, &hr, &min, &sec) ) {
 		Err_Append("Bad ray time.  ");
 		return 0;
@@ -219,15 +234,15 @@ int ray_headers_cb(int argc, char *argv[])
 	    printf("%04d/%02d/%02d %02d:%02d:%04.1f | ",
 		    yr, mon, da, hr, min, sec);
 	    printf("az %7.3f %7.3f | ",
-		    sig_vol.ray_az0[s][r] * DEG_PER_RAD,
-		    sig_vol.ray_az1[s][r] * DEG_PER_RAD);
+		    vol.ray_az0[s][r] * DEG_PER_RAD,
+		    vol.ray_az1[s][r] * DEG_PER_RAD);
 	    printf("tilt %6.3f %6.3f\n",
-		    sig_vol.ray_tilt0[s][r] * DEG_PER_RAD,
-		    sig_vol.ray_tilt1[s][r] * DEG_PER_RAD);
+		    vol.ray_tilt0[s][r] * DEG_PER_RAD,
+		    vol.ray_tilt1[s][r] * DEG_PER_RAD);
 	}
     }
 
-    Sigmet_FreeVol(&sig_vol);
+    Sigmet_FreeVol(&vol);
     return 1;
 }
 
@@ -235,14 +250,56 @@ int data_cb(int argc, char *argv[])
 {
     char *inFlNm;
     FILE *in;
-    struct Sigmet_Vol sig_vol;
+    struct Sigmet_Vol vol;
+    int s1, y1, r1, b1;
+    int s, y, r, b;
+    char *abbrv;
+    float d;
 
-    /* Identify input */
+    /*
+       Identify input and desired output
+       Possible forms:
+	   sigmet_raw data					(argc = 1)
+	   sigmet_raw data    file				(argc = 2)
+	   sigmet_raw data    y1				(argc = 2)
+	   sigmet_raw data    y1    file			(argc = 3)
+	   sigmet_raw data    y1    s1				(argc = 3)
+	   sigmet_raw data    y1    s1    file			(argc = 4)
+	   sigmet_raw data    y1    s1    r1			(argc = 4)
+	   sigmet_raw data    y1    s1    r1    file		(argc = 5)
+	   sigmet_raw data    y1    s1    r1    b1		(argc = 5)
+	   sigmet_raw data    y1    s1    r1    b1    file	(argc = 6)
+     */
+
+    y1 = s1 = r1 = b1 = -1;
     if (argc == 1) {
 	inFlNm = "-";
-    } else if (argc == 2) {
-	inFlNm = argv[1];
     } else {
+	inFlNm = argv[argc - 1];
+	if ((strcmp(inFlNm, "-") == 0 && (in = stdin))
+		|| (in = fopen(inFlNm, "r"))) {
+	    argc--;
+	}
+    }
+    if (argc > 1 && (y1 = Sigmet_DataType(argv[1])) == DB_ERROR) {
+	Err_Append("No data type named ");
+	Err_Append(argv[1]);
+	Err_Append(".  ");
+	return 0;
+    }
+    if (argc > 2 && sscanf(argv[2], "%d", &s1) != 1) {
+	Err_Append("Sweep index must be an integer.  ");
+	return 0;
+    }
+    if (argc > 3 && sscanf(argv[3], "%d", &r1) != 1) {
+	Err_Append("Ray index must be an integer.  ");
+	return 0;
+    }
+    if (argc > 4 && sscanf(argv[4], "%d", &b1) != 1) {
+	Err_Append("Bin index must be an integer.  ");
+	return 0;
+    }
+    if (argc > 5) {
 	Err_Append("Usage: ");
 	Err_Append(cmd);
 	Err_Append(" ");
@@ -250,18 +307,10 @@ int data_cb(int argc, char *argv[])
 	Err_Append(" [sigmet_volume]");
 	return 0;
     }
-    if (strcmp(inFlNm, "-") == 0) {
-	in = stdin;
-    } else if ( !(in = fopen(inFlNm, "r")) ) {
-	Err_Append("Could not open ");
-	Err_Append(inFlNm);
-	Err_Append(" for input.\n");
-	return 0;
-    }
 
     /* Read */
-    Sigmet_InitVol(&sig_vol);
-    if ( !Sigmet_ReadVol(in, &sig_vol) ) {
+    Sigmet_InitVol(&vol);
+    if ( !Sigmet_ReadVol(in, &vol) ) {
 	Err_Append("Could not read ");
 	Err_Append(inFlNm);
 	Err_Append(".\n");
@@ -274,8 +323,62 @@ int data_cb(int argc, char *argv[])
 	fclose(in);
     }
 
-    /* Write */
+    /* Verify */
+    if (s1 >= vol.ih.ic.num_sweeps) {
+	Err_Append("Sweep index greater than number of sweeps.  ");
+	goto error;
+    }
+    if (r1 >= 0 && r1 >= vol.ih.ic.num_rays) {
+	Err_Append("Ray index greater than number of rays.  ");
+	goto error;
+    }
+    if (b1 >= vol.ih.tc.tri.num_bins_out) {
+	Err_Append("Ray index greater than number of rays.  ");
+	goto error;
+    }
 
-    Sigmet_FreeVol(&sig_vol);
+    /* Write */
+    if (argc == 1) {
+	for (y = 0; y < vol.num_types; y++) {
+	    enum Sigmet_DataType type = vol.types[y];
+
+	    abbrv = Sigmet_DataType_Abbrv(type);
+	    if (type == DB_XHDR || type == DB_ERROR) {
+		fprintf(stderr, "Error: volume in memory contains %s data type.\n",
+			abbrv);
+		exit(1);
+	    }
+	    for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
+		printf("%s. sweep %d\n", abbrv, s);
+		for (r = 0; r < vol.ih.ic.num_rays; r++) {
+		    printf("ray %d: ", r);
+		    for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
+			d = Sigmet_DataType_ItoF(type, vol.dat[y][s][r][b]);
+			if (Sigmet_IsData(d)) {
+			    printf("%f ", d);
+			} else {
+			    printf("nodat ");
+			}
+		    }
+		    printf("\n");
+		}
+	    }
+	}
+    }
+    if (argc == 2) {
+	y = y1;
+	for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
+	    for (r = 0; r < vol.ih.ic.num_rays; r++) {
+		for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
+		}
+	    }
+	}
+    }
+
+    Sigmet_FreeVol(&vol);
     return 1;
+
+error:
+    Sigmet_FreeVol(&vol);
+    return 0;
 }
