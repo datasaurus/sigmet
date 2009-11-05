@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.5 $ $Date: 2009/10/29 16:04:18 $
+   .	$Revision: 1.6 $ $Date: 2009/11/02 23:23:48 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -25,7 +25,7 @@ static char *abbrv[SIGMET_NTYPES] = {
     "DB_WIDTH2","DB_ZDR2",	"DB_RAINRATE2",	"DB_KDP",	"DB_KDP2",
     "DB_PHIDP",	"DB_VELC",	"DB_SQI",	"DB_RHOHV",	"DB_RHOHV2",
     "DB_DBZC2",	"DB_VELC2",	"DB_SQI2",	"DB_PHIDP2",	"DB_LDRH",
-    "DB_LDRH2",	"DB_LDRV",	"DB_LDRV2", 	""
+    "DB_LDRH2",	"DB_LDRV",	"DB_LDRV2", 	"DB_ERROR"
 };
 
 /* This table maps abbreviations to Sigmet_DataType indeces */
@@ -63,7 +63,7 @@ static char *descr[SIGMET_NTYPES] = {
     "Horizontal linear depolarization ratio (2 byte)",
     "Vertical linear depolarization ratio (1 byte)",
     "Vertical linear depolarization ratio (2 byte)",
-    ""
+    "Error"
 };
 
 static float itof_XHDR(unsigned i);
