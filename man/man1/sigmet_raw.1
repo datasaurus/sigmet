@@ -4,26 +4,36 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: $ $Date: $
+.\" $Revision: 1.1 $ $Date: 2009/11/02 22:04:32 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
 sigmet_raw \- access Sigmet raw product volumes
 .SH SYNOPSIS
 .nf
+\fBsigmet_raw\fP \fBtypes\fP
 \fBsigmet_raw\fP \fBvolume_headers\fP \fIraw_volume\fP
 \fBsigmet_raw\fP \fBray_headers\fP \fIraw_volume\fP
-\fBsigmet_raw\fP \fBdata\fP \fIraw_volume\fP
+\fBsigmet_raw\fP \fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP] [\fIraw_volume\fP]
 .fi
 .SH DESCRIPTION
 The \fBsigmet_raw\fP application reads and prints information
-from Sigmet raw product volumes.
+from Sigmet raw product volumes.  In the command descriptions below,
+\fIraw_volume\fP must be a Sigmet raw product volume.  If absent
+or "\fB-\fP", the command will read a raw product volume from standard
+input.  Option \fItype\fP refers to the short name of a Sigmet data type,
+e.g. "\fBDB_DBZ\fP".  Indeces start with \fB0\fP.
+.TP
+\fBsigmet_raw\fP \fBtypes\fP
+Prints a list of all possible Sigmet data types.  Output lines have form:
+.sp 1
+.ti +4
+\fIDB_XXX\fP \fB|\fP \fIDescription\fP
+.sp 1
 .TP
 \fBsigmet_raw\fP \fBvolume_headers\fP \fIraw_volume\fP
-Reads and prints volume headers from \fIraw_volume\fP, which
-must be a Sigmet raw product file. A \fB-\fP denotes standard
-input.  Ray headers and data are not printed.  Output lines
-have form:
+Reads and prints volume headers.  Ray headers and data are not printed.
+Output lines have form:
 .sp 1
 .ti +4
 \fIvalue\fP \fB|\fP \fIhierarchy\fP \fB|\fP \fIdescriptor\fP
@@ -39,15 +49,25 @@ Be aware that the same member might reside in several structure
 hierarchies.  See the IRIS Programmers Manual for details.
 .TP
 \fBsigmet_raw\fP \fBray_headers\fP \fIraw_volume\fP
-Reads and prints ray times, azimuths, and tilts from
-\fIraw_volume\fP, which must be a Sigmet raw product file.
-A \fB-\fP denotes standard.  input.  Volume headers and data
-are not printed.
+Reads and prints ray times, azimuths, and tilts.  Volume headers
+and data are not printed.
 .TP
 \fBsigmet_raw\fP \fBdata\fP \fIraw_volume\fP
-Reads and prints ray headers and  data from \fIraw_volume\fP, which
-must be a Sigmet raw product file. A \fB-\fP denotes standard input.
-Volume headers are not printed.
+Reads and prints all volume data as text. Headers are not printed.
+.TP
+\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIraw_volume\fP
+Reads and prints data for data type \fItype\fP as text.
+.TP
+\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIraw_volume\fP
+Reads and prints data for data type \fItype\fP, sweep \fIs\fP as text.
+.TP
+\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIraw_volume\fP
+Reads and prints data for data type \fItype\fP, sweep \fIs\fP,
+ray \fIr\fP as text.
+.TP
+\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIb\fP \fIraw_volume\fP
+Reads and prints data for data type \fItype\fP, sweep \fIs\fP,
+ray \fIr\fP, bin \fIb\fP as text.
 .SH SEE ALSO
 IRIS Programmer's Manual (http://sigmet.com)
 .SH AUTHOR
