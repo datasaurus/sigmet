@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.6 $ $Date: 2009/11/05 23:02:59 $
+ .	$Revision: 1.7 $ $Date: 2009/11/06 22:33:05 $
  */
 
 #include <stdlib.h>
@@ -424,7 +424,7 @@ int data_cb(int argc, char *argv[])
 		for (r = 0; r < vol.ih.ic.num_rays; r++) {
 		    printf("ray %d: ", r);
 		    for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
-			d = Sigmet_DataType_ItoF(type, vol.dat[y][s][r][b]);
+			d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 			if (Sigmet_IsData(d)) {
 			    printf("%f ", d);
 			} else {
@@ -441,7 +441,7 @@ int data_cb(int argc, char *argv[])
 	    for (r = 0; r < vol.ih.ic.num_rays; r++) {
 		printf("ray %d: ", r);
 		for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
-		    d = Sigmet_DataType_ItoF(type, vol.dat[y][s][r][b]);
+		    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		    if (Sigmet_IsData(d)) {
 			printf("%f ", d);
 		    } else {
@@ -456,7 +456,7 @@ int data_cb(int argc, char *argv[])
 	for (r = 0; r < vol.ih.ic.num_rays; r++) {
 	    printf("ray %d: ", r);
 	    for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
-		d = Sigmet_DataType_ItoF(type, vol.dat[y][s][r][b]);
+		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		if (Sigmet_IsData(d)) {
 		    printf("%f ", d);
 		} else {
@@ -468,7 +468,7 @@ int data_cb(int argc, char *argv[])
     } else if (b == ALL) {
 	printf("%s. sweep %d, ray %d: ", abbrv, s, r);
 	for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
-	    d = Sigmet_DataType_ItoF(type, vol.dat[y][s][r][b]);
+	    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 	    if (Sigmet_IsData(d)) {
 		printf("%f ", d);
 	    } else {
@@ -478,7 +478,7 @@ int data_cb(int argc, char *argv[])
 	printf("\n");
     } else {
 	printf("%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
-	d = Sigmet_DataType_ItoF(type, vol.dat[y][s][r][b]);
+	d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 	if (Sigmet_IsData(d)) {
 	    printf("%f ", d);
 	} else {

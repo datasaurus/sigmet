@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.14 $ $Date: 2009/11/02 23:23:48 $
+   .	$Revision: 1.15 $ $Date: 2009/11/05 22:49:57 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -44,17 +44,6 @@ enum Sigmet_DataType {
 
 /* Multi PRF mode flags */
 enum Sigmet_Multi_PRF {ONE_ONE, TWO_THREE, THREE_FOUR, FOUR_FIVE};
-
-/* Functions to use with Sigmet data types  */
-enum Sigmet_DataType Sigmet_DataType(char *abbrv);
-char *Sigmet_DataType_Abbrv(enum Sigmet_DataType y);
-char *Sigmet_DataType_Descr(enum Sigmet_DataType y);
-float Sigmet_NoData(void);
-int Sigmet_IsData(float);
-int Sigmet_IsNoData(float);
-float Sigmet_DataType_ItoF(enum Sigmet_DataType y, unsigned i);
-double Sigmet_Bin4Rad(unsigned long a);
-double Sigmet_Bin2Rad(unsigned short a);
 
 /* Volume scan modes.  Refer to task_scan_info struct in IRIS Programmer's Manual */
 enum Sigmet_ScanMode {PPI_S = 1, RHI, MAN_SCAN, PPI_C, FILE_SCAN};
@@ -456,7 +445,16 @@ struct Sigmet_Vol {
 						   "STOP NOW" during the task */
 };
 
-/* Global functions */
+enum Sigmet_DataType Sigmet_DataType(char *abbrv);
+char *Sigmet_DataType_Abbrv(enum Sigmet_DataType y);
+char *Sigmet_DataType_Descr(enum Sigmet_DataType y);
+float Sigmet_NoData(void);
+int Sigmet_IsData(float);
+int Sigmet_IsNoData(float);
+float Sigmet_DataType_ItoF(enum Sigmet_DataType y, struct Sigmet_Vol, unsigned i);
+double Sigmet_Bin4Rad(unsigned long a);
+double Sigmet_Bin2Rad(unsigned short a);
+
 void Sigmet_InitVol(struct Sigmet_Vol *sigPtr);
 void Sigmet_FreeVol(struct Sigmet_Vol *sigPtr);
 int Sigmet_GoodVol(FILE *f);
