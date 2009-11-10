@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.7 $ $Date: 2009/11/05 21:43:56 $
+   .	$Revision: 1.8 $ $Date: 2009/11/09 23:15:23 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -287,17 +287,19 @@ static float itof_RAINRATE2(struct Sigmet_Vol v, unsigned i)
     }
 }
 
-/* WARNING: this is not scaled to wavelength */
 static float itof_KDP(struct Sigmet_Vol v, unsigned i)
 {
+    double wav_len;
+
+    wav_len = 0.01 * v.ih.tc.tmi.wave_len;
     if (i == 0 || i > 255) {
 	return Sigmet_NoData();
     } else if (i > 128) {
-	return 0.25 * pow(600.0, (i - 129.0) / 126.0);
+	return 0.25 * pow(600.0, (i - 129.0) / 126.0) / wav_len;
     } else if (i == 128) {
 	return 0.0;
     } else {
-	return -0.25 * pow(600.0, (127.0 - i) / 126.0);
+	return -0.25 * pow(600.0, (127.0 - i) / 126.0) / wav_len;
     }
 }
 
