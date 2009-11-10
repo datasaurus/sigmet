@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.24 $ $Date: 2009/11/05 22:50:51 $
+   .	$Revision: 1.25 $ $Date: 2009/11/10 16:26:08 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -434,7 +434,7 @@ int Sigmet_GoodVol(FILE *f)
 		     */
 		    numWds = numWds - (recEnd - recP - 1);
 
-		    /* Read rest of current record. */
+		    /* Skip rest of current record. */
 		    for (recP++; recP < recEnd; recP++) {
 		    }
 
@@ -458,12 +458,12 @@ int Sigmet_GoodVol(FILE *f)
 		    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
 		    swap_arr16(recP, recEnd - recP);
 
-		    /* Get second part of data run from the new record. */
+		    /* Skip second part of data run from the new record. */
 		    for (recN = recP + numWds; recP < recN; recP++) {
 		    }
 
 		} else {
-		    /* Current record contains entire data run. */
+		    /* Current record contains entire data run. Skip it. */
 		    for (recP++, recN = recP + numWds; recP < recN; recP++) {
 		    }
 		}
@@ -530,14 +530,10 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     size_t raySz;			/* Allocation size for a ray */
     unsigned char *rayd;		/* Pointer to start of data in ray */
     unsigned numWds;			/* Number of words in a run of data */
-    int s, y, r;			/* Sweep, type, ray indeces */
+    int s, r, b;			/* Sweep, ray, bin indeces */
+    int yf, y;				/* Indeces for type in file, type in dat */
     int i, n;				/* Temporary values */
-
-    unsigned char *p1;			/* Pointer into ray (1 byte values) */
-    unsigned char *q1;			/* End of ray */
-    U16BIT *p2;				/* Pointer into ray (2 byte values) */
-    U16BIT *q2;				/* End of ray */
-    int *df;				/* Pointer into vol_p->dat */
+    int nbins;				/* vol_p->ray_num_bins */
     int tm_incr;			/* Ray time adjustment */
 
     /* Read headers. */
@@ -681,7 +677,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    /* Initialize ray. */
 	    memset(ray, 0, raySz);
 	    rayP = ray;
-	    y = 0;
+	    yf = 0;
 
 	} else {
 
@@ -765,13 +761,14 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		vol_p->ray_tilt0[s][r] = Sigmet_Bin2Rad(ray[1]);
 		vol_p->ray_az1[s][r] = Sigmet_Bin2Rad(ray[2]);
 		vol_p->ray_tilt1[s][r] = Sigmet_Bin2Rad(ray[3]);
-		vol_p->ray_num_bins[s][r] = ray[4];
+		nbins = vol_p->ray_num_bins[s][r] = ray[4];
 		if ( !vol_p->xhdr ) {
 		    vol_p->ray_time[s][r] = swpTm + ray[5];
 		}
 
 		/* Store ray data. */
-		switch (vol_p->types_fl[y]) {
+		y = yf - vol_p->xhdr;
+		switch (vol_p->types_fl[yf]) {
 		    case DB_XHDR:
 			/*
 			   For extended header, undo the call to swap_arr16
@@ -794,12 +791,8 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_RHOHV:
 		    case DB_LDRH:
 		    case DB_LDRV:
-			for (p1 = rayd,
-				q1 = p1 + vol_p->ray_num_bins[s][r],
-				df = vol_p->dat[y - vol_p->xhdr][s][r];
-				p1 < q1;
-				p1++, df++)  {
-			    *df = *p1;
+			for (b = 0; b < nbins; b++)  {
+			    vol_p->dat[y][s][r][b] = rayd[b];
 			}
 			break;
 		    case DB_DBT2:
@@ -816,11 +809,8 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_PHIDP2:
 		    case DB_LDRH2:
 		    case DB_LDRV2:
-			for (p2 = (U16BIT *)rayd,
-				q2 = p2 + vol_p->ray_num_bins[s][r],
-				df = vol_p->dat[y - vol_p->xhdr][s][r];
-				p2 < q2; p2++, df++) {
-			    *df = *p2;
+			for (b = 0; b < nbins; b++)  {
+			    vol_p->dat[y][s][r][b] = ((U16BIT *)rayd)[b];
 			}
 			break;
 		    case DB_ERROR:
@@ -832,9 +822,9 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		/* Reset for next ray. */
 		memset(ray, 0, raySz);
 		rayP = ray;
-		if (++y == num_types_fl) {
+		if (++yf == num_types_fl) {
 		    r++;
-		    y = 0;
+		    yf = 0;
 		}
 		recP++;
 	    } else {
