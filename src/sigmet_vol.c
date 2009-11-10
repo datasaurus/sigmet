@@ -1,15 +1,16 @@
 /*
    -	sigmet_vol.c--
-   -		Define functions that store and access
-   -		information from Sigmet raw product
-   -		volumes.  See sigmet (3).
+   -		Definitions of functions that store and access
+   -		information from Sigmet raw product volumes.
    -
+   .	Global functions (Sigmet_*) are documented sigmet (3).
+   .
    .	Copyright (c) 2004 Gordon D. Carrie
    .	All rights reserved.
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.23 $ $Date: 2009/11/02 22:02:48 $
+   .	$Revision: 1.24 $ $Date: 2009/11/05 22:50:51 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -45,7 +46,11 @@ static void swap_arr16(void *r, int nw);
 /* Default length for character strings */
 #define STR_LEN 512
 
-/* Functions to read and print Sigmet raw volume structures */
+/*
+   These functions read and print structures that make up a Sigmet raw product
+   volume. The structures are declared in sigmet.h. See the Sigmet programmer's
+   guide for more information.
+ */
 static struct Sigmet_YMDS_Time get_ymds_time(char *);
 static void print_ymds_time(FILE *, struct Sigmet_YMDS_Time,
 	char *, char *, char *);
@@ -109,7 +114,7 @@ static void print_task_configuration(FILE *, char *,
 static struct Sigmet_Ingest_Header get_ingest_header(char *);
 static void print_ingest_header(FILE *, char *, struct Sigmet_Ingest_Header);
 
-/* Print functions */
+/* Output functions */
 static void print_u(FILE *, unsigned , char *, char *, char *);
 static void print_x(FILE *, unsigned , char *, char *, char *);
 static void print_i(FILE *, int , char *, char *, char *);
@@ -123,7 +128,6 @@ static void free2i(int **dat);
 static int **** calloc4i(long, long, long, long);
 static void free4i(int ****dat);
 
-/* Initialize a Sigmet raw volume structure. */
 void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 {
     int n;
@@ -146,7 +150,6 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
     return;
 }
 
-/* Free storage associated with a Sigmet raw volume. */
 void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 {
     if (!vol_p) {
@@ -164,7 +167,6 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
     Sigmet_InitVol(vol_p);
 }
 
-/* Read and store a headers from a Sigmet raw product volume. */
 int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
@@ -185,7 +187,7 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     int y;				/* Type index (0 based) */
 
     /*
-       These masks are placed against the data type mask in the volume
+       These masks are placed against the data type mask in the task dsp info
        structure to determine what data types are in the volume.
      */
     static unsigned type_masks[SIGMET_NTYPES] = {
@@ -206,7 +208,7 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 
     /*
        If first 16 bits of product header != 27, turn on byte swapping
-       and check again.  If still not 27, give up.
+       and check again. If still not 27, give up.
      */
     if (get_sint16(rec) != 27) {
 	Toggle_Swap();
@@ -251,7 +253,6 @@ error:
     return 0;
 }
 
-/* Write headers to a file in ASCII */
 void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
 {
     int y;
@@ -270,7 +271,6 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
     }
 }
 
-/* Tell if a Sigmet raw file is good. */
 int Sigmet_GoodVol(FILE *f)
 {
     struct Sigmet_Vol vol;
@@ -312,7 +312,7 @@ int Sigmet_GoodVol(FILE *f)
 
     /*
        If first 16 bits of product header != 27, turn on byte swapping
-       and check again.  If still not 27, give up.
+       and check again. If still not 27, give up.
      */
     if (get_sint16(rec) != 27) {
 	Toggle_Swap();
@@ -348,7 +348,7 @@ int Sigmet_GoodVol(FILE *f)
     }
     vol.num_types = num_types;
 
-    /* Allocate arrays in vol.  */
+    /* Allocate arrays in vol. */
     num_types = vol.num_types;
     num_types_fl = num_types + vol.xhdr;
     num_sweeps = vol.ih.tc.tni.num_sweeps;
@@ -360,7 +360,7 @@ int Sigmet_GoodVol(FILE *f)
     sweep_num = 0;
     while (fread(rec, 1, REC_LEN, f) == REC_LEN) {
 
-	/* Get record number and sweep number from <raw_prod_bhdr> */
+	/* Get record number and sweep number from <raw_prod_bhdr>. */
 	i = get_sint16(rec);
 	n = get_sint16(rec + 2);
 
@@ -370,7 +370,7 @@ int Sigmet_GoodVol(FILE *f)
 	rec_idx = i;
 
 	if (n != sweep_num) {
-	    /* Record is start of new sweep.  */
+	    /* Record is start of new sweep. */
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
 		return 0;
@@ -388,7 +388,7 @@ int Sigmet_GoodVol(FILE *f)
 		break;
 	    }
 
-	    /* Store sweep time and angle (from first <ingest_data_header>) */
+	    /* Store sweep time and angle (from first <ingest_data_header>). */
 	    sec = get_sint32(rec + 24);
 	    msec = get_uint16(rec + 28);
 	    year = get_sint16(rec + 30);
@@ -398,9 +398,9 @@ int Sigmet_GoodVol(FILE *f)
 		return 0;
 	    }
 
-	    /* Set sweep in volume */
+	    /* Set sweep in volume. */
 
-	    /* Byte swap data segment in record, if necessary */
+	    /* Byte swap data segment in record, if necessary. */
 	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR
 		    + num_types_fl * SZ_INGEST_DATA_HDR);
 	    swap_arr16(recP, recEnd - recP);
@@ -428,19 +428,19 @@ int Sigmet_GoodVol(FILE *f)
 		numWds = 0x7FFF & *recP;
 		if (numWds > recEnd - recP - 1) {
 		    /*
-		       Data run crosses record boundary.  Store number of
-		       words in second part of data run.  We will need this
+		       Data run crosses record boundary. Store number of
+		       words in second part of data run. We will need this
 		       when we get to the next record.
 		     */
 		    numWds = numWds - (recEnd - recP - 1);
 
-		    /* Read rest of current record */
+		    /* Read rest of current record. */
 		    for (recP++; recP < recEnd; recP++) {
 		    }
 
 		    /*
-		       Get next record.  Check record number from
-		       <raw_prod_bhdr>.
+		       Get next record. Record number from <raw_prod_bhdr>
+		       should agree with counter.
 		     */
 		    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 			return 0;
@@ -453,22 +453,22 @@ int Sigmet_GoodVol(FILE *f)
 
 		    /*
 		       Position record pointer at start of data segment and
-		       byte swap data segment in record, if necessary
+		       byte swap data segment in record, if necessary.
 		     */
 		    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
 		    swap_arr16(recP, recEnd - recP);
 
-		    /* Get second part of data run from the new record.  */
+		    /* Get second part of data run from the new record. */
 		    for (recN = recP + numWds; recP < recN; recP++) {
 		    }
 
 		} else {
-		    /* Current record contains entire data run */
+		    /* Current record contains entire data run. */
 		    for (recP++, recN = recP + numWds; recP < recN; recP++) {
 		    }
 		}
 	    } else if (*recP == 1) {
-		/* End of ray.  */
+		/* End of ray */
 		if (s > num_sweeps) {
 		    return 0;
 		}
@@ -476,9 +476,9 @@ int Sigmet_GoodVol(FILE *f)
 		    return 0;
 		}
 
-		/* Skip ray data.  */
+		/* Skip ray data. */
 
-		/* Reset for next ray */
+		/* Reset for next ray. */
 		if (++y == num_types_fl) {
 		    r++;
 		    y = 0;
@@ -500,7 +500,6 @@ int Sigmet_GoodVol(FILE *f)
     return 1;
 }
 
-/* Read and store a Sigmet volume. */
 int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
@@ -513,18 +512,17 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     int sweep_num;			/* Current sweep number (1 is first) */
 
     int num_sweeps;			/* Number of sweeps in vol_p */
-    int num_types_fl;			/* Number of types in the file.
-					 * This will be one more than
-					 * num_types if the volume contains
-					 * extended headers. */
-    int num_types;			/* Number of types in the volume. */
+    int num_types_fl;			/* Number of types in the file will be
+					 * one more than num_types if the volume
+					 * contains extended headers. */
+    int num_types;			/* Number of types in the volume */
     unsigned num_rays;			/* Number of rays per sweep */
     int num_bins;			/* Number of output bins */
 
     int year, month, day, sec;
     unsigned msec;
     double swpTm;
-    double angle;			/* Sweep angle.  Ref. geography (n) */
+    double angle;			/* Sweep angle */
 
     U16BIT *ray = NULL;			/* Buffer, receives data from rec */
     U16BIT *rayP = NULL;		/* Point into ray while looping */
@@ -539,19 +537,16 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     unsigned char *q1;			/* End of ray */
     U16BIT *p2;				/* Pointer into ray (2 byte values) */
     U16BIT *q2;				/* End of ray */
-    int *df;				/* Pointer into ray in vol_p
-					 * structure when data will
-					 * be stored in memory as
-					 * floats */
+    int *df;				/* Pointer into vol_p->dat */
     int tm_incr;			/* Ray time adjustment */
 
-    /* Read headers */
+    /* Read headers. */
     if ( !Sigmet_ReadHdr(f, vol_p) ) {
 	Err_Append("Could not read volume headers.\n");
 	goto error;
     }
 
-    /* Allocate arrays in vol_p.  */
+    /* Allocate arrays in vol_p. */
     num_types = vol_p->num_types;
     num_types_fl = num_types + vol_p->xhdr;
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
@@ -625,12 +620,12 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     }
     rayd = (unsigned char *)ray + SZ_RAY_HDR;
 
-    /* Process data records */
+    /* Process data records. */
     rec_idx = 1;
     sweep_num = 0;
     while (fread(rec, 1, REC_LEN, f) == REC_LEN) {
 
-	/* Get record number and sweep number from <raw_prod_bhdr> */
+	/* Get record number and sweep number from <raw_prod_bhdr>. */
 	i = get_sint16(rec);
 	n = get_sint16(rec + 2);
 
@@ -642,7 +637,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	rec_idx = i;
 
 	if (n != sweep_num) {
-	    /* Record is start of new sweep.  */
+	    /* Record is start of new sweep. */
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
 		Err_Append("Volume has excess sweeps.  ");
@@ -661,7 +656,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		break;
 	    }
 
-	    /* Store sweep time and angle (from first <ingest_data_header>) */
+	    /* Store sweep time and angle (from first <ingest_data_header>). */
 	    sec = get_sint32(rec + 24);
 	    msec = get_uint16(rec + 28);
 	    year = get_sint16(rec + 30);
@@ -672,18 +667,18 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		goto error;
 	    }
 
-	    /* Set sweep in volume */
+	    /* Set sweep in volume. */
 	    swpTm = Tm_CalToJul(year, month, day, 0, 0, sec + 0.001 * msec);
 	    angle = Sigmet_Bin2Rad(get_uint16(rec + 46));
 	    vol_p->sweep_time[s] = swpTm;
 	    vol_p->sweep_angle[s] = angle;
 
-	    /* Byte swap data segment in record, if necessary */
+	    /* Byte swap data segment in record, if necessary. */
 	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR
 		    + num_types_fl * SZ_INGEST_DATA_HDR);
 	    swap_arr16(recP, recEnd - recP);
 
-	    /* Initialize ray */
+	    /* Initialize ray. */
 	    memset(ray, 0, raySz);
 	    rayP = ray;
 	    y = 0;
@@ -699,10 +694,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
 	}
 
-	/*
-	   Decompress and store ray data.
-	   See IRIS/Open Programmers Manual, April 2000, p. 3-38 to 3-40.
-	 */
+	/* Decompress and store ray data.  See IRIS/Open Programmers Manual. */
 	while (recP < recEnd) {
 
 	    if ((0x8000 & *recP) == 0x8000) {
@@ -710,20 +702,20 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		numWds = 0x7FFF & *recP;
 		if (numWds > recEnd - recP - 1) {
 		    /*
-		       Data run crosses record boundary.  Store number of
-		       words in second part of data run.  We will need this
+		       Data run crosses record boundary. Store number of
+		       words in second part of data run. We will need this
 		       when we get to the next record.
 		     */
 		    numWds = numWds - (recEnd - recP - 1);
 
-		    /* Read rest of current record */
+		    /* Read rest of current record. */
 		    for (recP++; recP < recEnd; recP++, rayP++) {
 			*rayP = *recP;
 		    }
 
 		    /*
-		       Get next record.  Check record number from
-		       <raw_prod_bhdr>.
+		       Get next record. Record number from <raw_prod_bhdr>
+		       should agree with counter.
 		     */
 		    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 			Err_Append( "Failed to read record "
@@ -740,25 +732,25 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
 		    /*
 		       Position record pointer at start of data segment and
-		       byte swap data segment in record, if necessary
+		       byte swap data segment in record, if necessary.
 		     */
 		    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
 		    swap_arr16(recP, recEnd - recP);
 
-		    /* Get second part of data run from the new record.  */
+		    /* Get second part of data run from the new record. */
 		    for (recN = recP + numWds; recP < recN; recP++, rayP++) {
 			*rayP = *recP;
 		    }
 
 		} else {
-		    /* Current record contains entire data run */
+		    /* Current record contains entire data run. */
 		    for (recP++, recN = recP + numWds; recP < recN;
 			    recP++, rayP++) {
 			*rayP = *recP;
 		    }
 		}
 	    } else if (*recP == 1) {
-		/* End of ray.  */
+		/* End of ray */
 		if (s > num_sweeps) {
 		    Err_Append("Volume storage went beyond"
 			    " maximum sweep count.  ");
@@ -778,7 +770,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    vol_p->ray_time[s][r] = swpTm + ray[5];
 		}
 
-		/* Store ray data.  */
+		/* Store ray data. */
 		switch (vol_p->types_fl[y]) {
 		    case DB_XHDR:
 			/*
@@ -837,7 +829,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			break;
 		}
 
-		/* Reset for next ray */
+		/* Reset for next ray. */
 		memset(ray, 0, raySz);
 		rayP = ray;
 		if (++y == num_types_fl) {
@@ -866,17 +858,12 @@ error:
     return 0;
 }
 
-/* *	Return value is true if ray s, r is bogus.  */
-int Sigmet_BadRay(vol_p, s, r)
-    struct Sigmet_Vol *vol_p;		/* Sigmet volume */
-
-    int s;				/* Sweep index */
-    int r;				/* Ray index */
+int Sigmet_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 {
     return vol_p->ray_az0[s][r] == vol_p->ray_az1[s][r];
 }
 
-/* get / print product_hdr (a.k.a. raw volume record 1) */
+/* get / print product_hdr (a.k.a. raw volume record 1). */
 
 struct Sigmet_Product_Hdr get_product_hdr(char *rec)
 {
@@ -897,7 +884,7 @@ void print_product_hdr(FILE *out, char *prefix, struct Sigmet_Product_Hdr ph)
     print_product_end(out, prefix, ph.pe);
 }
 
-/* get / print product_configuration */
+/* get / print product_configuration. */
 
 struct Sigmet_Product_Configuration get_product_configuration(char *rec)
 {
@@ -1023,7 +1010,7 @@ void print_product_configuration(FILE *out, char *pfx,
     print_color_scale_def(out, prefix, pc.csd);
 }
 
-/* get / print product_specific_info */
+/* get / print product_specific_info. */
 
 struct Sigmet_Product_Specific_Info get_product_specific_info(char *rec)
 {
@@ -1076,7 +1063,7 @@ void print_product_specific_info(FILE *out, char *pfx,
 	    "Playback version (low 16-bits)");
 }
 
-/* get / print color_scale_def */
+/* get / print color_scale_def. */
 
 struct Sigmet_Color_Scale_Def get_color_scale_def(char *rec)
 {
@@ -1126,7 +1113,7 @@ void print_color_scale_def(FILE *out, char *pfx,
     }
 }
 
-/* get / print product_end */
+/* get / print product_end. */
 
 struct Sigmet_Product_End get_product_end(char *rec)
 {
@@ -1307,7 +1294,7 @@ void print_product_end(FILE *out, char *pfx, struct Sigmet_Product_End pe)
 	    "TZ Name of recorded data");
 }
 
-/* get / print ingest header (a.k.a. raw volume record 2) */
+/* get / print ingest header (a.k.a. raw volume record 2). */
 
 struct Sigmet_Ingest_Header get_ingest_header(char *rec)
 {
@@ -1329,7 +1316,7 @@ void print_ingest_header(FILE *out, char *prefix,
     print_task_configuration(out, prefix, ih.tc);
 }
 
-/* get / print ingest_configuration */
+/* get / print ingest_configuration. */
 
 struct Sigmet_Ingest_Configuration get_ingest_configuration(char *rec)
 {
@@ -1466,7 +1453,7 @@ void print_ingest_configuration(FILE *out, char *pfx,
 	    "Configuration name in the dpolapp.conf file, null terminated");
 }
 
-/* get / print task_configuration */
+/* get / print task_configuration. */
 
 struct Sigmet_Task_Configuration get_task_configuration(char *rec)
 {
@@ -1506,7 +1493,7 @@ void print_task_configuration(FILE *out, char *pfx,
     print_task_end_info(out, prefix, tc.tei);
 }
 
-/* get / print task_sched_info */
+/* get / print task_sched_info. */
 
 struct Sigmet_Task_Sched_Info get_task_sched_info(char *rec)
 {
@@ -1545,7 +1532,7 @@ void print_task_sched_info(FILE *out, char *pfx,
 	    " Bit 3 = Time used has been measured Bit 4 = Stop after running");
 }
 
-/* get / print task_dsp_mode_batch */
+/* get / print task_dsp_mode_batch. */
 
 struct Sigmet_Task_DSP_Mode_Batch get_task_dsp_mode_batch(char *rec)
 {
@@ -1583,7 +1570,7 @@ void print_task_dsp_mode_batch(FILE *out, char *pfx,
 	    "Threshold for width unfolding in 1/100 of dB");
 }
 
-/* get / print task_dsp_info */
+/* get / print task_dsp_info. */
 
 struct Sigmet_Task_DSP_Info get_task_dsp_info(char *rec)
 {
@@ -1668,7 +1655,7 @@ void print_task_dsp_info(FILE *out, char *pfx,
 	    "Name of custom ray header");
 }
 
-/* get / print task_calib_info */
+/* get / print task_calib_info. */
 
 struct Sigmet_Task_Calib_Info get_task_calib_info(char *rec)
 {
@@ -1766,7 +1753,7 @@ void print_task_calib_info(FILE *out, char *pfx,
 	    " Bit 1: Z and ZDR has DP attenuation correction");
 }
 
-/* get / print task_range_info */
+/* get / print task_range_info. */
 
 struct Sigmet_Task_Range_Info get_task_range_info(char *rec)
 {
@@ -1807,7 +1794,7 @@ void print_task_range_info(FILE *out, char *pfx,
 	    "Range bin averaging flag");
 }
 
-/* get / print task_scan_info */
+/* get / print task_scan_info. */
 
 struct Sigmet_Task_Scan_Info get_task_scan_info(char *rec)
 {
@@ -1864,7 +1851,7 @@ void print_task_scan_info(FILE *out, char *pfx,
     }
 }
 
-/* get / print task_rhi_scan_info */
+/* get / print task_rhi_scan_info. */
 
 struct Sigmet_Task_RHI_Scan_Info get_task_rhi_scan_info(char *rec)
 {
@@ -1904,7 +1891,7 @@ void print_task_rhi_scan_info(FILE *out, char *pfx,
 	    " 2=Upper Sector sweeps alternate in direction.");
 }
 
-/* get / print task_ppi_scan_info */
+/* get / print task_ppi_scan_info. */
 
 struct Sigmet_Task_PPI_Scan_Info get_task_ppi_scan_info(char *rec)
 {
@@ -1947,7 +1934,7 @@ void print_task_ppi_scan_info(FILE *out, char *pfx,
 	    " sweeps alternate in direction.");
 }
 
-/* get / print task_file_scan_info */
+/* get / print task_file_scan_info. */
 
 struct Sigmet_Task_File_Scan_Info get_task_file_scan_info(char *rec)
 {
@@ -1974,7 +1961,7 @@ void print_task_file_scan_info(FILE *out, char *pfx,
 	    "Filename for antenna control");
 }
 
-/* get / print task_manual_scan_info */
+/* get / print task_manual_scan_info. */
 
 struct Sigmet_Task_Manual_Scan_Info get_task_manual_scan_info(char *rec)
 {
@@ -1994,7 +1981,7 @@ void print_task_manual_scan_info(FILE *out, char *pfx,
 	    "Flags: bit 0=Continuous recording");
 }
 
-/* get / print task_misc_info */
+/* get / print task_misc_info. */
 
 struct Sigmet_Task_Misc_Info get_task_misc_info(char *rec)
 {
@@ -2092,7 +2079,7 @@ void print_task_end_info(FILE *out, char *pfx,
 	    "Data time of task (TZ flexible)");
 }
 
-/* get / print dsp_data_mask */
+/* get / print dsp_data_mask. */
 
 struct Sigmet_DSP_Data_Mask get_dsp_data_mask(char *rec)
 {
@@ -2139,7 +2126,7 @@ void print_dsp_data_mask(FILE *out, char *pfx, struct Sigmet_DSP_Data_Mask ddm,
 	    "Mask word 4", suffix);
 }
 
-/* get / print structure_header */
+/* get / print structure_header. */
 
 struct Sigmet_Structure_Header get_structure_header(char *rec)
 {
@@ -2157,9 +2144,9 @@ void print_structure_header(FILE *out, char *prefix,
 {
     print_i(out, sh.id, prefix, "<structure_header>.id",
 	    "Structure identifier: 22 => Task_configuration."
-	    " 23 => Ingest_header.  24 => Ingest_data_header."
-	    " 25 => Tape_inventory.  26 => Product_configuration."
-	    " 27 => Product_hdr.  28 => Tape_header_record");
+	    " 23 => Ingest_header. 24 => Ingest_data_header."
+	    " 25 => Tape_inventory. 26 => Product_configuration."
+	    " 27 => Product_hdr. 28 => Tape_header_record");
     print_i(out, sh.format, prefix, "<structure_header>.format",
 	    "Format version number (see headers.h)");
     print_i(out, sh.sz, prefix, "<structure_header>.sz",
@@ -2168,7 +2155,7 @@ void print_structure_header(FILE *out, char *prefix,
 	    "Flags: bit0=structure complete");
 }
 
-/* get / print ymds_time */
+/* get / print ymds_time. */
 
 struct Sigmet_YMDS_Time get_ymds_time(char *b)
 {
@@ -2186,7 +2173,7 @@ struct Sigmet_YMDS_Time get_ymds_time(char *b)
 }
 
 void print_ymds_time(FILE *out, struct Sigmet_YMDS_Time tm, char *prefix,
-	char *comp, char *desc)
+	char *mmb, char *desc)
 {
     double fhour, fmin;
     double ihour, imin;
@@ -2196,7 +2183,7 @@ void print_ymds_time(FILE *out, struct Sigmet_YMDS_Time tm, char *prefix,
     sec = tm.sec + 0.001 * tm.msec;
     fhour = modf(sec / 3600.0, &ihour);
     fmin = modf(fhour * 60.0, &imin);
-    snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
+    snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
     fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f. " FS " %s " FS " %s\n",
 	    tm.year, tm.month, tm.day,
 	    (int)ihour, (int)imin, fmin * 60.0,
@@ -2204,57 +2191,58 @@ void print_ymds_time(FILE *out, struct Sigmet_YMDS_Time tm, char *prefix,
 }
 
 /*
-   Print an unsigned integer member, the structure hierarchy and component
-   where it is stored, and a descriptor for it to stream out.
+   Print unsigned integer u (a struct value), prefix (a struct hierarchy),
+   mmb (the struct member with value u), and desc (descriptor) to stream out.
  */
-void print_u(FILE *out, unsigned u, char *prefix, char *comp, char *desc)
+void print_u(FILE *out, unsigned u, char *prefix, char *mmb, char *desc)
 {
     char struct_path[STR_LEN];
 
-    snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
+    snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
     fprintf(out, "%u " FS " %s " FS " %s\n", u, struct_path, desc);
 }
 
 /*
-   Print an unsigned integer member in hex format, the structure hierarchy
-   and component where it is stored, and a descriptor for it to stream out.
+   Print unsigned integer u (a struct value) in hex format, prefix (a struct
+   hierarchy), mmb (the struct member with value u), and desc (descriptor) to
+   stream out.
  */
-void print_x(FILE *out, unsigned u, char *prefix, char *comp, char *desc)
+void print_x(FILE *out, unsigned u, char *prefix, char *mmb, char *desc)
 {
     char struct_path[STR_LEN];
 
-    snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
+    snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
     fprintf(out, "%#X " FS " %s " FS " %s\n", u, struct_path, desc);
 }
 
 /*
-   Print an integer member, the structure hierarchy and component where it is
-   stored, and a descriptor for it to stream out.
+   Print integer i (a struct value), prefix (a struct hierarchy),
+   mmb (the struct member with value i), and desc (descriptor) to stream out.
  */
-void print_i(FILE *out, int u, char *prefix, char *comp, char *desc)
+void print_i(FILE *out, int i, char *prefix, char *mmb, char *desc)
 {
     char struct_path[STR_LEN];
 
-    snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
-    fprintf(out, "%d " FS " %s " FS " %s\n", u, struct_path, desc);
+    snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
+    fprintf(out, "%d " FS " %s " FS " %s\n", i, struct_path, desc);
 }
 
 /*
-   Print a string member, the structure hierarchy and component where it is
-   stored, and a descriptor for it to stream out.
+   Print string s (a struct value), prefix (a struct hierarchy),
+   mmb (the struct member with value s), and desc (descriptor) to stream out.
  */
-void print_s(FILE *out, char *s, char *prefix, char *comp, char *desc)
+void print_s(FILE *out, char *s, char *prefix, char *mmb, char *desc)
 {
     char struct_path[STR_LEN];
 
-    snprintf(struct_path, STR_LEN, "%s%s", prefix, comp);
+    snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
     fprintf(out, "%s " FS " %s " FS " %s\n", s, struct_path, desc);
 }
 
 /*
    Trim spaces off the end of a character array
    Returns the input string with a nul character at the start of any
-   trailing spaces and at end of string.  The input string is modified.
+   trailing spaces and at end of string. The input string is modified.
  */
 
 static char *trimRight(char *s, int n)
@@ -2318,7 +2306,7 @@ static double ** calloc2d(long j, long i)
     size_t jj, ii;		/* Addends for pointer arithmetic */
     size_t ji;
 
-    /* Make sure casting to size_t does not overflow anything.  */
+    /* Make sure casting to size_t does not overflow anything. */
     if (j <= 0 || i <= 0) {
 	Err_Append("Array dimensions must be positive.\n");
 	return NULL;
@@ -2367,7 +2355,7 @@ static int ** calloc2i(long j, long i)
     size_t jj, ii;		/* Addends for pointer arithmetic */
     size_t ji;
 
-    /* Make sure casting to size_t does not overflow anything.  */
+    /* Make sure casting to size_t does not overflow anything. */
     if (j <= 0 || i <= 0) {
 	Err_Append("Array dimensions must be positive.\n");
 	return NULL;
@@ -2415,7 +2403,7 @@ static int **** calloc4i(long lmax, long kmax, long jmax, long imax)
     long k, j, l;
     size_t ll, kk, jj, ii;
 
-    /* Make sure casting to size_t does not overflow anything.  */
+    /* Make sure casting to size_t does not overflow anything. */
     if (lmax <= 0 || kmax <= 0 || jmax <= 0 || imax <= 0) {
 	Err_Append("Array dimensions must be positive.\n");
 	return NULL;
