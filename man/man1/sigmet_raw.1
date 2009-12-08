@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.1 $ $Date: 2009/11/02 22:04:32 $
+.\" $Revision: 1.2 $ $Date: 2009/11/06 22:51:35 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -15,6 +15,7 @@ sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_raw\fP \fBvolume_headers\fP \fIraw_volume\fP
 \fBsigmet_raw\fP \fBray_headers\fP \fIraw_volume\fP
 \fBsigmet_raw\fP \fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP] [\fIraw_volume\fP]
+\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIraw_volume\fP
 .fi
 .SH DESCRIPTION
 The \fBsigmet_raw\fP application reads and prints information
@@ -68,6 +69,10 @@ ray \fIr\fP as text.
 \fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIb\fP \fIraw_volume\fP
 Reads and prints data for data type \fItype\fP, sweep \fIs\fP,
 ray \fIr\fP, bin \fIb\fP as text.
+.TP
+\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIraw_volume\fP
+Reads and prints the corners of bin \fIs\fP \fIr\fP \fIb\fP as
+"\fIlon1\ lat1\ lon2\ lat2\ lon3\ lat3\ lon4\ lat4\fP."
 .SH SEE ALSO
 IRIS Programmer's Manual (http://sigmet.com)
 .SH AUTHOR

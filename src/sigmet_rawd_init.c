@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.7 $ $Date: 2009/11/06 22:33:05 $
+ .	$Revision: 1.8 $ $Date: 2009/11/09 23:15:23 $
  */
 
 #include <stdlib.h>
@@ -16,15 +16,16 @@
 #include <stdio.h>
 #include "err_msg.h"
 #include "tm_calc_lib.h"
+#include "geog_lib.h"
 #include "sigmet.h"
 
 /* Application name and subcommand name */
 char *cmd, *cmd1;
 
 /* Subcommands */
-#define NCMD 5
+#define NCMD 6
 char *cmd1v[NCMD] = {
-    "types", "good", "volume_headers", "ray_headers", "data"
+    "types", "good", "volume_headers", "ray_headers", "data", "bin_outline"
 };
 typedef int (callback)(int , char **);
 callback types_cb;
@@ -32,15 +33,20 @@ callback good_cb;
 callback volume_headers_cb;
 callback ray_headers_cb;
 callback data_cb;
+callback bin_outline_cb;
 callback *cb1v[NCMD] = {
-    types_cb, good_cb, volume_headers_cb, ray_headers_cb, data_cb
+    types_cb, good_cb, volume_headers_cb, ray_headers_cb, data_cb, bin_outline_cb
 };
+
+/* If true, use degrees instead of radians */
+int use_deg = 0;
 
 /* Bounds limit indicating all possible index values */
 #define ALL -1
 
 int main(int argc, char *argv[])
 {
+    char *ang_u;	/* Angle unit */
     int i;
     int rslt;
 
@@ -51,6 +57,18 @@ int main(int argc, char *argv[])
 	exit(1);
     }
     cmd1 = argv[1];
+
+    /* Check for angle unit */
+    if ((ang_u = getenv("ANGLE_UNIT")) != NULL) {
+	if (strcmp(ang_u, "DEGREE") == 0) {
+	    use_deg = 1;
+	} else if (strcmp(ang_u, "RADIAN") == 0) {
+	    use_deg = 0;
+	} else {
+	    fprintf(stderr, "%s: Unknown angle unit %s.\n", cmd, ang_u);
+	    exit(1);
+	}
+    }
 
     /* Search cmd1v for cmd1.  When match is found, evaluate the associated
      * callback from cb1v. */
@@ -488,6 +506,102 @@ int data_cb(int argc, char *argv[])
     }
 
     Sigmet_FreeVol(&vol);
+    return 1;
+
+error:
+    Sigmet_FreeVol(&vol);
+    return 0;
+}
+
+int bin_outline_cb(int argc, char *argv[])
+{
+    char *inFlNm;
+    FILE *in;
+    struct Sigmet_Vol vol;
+    char *s_s, *r_s, *b_s;
+    int s, r, b;
+    double corners[8];
+    double c;
+
+    if (argc == 5) {
+	/* sigmet_raw bin_outline s r b */
+	inFlNm = "-";
+    } else if (argc == 6) {
+	/* sigmet_raw bin_outline s r b raw_volume */
+	inFlNm = argv[5];
+    } else {
+	Err_Append("Usage: ");
+	Err_Append(cmd);
+	Err_Append(" ");
+	Err_Append(cmd1);
+	Err_Append(" sweep ray bin [sigmet_volume]");
+	return 0;
+    }
+    s_s = argv[2];
+    r_s = argv[3];
+    b_s = argv[4];
+
+    if (sscanf(s_s, "%d", &s) != 1) {
+	Err_Append("Sweep index must be an integer.  ");
+	return 0;
+    }
+    if (sscanf(r_s, "%d", &r) != 1) {
+	Err_Append("Ray index must be an integer.  ");
+	return 0;
+    }
+    if (sscanf(b_s, "%d", &b) != 1) {
+	Err_Append("Bin index must be an integer.  ");
+	return 0;
+    }
+
+    /* Read volume */
+    if (strcmp(inFlNm, "-") == 0 ) {
+	in = stdin;
+    } else {
+	if ( !(in = fopen(inFlNm, "r")) ) {
+	    Err_Append("Could not open ");
+	    Err_Append((in == stdin) ? "standard input" : inFlNm);
+	    Err_Append("for reading.  ");
+	    return 0;
+	}
+    }
+    Sigmet_InitVol(&vol);
+    if ( !Sigmet_ReadVol(in, &vol) ) {
+	Err_Append("Could not read volume from ");
+	Err_Append((in == stdin) ? "standard input" : inFlNm);
+	Err_Append(".\n");
+	if (in != stdin) {
+	    fclose(in);
+	}
+	return 0;
+    }
+    if (in != stdin) {
+	fclose(in);
+    }
+
+    /* Compute */
+    if (s != ALL && s >= vol.ih.ic.num_sweeps) {
+	Err_Append("Sweep index greater than number of sweeps.  ");
+	goto error;
+    }
+    if (r != ALL && r >= vol.ih.ic.num_rays) {
+	Err_Append("Ray index greater than number of rays.  ");
+	goto error;
+    }
+    if (b != ALL && b >= vol.ih.tc.tri.num_bins_out) {
+	Err_Append("Ray index greater than number of rays.  ");
+	goto error;
+    }
+    if ( !Sigmet_BinOutl(&vol, s, r, b, corners) ) {
+	Err_Append("Could not compute bin outlines.  ");
+	goto error;
+    }
+    Sigmet_FreeVol(&vol);
+    c = (use_deg ? DEG_RAD : 1.0);
+    printf("%f %f %f %f %f %f %f %f\n",
+	    corners[0] * c, corners[1] * c, corners[2] * c, corners[3] * c,
+	    corners[4] * c, corners[5] * c, corners[6] * c, corners[7] * c);
+
     return 1;
 
 error:
