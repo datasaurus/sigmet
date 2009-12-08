@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.15 $ $Date: 2009/11/05 22:49:57 $
+   .	$Revision: 1.16 $ $Date: 2009/11/09 23:15:23 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -445,22 +445,22 @@ struct Sigmet_Vol {
 						   "STOP NOW" during the task */
 };
 
-enum Sigmet_DataType Sigmet_DataType(char *abbrv);
-char *Sigmet_DataType_Abbrv(enum Sigmet_DataType y);
-char *Sigmet_DataType_Descr(enum Sigmet_DataType y);
+enum Sigmet_DataType Sigmet_DataType(char *);
+char *Sigmet_DataType_Abbrv(enum Sigmet_DataType);
+char *Sigmet_DataType_Descr(enum Sigmet_DataType);
 float Sigmet_NoData(void);
 int Sigmet_IsData(float);
 int Sigmet_IsNoData(float);
-float Sigmet_DataType_ItoF(enum Sigmet_DataType y, struct Sigmet_Vol, unsigned i);
-double Sigmet_Bin4Rad(unsigned long a);
-double Sigmet_Bin2Rad(unsigned short a);
+float Sigmet_DataType_ItoF(enum Sigmet_DataType, struct Sigmet_Vol, unsigned);
+double Sigmet_Bin4Rad(unsigned long);
+double Sigmet_Bin2Rad(unsigned short);
 
-void Sigmet_InitVol(struct Sigmet_Vol *sigPtr);
-void Sigmet_FreeVol(struct Sigmet_Vol *sigPtr);
-int Sigmet_GoodVol(FILE *f);
-int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *sigPtr);
-void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol);
-int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *sigPtr);
-int Sigmet_BadRay(struct Sigmet_Vol *sigPtr, int s, int r);
+void Sigmet_InitVol(struct Sigmet_Vol *);
+void Sigmet_FreeVol(struct Sigmet_Vol *);
+int Sigmet_GoodVol(FILE *);
+int Sigmet_ReadHdr(FILE *, struct Sigmet_Vol *);
+void Sigmet_PrintHdr(FILE *, struct Sigmet_Vol);
+int Sigmet_ReadVol(FILE *, struct Sigmet_Vol *);
+int Sigmet_BadRay(struct Sigmet_Vol *, int, int);
 
 #endif
