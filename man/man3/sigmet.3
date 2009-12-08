@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.2 $ $Date: 2009/11/02 23:23:48 $
+.\" $Revision: 1.3 $ $Date: 2009/11/09 23:15:47 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
 Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_ItoF,
@@ -25,6 +25,8 @@ functions.
 \fBint\fP \fBSigmet_IsNoData\fP(\fBfloat\fP \fIv\fP);
 \fBfloat Sigmet_DataType_ItoF\fP(\fBenum Sigmet_DataType\fP \fIy\fP, \fBstruct Sigmet_Vol\fP \fIv\fP,
 	\fBunsigned\fP \fIi\fP);
+double Sigmet_Bin4Rad(unsigned long b);
+double Sigmet_Bin2Rad(unsigned short b);
 \fBvoid Sigmet_InitVol\fP(\fBstruct Sigmet_Vol\fP *\fIsigPtr\fP);
 \fBvoid Sigmet_FreeVol\fP(\fBstruct Sigmet_Vol\fP *\fIsigPtr\fP);
 \fBint Sigmet_ReadHdr\fP(\fBFILE\fP *\fIf, \fBstruct Sigmet_Vol\fP *\fIsigPtr\fP);
@@ -77,6 +79,12 @@ by the user.
 \fBSigmet_DataType_ItoF\fP returns a measurement value corresponding
 to integer storage value \fIi\fP from volume \fIv\fP, using the conversion
 method for data type \fIy\fP.
+.PP
+\fBSigmet_Bin4Rad\fP returns the angle in radians corresponding to Sigmet four
+byte binary angle \fIb\fP.
+.PP
+\fBSigmet_Bin2Rad\fP returns the angle in radians corresponding to Sigmet two
+byte binary angle \fIb\fP.
 .SH SIGMET RAW VOLUMES
 Data from Sigmet raw product volumes are stored in structures of
 type \fBstruct\ Sigmet_Vol\fP, which is declared in \fBsigmet.h\fP.
