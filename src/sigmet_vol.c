@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.25 $ $Date: 2009/11/10 16:26:08 $
+   .	$Revision: 1.26 $ $Date: 2009/11/10 17:08:10 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -23,6 +23,7 @@
 #include "err_msg.h"
 #include "swap.h"
 #include "type_nbit.h"
+#include "geog_lib.h"
 #include "sigmet.h"
 
 /* Header sizes in data record */
@@ -851,6 +852,59 @@ error:
 int Sigmet_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 {
     return vol_p->ray_az0[s][r] == vol_p->ray_az1[s][r];
+}
+
+/* Return lon-lat's at corners of a bin */
+int Sigmet_BinOutl(struct Sigmet_Vol *sigPtr, int s, int r, int b, double *ll)
+{
+    double re;			/* Earth radius */
+    double lon_r, lat_r;	/* Radar longitude latitude */
+    double az0, az1;		/* Azimuth limits of bin */
+    double r00, dr;		/* Range to first bin, bin length, in meters */
+    double r0, r1;		/* Range to start and end of bin */
+    double tilt;		/* Mean tilt */
+
+    /* Distances in meters */
+
+    if (s >= sigPtr->ih.ic.num_sweeps) {
+	Err_Append("Sweep index out of bounds.  ");
+	return 0;
+    }
+    if (r >= sigPtr->ih.ic.num_rays) {
+	Err_Append("Ray index out of bounds.  ");
+	return 0;
+    }
+    if (b + 1 >= sigPtr->ih.tc.tri.num_bins_out) {
+	Err_Append("Bin index out of bounds.  ");
+	return 0;
+    }
+
+    re = GeogREarth(NULL);
+    lon_r = Sigmet_Bin4Rad(sigPtr->ih.ic.longitude);
+    lat_r = Sigmet_Bin4Rad(sigPtr->ih.ic.latitude);
+    r00 = sigPtr->ih.tc.tri.rng_1st_bin;
+    dr = sigPtr->ih.tc.tri.step_out;
+    r0 = 0.01 * (r00 + r * dr);
+    r1 = 0.01 * (r00 + (r + 1) * dr);
+    az0 = sigPtr->ray_az0[s][r];
+    az1 = sigPtr->ray_az1[s][r];
+    if (az1 < az0) {
+	double t = az1;
+	az1 = az0;
+	az0 = t;
+    }
+    tilt = 0.5 * (sigPtr->ray_tilt0[s][r] + sigPtr->ray_tilt1[s][r]);
+
+    /* Distance along ground to point under the bin */
+    r0 = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
+    r1 = atan(r1 * cos(tilt) / (re + r1 * sin(tilt)));
+
+    GeogStep(lon_r, lat_r, az0, r0, ll, ll + 1);
+    GeogStep(lon_r, lat_r, az0, r1, ll + 2, ll + 3);
+    GeogStep(lon_r, lat_r, az1, r1, ll + 4, ll + 5);
+    GeogStep(lon_r, lat_r, az1, r0, ll + 6, ll + 7);
+
+    return 1;
 }
 
 /* get / print product_hdr (a.k.a. raw volume record 1). */
