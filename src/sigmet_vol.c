@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.28 $ $Date: 2009/12/17 16:35:32 $
+   .	$Revision: 1.29 $ $Date: 2009/12/17 19:58:09 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -753,13 +753,11 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    } else if (*recP == 1) {
 		/* End of ray */
 		if (s > num_sweeps) {
-		    Err_Append("Volume storage went beyond"
-			    " maximum sweep count.  ");
+		    Err_Append("Volume has more sweeps than reported in header. ");
 		    goto error;
 		}
 		if (r > num_rays) {
-		    Err_Append("Volume storage went beyond"
-			    " maximum ray count.  ");
+		    Err_Append("Volume has more rays than reported in header. ");
 		    goto error;
 		}
 		vol_p->ray_az0[s][r] = Sigmet_Bin2Rad(ray[0]);
