@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.27 $ $Date: 2009/12/08 22:53:32 $
+   .	$Revision: 1.28 $ $Date: 2009/12/17 16:35:32 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -668,7 +668,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    month = get_sint16(rec + 32);
 	    day = get_sint16(rec + 34);
 	    if (year == 0 || month == 0 || day == 0) {
-		Err_Append("Garbled sweep.  ");
+		Err_Append("Sweep date is 0000/00/00.  ");
 		goto error;
 	    }
 
@@ -718,14 +718,10 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			*rayP = *recP;
 		    }
 
-		    /*
-		       Get next record. Record number from <raw_prod_bhdr>
-		       should agree with counter.
-		     */
+		    /* Get next record. */
 		    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
-			Err_Append( "Failed to read record "
-				" from Sigmet raw file.  ");
-			goto error;
+			vol_p->truncated = 1;
+			return 1;
 		    }
 		    i = get_sint16(rec);
 		    if (i != rec_idx + 1) {
@@ -844,10 +840,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    }
 	}
     }
-
-    if ( !feof(f) ) {
-	vol_p->truncated = 1;
-    }
+    vol_p->truncated = !feof(f);
     FREE(ray);
     return 1;
 
