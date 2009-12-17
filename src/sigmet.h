@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.18 $ $Date: 2009/12/08 22:53:44 $
+   .	$Revision: 1.19 $ $Date: 2009/12/17 16:35:32 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -423,19 +423,16 @@ struct Sigmet_Vol {
 						   happens when operator orders
 						   "STOP NOW" during the task,
 						   or if a volume transfer fails */
-    int num_sweeps;				/* Actual number of sweeps in
-						   volume. This may differ from
-						   <ingest_header>
-						   .<ingest_configuration>
-						   .num_sweeps
-						   or <ingest_header>
-						   .<task_configuration>
-						   .<task_scan_info>.num_sweeps
-						   if the volume is truncated. */
+    int *sweep_ok;				/* Sweep status, dimensioned
+						   [sweep]. If sweep_ok[i],
+						   i'th sweep is complete. */
     double *sweep_time;				/* Sweep start time, Julian day,
 						   dimensioned [sweep] */
     double *sweep_angle;			/* Sweep angle, radians,
 						   dimensioned [sweep] */
+    int **ray_ok;				/* Ray status, dimesioned
+						   [sweep][ray].  If ray_ok[j][i]
+						   == 1, ray is good */
     double **ray_time;				/* Ray time, Julian day,
 						   dimesioned [sweep][ray] */
     int **ray_num_bins;				/* Number of bins in ray,

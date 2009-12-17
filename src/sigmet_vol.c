@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.29 $ $Date: 2009/12/17 19:58:09 $
+   .	$Revision: 1.30 $ $Date: 2009/12/17 20:01:52 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -142,6 +142,7 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 	vol_p->types[n] = DB_XHDR;
 	vol_p->types_fl[n] = DB_XHDR;
     }
+    vol_p->sweep_ok = NULL;
     vol_p->sweep_time = NULL;
     vol_p->sweep_angle = NULL;
     vol_p->ray_tilt0 = vol_p->ray_tilt1
@@ -156,8 +157,10 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
     if (!vol_p) {
 	return;
     }
+    FREE(vol_p->sweep_ok);
     FREE(vol_p->sweep_time);
     FREE(vol_p->sweep_angle);
+    free2i(vol_p->ray_ok);
     free2d(vol_p->ray_time);
     free2i(vol_p->ray_num_bins);
     free2d(vol_p->ray_tilt0);
@@ -274,9 +277,6 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
     }
     fprintf(out, "%d " FS " %s " FS " %s\n",
 	    vol.truncated, "xhdr", "If true, volume is truncated");
-    fprintf(out, "%d " FS " %s " FS " %s\n",
-	    vol.num_sweeps, "num_sweeps", "Number of sweeps this process has read."
-	    " May be 0 if only reading volume headers.");
 }
 
 int Sigmet_GoodVol(FILE *f)
@@ -557,6 +557,12 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
 
+    vol_p->sweep_ok = (int *)CALLOC(num_sweeps, sizeof(int));
+    if ( !vol_p->sweep_ok ) {
+	Err_Append("Could not allocate sweep status array.  ");
+	goto error;
+    }
+
     vol_p->sweep_time = (double *)CALLOC(num_sweeps, sizeof(double));
     if ( !vol_p->sweep_time ) {
 	Err_Append("Could not allocate sweep time array.  ");
@@ -566,6 +572,12 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->sweep_angle = (double *)CALLOC(num_sweeps, sizeof(double));
     if ( !vol_p->sweep_angle ) {
 	Err_Append("Could not allocate sweep angle array.  ");
+	goto error;
+    }
+
+    vol_p->ray_ok = calloc2i(num_sweeps, num_rays);
+    if ( !vol_p->ray_ok ) {
+	Err_Append("Could not allocate array of ray status array.  ");
 	goto error;
     }
 
@@ -642,12 +654,12 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
 	if (n != sweep_num) {
 	    /* Record is start of new sweep. */
+	    vol_p->sweep_ok[sweep_num] = 1;
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
 		Err_Append("Volume has excess sweeps.  ");
 		goto error;
 	    }
-	    vol_p->num_sweeps++;
 	    s = sweep_num - 1;
 	    r = 0;
 
@@ -760,6 +772,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    Err_Append("Volume has more rays than reported in header. ");
 		    goto error;
 		}
+		vol_p->ray_ok[s][r] = 1;
 		vol_p->ray_az0[s][r] = Sigmet_Bin2Rad(ray[0]);
 		vol_p->ray_tilt0[s][r] = Sigmet_Bin2Rad(ray[1]);
 		vol_p->ray_az1[s][r] = Sigmet_Bin2Rad(ray[2]);
