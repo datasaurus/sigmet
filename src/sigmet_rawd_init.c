@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.8 $ $Date: 2009/11/09 23:15:23 $
+ .	$Revision: 1.9 $ $Date: 2009/12/08 22:54:15 $
  */
 
 #include <stdlib.h>
@@ -256,6 +256,9 @@ int ray_headers_cb(int argc, char *argv[])
 	    int yr, mon, da, hr, min;
 	    double sec;
 
+	    if ( !vol.ray_ok[s][r] ) {
+		continue;
+	    }
 	    printf("sweep %3d ray %4d | ", s, r);
 	    if ( !Tm_JulToCal(vol.ray_time[s][r],
 			&yr, &mon, &da, &hr, &min, &sec) ) {
@@ -440,6 +443,9 @@ int data_cb(int argc, char *argv[])
 	    for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
 		printf("%s. sweep %d\n", abbrv, s);
 		for (r = 0; r < vol.ih.ic.num_rays; r++) {
+		    if ( !vol.ray_ok[s][r] ) {
+			continue;
+		    }
 		    printf("ray %d: ", r);
 		    for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
 			d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
@@ -457,6 +463,9 @@ int data_cb(int argc, char *argv[])
 	for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
 	    printf("%s. sweep %d\n", abbrv, s);
 	    for (r = 0; r < vol.ih.ic.num_rays; r++) {
+		    if ( !vol.ray_ok[s][r] ) {
+			continue;
+		    }
 		printf("ray %d: ", r);
 		for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
 		    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
@@ -472,6 +481,9 @@ int data_cb(int argc, char *argv[])
     } else if (r == ALL && b == ALL) {
 	printf("%s. sweep %d\n", abbrv, s);
 	for (r = 0; r < vol.ih.ic.num_rays; r++) {
+	    if ( !vol.ray_ok[s][r] ) {
+		continue;
+	    }
 	    printf("ray %d: ", r);
 	    for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
 		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
@@ -484,25 +496,29 @@ int data_cb(int argc, char *argv[])
 	    printf("\n");
 	}
     } else if (b == ALL) {
-	printf("%s. sweep %d, ray %d: ", abbrv, s, r);
-	for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
+	if (vol.ray_ok[s][r]) {
+	    printf("%s. sweep %d, ray %d: ", abbrv, s, r);
+	    for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
+		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
+		if (Sigmet_IsData(d)) {
+		    printf("%f ", d);
+		} else {
+		    printf("nodat ");
+		}
+	    }
+	    printf("\n");
+	}
+    } else {
+	if (vol.ray_ok[s][r]) {
+	    printf("%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
 	    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 	    if (Sigmet_IsData(d)) {
 		printf("%f ", d);
 	    } else {
 		printf("nodat ");
 	    }
+	    printf("\n");
 	}
-	printf("\n");
-    } else {
-	printf("%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
-	d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
-	if (Sigmet_IsData(d)) {
-	    printf("%f ", d);
-	} else {
-	    printf("nodat ");
-	}
-	printf("\n");
     }
 
     Sigmet_FreeVol(&vol);
