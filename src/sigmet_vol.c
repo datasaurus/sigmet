@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.26 $ $Date: 2009/11/10 17:08:10 $
+   .	$Revision: 1.27 $ $Date: 2009/12/08 22:53:32 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -262,6 +262,8 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
     print_product_hdr(out, "<product_hdr>.", vol.ph);
     print_ingest_header(out, "<ingest_header>.", vol.ih);
     fprintf(out, "%d " FS " %s " FS " %s\n",
+	    vol.xhdr, "xhdr", "If true, volume uses extended headers");
+    fprintf(out, "%d " FS " %s " FS " %s\n",
 	    vol.num_types, "num_types", "Number of Sigmet data types");
     for (y = 0; y < vol.num_types; y++) {
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
@@ -270,6 +272,11 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
 		elem_nm,
 		Sigmet_DataType_Descr(vol.types[y]));
     }
+    fprintf(out, "%d " FS " %s " FS " %s\n",
+	    vol.truncated, "xhdr", "If true, volume is truncated");
+    fprintf(out, "%d " FS " %s " FS " %s\n",
+	    vol.num_sweeps, "num_sweeps", "Number of sweeps this process has read."
+	    " May be 0 if only reading volume headers.");
 }
 
 int Sigmet_GoodVol(FILE *f)
@@ -640,6 +647,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		Err_Append("Volume has excess sweeps.  ");
 		goto error;
 	    }
+	    vol_p->num_sweeps++;
 	    s = sweep_num - 1;
 	    r = 0;
 

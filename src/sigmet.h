@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.17 $ $Date: 2009/12/08 17:38:14 $
+   .	$Revision: 1.18 $ $Date: 2009/12/08 22:53:44 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -416,6 +416,22 @@ struct Sigmet_Vol {
     int num_types;				/* Number of data types */
     enum Sigmet_DataType types[SIGMET_NTYPES];	/* Data types */
     enum Sigmet_DataType types_fl[SIGMET_NTYPES];/* Data types */
+    int truncated;				/* If true, volume does not
+						   have data for the number
+						   of sweeps and rays given
+						   in the headers.  This usually
+						   happens when operator orders
+						   "STOP NOW" during the task,
+						   or if a volume transfer fails */
+    int num_sweeps;				/* Actual number of sweeps in
+						   volume. This may differ from
+						   <ingest_header>
+						   .<ingest_configuration>
+						   .num_sweeps
+						   or <ingest_header>
+						   .<task_configuration>
+						   .<task_scan_info>.num_sweeps
+						   if the volume is truncated. */
     double *sweep_time;				/* Sweep start time, Julian day,
 						   dimensioned [sweep] */
     double *sweep_angle;			/* Sweep angle, radians,
@@ -437,12 +453,6 @@ struct Sigmet_Vol {
 						   [type][sweep][ray][bin]
 						   Units and encoding depend on
 						   type. */
-    int truncated;				/* If true, volume does not
-						   have data for the number
-						   of sweeps and rays given
-						   in the headers.  This usually
-						   happens when operator orders
-						   "STOP NOW" during the task */
 };
 
 enum Sigmet_DataType Sigmet_DataType(char *);
