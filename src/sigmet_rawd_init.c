@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.9 $ $Date: 2009/12/08 22:54:15 $
+ .	$Revision: 1.10 $ $Date: 2009/12/17 20:47:34 $
  */
 
 #include <stdlib.h>
@@ -23,9 +23,10 @@
 char *cmd, *cmd1;
 
 /* Subcommands */
-#define NCMD 6
+#define NCMD 7
 char *cmd1v[NCMD] = {
-    "types", "good", "volume_headers", "ray_headers", "data", "bin_outline"
+    "types", "good", "volume_headers", "ray_headers", "data", "bin_outline",
+    "bintvls"
 };
 typedef int (callback)(int , char **);
 callback types_cb;
@@ -34,8 +35,10 @@ callback volume_headers_cb;
 callback ray_headers_cb;
 callback data_cb;
 callback bin_outline_cb;
+callback bintvls_cb;
 callback *cb1v[NCMD] = {
-    types_cb, good_cb, volume_headers_cb, ray_headers_cb, data_cb, bin_outline_cb
+    types_cb, good_cb, volume_headers_cb, ray_headers_cb, data_cb, bin_outline_cb,
+    bintvls_cb
 };
 
 /* If true, use degrees instead of radians */
@@ -447,7 +450,7 @@ int data_cb(int argc, char *argv[])
 			continue;
 		    }
 		    printf("ray %d: ", r);
-		    for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
+		    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 			d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 			if (Sigmet_IsData(d)) {
 			    printf("%f ", d);
@@ -467,7 +470,7 @@ int data_cb(int argc, char *argv[])
 			continue;
 		    }
 		printf("ray %d: ", r);
-		for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
+		for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		    if (Sigmet_IsData(d)) {
 			printf("%f ", d);
@@ -485,7 +488,7 @@ int data_cb(int argc, char *argv[])
 		continue;
 	    }
 	    printf("ray %d: ", r);
-	    for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
+	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		if (Sigmet_IsData(d)) {
 		    printf("%f ", d);
@@ -498,7 +501,7 @@ int data_cb(int argc, char *argv[])
     } else if (b == ALL) {
 	if (vol.ray_ok[s][r]) {
 	    printf("%s. sweep %d, ray %d: ", abbrv, s, r);
-	    for (b = 0; b < vol.ih.tc.tri.num_bins_out; b++) {
+	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		if (Sigmet_IsData(d)) {
 		    printf("%f ", d);
@@ -617,6 +620,108 @@ int bin_outline_cb(int argc, char *argv[])
     printf("%f %f %f %f %f %f %f %f\n",
 	    corners[0] * c, corners[1] * c, corners[2] * c, corners[3] * c,
 	    corners[4] * c, corners[5] * c, corners[6] * c, corners[7] * c);
+
+    return 1;
+
+error:
+    Sigmet_FreeVol(&vol);
+    return 0;
+}
+
+/*
+   sigmet_raw bintvls type s bounds raw_vol
+ */
+int bintvls_cb(int argc, char *argv[])
+{
+    char *inFlNm;
+    FILE *in;
+    struct Sigmet_Vol vol;
+    char *s_s;
+    int s, y, r, b;
+    char *abbrv;
+    double d;
+    enum Sigmet_DataType type_t;
+
+    if (argc == 5) {
+	/* sigmet_raw bintvls type sweep bounds */
+	inFlNm = "-";
+    } else if (argc == 6) {
+	/* sigmet_raw bintvls type sweep bounds raw_volume */
+	inFlNm = argv[5];
+    } else {
+	Err_Append("Usage: ");
+	Err_Append(cmd);
+	Err_Append(" ");
+	Err_Append(cmd1);
+	Err_Append(" type sweep bounds [sigmet_volume]");
+	return 0;
+    }
+    abbrv = argv[2];
+    if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
+	Err_Append("No data type named ");
+	Err_Append(abbrv);
+	Err_Append(".  ");
+    }
+    s_s = argv[3];
+    if (sscanf(s_s, "%d", &s) != 1) {
+	Err_Append("Sweep index must be an integer.  ");
+	return 0;
+    }
+
+    /* Read volume */
+    if (strcmp(inFlNm, "-") == 0 ) {
+	in = stdin;
+    } else if ( !(in = fopen(inFlNm, "r")) ) {
+	    Err_Append("Could not open ");
+	    Err_Append((in == stdin) ? "standard input" : inFlNm);
+	    Err_Append("for reading.  ");
+	    return 0;
+    }
+    Sigmet_InitVol(&vol);
+    if ( !Sigmet_ReadVol(in, &vol) ) {
+	Err_Append("Could not read volume from ");
+	Err_Append((in == stdin) ? "standard input" : inFlNm);
+	Err_Append(".\n");
+	if (in != stdin) {
+	    fclose(in);
+	}
+	return 0;
+    }
+    if (in != stdin) {
+	fclose(in);
+    }
+
+    /* Locate user ordered type in volume */
+    for (y = 0; y < vol.num_types; y++) {
+	if (type_t == vol.types[y]) {
+	    break;
+	}
+    }
+    if (y == vol.num_types) {
+	Err_Append("Data type ");
+	Err_Append(abbrv);
+	Err_Append(" not in volume.\n");
+	goto error;
+    }
+
+    if (s >= vol.ih.ic.num_sweeps) {
+	Err_Append("Sweep index greater than number of sweeps.  ");
+	goto error;
+    }
+    if ( !vol.sweep_ok[s] ) {
+	Err_Append("Sweep not valid in this volume.  ");
+	goto error;
+    }
+
+    for (r = 0; r < vol.ih.ic.num_rays; r++) {
+	if ( !vol.ray_ok[s][r] ) {
+	    continue;
+	}
+	for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
+	    d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
+	}
+	printf("\n");
+    }
 
     return 1;
 
