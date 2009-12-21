@@ -8,23 +8,25 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.11 $ $Date: 2009/12/18 23:22:44 $
+ .	$Revision: 1.12 $ $Date: 2009/12/21 21:38:15 $
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include "err_msg.h"
-#include "hash.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "sigmet.h"
+
 /*
  * hash - compute an index in a hash table given the key.
  * k = string key (in)
  * n = number of buckets in hash table (in)
  * Return value is a pseudo-random integer in range [0,n)
  */
+
+#define HASH_X 31
 static unsigned hash(const char *k, unsigned n)
 {
     unsigned h;
