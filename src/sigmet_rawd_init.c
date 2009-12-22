@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.12 $ $Date: 2009/12/21 21:38:15 $
+ .	$Revision: 1.13 $ $Date: 2009/12/21 21:40:19 $
  */
 
 #include <stdlib.h>
@@ -19,33 +19,14 @@
 #include "geog_lib.h"
 #include "sigmet.h"
 
-/*
- * hash - compute an index in a hash table given the key.
- * k = string key (in)
- * n = number of buckets in hash table (in)
- * Return value is a pseudo-random integer in range [0,n)
- */
-
-#define HASH_X 31
-static unsigned hash(const char *k, unsigned n)
-{
-    unsigned h;
-
-    for (h = 0 ; *k != '\0'; k++) {
-	h = HASH_X * h + (unsigned)*k;
-    }
-    return h % n;
-}
-
 /* Application name and subcommand name */
 char *cmd, *cmd1;
 
-/* Subcommands. For the given arrays, hash is a perfect hashing function. */
-#define NCMD 33
+/* Subcommands */
+#define NCMD 7
 char *cmd1v[NCMD] = {
-    "", "", "", "", "ray_headers", "", "", "", "", "bintvls", "", "",
-    "bin_outline", "", "data", "", "", "", "", "", "", "", "", "", "", "",
-    "good", "", "types", "", "", "volume_headers", ""
+    "ray_headers", "bintvls", "bin_outline", "data", "good", "types",
+    "volume_headers"
 };
 typedef int (callback)(int , char **);
 callback types_cb;
@@ -56,10 +37,8 @@ callback data_cb;
 callback bin_outline_cb;
 callback bintvls_cb;
 callback *cb1v[NCMD] = {
-    NULL, NULL, NULL, NULL, ray_headers_cb, NULL, NULL, NULL, NULL, bintvls_cb,
-    NULL, NULL, bin_outline_cb, NULL, data_cb, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, good_cb, NULL, types_cb, NULL, NULL,
-    volume_headers_cb, NULL
+    ray_headers_cb, bintvls_cb, bin_outline_cb, data_cb, good_cb, types_cb,
+    volume_headers_cb
 };
 
 /* If true, use degrees instead of radians */
@@ -73,19 +52,6 @@ int main(int argc, char *argv[])
     char *ang_u;	/* Angle unit */
     int i;
     int rslt;
-
-#ifdef HASH_TEST
-    /* Print hash values for command names and exit. */
-    int c;
-    for (c = 0; c < NCMD; c++) {
-	if (strlen(cmd1v[c]) > 0) {
-	    printf("%d: %d %s\n",  c, hash(cmd1v[c], NCMD), cmd1v[c]);
-	} else {
-	    printf("%d:\n",  c);
-	}
-    }
-    exit(EXIT_SUCCESS);
-#endif
 
     /* Ensure minimum command line */
     cmd = argv[0];
@@ -109,14 +75,11 @@ int main(int argc, char *argv[])
 
     /* Search cmd1v for cmd1.  When match is found, evaluate the associated
      * callback from cb1v. */
-    i = hash(cmd1, NCMD);
-    if (strcmp(cmd1v[i], cmd1) != 0) {
+    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 	fprintf(stderr, "%s: No option or subcommand named %s\n", cmd, cmd1);
 	fprintf(stderr, "Subcommand must be one of: ");
 	for (i = 0; i < NCMD; i++) {
-	    if (strlen(cmd1v[i]) > 0) {
-		fprintf(stderr, "%s ", cmd1v[i]);
-	    }
+	    fprintf(stderr, "%s ", cmd1v[i]);
 	}
 	fprintf(stderr, "\n");
 	exit(EXIT_FAILURE);
