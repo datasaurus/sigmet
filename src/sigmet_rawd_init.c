@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.13 $ $Date: 2009/12/21 21:40:19 $
+ .	$Revision: 1.14 $ $Date: 2009/12/22 19:04:11 $
  */
 
 #include <stdlib.h>
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "\n");
 	exit(EXIT_FAILURE);
     }
-    rslt = (cb1v[i])(argc, argv);
+    rslt = (cb1v[i])(argc - 1, argv + 1);
     if ( !rslt ) {
 	fprintf(stderr, "%s %s failed.\n", cmd, cmd1);
 	fprintf(stderr, "%s\n", Err_Get());
@@ -96,7 +96,7 @@ int types_cb(int argc, char *argv[])
 {
     int y;
 
-    if (argc != 2) {
+    if (argc != 1) {
 	Err_Append("Usage: ");
 	Err_Append(cmd);
 	Err_Append(" ");
@@ -114,12 +114,12 @@ int good_cb(int argc, char *argv[])
     char *inFlNm;
     FILE *in;
 
-    if (argc == 2) {
+    if (argc == 1) {
 	/* Call is of form: "sigmet_raw good" */
 	inFlNm = "-";
-    } else if (argc == 3) {
+    } else if (argc == 2) {
 	/* Call is of form: "sigmet_raw good file_name" */
-	inFlNm = argv[2];
+	inFlNm = argv[1];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd);
@@ -157,12 +157,12 @@ int volume_headers_cb(int argc, char *argv[])
     FILE *in;
     struct Sigmet_Vol vol;
 
-    if (argc == 2) {
+    if (argc == 1) {
 	/* Call is of form: "sigmet_raw volume_headers" */
 	inFlNm = "-";
-    } else if (argc == 3) {
+    } else if (argc == 2) {
 	/* Call is of form: "sigmet_raw volume_headers file_name" */
-	inFlNm = argv[2];
+	inFlNm = argv[1];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd);
@@ -209,12 +209,12 @@ int ray_headers_cb(int argc, char *argv[])
     struct Sigmet_Vol vol;
     int s, r;
 
-    if (argc == 2) {
+    if (argc == 1) {
 	/* Call is of form: "sigmet_raw ray_headers" */
 	inFlNm = "-";
-    } else if (argc == 3) {
+    } else if (argc == 2) {
 	/* Call is of form: "sigmet_raw ray_headers file_name" */
-	inFlNm = argv[2];
+	inFlNm = argv[1];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd);
@@ -290,84 +290,84 @@ int data_cb(int argc, char *argv[])
     /*
        Identify input and desired output
        Possible forms:
-	   sigmet_raw data		(argc = 2)
-	   sigmet_raw data file		(argc = 3)
-	   sigmet_raw data y		(argc = 3)
-	   sigmet_raw data y file	(argc = 4)
-	   sigmet_raw data y s		(argc = 4)
-	   sigmet_raw data y s file	(argc = 5)
-	   sigmet_raw data y s r	(argc = 5)
-	   sigmet_raw data y s r file	(argc = 6)
-	   sigmet_raw data y s r b	(argc = 6)
-	   sigmet_raw data y s r b file	(argc = 7)
+	   sigmet_raw data		(argc = 1)
+	   sigmet_raw data file		(argc = 2)
+	   sigmet_raw data y		(argc = 2)
+	   sigmet_raw data y file	(argc = 3)
+	   sigmet_raw data y s		(argc = 3)
+	   sigmet_raw data y s file	(argc = 4)
+	   sigmet_raw data y s r	(argc = 4)
+	   sigmet_raw data y s r file	(argc = 5)
+	   sigmet_raw data y s r b	(argc = 5)
+	   sigmet_raw data y s r b file	(argc = 6)
      */
 
     y = s = r = b = ALL;
     type = DB_ERROR;
-    if (argc == 2) {
+    if (argc == 1) {
 	/* Call is of form: "sigmet_raw data" */
 	inFlNm = "-";
     }
-    if (argc == 3) {
-	if ((type_t = Sigmet_DataType(argv[2])) == DB_ERROR) {
+    if (argc == 2) {
+	if ((type_t = Sigmet_DataType(argv[1])) == DB_ERROR) {
 	    /* Call is of form: "sigmet_raw data file_name" */
-	    inFlNm = argv[2];
+	    inFlNm = argv[1];
 	} else {
 	    /* Call is of form: "sigmet_raw data type" */
 	    inFlNm = "-";
 	    type = type_t;
 	}
     }
-    if (argc > 3 && (type = Sigmet_DataType(argv[2])) == DB_ERROR) {
+    if (argc > 2 && (type = Sigmet_DataType(argv[1])) == DB_ERROR) {
 	Err_Append("No data type named ");
-	Err_Append(argv[2]);
+	Err_Append(argv[1]);
 	Err_Append(".  ");
 	return 0;
     }
-    if (argc == 4) {
-	if (sscanf(argv[3], "%d", &s) == 1) {
+    if (argc == 3) {
+	if (sscanf(argv[2], "%d", &s) == 1) {
 	    /* Call is of form: "sigmet_raw data type sweep" */
 	    inFlNm = "-";
 	} else {
 	    /* Call is of form: "sigmet_raw data type file_name" */
-	    inFlNm = argv[3];
+	    inFlNm = argv[2];
 	}
     }
-    if (argc > 4 && sscanf(argv[3], "%d", &s) != 1) {
+    if (argc > 3 && sscanf(argv[2], "%d", &s) != 1) {
 	Err_Append("Sweep index must be an integer.  ");
 	return 0;
     }
-    if (argc == 5) {
-	if (sscanf(argv[4], "%d", &r) == 1) {
+    if (argc == 4) {
+	if (sscanf(argv[3], "%d", &r) == 1) {
 	    /* Call is of form: "sigmet_raw data type sweep ray" */
 	    inFlNm = "-";
 	} else {
 	    /* Call is of form: "sigmet_raw data type sweep file_name" */
-	    inFlNm = argv[4];
+	    inFlNm = argv[3];
 	}
     }
-    if (argc > 5 && sscanf(argv[4], "%d", &r) != 1) {
+    if (argc > 4 && sscanf(argv[3], "%d", &r) != 1) {
 	Err_Append("Ray index must be an integer.  ");
 	return 0;
     }
-    if (argc == 6) {
-	if (sscanf(argv[5], "%d", &b) == 1) {
+    if (argc == 5) {
+	if (sscanf(argv[4], "%d", &b) == 1) {
 	    /* Call is of form: "sigmet_raw data type sweep ray bin" */
 	    inFlNm = "-";
 	} else {
 	    /* Call is of form: "sigmet_raw data type sweep ray file_name" */
-	    inFlNm = argv[5];
+	    inFlNm = argv[4];
 	}
     }
-    if (argc > 6 && sscanf(argv[5], "%d", &b) != 1) {
+    if (argc > 5 && sscanf(argv[4], "%d", &b) != 1) {
 	Err_Append("Bin index must be an integer.  ");
 	return 0;
     }
-    if (argc == 7) {
+    if (argc == 6) {
 	/* Call is of form: "sigmet_raw data type sweep ray bin file_name" */
-	inFlNm = argv[6];
+	inFlNm = argv[5];
     }
-    if (argc > 7) {
+    if (argc > 6) {
 	Err_Append("Usage: ");
 	Err_Append(cmd);
 	Err_Append(" ");
@@ -536,12 +536,12 @@ int bin_outline_cb(int argc, char *argv[])
     double corners[8];
     double c;
 
-    if (argc == 5) {
+    if (argc == 4) {
 	/* sigmet_raw bin_outline s r b */
 	inFlNm = "-";
-    } else if (argc == 6) {
+    } else if (argc == 5) {
 	/* sigmet_raw bin_outline s r b raw_volume */
-	inFlNm = argv[5];
+	inFlNm = argv[4];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd);
@@ -550,9 +550,9 @@ int bin_outline_cb(int argc, char *argv[])
 	Err_Append(" sweep ray bin [sigmet_volume]");
 	return 0;
     }
-    s_s = argv[2];
-    r_s = argv[3];
-    b_s = argv[4];
+    s_s = argv[1];
+    r_s = argv[2];
+    b_s = argv[3];
 
     if (sscanf(s_s, "%d", &s) != 1) {
 	Err_Append("Sweep index must be an integer.  ");
@@ -622,9 +622,7 @@ error:
     return 0;
 }
 
-/*
-   sigmet_raw bintvls type s bounds raw_vol
- */
+/* Usage: sigmet_raw bintvls type s bounds raw_vol */
 int bintvls_cb(int argc, char *argv[])
 {
     char *inFlNm;
@@ -636,12 +634,12 @@ int bintvls_cb(int argc, char *argv[])
     double d;
     enum Sigmet_DataType type_t;
 
-    if (argc == 5) {
+    if (argc == 4) {
 	/* sigmet_raw bintvls type sweep bounds */
 	inFlNm = "-";
-    } else if (argc == 6) {
+    } else if (argc == 5) {
 	/* sigmet_raw bintvls type sweep bounds raw_volume */
-	inFlNm = argv[5];
+	inFlNm = argv[4];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd);
@@ -650,13 +648,13 @@ int bintvls_cb(int argc, char *argv[])
 	Err_Append(" type sweep bounds [sigmet_volume]");
 	return 0;
     }
-    abbrv = argv[2];
+    abbrv = argv[1];
     if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
 	Err_Append("No data type named ");
 	Err_Append(abbrv);
 	Err_Append(".  ");
     }
-    s_s = argv[3];
+    s_s = argv[2];
     if (sscanf(s_s, "%d", &s) != 1) {
 	Err_Append("Sweep index must be an integer.  ");
 	return 0;
