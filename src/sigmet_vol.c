@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.30 $ $Date: 2009/12/17 20:01:52 $
+   .	$Revision: 1.31 $ $Date: 2009/12/17 20:48:03 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -276,7 +276,7 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
 		Sigmet_DataType_Descr(vol.types[y]));
     }
     fprintf(out, "%d " FS " %s " FS " %s\n",
-	    vol.truncated, "xhdr", "If true, volume is truncated");
+	    vol.truncated, "truncated", "If true, volume is truncated");
 }
 
 int Sigmet_GoodVol(FILE *f)
