@@ -8,12 +8,14 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.14 $ $Date: 2009/12/22 19:04:11 $
+ .	$Revision: 1.15 $ $Date: 2010/01/05 21:29:11 $
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "alloc.h"
+#include "str.h"
 #include "err_msg.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
@@ -49,17 +51,34 @@ int use_deg = 0;
 
 int main(int argc, char *argv[])
 {
-    char *ang_u;	/* Angle unit */
+    char *inFlNm;		/* File with commands */
+    FILE *in;			/* Stream from the file named inFlNm */
+    char *ang_u;		/* Angle unit */
     int i;
-    int rslt;
+    char *ln = NULL;		/* Input line from the command file */
+    int n;			/* Number of characters in ln */
+    int argc1 = 0;		/* Number of arguments in an input line */
+    char **argv1 = NULL;	/* Arguments from an input line */
 
     /* Ensure minimum command line */
     cmd = argv[0];
-    if (argc < 2) {
-	fprintf(stderr, "Usage: %s subcommand [subcommand_options ...]\n", cmd);
-	exit(1);
+    if (argc == 1) {
+	/* Call is of form: "sigmet_raw" */
+	inFlNm = "-";
+    } else if (argc == 2) {
+	/* Call is of form: "sigmet_raw command_file" */
+	inFlNm = argv[1];
+    } else {
+	fprintf(stderr, "Usage: %s [command_file]\n", cmd);
+	exit(EXIT_FAILURE);
     }
-    cmd1 = argv[1];
+    if (strcmp(inFlNm, "-") == 0) {
+	in = stdin;
+    } else if ( !(in = fopen(inFlNm, "r")) ) {
+	fprintf(stderr, "%s: Could not open %s for input.\n",
+		cmd, (in == stdin) ? "standard in" : inFlNm);
+	return 0;
+    }
 
     /* Check for angle unit */
     if ((ang_u = getenv("ANGLE_UNIT")) != NULL) {
@@ -69,27 +88,39 @@ int main(int argc, char *argv[])
 	    use_deg = 0;
 	} else {
 	    fprintf(stderr, "%s: Unknown angle unit %s.\n", cmd, ang_u);
-	    exit(1);
+	    exit(EXIT_FAILURE);
 	}
     }
 
-    /* Search cmd1v for cmd1.  When match is found, evaluate the associated
-     * callback from cb1v. */
-    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-	fprintf(stderr, "%s: No option or subcommand named %s\n", cmd, cmd1);
-	fprintf(stderr, "Subcommand must be one of: ");
-	for (i = 0; i < NCMD; i++) {
-	    fprintf(stderr, "%s ", cmd1v[i]);
+    /* Read and execute commands from in */
+    while (Str_GetLn(in, '\n', &ln, &n) == 1) {
+
+	/* Split the input line into words */
+	if ( !(argv1 = Str_Words(ln, argv1, &argc1)) ) {
+	    fprintf(stderr, "%s: could not read command from\n%s\n", cmd, ln);
+	    exit(EXIT_FAILURE);
 	}
-	fprintf(stderr, "\n");
-	exit(EXIT_FAILURE);
+	cmd1 = argv1[0];
+
+	/* Search cmd1v for cmd1.  When match is found, evaluate the associated
+	 * callback from cb1v. */
+	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+	    fprintf(stderr, "%s: No option or subcommand named %s\n", cmd, cmd1);
+	    fprintf(stderr, "Subcommand must be one of: ");
+	    for (i = 0; i < NCMD; i++) {
+		fprintf(stderr, "%s ", cmd1v[i]);
+	    }
+	    fprintf(stderr, "\n");
+	    exit(EXIT_FAILURE);
+	}
+	if ( !(cb1v[i])(argc1, argv1) ) {
+	    fprintf(stderr, "%s %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	}
     }
-    rslt = (cb1v[i])(argc - 1, argv + 1);
-    if ( !rslt ) {
-	fprintf(stderr, "%s %s failed.\n", cmd, cmd1);
-	fprintf(stderr, "%s\n", Err_Get());
-    }
-    return !rslt;
+    FREE(ln);
+    FREE(argv1);
+    
+    return 0;
 }
 
 int types_cb(int argc, char *argv[])
