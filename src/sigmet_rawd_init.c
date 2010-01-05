@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.15 $ $Date: 2010/01/05 21:29:11 $
+ .	$Revision: 1.16 $ $Date: 2010/01/05 22:09:03 $
  */
 
 #include <stdlib.h>
@@ -21,8 +21,8 @@
 #include "geog_lib.h"
 #include "sigmet.h"
 
-/* Application name and subcommand name */
-char *cmd, *cmd1;
+/* subcommand name */
+char *cmd1;
 
 /* Subcommands */
 #define NCMD 7
@@ -51,6 +51,7 @@ int use_deg = 0;
 
 int main(int argc, char *argv[])
 {
+    char *cmd;			/* Application name */
     char *inFlNm;		/* File with commands */
     FILE *in;			/* Stream from the file named inFlNm */
     char *ang_u;		/* Angle unit */
@@ -129,8 +130,6 @@ int types_cb(int argc, char *argv[])
 
     if (argc != 1) {
 	Err_Append("Usage: ");
-	Err_Append(cmd);
-	Err_Append(" ");
 	Err_Append(cmd1);
 	return 0;
     }
@@ -153,8 +152,6 @@ int good_cb(int argc, char *argv[])
 	inFlNm = argv[1];
     } else {
 	Err_Append("Usage: ");
-	Err_Append(cmd);
-	Err_Append(" ");
 	Err_Append(cmd1);
 	Err_Append(" [sigmet_volume]");
 	return 0;
@@ -196,8 +193,6 @@ int volume_headers_cb(int argc, char *argv[])
 	inFlNm = argv[1];
     } else {
 	Err_Append("Usage: ");
-	Err_Append(cmd);
-	Err_Append(" ");
 	Err_Append(cmd1);
 	Err_Append(" [sigmet_volume]");
 	return 0;
@@ -248,8 +243,6 @@ int ray_headers_cb(int argc, char *argv[])
 	inFlNm = argv[1];
     } else {
 	Err_Append("Usage: ");
-	Err_Append(cmd);
-	Err_Append(" ");
 	Err_Append(cmd1);
 	Err_Append(" [sigmet_volume]");
 	return 0;
@@ -400,8 +393,6 @@ int data_cb(int argc, char *argv[])
     }
     if (argc > 6) {
 	Err_Append("Usage: ");
-	Err_Append(cmd);
-	Err_Append(" ");
 	Err_Append(cmd1);
 	Err_Append(" [type] [sweep] [ray] [bin] [sigmet_volume]");
 	return 0;
@@ -575,8 +566,6 @@ int bin_outline_cb(int argc, char *argv[])
 	inFlNm = argv[4];
     } else {
 	Err_Append("Usage: ");
-	Err_Append(cmd);
-	Err_Append(" ");
 	Err_Append(cmd1);
 	Err_Append(" sweep ray bin [sigmet_volume]");
 	return 0;
@@ -673,8 +662,6 @@ int bintvls_cb(int argc, char *argv[])
 	inFlNm = argv[4];
     } else {
 	Err_Append("Usage: ");
-	Err_Append(cmd);
-	Err_Append(" ");
 	Err_Append(cmd1);
 	Err_Append(" type sweep bounds [sigmet_volume]");
 	return 0;
