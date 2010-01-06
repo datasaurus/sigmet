@@ -21,7 +21,7 @@ END {
     printf "int Sigmet_RawCmd(char *a)\n";
     printf "{\n"
     printf "    struct cmd_entr *y;\n"
-    printf "    return (y = in_word_set(a, (unsigned int)strlen(a)))"
+    printf "    return ( a && (y = in_word_set(a, (unsigned int)strlen(a))) )"
     printf " ? y->i : -1;\n"
     printf "}\n"
 }

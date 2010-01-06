@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.16 $ $Date: 2010/01/05 22:09:03 $
+ .	$Revision: 1.17 $ $Date: 2010/01/05 22:27:20 $
  */
 
 #include <stdlib.h>
@@ -97,8 +97,9 @@ int main(int argc, char *argv[])
     while (Str_GetLn(in, '\n', &ln, &n) == 1) {
 
 	/* Split the input line into words */
-	if ( !(argv1 = Str_Words(ln, argv1, &argc1)) ) {
-	    fprintf(stderr, "%s: could not read command from\n%s\n", cmd, ln);
+	if ( !(argv1 = Str_Words(ln, argv1, &argc1)) || !*argv1 ) {
+	    fprintf(stderr, "%s: could not parse\n%s\nas a command.\n%s\n",
+		    cmd, (ln && strlen(ln) > 0) ? ln : "(blank line)", Err_Get());
 	    exit(EXIT_FAILURE);
 	}
 	cmd1 = argv1[0];
@@ -106,7 +107,8 @@ int main(int argc, char *argv[])
 	/* Search cmd1v for cmd1.  When match is found, evaluate the associated
 	 * callback from cb1v. */
 	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-	    fprintf(stderr, "%s: No option or subcommand named %s\n", cmd, cmd1);
+	    fprintf(stderr, "%s: No option or subcommand named \"%s\"\n",
+		    cmd, cmd1);
 	    fprintf(stderr, "Subcommand must be one of: ");
 	    for (i = 0; i < NCMD; i++) {
 		fprintf(stderr, "%s ", cmd1v[i]);
