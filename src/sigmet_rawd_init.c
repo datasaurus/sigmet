@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.18 $ $Date: 2010/01/06 16:15:34 $
+ .	$Revision: 1.19 $ $Date: 2010/01/06 20:41:03 $
  */
 
 #include <stdlib.h>
@@ -102,7 +102,6 @@ int main(int argc, char *argv[])
     /* Initialize globals */
     have_vol = 0;
     Sigmet_InitVol(&vol);
-    atexit(unload);
 
     /* Read and execute commands from in */
     while (Str_GetLn(in, '\n', &ln, &n) == 1) {
@@ -133,6 +132,7 @@ int main(int argc, char *argv[])
     }
     FREE(ln);
     FREE(argv1);
+    unload();
     
     return 0;
 }
