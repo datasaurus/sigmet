@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.19 $ $Date: 2010/01/06 20:41:03 $
+ .	$Revision: 1.20 $ $Date: 2010/01/06 21:17:27 $
  */
 
 #include <stdlib.h>
@@ -47,10 +47,13 @@ callback *cb1v[NCMD] = {
 /* If true, use degrees instead of radians */
 int use_deg = 0;
 
-/* This structure stores data from a Sigmet volume */
-int have_vol;
-struct Sigmet_Vol vol;
-void unload(void);
+/* The global Sigmet volume, used by most callbacks. */
+struct Sigmet_Vol vol;	/* Sigmet volume */
+int have_hdr;		/* If true, vol has headers from a Sigmet volume */
+int have_vol;		/* If true, vol has headers and data from a Sigmet volume */
+char *vol_nm;		/* Name of volume file */
+size_t vol_nm_l;	/* Number of characters that can be stored at vol_nm */
+void unload(void);	/* Delete and reinitialize contents of vol */
 
 /* Bounds limit indicating all possible index values */
 #define ALL -1
@@ -58,8 +61,8 @@ void unload(void);
 int main(int argc, char *argv[])
 {
     char *cmd;			/* Application name */
-    char *inFlNm;		/* File with commands */
-    FILE *in;			/* Stream from the file named inFlNm */
+    char *in_nm;		/* File with commands */
+    FILE *in;			/* Stream from the file named in_nm */
     char *ang_u;		/* Angle unit */
     int i;			/* Index into cmd1v, cb1v */
     char *ln = NULL;		/* Input line from the command file */
@@ -71,19 +74,19 @@ int main(int argc, char *argv[])
     cmd = argv[0];
     if (argc == 1) {
 	/* Call is of form: "sigmet_raw" */
-	inFlNm = "-";
+	in_nm = "-";
     } else if (argc == 2) {
 	/* Call is of form: "sigmet_raw command_file" */
-	inFlNm = argv[1];
+	in_nm = argv[1];
     } else {
 	fprintf(stderr, "Usage: %s [command_file]\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if (strcmp(inFlNm, "-") == 0) {
+    if (strcmp(in_nm, "-") == 0) {
 	in = stdin;
-    } else if ( !(in = fopen(inFlNm, "r")) ) {
+    } else if ( !(in = fopen(in_nm, "r")) ) {
 	fprintf(stderr, "%s: Could not open %s for input.\n",
-		cmd, (in == stdin) ? "standard in" : inFlNm);
+		cmd, (in == stdin) ? "standard in" : in_nm);
 	return 0;
     }
 
@@ -100,8 +103,14 @@ int main(int argc, char *argv[])
     }
 
     /* Initialize globals */
-    have_vol = 0;
+    have_hdr = have_vol = 0;
     Sigmet_InitVol(&vol);
+    vol_nm_l = 1;
+    if ( !(vol_nm = MALLOC(vol_nm_l)) ) {
+	fprintf(stderr, "Could not allocate storage for volume file name.\n");
+	exit(EXIT_FAILURE);
+    }
+    *vol_nm = '\0';
 
     /* Read and execute commands from in */
     while (Str_GetLn(in, '\n', &ln, &n) == 1) {
@@ -133,6 +142,7 @@ int main(int argc, char *argv[])
     FREE(ln);
     FREE(argv1);
     unload();
+    FREE(vol_nm);
     
     return 0;
 }
@@ -140,7 +150,8 @@ int main(int argc, char *argv[])
 void unload(void)
 {
     Sigmet_FreeVol(&vol);
-    have_vol = 0;
+    have_hdr = have_vol = 0;
+    strcpy(vol_nm, "");
 }
 
 int types_cb(int argc, char *argv[])
@@ -160,24 +171,24 @@ int types_cb(int argc, char *argv[])
 
 int good_cb(int argc, char *argv[])
 {
-    char *inFlNm;
+    char *in_nm;
     FILE *in;
 
     if (argc == 1) {
-	inFlNm = "-";
+	in_nm = "-";
     } else if (argc == 2) {
-	inFlNm = argv[1];
+	in_nm = argv[1];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
 	Err_Append(" [sigmet_volume]");
 	return 0;
     }
-    if (strcmp(inFlNm, "-") == 0) {
+    if (strcmp(in_nm, "-") == 0) {
 	in = stdin;
-    } else if ( !(in = fopen(inFlNm, "r")) ) {
+    } else if ( !(in = fopen(in_nm, "r")) ) {
 	Err_Append("Could not open ");
-	Err_Append((in == stdin) ? "standard in" : inFlNm);
+	Err_Append((in == stdin) ? "standard in" : in_nm);
 	Err_Append(" for input.\n");
 	return 0;
     }
@@ -206,51 +217,86 @@ int good_cb(int argc, char *argv[])
 int read_cb(int argc, char *argv[])
 {
     int hdr_only;
-    char *inFlNm;
+    char *in_nm;
     FILE *in;
+    char *t;
+    size_t l;
 
     hdr_only = 0;
     if (argc == 1) {
-	inFlNm = "-";
+	in_nm = "-";
     } else if (argc == 2) {
 	if (strcmp(argv[1], "-h") == 0) {
 	    hdr_only = 1;
-	    inFlNm = "-";
+	    in_nm = "-";
 	} else {
-	    inFlNm = argv[1];
+	    in_nm = argv[1];
 	}
     } else if ( argc == 3 && (strcmp(argv[1], "-h") == 0) ) {
 	    hdr_only = 1;
-	    inFlNm = argv[2];
+	    in_nm = argv[2];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
 	Err_Append(" [-h] [sigmet_volume]");
 	return 0;
     }
-    if (strcmp(inFlNm, "-") == 0) {
+    if (strcmp(in_nm, "-") == 0) {
 	in = stdin;
-    } else if ( !(in = fopen(inFlNm, "r")) ) {
+    } else if ( !(in = fopen(in_nm, "r")) ) {
 	Err_Append("Could not open ");
-	Err_Append((in == stdin) ? "standard in" : inFlNm);
+	Err_Append((in == stdin) ? "standard in" : in_nm);
 	Err_Append(" for input.\n");
 	return 0;
     }
-    unload();
-    if ( !((hdr_only && Sigmet_ReadHdr(in, &vol))
-		|| (!hdr_only && Sigmet_ReadVol(in, &vol))) ) {
-	Err_Append("Could not read volume from ");
-	Err_Append((in == stdin) ? "standard input" : inFlNm);
-	Err_Append(".\n");
-	if (in != stdin) {
+    if (hdr_only) {
+	if( have_hdr && (in != stdin) && (strcmp(in_nm, vol_nm) == 0) ) {
+	    /* No need to read headers */
 	    fclose(in);
+	    return 1;
 	}
-	return 0;
+	/* Read headers */
+	unload();
+	if ( !Sigmet_ReadHdr(in, &vol) ) {
+	    Err_Append("Could not read headers from ");
+	    Err_Append((in == stdin) ? "standard input" : in_nm);
+	    Err_Append(".\n");
+	    if (in != stdin) {
+		fclose(in);
+	    }
+	    return 0;
+	}
+	have_hdr = 1;
+	have_vol = 0;
+    } else {
+	if ( have_vol && !vol.truncated && (in != stdin)
+		&& (strcmp(in_nm, vol_nm) == 0) ) {
+	    /* No need to read volume */
+	    fclose(in);
+	    return 1;
+	}
+	/* Read volume */
+	unload();
+	if ( !Sigmet_ReadVol(in, &vol) ) {
+	    Err_Append("Could not read volume from ");
+	    Err_Append((in == stdin) ? "standard input" : in_nm);
+	    Err_Append(".\n");
+	    if (in != stdin) {
+		fclose(in);
+	    }
+	    return 0;
+	}
+	have_hdr = have_vol = 1;
     }
     if (in != stdin) {
 	fclose(in);
     }
-    have_vol = 1;
+    if ( !(t = Str_Append(vol_nm, &l, &vol_nm_l, in_nm, strlen(in_nm))) ) {
+	Err_Append("Could not store name of global volume.  ");
+	unload();
+	return 0;
+    }
+    vol_nm = t;
     return 1;
 }
 
@@ -501,15 +547,15 @@ int bin_outline_cb(int argc, char *argv[])
 	Err_Append("Bin index must be an integer.  ");
 	return 0;
     }
-    if (s != ALL && s >= vol.ih.ic.num_sweeps) {
+    if (s >= vol.ih.ic.num_sweeps) {
 	Err_Append("Sweep index greater than number of sweeps.  ");
 	return 0;
     }
-    if (r != ALL && r >= vol.ih.ic.num_rays) {
+    if (r >= vol.ih.ic.num_rays) {
 	Err_Append("Ray index greater than number of rays.  ");
 	return 0;
     }
-    if (b != ALL && b >= vol.ih.tc.tri.num_bins_out) {
+    if (b >= vol.ih.tc.tri.num_bins_out) {
 	Err_Append("Ray index greater than number of rays.  ");
 	return 0;
     }
