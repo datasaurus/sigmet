@@ -4,37 +4,44 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.2 $ $Date: 2009/11/06 22:51:35 $
+.\" $Revision: 1.3 $ $Date: 2009/12/08 22:55:37 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
 sigmet_raw \- access Sigmet raw product volumes
 .SH SYNOPSIS
 .nf
-\fBsigmet_raw\fP \fBtypes\fP
-\fBsigmet_raw\fP \fBvolume_headers\fP \fIraw_volume\fP
-\fBsigmet_raw\fP \fBray_headers\fP \fIraw_volume\fP
-\fBsigmet_raw\fP \fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP] [\fIraw_volume\fP]
-\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIraw_volume\fP
+\fBsigmet_raw\fP [\fIcommands\fP]
+\fBtypes\fP
+\fBread\fP \fIraw_volume\fP
+\fBvolume_headers\fP
+\fBray_headers\fP
+\fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP]
+\fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP
 .fi
 .SH DESCRIPTION
-The \fBsigmet_raw\fP application reads and prints information
-from Sigmet raw product volumes.  In the command descriptions below,
-\fIraw_volume\fP must be a Sigmet raw product volume.  If absent
-or "\fB-\fP", the command will read a raw product volume from standard
-input.  Option \fItype\fP refers to the short name of a Sigmet data type,
-e.g. "\fBDB_DBZ\fP".  Indeces start with \fB0\fP.
+The \fBsigmet_raw\fP application reads and manipulates data from
+Sigmet raw product volumes.  It reads commands from standard input.
+Blank lines and lines whose first non- whitespace character is \fB#\fP
+are ignored. Otherwise, the first word must be a subcommand.  The
+following subcommands are recognized.
 .TP
-\fBsigmet_raw\fP \fBtypes\fP
-Prints a list of all possible Sigmet data types.  Output lines have form:
+\fBtypes\fP
+Prints a list of Sigmet data types.  Output lines have form:
 .sp 1
 .ti +4
 \fIDB_XXX\fP \fB|\fP \fIDescription\fP
 .sp 1
 .TP
-\fBsigmet_raw\fP \fBvolume_headers\fP \fIraw_volume\fP
-Reads and prints volume headers.  Ray headers and data are not printed.
-Output lines have form:
+\fBread\fP \fIraw_volume\fP
+Read \fIraw_volume\fP, which must be a Sigmet raw product volume.  If absent
+or "\fB-\fP", the command will read a raw product volume from standard
+input. Contents of the volume will be stored in memory for subsequent commands
+to act upon. Any previous volume in memory will be deleted.
+.TP
+\fBvolume_headers\fP
+Prints volume headers for the latest volume loaded with \fBread\fP.  Ray headers
+and data are not printed.  Output lines have form:
 .sp 1
 .ti +4
 \fIvalue\fP \fB|\fP \fIhierarchy\fP \fB|\fP \fIdescriptor\fP
@@ -49,31 +56,36 @@ levels, it would look like
 Be aware that the same member might reside in several structure
 hierarchies.  See the IRIS Programmers Manual for details.
 .TP
-\fBsigmet_raw\fP \fBray_headers\fP \fIraw_volume\fP
-Reads and prints ray times, azimuths, and tilts.  Volume headers
-and data are not printed.
+\fBray_headers\fP
+Prints ray times, azimuths, and tilts for the latest volume loaded with \fBread\fP.
+Volume headers and data are not printed.
 .TP
-\fBsigmet_raw\fP \fBdata\fP \fIraw_volume\fP
-Reads and prints all volume data as text. Headers are not printed.
+\fBdata\fP
+Prints an ASCII stream of all volume data for the latest volume loaded with
+\fBread\fP. Headers are not printed.
 .TP
-\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIraw_volume\fP
-Reads and prints data for data type \fItype\fP as text.
+\fBdata\fP \fItype\fP
+Prints an ASCII stream of data for the latest volume loaded with \fBread\fP for
+data type \fItype\fP.
 .TP
-\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIraw_volume\fP
-Reads and prints data for data type \fItype\fP, sweep \fIs\fP as text.
+\fBdata\fP \fItype\fP \fIs\fP
+Prints an ASCII stream of data for the latest volume loaded with \fBread\fP for
+data type \fItype\fP, sweep \fIs\fP.
 .TP
-\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIraw_volume\fP
-Reads and prints data for data type \fItype\fP, sweep \fIs\fP,
-ray \fIr\fP as text.
+\fBdata\fP \fItype\fP \fIs\fP \fIr\fP
+Prints an ASCII stream of data for the latest volume loaded with \fBread\fP for
+data type \fItype\fP, sweep \fIs\fP, ray \fIr\fP.
 .TP
-\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIb\fP \fIraw_volume\fP
-Reads and prints data for data type \fItype\fP, sweep \fIs\fP,
-ray \fIr\fP, bin \fIb\fP as text.
+\fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIb\fP
+Prints an ASCII stream of data for the latest volume loaded with \fBread\fP for
+data type \fItype\fP, sweep \fIs\fP, ray \fIr\fP, bin \fIb\fP.
 .TP
-\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIraw_volume\fP
-Reads and prints the corners of bin \fIs\fP \fIr\fP \fIb\fP as
-"\fIlon1\ lat1\ lon2\ lat2\ lon3\ lat3\ lon4\ lat4\fP."
+\fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP
+Prints the corners of bin \fIs\fP \fIr\fP \fIb\fP for the latest volume loaded
+with \fBread\fP as "\fIlon1\ lat1\ lon2\ lat2\ lon3\ lat3\ lon4\ lat4\fP."
 .SH SEE ALSO
+sigmet (3)
+.br
 IRIS Programmer's Manual (http://sigmet.com)
 .SH AUTHOR
 Gordon Carrie (dev0@trekix.net)
