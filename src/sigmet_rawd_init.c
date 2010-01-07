@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.20 $ $Date: 2010/01/06 21:17:27 $
+ .	$Revision: 1.21 $ $Date: 2010/01/06 22:59:58 $
  */
 
 #include <stdlib.h>
@@ -114,36 +114,27 @@ int main(int argc, char *argv[])
 
     /* Read and execute commands from in */
     while (Str_GetLn(in, '\n', &ln, &n) == 1) {
-
-	/* Split the input line into words */
-	if ( !(argv1 = Str_Words(ln, argv1, &argc1)) || !*argv1 ) {
-	    fprintf(stderr, "%s: could not parse\n%s\nas a command.\n%s\n",
-		    cmd, (ln && strlen(ln) > 0) ? ln : "(blank line)", Err_Get());
-	    exit(EXIT_FAILURE);
-	}
-	cmd1 = argv1[0];
-
-	/* Search cmd1v for cmd1.  When match is found, evaluate the associated
-	 * callback from cb1v. */
-	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-	    fprintf(stderr, "%s: No option or subcommand named \"%s\"\n",
-		    cmd, cmd1);
-	    fprintf(stderr, "Subcommand must be one of: ");
-	    for (i = 0; i < NCMD; i++) {
-		fprintf(stderr, "%s ", cmd1v[i]);
+	if ( (argv1 = Str_Words(ln, argv1, &argc1))
+		&& argv1[0] && (strcmp(argv1[0], "#") != 0) ) {
+	    cmd1 = argv1[0];
+	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+		fprintf(stderr, "%s: No option or subcommand named \"%s\"\n",
+			cmd, cmd1);
+		fprintf(stderr, "Subcommand must be one of: ");
+		for (i = 0; i < NCMD; i++) {
+		    fprintf(stderr, "%s ", cmd1v[i]);
+		}
+		fprintf(stderr, "\n");
+	    } else if ( !(cb1v[i])(argc1, argv1) ) {
+		fprintf(stderr, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    }
-	    fprintf(stderr, "\n");
-	    exit(EXIT_FAILURE);
-	}
-	if ( !(cb1v[i])(argc1, argv1) ) {
-	    fprintf(stderr, "%s %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	}
     }
     FREE(ln);
     FREE(argv1);
     unload();
     FREE(vol_nm);
-    
+
     return 0;
 }
 
@@ -151,7 +142,7 @@ void unload(void)
 {
     Sigmet_FreeVol(&vol);
     have_hdr = have_vol = 0;
-    strcpy(vol_nm, "");
+    vol_nm[0] = '\0';
 }
 
 int types_cb(int argc, char *argv[])
@@ -165,7 +156,7 @@ int types_cb(int argc, char *argv[])
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	printf("%s | %s\n", Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
-    }
+	    }
     return 1;
 }
 
@@ -291,6 +282,7 @@ int read_cb(int argc, char *argv[])
     if (in != stdin) {
 	fclose(in);
     }
+    l = 0;
     if ( !(t = Str_Append(vol_nm, &l, &vol_nm_l, in_nm, strlen(in_nm))) ) {
 	Err_Append("Could not store name of global volume.  ");
 	unload();
@@ -510,7 +502,6 @@ int data_cb(int argc, char *argv[])
 	    printf("\n");
 	}
     }
-
     return 1;
 }
 
