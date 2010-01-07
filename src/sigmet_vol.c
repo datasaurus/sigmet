@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.31 $ $Date: 2009/12/17 20:48:03 $
+   .	$Revision: 1.32 $ $Date: 2010/01/05 22:33:46 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -833,6 +833,11 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			Err_Append("Volume has unknown data type.  ");
 			goto error;
 			break;
+		}
+
+		/* If done with volume, break */
+		if (r + 1 == num_rays && s + 1 == num_sweeps) {
+		    break;
 		}
 
 		/* Reset for next ray. */
