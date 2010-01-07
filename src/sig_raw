@@ -1,0 +1,29 @@
+#!/bin/sh
+
+
+sf="tmp/sigmet_raw.in"
+if ! test -p $sf
+then
+    echo "Creating $sf"
+    mkfifo $sf
+fi
+./sigmet_raw < $sf > sigmet_raw.out &
+
+vv=`ls ${1}/* | head -n 20 | tail`
+for v in $vv
+do
+    vf="tmp/`basename $v .gz`"
+    echo "volume = `basename $v`. volume fifo = $vf"
+    if ! test -p $vf
+    then
+	echo "Creating $vf"
+	mkfifo $vf
+    fi
+    gunzip -c $v > $vf &
+
+cat > $sf << END
+read $vf
+data DB_DBZ 0 4 30
+END
+
+done
