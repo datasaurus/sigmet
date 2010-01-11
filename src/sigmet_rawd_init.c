@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.23 $ $Date: 2010/01/11 16:58:06 $
+ .	$Revision: 1.24 $ $Date: 2010/01/11 17:25:42 $
  */
 
 #include <stdlib.h>
@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
 #include "alloc.h"
 #include "str.h"
 #include "err_msg.h"
@@ -223,6 +224,7 @@ int read_cb(int argc, char *argv[])
     FILE *in;
     char *t;
     size_t l;
+    pid_t pid = 0;
 
     hdr_only = 0;
     if (argc == 1) {
@@ -248,7 +250,6 @@ int read_cb(int argc, char *argv[])
     } else {
 	char *sfx;	/* Filename suffix */
 	int pfd[2];	/* Pipe for data */
-	pid_t pid;	/* Process id for uncompressing child, or 0 */
 
 	sfx = strrchr(in_nm , '.');
 	if ( sfx && strcmp(sfx, ".gz") == 0 ) {
@@ -328,6 +329,9 @@ int read_cb(int argc, char *argv[])
     }
     if (in != stdin) {
 	fclose(in);
+    }
+    if ( pid ) {
+	kill(pid, SIGHUP);
     }
     l = 0;
     if ( !(t = Str_Append(vol_nm, &l, &vol_nm_l, in_nm, strlen(in_nm))) ) {
