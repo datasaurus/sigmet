@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.33 $ $Date: 2010/01/07 23:04:52 $
+   .	$Revision: 1.34 $ $Date: 2010/01/07 23:06:56 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -534,6 +534,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
     U16BIT *ray = NULL;			/* Buffer, receives data from rec */
     U16BIT *rayP = NULL;		/* Point into ray while looping */
+    U16BIT *rayEnd = NULL;		/* End of allocation at ray */
 
     size_t raySz;			/* Allocation size for a ray */
     unsigned char *rayd;		/* Pointer to start of data in ray */
@@ -635,6 +636,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	goto error;
     }
     rayd = (unsigned char *)ray + SZ_RAY_HDR;
+    rayEnd = (U16BIT *)((unsigned char *)ray + raySz);
 
     /* Process data records. */
     rec_idx = 1;
@@ -851,6 +853,11 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    } else {
 		/* Run of zeros */
 		numWds = 0x7FFF & *recP;
+		if ( rayEnd - rayP > numWds ) {
+		    Err_Append("Corrupt volume.  "
+			    "Run of zeros tried to go past end of ray.  ");
+		    goto error;
+		}
 		rayP += numWds;
 		recP++;
 	    }
