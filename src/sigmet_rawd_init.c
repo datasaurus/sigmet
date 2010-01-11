@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.25 $ $Date: 2010/01/11 17:38:19 $
+ .	$Revision: 1.26 $ $Date: 2010/01/11 17:43:33 $
  */
 
 #include <stdlib.h>
@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include "alloc.h"
 #include "str.h"
 #include "err_msg.h"
@@ -334,7 +335,7 @@ int read_cb(int argc, char *argv[])
 	fclose(in);
     }
     if ( pid ) {
-	kill(pid, SIGHUP);
+	waitpid(pid, NULL, WUNTRACED);
     }
     l = 0;
     if ( !(t = Str_Append(vol_nm, &l, &vol_nm_l, in_nm, strlen(in_nm))) ) {
