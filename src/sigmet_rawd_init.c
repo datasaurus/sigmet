@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.24 $ $Date: 2010/01/11 17:25:42 $
+ .	$Revision: 1.25 $ $Date: 2010/01/11 17:38:19 $
  */
 
 #include <stdlib.h>
@@ -75,8 +75,11 @@ int main(int argc, char *argv[])
     char **argv1 = NULL;	/* Arguments from an input line */
     int tty;			/* If true, session is interactive */
 
-    /* Ensure minimum command line */
-    cmd = argv[0];
+    if ( (cmd = strrchr(argv[0], '/')) ) {
+	cmd++;
+    } else {
+	cmd = argv[0];
+    }
     if (argc == 1) {
 	/* Call is of form: "sigmet_raw" */
 	in_nm = "-";
