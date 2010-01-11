@@ -8,12 +8,15 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.21 $ $Date: 2010/01/06 22:59:58 $
+ .	$Revision: 1.22 $ $Date: 2010/01/07 20:24:24 $
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include "alloc.h"
 #include "str.h"
 #include "err_msg.h"
@@ -234,11 +237,47 @@ int read_cb(int argc, char *argv[])
     }
     if (strcmp(in_nm, "-") == 0) {
 	in = stdin;
-    } else if ( !(in = fopen(in_nm, "r")) ) {
-	Err_Append("Could not open ");
-	Err_Append((in == stdin) ? "standard in" : in_nm);
-	Err_Append(" for input.\n");
-	return 0;
+    } else {
+	char *sfx;	/* Filename suffix */
+	int pfd[2];	/* Pipe for data */
+	pid_t pid;	/* Process id for uncompressing child, or 0 */
+
+	sfx = strrchr(in_nm , '.');
+	if ( sfx && strcmp(sfx, ".gz") == 0 ) {
+	    if ( pipe(pfd) == -1 ) {
+		Err_Append(strerror(errno));
+		Err_Append("\nCould not create pipe for gzip.  ");
+		return 0;
+	    }
+	    switch (pid = fork()) {
+		case -1:
+		    Err_Append(strerror(errno));
+		    Err_Append("\nCould not spawn gzip process.  ");
+		    return 0;
+		case 0:
+		    /* Child process - gzip.  Send child stdout to pipe. */
+		    if ( dup2(pfd[1], STDOUT_FILENO) == -1
+			    || close(pfd[1]) == -1 || close(pfd[0]) == -1 ) {
+			perror("Could not set up gzip process");
+			_exit(EXIT_FAILURE);
+		    }
+		    execlp("gunzip", "gunzip", "-c", in_nm, (char *)NULL);
+		    fprintf(stderr, "gunzip failed.\n");
+		    _exit(EXIT_FAILURE);
+		default:
+		    /* This process.  Read output from gzip. */
+		    if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
+			Err_Append(strerror(errno));
+			Err_Append("\nCould not read gzip process.  ");
+			return 0;
+		    }
+	    }
+	} else if ( !(in = fopen(in_nm, "r")) ) {
+	    Err_Append("Could not open ");
+	    Err_Append((in == stdin) ? "standard in" : in_nm);
+	    Err_Append(" for input.\n");
+	    return 0;
+	}
     }
     if (hdr_only) {
 	if( have_hdr && (in != stdin) && (strcmp(in_nm, vol_nm) == 0) ) {
