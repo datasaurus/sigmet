@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.22 $ $Date: 2010/01/07 20:24:24 $
+ .	$Revision: 1.23 $ $Date: 2010/01/11 16:58:06 $
  */
 
 #include <stdlib.h>
@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
     int n;			/* Number of characters in ln */
     int argc1 = 0;		/* Number of arguments in an input line */
     char **argv1 = NULL;	/* Arguments from an input line */
+    int tty;			/* If true, session is interactive */
 
     /* Ensure minimum command line */
     cmd = argv[0];
@@ -92,6 +93,7 @@ int main(int argc, char *argv[])
 		cmd, (in == stdin) ? "standard in" : in_nm);
 	return 0;
     }
+    tty = isatty(STDIN_FILENO);
 
     /* Check for angle unit */
     if ((ang_u = getenv("ANGLE_UNIT")) != NULL) {
@@ -116,6 +118,9 @@ int main(int argc, char *argv[])
     *vol_nm = '\0';
 
     /* Read and execute commands from in */
+    if ( tty ) {
+	printf("%s> ", cmd);
+    }
     while (Str_GetLn(in, '\n', &ln, &n) == 1) {
 	if ( (argv1 = Str_Words(ln, argv1, &argc1))
 		&& argv1[0] && (strcmp(argv1[0], "#") != 0) ) {
@@ -131,6 +136,9 @@ int main(int argc, char *argv[])
 	    } else if ( !(cb1v[i])(argc1, argv1) ) {
 		fprintf(stderr, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    }
+	}
+	if ( tty ) {
+	    printf("%s> ", cmd);
 	}
     }
     FREE(ln);
