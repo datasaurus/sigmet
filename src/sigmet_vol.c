@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.34 $ $Date: 2010/01/07 23:06:56 $
+   .	$Revision: 1.35 $ $Date: 2010/01/11 22:32:48 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -853,7 +853,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    } else {
 		/* Run of zeros */
 		numWds = 0x7FFF & *recP;
-		if ( rayEnd - rayP > numWds ) {
+		if ( numWds > rayEnd - rayP ) {
 		    Err_Append("Corrupt volume.  "
 			    "Run of zeros tried to go past end of ray.  ");
 		    goto error;
