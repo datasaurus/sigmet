@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.29 $ $Date: 2010/01/12 20:07:21 $
+ .	$Revision: 1.30 $ $Date: 2010/01/12 20:29:34 $
  */
 
 #include <stdlib.h>
@@ -100,7 +100,10 @@ int main(int argc, char *argv[])
 
     /* Catch signals from children to prevent zombies */
     schld.sa_handler = SIG_DFL;
-    schld.sa_mask = 0;
+    if ( sigfillset(&schld.sa_mask) == -1) {
+	perror("Could not initialize signal mask");
+	exit(EXIT_FAILURE);
+    }
     schld.sa_flags = SA_NOCLDWAIT;
     if ( sigaction(SIGCHLD, &schld, 0) == -1 ) {
 	perror("Could not set up signals for piping");
