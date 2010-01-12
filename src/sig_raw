@@ -8,17 +8,13 @@ then
     exit 1
 fi
 
-# Create local tmp
-mkdir -p tmp
-# rm -f tmp/*
-
 # sigmet_raw should be listening to named pipe created with
 #	mkfifo $sf
 #	./sigmet_raw $sf > tmp/sigmet_raw.out &
 sf="tmp/sigmet_raw.in"
 if ! test -p $sf
 then
-    echo No pipe for sigmet_raw commands
+    echo "No pipe for sigmet_raw commands"
     exit 1
 fi
 
