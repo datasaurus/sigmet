@@ -1,29 +1,34 @@
 #!/bin/sh
 
+# Locate Sigmet volumes
+sig_dir=$1
+if ! test -d "$sig_dir"
+then
+    echo "$sig_dir not a directory"
+    exit 1
+fi
 
+# Create local tmp
+mkdir -p tmp
+# rm -f tmp/*
+
+# sigmet_raw should be listening to named pipe created with
+#	mkfifo $sf
+#	./sigmet_raw $sf > tmp/sigmet_raw.out &
 sf="tmp/sigmet_raw.in"
 if ! test -p $sf
 then
-    echo "Creating $sf"
-    mkfifo $sf
+    echo No pipe for sigmet_raw commands
+    exit 1
 fi
-./sigmet_raw < $sf > sigmet_raw.out &
 
-vv=`ls ${1}/* | head -n 20 | tail`
-for v in $vv
+# Uncompress volumes and feed to sigmet_raw
+for v in ${sig_dir}/*RAW*.gz
 do
-    vf="tmp/`basename $v .gz`"
-    echo "volume = `basename $v`. volume fifo = $vf"
-    if ! test -p $vf
+    if test -f $v
     then
-	echo "Creating $vf"
-	mkfifo $vf
+	echo "Reading $v"
+	printf 'read %s\ndata DB_DBZ 0 4 30\n' $v > $sf
+	echo "Done with $v"
     fi
-    gunzip -c $v > $vf &
-
-cat > $sf << END
-read $vf
-data DB_DBZ 0 4 30
-END
-
 done
