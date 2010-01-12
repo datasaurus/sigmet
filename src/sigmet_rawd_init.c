@@ -8,17 +8,15 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.28 $ $Date: 2010/01/12 17:09:08 $
+ .	$Revision: 1.29 $ $Date: 2010/01/12 20:07:21 $
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
-#include <sys/wait.h>
 #include "alloc.h"
 #include "str.h"
 #include "err_msg.h"
@@ -99,6 +97,8 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "%s: Could not open %s for input.\n", cmd, in_nm);
 	return 0;
     }
+
+    /* Catch signals from children to prevent zombies */
     schld.sa_handler = SIG_DFL;
     schld.sa_mask = 0;
     schld.sa_flags = SA_NOCLDWAIT;
