@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.27 $ $Date: 2010/01/11 20:47:33 $
+ .	$Revision: 1.28 $ $Date: 2010/01/12 17:09:08 $
  */
 
 #include <stdlib.h>
@@ -68,6 +68,8 @@ int main(int argc, char *argv[])
     char *cmd;			/* Application name */
     char *in_nm;		/* File with commands */
     FILE *in;			/* Stream from the file named in_nm */
+    FILE *out;			/* Unused outptut stream, to prevent process from
+				 * exiting while waiting for input. */
     char *ang_u;		/* Angle unit */
     int i;			/* Index into cmd1v, cb1v */
     char *ln = NULL;		/* Input line from the command file */
@@ -93,9 +95,8 @@ int main(int argc, char *argv[])
     }
     if (strcmp(in_nm, "-") == 0) {
 	in = stdin;
-    } else if ( !(in = fopen(in_nm, "r")) ) {
-	fprintf(stderr, "%s: Could not open %s for input.\n",
-		cmd, (in == stdin) ? "standard in" : in_nm);
+    } else if ( !(in = fopen(in_nm, "r")) || !(out = fopen(in_nm, "w")) ) {
+	fprintf(stderr, "%s: Could not open %s for input.\n", cmd, in_nm);
 	return 0;
     }
     schld.sa_handler = SIG_DFL;
@@ -129,7 +130,7 @@ int main(int argc, char *argv[])
     *vol_nm = '\0';
 
     /* Read and execute commands from in */
-    while (Str_GetLn(in, '\n', &ln, &n) == 1) {
+    while (Str_GetLn(in, '\n', &ln, &n) != 0) {
 	if ( (argv1 = Str_Words(ln, argv1, &argc1))
 		&& argv1[0] && (strcmp(argv1[0], "#") != 0) ) {
 	    cmd1 = argv1[0];
@@ -145,6 +146,12 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    }
 	}
+    }
+    if ( feof(in) ) {
+	fprintf(stderr, "Exiting. No more input.");
+    }
+    if ( ferror(in) ) {
+	perror("Failure on command stream");
     }
     FREE(ln);
     FREE(argv1);
