@@ -19,7 +19,7 @@ then
 fi
 
 # Uncompress volumes and feed to sigmet_raw
-for v in ${sig_dir}/*RAW*.gz
+for v in ${sig_dir}/*RAW*.gz ${sig_dir}/*raw*.gz
 do
     if test -f $v
     then
