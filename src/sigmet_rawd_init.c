@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.26 $ $Date: 2010/01/11 17:43:33 $
+ .	$Revision: 1.27 $ $Date: 2010/01/11 20:47:33 $
  */
 
 #include <stdlib.h>
@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     int n;			/* Number of characters in ln */
     int argc1 = 0;		/* Number of arguments in an input line */
     char **argv1 = NULL;	/* Arguments from an input line */
-    int tty;			/* If true, session is interactive */
+    struct sigaction schld;	/* Signal action to ignore zombies */
 
     if ( (cmd = strrchr(argv[0], '/')) ) {
 	cmd++;
@@ -98,7 +98,13 @@ int main(int argc, char *argv[])
 		cmd, (in == stdin) ? "standard in" : in_nm);
 	return 0;
     }
-    tty = isatty(STDIN_FILENO);
+    schld.sa_handler = SIG_DFL;
+    schld.sa_mask = 0;
+    schld.sa_flags = SA_NOCLDWAIT;
+    if ( sigaction(SIGCHLD, &schld, 0) == -1 ) {
+	perror("Could not set up signals for piping");
+	exit(EXIT_FAILURE);
+    }
 
     /* Check for angle unit */
     if ((ang_u = getenv("ANGLE_UNIT")) != NULL) {
@@ -123,9 +129,6 @@ int main(int argc, char *argv[])
     *vol_nm = '\0';
 
     /* Read and execute commands from in */
-    if ( tty ) {
-	printf("%s> ", cmd);
-    }
     while (Str_GetLn(in, '\n', &ln, &n) == 1) {
 	if ( (argv1 = Str_Words(ln, argv1, &argc1))
 		&& argv1[0] && (strcmp(argv1[0], "#") != 0) ) {
@@ -141,9 +144,6 @@ int main(int argc, char *argv[])
 	    } else if ( !(cb1v[i])(argc1, argv1) ) {
 		fprintf(stderr, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    }
-	}
-	if ( tty ) {
-	    printf("%s> ", cmd);
 	}
     }
     FREE(ln);
@@ -333,9 +333,6 @@ int read_cb(int argc, char *argv[])
     }
     if (in != stdin) {
 	fclose(in);
-    }
-    if ( pid ) {
-	waitpid(pid, NULL, WUNTRACED);
     }
     l = 0;
     if ( !(t = Str_Append(vol_nm, &l, &vol_nm_l, in_nm, strlen(in_nm))) ) {
