@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.32 $ $Date: 2010/01/12 23:32:18 $
+ .	$Revision: 1.33 $ $Date: 2010/01/13 16:39:05 $
  */
 
 #include <stdlib.h>
@@ -28,12 +28,17 @@
 /* subcommand name */
 char *cmd1;
 
+/* List of open files.  Any child process should close files it does not need. */
+FILE **files;
+long nfx;			/* Allocation at files */
+
 /* Bounds limit indicating all possible index values */
 #define ALL -1
 
 int main(int argc, char *argv[])
 {
     char *cmd;			/* Application name */
+    int errno;
     char *in_nm;		/* File with commands */
     FILE *in;			/* Stream from the file named in_nm */
     FILE *out;			/* Unused outptut stream, to prevent process from
@@ -92,6 +97,17 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
+    /* Initialize the files list */
+    errno = 0;
+    if ( (nfx = sysconf(_SC_OPEN_MAX)) == -1 && errno != 0 ) {
+	perror("Could not get max number of files");
+	exit(EXIT_FAILURE);
+    }
+    if ( !(files = CALLOC(nfx, sizeof(FILE *))) ) {
+	fprintf(stderr, "Could not allocate files list.\n");
+	exit(EXIT_FAILURE);
+    }
+
     /* Check for angle unit */
     if ((ang_u = getenv("ANGLE_UNIT")) != NULL) {
 	if (strcmp(ang_u, "DEGREE") == 0) {
@@ -128,4 +144,26 @@ int main(int argc, char *argv[])
     SigmetRaw_CleanUp();
 
     return 0;
+}
+
+/* Add a file pointer to the files list.  Return fail if list is full */
+int SigmetRaw_AddFile(FILE *file)
+{
+    FILE **f, **f1;
+
+    for (f = files, f1 = f + nfx; *f; f++) {
+    }
+    if (f == f1) {
+	return 0;
+    } else {
+	*f = file;
+	return 1;
+    }
+}
+
+/* Retrieve the files list. */
+FILE ** SigmetRaw_GetFiles(long *n)
+{
+    *n = nfx;
+    return files;
 }
