@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.31 $ $Date: 2010/01/12 21:06:36 $
+ .	$Revision: 1.32 $ $Date: 2010/01/12 23:32:18 $
  */
 
 #include <stdlib.h>
@@ -80,15 +80,9 @@ int main(int argc, char *argv[])
 	perror("Could not set up signal action for children");
 	exit(EXIT_FAILURE);
     }
-    if ( sigaction(SIGHUP, &schld, 0) == -1 ) {
-	perror("Could not set up signal action for SIGHUP");
-	exit(EXIT_FAILURE);
-    }
-    if ( sigaction(SIGINT, &schld, 0) == -1 ) {
-	perror("Could not set up signal action for SIGINT");
-	exit(EXIT_FAILURE);
-    }
-    if ( sigaction(SIGQUIT, &schld, 0) == -1 ) {
+    if ( sigaction(SIGHUP, &schld, 0) == -1 
+	    || sigaction(SIGINT, &schld, 0) == -1 
+	    || sigaction(SIGQUIT, &schld, 0) == -1 ) {
 	perror("Could not set up signal action for SIGQUIT");
 	exit(EXIT_FAILURE);
     }
