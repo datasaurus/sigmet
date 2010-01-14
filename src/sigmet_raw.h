@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.1 $ $Date: 2010/01/12 23:32:56 $
+   .	$Revision: 1.2 $ $Date: 2010/01/13 23:19:28 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -25,11 +25,12 @@ SigmetRaw_Callback SigmetRaw_Bin_Outline_Cb;
 SigmetRaw_Callback SigmetRaw_Bintvls_Cb;
 
 int SigmetRaw_AddFile(FILE *);
+void SigmetRaw_RmFile(FILE *);
 FILE ** SigmetRaw_GetFiles(long *);
 void SigmetRaw_UseDeg(void);
 void SigmetRaw_UseRad(void);
-int SigmetRaw_CmdI(const char *a);
-SigmetRaw_Callback * SigmetRaw_Cmd(const char *a);
+int SigmetRaw_CmdI(const char *);
+SigmetRaw_Callback * SigmetRaw_Cmd(const char *);
 void SigmetRaw_CleanUp(void);
 
 #endif

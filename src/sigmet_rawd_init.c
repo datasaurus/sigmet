@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.33 $ $Date: 2010/01/13 16:39:05 $
+ .	$Revision: 1.34 $ $Date: 2010/01/13 23:19:28 $
  */
 
 #include <stdlib.h>
@@ -28,7 +28,7 @@
 /* subcommand name */
 char *cmd1;
 
-/* List of open files.  Any child process should close files it does not need. */
+/* List of open files.  Child processes should close unneeded files. */
 FILE **files;
 long nfx;			/* Allocation at files */
 
@@ -70,7 +70,11 @@ int main(int argc, char *argv[])
 	in = stdin;
     } else if ( !(in = fopen(in_nm, "r")) || !(out = fopen(in_nm, "w")) ) {
 	fprintf(stderr, "%s: Could not open %s for input.\n", cmd, in_nm);
-	return 0;
+	exit(EXIT_FAILURE);
+    }
+    if ( !SigmetRaw_AddFile(in) ) {
+	fprintf(stderr, "%s: Could not log command stream.\n", cmd);
+	exit(EXIT_FAILURE);
     }
 
     /* Catch signals from children to prevent zombies */
@@ -151,13 +155,26 @@ int SigmetRaw_AddFile(FILE *file)
 {
     FILE **f, **f1;
 
-    for (f = files, f1 = f + nfx; *f; f++) {
+    for (f = files, f1 = f + nfx; *f && f < f1; f++) {
     }
     if (f == f1) {
 	return 0;
     } else {
 	*f = file;
 	return 1;
+    }
+}
+
+/* Remove a file pointer from the files list. */
+void SigmetRaw_RmFile(FILE *file)
+{
+    FILE **f, **f1;
+
+    for (f = files, f1 = f + nfx; *f && f < f1; f++) {
+	if ( *f == file ) {
+	    *f = NULL;
+	    return;
+	}
     }
 }
 
