@@ -6,7 +6,6 @@ BEGIN {
     printf "%%{\n"
     printf "#include <string.h>\n\n"
     printf "#include \"sigmet.h\"\n\n"
-    printf "#include \"sigmet_raw.h\"\n\n"
     printf "%%}\n"
     printf "struct cmd_entr {char *name; int i;};\n\n"
     printf "static struct cmd_entr *in_word_set"
@@ -19,7 +18,7 @@ BEGIN {
 }
 END {
     printf "%%%%\n"
-    printf "int SigmetRaw_CmdI(const char *a)\n";
+    printf "int Sigmet_RawCmd(const char *a)\n";
     printf "{\n"
     printf "    struct cmd_entr *y;\n"
     printf "    return ( a && (y = in_word_set(a, (unsigned int)strlen(a))) )"
