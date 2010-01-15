@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.40 $ $Date: 2010/01/15 18:36:32 $
+ .	$Revision: 1.41 $ $Date: 2010/01/15 21:23:01 $
  */
 
 #include <stdlib.h>
@@ -69,28 +69,30 @@ FILE *cmd_in;			/* Stream from the file named in_nm */
 FILE *cmd_out;			/* Unused outptut stream, to prevent process from
 				 * exiting while waiting for input. */
 FILE *logfl;			/* Error log */
+FILE *rslt;			/* Send results to client */
 
 /* Shell type determines type of printout */
 enum SHELL_TYPE {C, SH};
 
 /* String size */
-#define CLEN 512
+#define LEN 4095
+
+/* Maximum number of arguments in input command */
+#define ARGCX 256
 
 int main(int argc, char *argv[])
 {
     char *cmd;			/* Application name */
     enum SHELL_TYPE shtyp;	/* Controls how environment variables are printed */
-    char dir[CLEN];		/* Working directory for server */
-    char path[CLEN];		/* Space to print file names */
+    char dir[LEN];		/* Working directory for server */
+    char path[LEN];		/* Space to print file names */
     pid_t pid;			/* Process id for this process */
+    struct sigaction schld;	/* Signal action to ignore zombies */
     time_t tm;			/* Time. For log. */
     char *ang_u;		/* Angle unit */
-    int i;			/* Index into cmd1v, cb1v */
-    char *ln = NULL;		/* Input line from the command file */
-    int n;			/* Number of characters in ln */
-    int argc1 = 0;		/* Number of arguments in an input line */
-    char **argv1 = NULL;	/* Arguments from an input line */
-    struct sigaction schld;	/* Signal action to ignore zombies */
+    size_t l;			/* Length of an input string */
+    size_t l1;			/* Terminator at end of input string */
+    char ln[LEN];		/* Input line */
 
     shtyp = SH;
     if ( (cmd = strrchr(argv[0], '/')) ) {
@@ -107,7 +109,7 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    if ( snprintf(dir, CLEN, "%s.sigmet_raw", tmpnam(NULL)) >= CLEN ) {
+    if ( snprintf(dir, LEN, "%s.sigmet_raw", tmpnam(NULL)) >= LEN ) {
 	fprintf(stderr, "%s: could not create name for working directory.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -115,7 +117,7 @@ int main(int argc, char *argv[])
 	perror("sigmet_rawd could not create working directory");
 	exit(EXIT_FAILURE);
     }
-    if ( snprintf(path, CLEN, "%s/%s", dir, "sigmet.in") >= CLEN ) {
+    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.in") >= LEN ) {
 	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -149,7 +151,7 @@ int main(int argc, char *argv[])
     fclose(stdout);
 
     /* Open log file */
-    if ( snprintf(path, CLEN, "%s/%s", dir, "sigmet.log") >= CLEN ) {
+    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.log") >= LEN ) {
 	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -201,22 +203,44 @@ int main(int argc, char *argv[])
     }
     *vol_nm = '\0';
 
-    /* Read and execute commands from cmd_in */
-    while (Str_GetLn(cmd_in, '\n', &ln, &n) != 0) {
-	if ( (argv1 = Str_Words(ln, argv1, &argc1))
-		&& argv1[0] && (strcmp(argv1[0], "#") != 0) ) {
-	    cmd1 = argv1[0];
-	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-		fprintf(stderr, "%s: No option or subcommand named \"%s\"\n",
-			cmd, cmd1);
-		fprintf(stderr, "Subcommand must be one of: ");
-		for (i = 0; i < NCMD; i++) {
-		    fprintf(stderr, "%s ", cmd1v[i]);
-		}
-		fprintf(stderr, "\n");
-	    } else if ( !(cb1v[i])(argc1, argv1) ) {
-		fprintf(stderr, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+    /*
+       Read and execute commands from cmd_in
+       Input = byte_count(=l) + bytes + terminator(=0)
+     */
+    while ( fread(&l, sizeof(size_t), 1, cmd_in) == 1
+	    && l <= LEN
+	    && fread(ln, 1, l, cmd_in) == l
+	    && fread(&l1, sizeof(size_t), 1, cmd_in) == 1
+	    && l1 == 0 ) {
+
+	int argc1;		/* Number of arguments in an input line */
+	char *argv1[ARGCX];	/* Arguments from an input line */
+	char *path2;		/* Name of file to receive results */
+	char *c, *c1;
+	int a, i;
+
+	for (a = 0, c = argv1[a] = ln, c1 = ln + l; c < c1 && a < ARGCX; c++) {
+	    if ( *c == '\0' ) {
+		argv1[++a] = c;
 	    }
+	}
+	argc1 = a;
+	path2 = argv1[0];
+	if ( !(rslt = fopen(path2, "r")) ) {
+	    fprintf(logfl, "Could not open return stream.\n%s\n", strerror(errno));
+	    continue;
+	}
+	cmd1 = argv1[1];
+	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+	    fprintf(rslt, "%s: No option or subcommand named \"%s\"\n",
+		    cmd, cmd1);
+	    fprintf(rslt, "Subcommand must be one of: ");
+	    for (i = 0; i < NCMD; i++) {
+		fprintf(rslt, "%s ", cmd1v[i]);
+	    }
+	    fprintf(rslt, "\n");
+	} else if ( !(cb1v[i])(argc1 - 1, argv1 + 1) ) {
+	    fprintf(logfl, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	}
     }
     if ( feof(cmd_in) ) {
@@ -225,11 +249,13 @@ int main(int argc, char *argv[])
     if ( ferror(cmd_in) ) {
 	perror("Failure on command stream");
     }
+    if ( fclose(cmd_in) == EOF ) {
+	perror("Could not close command stream");
+    }
     if ( fclose(logfl) == EOF ) {
 	perror("Could not close log file");
     }
     FREE(ln);
-    FREE(argv1);
     unload();
     FREE(vol_nm);
 
