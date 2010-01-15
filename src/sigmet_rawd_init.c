@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.41 $ $Date: 2010/01/15 21:23:01 $
+ .	$Revision: 1.42 $ $Date: 2010/01/15 22:32:14 $
  */
 
 #include <stdlib.h>
@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
     fflush(logfl);
 
     /* Open command stream */
-    if ( !(cmd_in = fopen(path, "r")) || !(cmd_out = fopen(path, "w")) ) {
+    if ( !(cmd_in = fopen(path, "r")) && !(cmd_out = fopen(path, "w")) ) {
 	fprintf(stderr, "%s: Could not open %s for input.\n", cmd, path);
 	return 0;
     }
@@ -207,55 +207,56 @@ int main(int argc, char *argv[])
        Read and execute commands from cmd_in
        Input = byte_count(=l) + bytes + terminator(=0)
      */
-    while ( fread(&l, sizeof(size_t), 1, cmd_in) == 1
-	    && l <= LEN
-	    && fread(ln, 1, l, cmd_in) == l
-	    && fread(&l1, sizeof(size_t), 1, cmd_in) == 1
-	    && l1 == 0 ) {
+    while (1) {
+	if ( fread(&l, sizeof(size_t), 1, cmd_in) == 1
+		&& l <= LEN
+		&& fread(ln, 1, l, cmd_in) == l
+		&& fread(&l1, sizeof(size_t), 1, cmd_in) == 1
+		&& l1 == 0 ) {
 
-	int argc1;		/* Number of arguments in an input line */
-	char *argv1[ARGCX];	/* Arguments from an input line */
-	char *path2;		/* Name of file to receive results */
-	char *c, *c1;
-	int a, i;
+	    int argc1;		/* Number of arguments in an input line */
+	    char *argv1[ARGCX];	/* Arguments from an input line */
+	    char *path2;	/* Name of file to receive results */
+	    char *c, *c1;
+	    int a, i;
 
-	for (a = 0, c = argv1[a] = ln, c1 = ln + l; c < c1 && a < ARGCX; c++) {
-	    if ( *c == '\0' ) {
-		argv1[++a] = c;
+	    for (a = 0, c = argv1[a] = ln, c1 = ln + l; c < c1 && a < ARGCX; c++) {
+		if ( *c == '\0' ) {
+		    argv1[++a] = c;
+		}
 	    }
-	}
-	argc1 = a;
-	path2 = argv1[0];
-	if ( !(rslt = fopen(path2, "r")) ) {
-	    fprintf(logfl, "Could not open return stream.\n%s\n", strerror(errno));
-	    continue;
-	}
-	cmd1 = argv1[1];
-	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-	    fprintf(rslt, "%s: No option or subcommand named \"%s\"\n",
-		    cmd, cmd1);
-	    fprintf(rslt, "Subcommand must be one of: ");
-	    for (i = 0; i < NCMD; i++) {
-		fprintf(rslt, "%s ", cmd1v[i]);
+	    argc1 = a;
+	    path2 = argv1[0];
+	    if ( !(rslt = fopen(path2, "r")) ) {
+		fprintf(logfl, "Could not open return stream.\n%s\n",
+			strerror(errno));
+		continue;
 	    }
-	    fprintf(rslt, "\n");
-	} else if ( !(cb1v[i])(argc1 - 1, argv1 + 1) ) {
-	    fprintf(logfl, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	    cmd1 = argv1[1];
+	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+		fprintf(rslt, "%s: No option or subcommand named \"%s\"\n",
+			cmd, cmd1);
+		fprintf(rslt, "Subcommand must be one of: ");
+		for (i = 0; i < NCMD; i++) {
+		    fprintf(rslt, "%s ", cmd1v[i]);
+		}
+		fprintf(rslt, "\n");
+	    } else if ( !(cb1v[i])(argc1 - 1, argv1 + 1) ) {
+		fprintf(logfl, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	    }
 	}
     }
     if ( feof(cmd_in) ) {
-	fprintf(stderr, "Exiting. No more input.");
+	fprintf(logfl, "Exiting. No more input.\n");
+    } else if ( fclose(cmd_in) == EOF ) {
+	fprintf(logfl, "Could not close command stream.\n%s\n", strerror(errno));
     }
     if ( ferror(cmd_in) ) {
-	perror("Failure on command stream");
-    }
-    if ( fclose(cmd_in) == EOF ) {
-	perror("Could not close command stream");
+	fprintf(logfl, "Failure on command stream.\n%s\n", strerror(errno));
     }
     if ( fclose(logfl) == EOF ) {
 	perror("Could not close log file");
     }
-    FREE(ln);
     unload();
     FREE(vol_nm);
 
@@ -280,7 +281,7 @@ int types_cb(int argc, char *argv[])
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	printf("%s | %s\n", Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
-	    }
+    }
     return 1;
 }
 
