@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.31 $ $Date: 2010/01/12 21:06:36 $
+ .	$Revision: 1.36 $ $Date: 2010/01/14 18:00:47 $
  */
 
 #include <stdlib.h>
@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <signal.h>
 #include "alloc.h"
 #include "str.h"
@@ -67,10 +68,19 @@ FILE *cmd_in;			/* Stream from the file named in_nm */
 FILE *cmd_out;			/* Unused outptut stream, to prevent process from
 				 * exiting while waiting for input. */
 
+/* Shell type determines type of printout */
+enum SHELL_TYPE {C, SH};
+
+/* String size */
+#define CLEN 512
+
 int main(int argc, char *argv[])
 {
     char *cmd;			/* Application name */
-    char *in_nm;		/* File with commands */
+    enum SHELL_TYPE shtyp;	/* Controls how environment variables are printed */
+    char cmd_dir[CLEN];		/* Directory for pipes */
+    char cmd_path[CLEN];	/* Where to pipe */
+    pid_t pid;			/* Process id for this process */
     char *ang_u;		/* Angle unit */
     int i;			/* Index into cmd1v, cb1v */
     char *ln = NULL;		/* Input line from the command file */
@@ -79,25 +89,60 @@ int main(int argc, char *argv[])
     char **argv1 = NULL;	/* Arguments from an input line */
     struct sigaction schld;	/* Signal action to ignore zombies */
 
+    shtyp = SH;
     if ( (cmd = strrchr(argv[0], '/')) ) {
 	cmd++;
     } else {
 	cmd = argv[0];
     }
-    if (argc == 1) {
-	/* Call is of form: "sigmet_raw" */
-	in_nm = "-";
-    } else if (argc == 2) {
-	/* Call is of form: "sigmet_raw command_file" */
-	in_nm = argv[1];
+    if ( argc == 1 ) {
+	shtyp = SH;
+    } else if ( argc == 2 && strcmp(argv[1], "-c") == 0 ) {
+	shtyp = C;
     } else {
-	fprintf(stderr, "Usage: %s [command_file]\n", cmd);
+	fprintf(stderr, "Usage: %s [-c]\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if (strcmp(in_nm, "-") == 0) {
-	cmd_in = stdin;
-    } else if ( !(cmd_in = fopen(in_nm, "r")) || !(cmd_out = fopen(in_nm, "w")) ) {
-	fprintf(stderr, "%s: Could not open %s for input.\n", cmd, in_nm);
+
+    snprintf(cmd_dir, CLEN, "%s.sigmet_raw", tmpnam(NULL));
+    if ( (mkdir(cmd_dir, 0700) == -1) ) {
+	perror("sigmet_rawd could not create pipe directory");
+	exit(EXIT_FAILURE);
+    }
+    snprintf(cmd_path, CLEN, "%s/sigmet.in", cmd_dir);
+    if ( (mkfifo(cmd_path, 0600) == -1) ) {
+	perror("sigmet_rawd could not create pipe directory");
+	exit(EXIT_FAILURE);
+    }
+
+    /* Print information about input streams and put server in background */
+    switch (pid = fork()) {
+	case -1:
+	    Err_Append(strerror(errno));
+	    Err_Append("\nCould not spawn gzip process.  ");
+	    return 0;
+	case 0:
+	    /* Child. Run the server. */
+	    break;
+	default:
+	    /* Parent. Print information and exit. Server will go to background. */
+	    if (shtyp == SH) {
+		printf("SIGMET_RAW_PID=%d; export SIGMET_RAW_PID;\n", pid);
+		printf("SIGMET_RAW_DIR=%s; export SIGMET_RAW_DIR;\n", cmd_dir);
+		printf("SIGMET_RAW_IN=%s; export SIGMET_RAW_IN;\n", cmd_path);
+		printf("echo sigmet_raw server id = %d\n", pid);
+		_exit(EXIT_SUCCESS);
+	    } else {
+		printf("setenv SIGMET_RAW_PID %d\n", pid);
+		printf("setenv SIGMET_RAW_DIR %s\n", cmd_dir);
+		printf("setenv SIGMET_RAW_IN %s\n", cmd_path);
+		_exit(EXIT_SUCCESS);
+	    }
+    }
+    fclose(stdin);
+    fclose(stdout);
+    if ( !(cmd_in = fopen(cmd_path, "r")) || !(cmd_out = fopen(cmd_path, "w")) ) {
+	fprintf(stderr, "%s: Could not open %s for input.\n", cmd, cmd_path);
 	return 0;
     }
 
