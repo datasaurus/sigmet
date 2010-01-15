@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.36 $ $Date: 2010/01/14 18:00:47 $
+ .	$Revision: 1.37 $ $Date: 2010/01/15 02:11:56 $
  */
 
 #include <stdlib.h>
@@ -131,13 +131,12 @@ int main(int argc, char *argv[])
 		printf("SIGMET_RAW_DIR=%s; export SIGMET_RAW_DIR;\n", cmd_dir);
 		printf("SIGMET_RAW_IN=%s; export SIGMET_RAW_IN;\n", cmd_path);
 		printf("echo sigmet_raw server id = %d\n", pid);
-		_exit(EXIT_SUCCESS);
 	    } else {
 		printf("setenv SIGMET_RAW_PID %d\n", pid);
 		printf("setenv SIGMET_RAW_DIR %s\n", cmd_dir);
 		printf("setenv SIGMET_RAW_IN %s\n", cmd_path);
-		_exit(EXIT_SUCCESS);
 	    }
+	    exit(EXIT_SUCCESS);
     }
     fclose(stdin);
     fclose(stdout);
