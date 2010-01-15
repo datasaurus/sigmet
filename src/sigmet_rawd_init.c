@@ -1,6 +1,6 @@
 /*
  -	sigmet_rawd.c --
- -		Command line utility that accesses Sigmet raw volumes.
+ -		Server that accesses Sigmet raw volumes.
  -		See sigmet_rawd (1).
  -
  .	Copyright (c) 2009 Gordon D. Carrie
@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.42 $ $Date: 2010/01/15 22:32:14 $
+ .	$Revision: 1.43 $ $Date: 2010/01/15 22:51:01 $
  */
 
 #include <stdlib.h>
