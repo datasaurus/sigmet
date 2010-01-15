@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.43 $ $Date: 2010/01/15 22:51:01 $
+ .	$Revision: 1.44 $ $Date: 2010/01/15 22:53:23 $
  */
 
 #include <stdlib.h>
@@ -75,10 +75,10 @@ FILE *rslt;			/* Send results to client */
 enum SHELL_TYPE {C, SH};
 
 /* String size */
-#define LEN 4095
+#define LEN 16384
 
 /* Maximum number of arguments in input command */
-#define ARGCX 256
+#define ARGCX 512
 
 int main(int argc, char *argv[])
 {
