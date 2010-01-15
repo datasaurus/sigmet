@@ -1,14 +1,14 @@
 /*
- -	sigmet_raw.c --
+ -	sigmet_rawd.c --
  -		Command line utility that accesses Sigmet raw volumes.
- -		See sigmet_raw (1).
+ -		See sigmet_rawd (1).
  -
  .	Copyright (c) 2009 Gordon D. Carrie
  .	All rights reserved.
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.39 $ $Date: 2010/01/15 17:58:10 $
+ .	$Revision: 1.40 $ $Date: 2010/01/15 18:36:32 $
  */
 
 #include <stdlib.h>
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
 		printf("setenv SIGMET_RAW_PID %d;\n", pid);
 		printf("setenv SIGMET_RAW_DIR %s;\n", dir);
 	    }
-	    printf("echo sigmet_raw server: id=%d.  dir=%s\n", pid, dir);
+	    printf("echo sigmet_rawd: id=%d.  dir=%s\n", pid, dir);
 	    exit(EXIT_SUCCESS);
     }
     fclose(stdin);
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
     time(&tm);
-    fprintf(logfl, "sigmet_raw server pid=%d started. %s\n", getpid(), ctime(&tm));
+    fprintf(logfl, "sigmet_rawd pid=%d started. %s\n", getpid(), ctime(&tm));
     fflush(logfl);
 
     /* Open command stream */
