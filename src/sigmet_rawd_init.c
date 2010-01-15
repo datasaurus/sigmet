@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.38 $ $Date: 2010/01/15 17:32:51 $
+ .	$Revision: 1.39 $ $Date: 2010/01/15 17:58:10 $
  */
 
 #include <stdlib.h>
@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <time.h>
 #include "alloc.h"
 #include "str.h"
 #include "err_msg.h"
@@ -67,6 +68,7 @@ void unload(void);	/* Delete and reinitialize contents of vol */
 FILE *cmd_in;			/* Stream from the file named in_nm */
 FILE *cmd_out;			/* Unused outptut stream, to prevent process from
 				 * exiting while waiting for input. */
+FILE *logfl;			/* Error log */
 
 /* Shell type determines type of printout */
 enum SHELL_TYPE {C, SH};
@@ -78,9 +80,10 @@ int main(int argc, char *argv[])
 {
     char *cmd;			/* Application name */
     enum SHELL_TYPE shtyp;	/* Controls how environment variables are printed */
-    char cmd_dir[CLEN];		/* Directory for pipes */
-    char cmd_path[CLEN];	/* Where to pipe */
+    char dir[CLEN];		/* Working directory for server */
+    char path[CLEN];		/* Space to print file names */
     pid_t pid;			/* Process id for this process */
+    time_t tm;			/* Time. For log. */
     char *ang_u;		/* Angle unit */
     int i;			/* Index into cmd1v, cb1v */
     char *ln = NULL;		/* Input line from the command file */
@@ -104,14 +107,20 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    snprintf(cmd_dir, CLEN, "%s.sigmet_raw", tmpnam(NULL));
-    if ( (mkdir(cmd_dir, 0700) == -1) ) {
-	perror("sigmet_rawd could not create pipe directory");
+    if ( snprintf(dir, CLEN, "%s.sigmet_raw", tmpnam(NULL)) >= CLEN ) {
+	fprintf(stderr, "%s: could not create name for working directory.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    snprintf(cmd_path, CLEN, "%s/sigmet.in", cmd_dir);
-    if ( (mkfifo(cmd_path, 0600) == -1) ) {
-	perror("sigmet_rawd could not create pipe directory");
+    if ( (mkdir(dir, 0700) == -1) ) {
+	perror("sigmet_rawd could not create working directory");
+	exit(EXIT_FAILURE);
+    }
+    if ( snprintf(path, CLEN, "%s/%s", dir, "sigmet.in") >= CLEN ) {
+	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( (mkfifo(path, 0600) == -1) ) {
+	perror("sigmet_rawd could not create input pipe");
 	exit(EXIT_FAILURE);
     }
 
@@ -128,20 +137,33 @@ int main(int argc, char *argv[])
 	    /* Parent. Print information and exit. Server will go to background. */
 	    if (shtyp == SH) {
 		printf("SIGMET_RAW_PID=%d; export SIGMET_RAW_PID;\n", pid);
-		printf("SIGMET_RAW_DIR=%s; export SIGMET_RAW_DIR;\n", cmd_dir);
-		printf("SIGMET_RAW_IN=%s; export SIGMET_RAW_IN;\n", cmd_path);
+		printf("SIGMET_RAW_DIR=%s; export SIGMET_RAW_DIR;\n", dir);
 	    } else {
 		printf("setenv SIGMET_RAW_PID %d;\n", pid);
-		printf("setenv SIGMET_RAW_DIR %s;\n", cmd_dir);
-		printf("setenv SIGMET_RAW_IN %s;\n", cmd_path);
+		printf("setenv SIGMET_RAW_DIR %s;\n", dir);
 	    }
-	    printf("echo sigmet_raw server id = %d\n", pid);
+	    printf("echo sigmet_raw server: id=%d.  dir=%s\n", pid, dir);
 	    exit(EXIT_SUCCESS);
     }
     fclose(stdin);
     fclose(stdout);
-    if ( !(cmd_in = fopen(cmd_path, "r")) || !(cmd_out = fopen(cmd_path, "w")) ) {
-	fprintf(stderr, "%s: Could not open %s for input.\n", cmd, cmd_path);
+
+    /* Open log file */
+    if ( snprintf(path, CLEN, "%s/%s", dir, "sigmet.log") >= CLEN ) {
+	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( !(logfl = fopen(path, "w")) ) {
+	fprintf(stderr, "%s: could not create log file.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    time(&tm);
+    fprintf(logfl, "sigmet_raw server pid=%d started. %s\n", getpid(), ctime(&tm));
+    fflush(logfl);
+
+    /* Open command stream */
+    if ( !(cmd_in = fopen(path, "r")) || !(cmd_out = fopen(path, "w")) ) {
+	fprintf(stderr, "%s: Could not open %s for input.\n", cmd, path);
 	return 0;
     }
 
@@ -202,6 +224,9 @@ int main(int argc, char *argv[])
     }
     if ( ferror(cmd_in) ) {
 	perror("Failure on command stream");
+    }
+    if ( fclose(logfl) == EOF ) {
+	perror("Could not close log file");
     }
     FREE(ln);
     FREE(argv1);
@@ -326,8 +351,9 @@ int read_cb(int argc, char *argv[])
 		    return 0;
 		case 0:
 		    /* Child process - gzip.  Send child stdout to pipe. */
-		    if ( fclose(cmd_in) == EOF || fclose(cmd_out) == EOF ) {
-			perror("gzip could not close command stream from server");
+		    if ( fclose(cmd_in) == EOF || fclose(cmd_out) == EOF
+			    || fclose(logfl) == EOF ) {
+			perror("gzip could not close server streams");
 			_exit(EXIT_FAILURE);
 		    }
 		    if ( dup2(pfd[1], STDOUT_FILENO) == -1
