@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.46 $ $Date: 2010/01/16 05:15:18 $
+ .	$Revision: 1.47 $ $Date: 2010/01/16 05:48:30 $
  */
 
 #include <stdlib.h>
@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <signal.h>
 #include <time.h>
@@ -70,7 +71,9 @@ FILE *cmd_in;		/* Stream from the file named in_nm */
 FILE *cmd_out;		/* Unused outptut stream, to prevent process from
 			 * exiting while waiting for input. */
 FILE *logfl;		/* Error log */
-FILE *rslt;		/* Send results to client */
+FILE *rslt_out;		/* Send results to client */
+FILE *rslt_in;		/* Unused input stream, to prevent process from
+			 * exiting while waiting for output. */
 
 /* Shell type determines type of printout */
 enum SHELL_TYPE {C, SH};
@@ -84,6 +87,10 @@ enum SHELL_TYPE {C, SH};
 int main(int argc, char *argv[])
 {
     enum SHELL_TYPE shtyp;	/* Controls how environment variables are printed */
+    int i_cmd_in;		/* File descriptor for cmd_in */
+    int i_cmd_out;		/* File descriptor for cmd_out */
+    int i_rslt_in;		/* File descriptor for rslt_in */
+    int i_rslt_out;		/* File descriptor for rslt_out */
     char dir[LEN];		/* Working directory for server */
     char path[LEN];		/* Space to print file names */
     pid_t pid;			/* Process id for this process */
@@ -109,6 +116,29 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
+    /* Check for angle unit */
+    if ((ang_u = getenv("ANGLE_UNIT")) != NULL) {
+	if (strcmp(ang_u, "DEGREE") == 0) {
+	    use_deg = 1;
+	} else if (strcmp(ang_u, "RADIAN") == 0) {
+	    use_deg = 0;
+	} else {
+	    fprintf(logfl, "%s: Unknown angle unit %s.\n", cmd, ang_u);
+	    exit(EXIT_FAILURE);
+	}
+    }
+
+    /* Initialize globals */
+    have_hdr = have_vol = 0;
+    Sigmet_InitVol(&vol);
+    vol_nm_l = 1;
+    if ( !(vol_nm = MALLOC(vol_nm_l)) ) {
+	fprintf(logfl, "%s: could not allocate storage for volume file name.\n",
+		cmd);
+	exit(EXIT_FAILURE);
+    }
+    *vol_nm = '\0';
+
     /* Create working directory */
     if ( snprintf(dir, LEN, "%s.sigmet_raw", tmpnam(NULL)) >= LEN ) {
 	fprintf(stderr, "%s: could not create name for working directory.\n", cmd);
@@ -131,6 +161,68 @@ int main(int argc, char *argv[])
     time(&tm);
     fprintf(logfl, "sigmet_rawd pid=%d started. %s\n", getpid(), ctime(&tm));
     fflush(logfl);
+
+    /* Open command input stream */
+    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.in") >= LEN ) {
+	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( (mkfifo(path, 0600) == -1) ) {
+	fprintf(stderr, "%s: sigmet_rawd could not create input pipe.\n%s\n",
+		cmd, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    if ( (i_cmd_in = open(path, O_RDONLY | O_NONBLOCK)) == -1 ) {
+	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
+		cmd, path, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    if ( !(cmd_in = fdopen(i_cmd_in, "r")) ) {
+	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
+		cmd, path, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    if ( (i_cmd_out = open(path, O_WRONLY | O_NONBLOCK)) == -1 ) {
+	fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
+		cmd, path, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    if ( !(cmd_out = fdopen(i_cmd_out, "w")) ) {
+	fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
+		cmd, path, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+
+    /* Open result stream */
+    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.out") >= LEN ) {
+	fprintf(stderr, "%s: could not create name for server output pipe.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( (mkfifo(path, 0600) == -1) ) {
+	fprintf(stderr, "%s: could not create output pipe\n%s\n",
+		cmd, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    if ( (i_rslt_in = open(path, O_RDONLY | O_NONBLOCK)) == -1 ) {
+	fprintf(stderr, "%s: Could not open descriptor %s for input.\n%s\n",
+		cmd, path, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    if ( !(rslt_in = fdopen(i_rslt_in, "r")) ) {
+	fprintf(stderr, "%s: Could not open standard file %s for input.\n%s\n",
+		cmd, path, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    if ( (i_rslt_out = open(path, O_WRONLY | O_NONBLOCK)) == -1 ) {
+	fprintf(stderr, "%s: Could not open descriptor %s for output.\n%s\n",
+		cmd, path, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    if ( !(rslt_out = fdopen(i_rslt_out, "w")) ) {
+	fprintf(stderr, "%s: Could not open standard file %s for output.\n%s\n",
+		cmd, path, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
 
     /* Print information about input streams and put server in background */
     switch (pid = fork()) {
@@ -158,35 +250,6 @@ int main(int argc, char *argv[])
     fclose(stdin);
     fclose(stdout);
 
-    /* Open command and result streams */
-    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.in") >= LEN ) {
-	fprintf(logfl, "%s: could not create name for server input pipe.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    if ( (mkfifo(path, 0600) == -1) ) {
-	fprintf(logfl, "%s: sigmet_rawd could not create input pipe.\n%s\n",
-		cmd, strerror(errno));
-	exit(EXIT_FAILURE);
-    }
-    if ( !(cmd_in = fopen(path, "r")) && !(cmd_out = fopen(path, "w")) ) {
-	fprintf(logfl, "%s: Could not open %s for input.\n", cmd, path);
-	exit(EXIT_FAILURE);
-    }
-    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.out") >= LEN ) {
-	fprintf(logfl, "%s: could not create name for server output pipe.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    if ( (mkfifo(path, 0600) == -1) ) {
-	fprintf(logfl, "%s: could not create output pipe\n%s\n",
-		cmd, strerror(errno));
-	exit(EXIT_FAILURE);
-    }
-    if ( !(rslt = fopen(path, "r")) ) {
-	fprintf(logfl, "%s: Could not open return stream %s.\n%s\n",
-		cmd, path, strerror(errno));
-	exit(EXIT_FAILURE);
-    }
-
     /* Catch signals from children to prevent zombies */
     schld.sa_handler = SIG_DFL;
     if ( sigfillset(&schld.sa_mask) == -1) {
@@ -200,29 +263,6 @@ int main(int argc, char *argv[])
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-
-    /* Check for angle unit */
-    if ((ang_u = getenv("ANGLE_UNIT")) != NULL) {
-	if (strcmp(ang_u, "DEGREE") == 0) {
-	    use_deg = 1;
-	} else if (strcmp(ang_u, "RADIAN") == 0) {
-	    use_deg = 0;
-	} else {
-	    fprintf(logfl, "%s: Unknown angle unit %s.\n", cmd, ang_u);
-	    exit(EXIT_FAILURE);
-	}
-    }
-
-    /* Initialize globals */
-    have_hdr = have_vol = 0;
-    Sigmet_InitVol(&vol);
-    vol_nm_l = 1;
-    if ( !(vol_nm = MALLOC(vol_nm_l)) ) {
-	fprintf(logfl, "%s: could not allocate storage for volume file name.\n",
-		cmd);
-	exit(EXIT_FAILURE);
-    }
-    *vol_nm = '\0';
 
     /*
        Read and execute commands from cmd_in
@@ -248,15 +288,15 @@ int main(int argc, char *argv[])
 	    argc1 = a;
 	    cmd1 = argv1[0];
 	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-		fprintf(rslt, "%s: No option or subcommand named \"%s\"\n",
+		fprintf(rslt_out, "%s: No option or subcommand named \"%s\"\n",
 			cmd, cmd1);
-		fprintf(rslt, "Subcommand must be one of: ");
+		fprintf(rslt_out, "Subcommand must be one of: ");
 		for (i = 0; i < NCMD; i++) {
-		    fprintf(rslt, "%s ", cmd1v[i]);
+		    fprintf(rslt_out, "%s ", cmd1v[i]);
 		}
-		fprintf(rslt, "\n");
+		fprintf(rslt_out, "\n");
 	    } else if ( !(cb1v[i])(argc1 - 1, argv1 + 1) ) {
-		fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+		fprintf(rslt_out, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    }
 	}
     }
@@ -395,7 +435,8 @@ int read_cb(int argc, char *argv[])
 		case 0:
 		    /* Child process - gzip.  Send child stdout to pipe. */
 		    if ( fclose(cmd_in) == EOF || fclose(cmd_out) == EOF
-			    || fclose(logfl) == EOF || fclose(rslt) == EOF ) {
+			    || fclose(logfl) == EOF
+			    || fclose(rslt_in) == EOF || fclose(rslt_out) == EOF) {
 			perror("gzip could not close server streams");
 			_exit(EXIT_FAILURE);
 		    }
