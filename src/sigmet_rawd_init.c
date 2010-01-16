@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.45 $ $Date: 2010/01/15 23:22:35 $
+ .	$Revision: 1.46 $ $Date: 2010/01/16 05:15:18 $
  */
 
 #include <stdlib.h>
@@ -26,7 +26,8 @@
 #include "geog_lib.h"
 #include "sigmet.h"
 
-/* subcommand name */
+/* Application and subcommand name */
+char *cmd;
 char *cmd1;
 
 /* Subcommands */
@@ -82,7 +83,6 @@ enum SHELL_TYPE {C, SH};
 
 int main(int argc, char *argv[])
 {
-    char *cmd;			/* Application name */
     enum SHELL_TYPE shtyp;	/* Controls how environment variables are printed */
     char dir[LEN];		/* Working directory for server */
     char path[LEN];		/* Space to print file names */
@@ -119,6 +119,19 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
+    /* Open log file */
+    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.log") >= LEN ) {
+	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( !(logfl = fopen(path, "w")) ) {
+	fprintf(stderr, "%s: could not create log file.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    time(&tm);
+    fprintf(logfl, "sigmet_rawd pid=%d started. %s\n", getpid(), ctime(&tm));
+    fflush(logfl);
+
     /* Print information about input streams and put server in background */
     switch (pid = fork()) {
 	case -1:
@@ -137,48 +150,39 @@ int main(int argc, char *argv[])
 		printf("setenv SIGMET_RAW_PID %d;\n", pid);
 		printf("setenv SIGMET_RAW_DIR %s;\n", dir);
 	    }
-	    printf("echo sigmet_rawd: id=%d.  dir=%s\n", pid, dir);
+	    printf("echo Starting sigmet_rawd. Process id = %d.;\n", pid);
+	    printf("echo Working directory = %s;\n", dir);
+	    printf("echo Log file = %s/sigmet.log;\n", dir);
 	    exit(EXIT_SUCCESS);
     }
     fclose(stdin);
     fclose(stdout);
 
-    /* Open log file */
-    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.log") >= LEN ) {
-	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    if ( !(logfl = fopen(path, "w")) ) {
-	fprintf(stderr, "%s: could not create log file.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    time(&tm);
-    fprintf(logfl, "sigmet_rawd pid=%d started. %s\n", getpid(), ctime(&tm));
-    fflush(logfl);
-
     /* Open command and result streams */
     if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.in") >= LEN ) {
-	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
+	fprintf(logfl, "%s: could not create name for server input pipe.\n", cmd);
 	exit(EXIT_FAILURE);
     }
     if ( (mkfifo(path, 0600) == -1) ) {
-	perror("sigmet_rawd could not create input pipe");
+	fprintf(logfl, "%s: sigmet_rawd could not create input pipe.\n%s\n",
+		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     if ( !(cmd_in = fopen(path, "r")) && !(cmd_out = fopen(path, "w")) ) {
-	fprintf(stderr, "%s: Could not open %s for input.\n", cmd, path);
+	fprintf(logfl, "%s: Could not open %s for input.\n", cmd, path);
 	exit(EXIT_FAILURE);
     }
     if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.out") >= LEN ) {
-	fprintf(stderr, "%s: could not create name for server output pipe.\n", cmd);
+	fprintf(logfl, "%s: could not create name for server output pipe.\n", cmd);
 	exit(EXIT_FAILURE);
     }
     if ( (mkfifo(path, 0600) == -1) ) {
-	perror("sigmet_rawd could not create output pipe");
+	fprintf(logfl, "%s: could not create output pipe\n%s\n",
+		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     if ( !(rslt = fopen(path, "r")) ) {
-	fprintf(stderr, "%s: Could not open return stream %s.\n%s\n",
+	fprintf(logfl, "%s: Could not open return stream %s.\n%s\n",
 		cmd, path, strerror(errno));
 	exit(EXIT_FAILURE);
     }
@@ -186,12 +190,14 @@ int main(int argc, char *argv[])
     /* Catch signals from children to prevent zombies */
     schld.sa_handler = SIG_DFL;
     if ( sigfillset(&schld.sa_mask) == -1) {
-	perror("Could not initialize signal mask");
+	fprintf(logfl, "%s: could not initialize signal mask\n%s\n",
+		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     schld.sa_flags = SA_NOCLDWAIT;
     if ( sigaction(SIGCHLD, &schld, 0) == -1 ) {
-	perror("Could not set up signals for piping");
+	fprintf(logfl, "%s: could not set up signals for piping\n%s\n",
+		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
@@ -202,7 +208,7 @@ int main(int argc, char *argv[])
 	} else if (strcmp(ang_u, "RADIAN") == 0) {
 	    use_deg = 0;
 	} else {
-	    fprintf(stderr, "%s: Unknown angle unit %s.\n", cmd, ang_u);
+	    fprintf(logfl, "%s: Unknown angle unit %s.\n", cmd, ang_u);
 	    exit(EXIT_FAILURE);
 	}
     }
@@ -212,7 +218,8 @@ int main(int argc, char *argv[])
     Sigmet_InitVol(&vol);
     vol_nm_l = 1;
     if ( !(vol_nm = MALLOC(vol_nm_l)) ) {
-	fprintf(stderr, "Could not allocate storage for volume file name.\n");
+	fprintf(logfl, "%s: could not allocate storage for volume file name.\n",
+		cmd);
 	exit(EXIT_FAILURE);
     }
     *vol_nm = '\0';
@@ -249,20 +256,22 @@ int main(int argc, char *argv[])
 		}
 		fprintf(rslt, "\n");
 	    } else if ( !(cb1v[i])(argc1 - 1, argv1 + 1) ) {
-		fprintf(logfl, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+		fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    }
 	}
     }
     if ( feof(cmd_in) ) {
-	fprintf(logfl, "Exiting. No more input.\n");
+	fprintf(logfl, "%s: exiting. No more input.\n", cmd);
     } else if ( fclose(cmd_in) == EOF ) {
-	fprintf(logfl, "Could not close command stream.\n%s\n", strerror(errno));
+	fprintf(logfl, "%s: could not close command stream.\n%s\n",
+		cmd, strerror(errno));
     }
     if ( ferror(cmd_in) ) {
-	fprintf(logfl, "Failure on command stream.\n%s\n", strerror(errno));
+	fprintf(logfl, "%s: failure on command stream.\n%s\n",
+		cmd, strerror(errno));
     }
     if ( fclose(logfl) == EOF ) {
-	perror("Could not close log file");
+	fprintf(logfl, "%s: could not close log file", cmd);
     }
     unload();
     FREE(vol_nm);
@@ -386,7 +395,7 @@ int read_cb(int argc, char *argv[])
 		case 0:
 		    /* Child process - gzip.  Send child stdout to pipe. */
 		    if ( fclose(cmd_in) == EOF || fclose(cmd_out) == EOF
-			    || fclose(logfl) == EOF ) {
+			    || fclose(logfl) == EOF || fclose(rslt) == EOF ) {
 			perror("gzip could not close server streams");
 			_exit(EXIT_FAILURE);
 		    }
@@ -396,7 +405,7 @@ int read_cb(int argc, char *argv[])
 			_exit(EXIT_FAILURE);
 		    }
 		    execlp("gunzip", "gunzip", "-c", in_nm, (char *)NULL);
-		    fprintf(stderr, "gunzip failed.\n");
+		    fprintf(logfl, "%s: gunzip failed.\n", cmd);
 		    _exit(EXIT_FAILURE);
 		default:
 		    /* This process.  Read output from gzip. */
