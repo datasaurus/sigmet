@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.44 $ $Date: 2010/01/15 22:53:23 $
+ .	$Revision: 1.45 $ $Date: 2010/01/15 23:22:35 $
  */
 
 #include <stdlib.h>
@@ -65,11 +65,11 @@ void unload(void);	/* Delete and reinitialize contents of vol */
 
 /* These streams are global so that child processes can close them, since they do
  * not need them, and should not have command access to the server, anyway. */
-FILE *cmd_in;			/* Stream from the file named in_nm */
-FILE *cmd_out;			/* Unused outptut stream, to prevent process from
-				 * exiting while waiting for input. */
-FILE *logfl;			/* Error log */
-FILE *rslt;			/* Send results to client */
+FILE *cmd_in;		/* Stream from the file named in_nm */
+FILE *cmd_out;		/* Unused outptut stream, to prevent process from
+			 * exiting while waiting for input. */
+FILE *logfl;		/* Error log */
+FILE *rslt;		/* Send results to client */
 
 /* Shell type determines type of printout */
 enum SHELL_TYPE {C, SH};
@@ -109,20 +109,13 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
+    /* Create working directory */
     if ( snprintf(dir, LEN, "%s.sigmet_raw", tmpnam(NULL)) >= LEN ) {
 	fprintf(stderr, "%s: could not create name for working directory.\n", cmd);
 	exit(EXIT_FAILURE);
     }
     if ( (mkdir(dir, 0700) == -1) ) {
 	perror("sigmet_rawd could not create working directory");
-	exit(EXIT_FAILURE);
-    }
-    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.in") >= LEN ) {
-	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    if ( (mkfifo(path, 0600) == -1) ) {
-	perror("sigmet_rawd could not create input pipe");
 	exit(EXIT_FAILURE);
     }
 
@@ -163,10 +156,31 @@ int main(int argc, char *argv[])
     fprintf(logfl, "sigmet_rawd pid=%d started. %s\n", getpid(), ctime(&tm));
     fflush(logfl);
 
-    /* Open command stream */
+    /* Open command and result streams */
+    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.in") >= LEN ) {
+	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( (mkfifo(path, 0600) == -1) ) {
+	perror("sigmet_rawd could not create input pipe");
+	exit(EXIT_FAILURE);
+    }
     if ( !(cmd_in = fopen(path, "r")) && !(cmd_out = fopen(path, "w")) ) {
 	fprintf(stderr, "%s: Could not open %s for input.\n", cmd, path);
-	return 0;
+	exit(EXIT_FAILURE);
+    }
+    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.out") >= LEN ) {
+	fprintf(stderr, "%s: could not create name for server output pipe.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( (mkfifo(path, 0600) == -1) ) {
+	perror("sigmet_rawd could not create output pipe");
+	exit(EXIT_FAILURE);
+    }
+    if ( !(rslt = fopen(path, "r")) ) {
+	fprintf(stderr, "%s: Could not open return stream %s.\n%s\n",
+		cmd, path, strerror(errno));
+	exit(EXIT_FAILURE);
     }
 
     /* Catch signals from children to prevent zombies */
@@ -216,7 +230,6 @@ int main(int argc, char *argv[])
 
 	    int argc1;		/* Number of arguments in an input line */
 	    char *argv1[ARGCX];	/* Arguments from an input line */
-	    char *path2;	/* Name of file to receive results */
 	    char *c, *c1;
 	    int a, i;
 
@@ -226,13 +239,7 @@ int main(int argc, char *argv[])
 		}
 	    }
 	    argc1 = a;
-	    path2 = argv1[0];
-	    if ( !(rslt = fopen(path2, "r")) ) {
-		fprintf(logfl, "Could not open return stream.\n%s\n",
-			strerror(errno));
-		continue;
-	    }
-	    cmd1 = argv1[1];
+	    cmd1 = argv1[0];
 	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 		fprintf(rslt, "%s: No option or subcommand named \"%s\"\n",
 			cmd, cmd1);
