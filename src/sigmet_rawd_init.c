@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.52 $ $Date: 2010/01/19 20:18:25 $
+ .	$Revision: 1.53 $ $Date: 2010/01/19 21:44:32 $
  */
 
 #include <stdlib.h>
@@ -262,13 +262,13 @@ int main(int argc, char *argv[])
 	    /* Break input line into arguments */
 	    for (a = 0, c = argv1[a] = ln, c1 = ln + l; c < c1 && a < ARGCX; c++) {
 		if ( *c == '\0' ) {
-		    argv1[++a] = c;
+		    argv1[++a] = c + 1;
 		}
 	    }
 	    argc1 = a;
 
 	    /* First argument tells where to send output */
-	    rslt_fl = argv[0];
+	    rslt_fl = argv1[0];
 	    rslt = NULL;
 	    if ( (strcmp(rslt_fl, "none") != 0)
 		    && !(rslt = fopen(rslt_fl, "w")) ) {
