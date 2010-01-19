@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.51 $ $Date: 2010/01/19 18:05:48 $
+ .	$Revision: 1.52 $ $Date: 2010/01/19 20:18:25 $
  */
 
 #include <stdlib.h>
@@ -140,12 +140,13 @@ int main(int argc, char *argv[])
     *vol_nm = '\0';
 
     /* Create working directory */
-    if ( snprintf(dir, LEN, "%s.sigmet_raw", tmpnam(NULL)) >= LEN ) {
+    if ( snprintf(dir, LEN, "%s/.sigmet_raw", getenv("HOME")) >= LEN ) {
 	fprintf(stderr, "%s: could not create name for working directory.\n", cmd);
 	exit(EXIT_FAILURE);
     }
     if ( (mkdir(dir, 0700) == -1) ) {
-	perror("sigmet_rawd could not create working directory");
+	fprintf(stderr, "%s: could not create\n%s\n%s\n",
+		cmd, dir, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
