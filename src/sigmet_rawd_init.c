@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.50 $ $Date: 2010/01/19 17:49:15 $
+ .	$Revision: 1.51 $ $Date: 2010/01/19 18:05:48 $
  */
 
 #include <stdlib.h>
@@ -202,7 +202,6 @@ int main(int argc, char *argv[])
     }
     time(&tm);
     fprintf(dlog, "sigmet_rawd pid=%d started. %s\n", getpid(), ctime(&tm));
-    fflush(dlog);
 
     /* Print information about input streams and put server in background */
     switch (pid = fork()) {
@@ -216,11 +215,11 @@ int main(int argc, char *argv[])
 	default:
 	    /* Parent. Print information and exit. Server will go to background. */
 	    if (shtyp == SH) {
-		printf("SIGMET_RAW_PID=%d; export SIGMET_RAW_PID;\n", pid);
-		printf("SIGMET_RAW_DIR=%s; export SIGMET_RAW_DIR;\n", dir);
+		printf("SIGMET_RAWD_PID=%d; export SIGMET_RAWD_PID;\n", pid);
+		printf("SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", dir);
 	    } else {
-		printf("setenv SIGMET_RAW_PID %d;\n", pid);
-		printf("setenv SIGMET_RAW_DIR %s;\n", dir);
+		printf("setenv SIGMET_RAWD_PID %d;\n", pid);
+		printf("setenv SIGMET_RAWD_DIR %s;\n", dir);
 	    }
 	    printf("echo Starting sigmet_rawd. Process id = %d.;\n", pid);
 	    printf("echo Working directory = %s;\n", dir);
@@ -233,14 +232,12 @@ int main(int argc, char *argv[])
     /* Catch signals from children to prevent zombies */
     schld.sa_handler = SIG_DFL;
     if ( sigfillset(&schld.sa_mask) == -1) {
-	fprintf(dlog, "%s: could not initialize signal mask\n%s\n",
-		cmd, strerror(errno));
+	fprintf(dlog, "Could not initialize signal mask\n%s\n", strerror(errno));
 	exit(EXIT_FAILURE);
     }
     schld.sa_flags = SA_NOCLDWAIT;
     if ( sigaction(SIGCHLD, &schld, 0) == -1 ) {
-	fprintf(dlog, "%s: could not set up signals for piping\n%s\n",
-		cmd, strerror(errno));
+	fprintf(dlog, "Could not set up signals for piping\n%s\n", strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
@@ -261,6 +258,7 @@ int main(int argc, char *argv[])
 	    char *c, *c1;
 	    int a, i;
 
+	    /* Break input line into arguments */
 	    for (a = 0, c = argv1[a] = ln, c1 = ln + l; c < c1 && a < ARGCX; c++) {
 		if ( *c == '\0' ) {
 		    argv1[++a] = c;
@@ -273,8 +271,8 @@ int main(int argc, char *argv[])
 	    rslt = NULL;
 	    if ( (strcmp(rslt_fl, "none") != 0)
 		    && !(rslt = fopen(rslt_fl, "w")) ) {
-		fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
-			cmd, path, strerror(errno));
+		fprintf(dlog, "Could not open %s for output.\n%s\n",
+			path, strerror(errno));
 		continue;
 	    }
 
@@ -292,24 +290,21 @@ int main(int argc, char *argv[])
 		fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    }
 	    if ( rslt && (fclose(rslt) == EOF) ) {
-		fprintf(dlog, "%s: Could not close %s.\n%s\n",
-			cmd, rslt_fl, strerror(errno));
+		fprintf(dlog, "Could not close %s.\n%s\n",
+			rslt_fl, strerror(errno));
+		continue;
 	    }
 	}
     }
     if ( feof(cmd_in) ) {
-	fprintf(dlog, "%s: exiting. No more input.\n", cmd);
+	fprintf(dlog, "Exiting. No more input.\n");
     } else if ( fclose(cmd_in) == EOF ) {
-	fprintf(dlog, "%s: could not close command stream.\n%s\n",
-		cmd, strerror(errno));
+	fprintf(dlog, "Could not close command stream.\n%s\n", strerror(errno));
     }
     if ( ferror(cmd_in) ) {
-	fprintf(dlog, "%s: failure on command stream.\n%s\n",
-		cmd, strerror(errno));
+	fprintf(dlog, "Failure on command stream.\n%s\n", strerror(errno));
     }
-    if ( fclose(dlog) == EOF ) {
-	fprintf(dlog, "%s: could not close log file", cmd);
-    }
+    fclose(dlog);
     unload();
     FREE(vol_nm);
     FREE(ln);
@@ -455,7 +450,7 @@ int read_cb(int argc, char *argv[])
 			_exit(EXIT_FAILURE);
 		    }
 		    execlp("gunzip", "gunzip", "-c", in_nm, (char *)NULL);
-		    fprintf(dlog, "%s: gunzip failed.\n", cmd);
+		    fprintf(dlog, "Gunzip failed.\n");
 		    _exit(EXIT_FAILURE);
 		default:
 		    /* This process.  Read output from gzip. */
