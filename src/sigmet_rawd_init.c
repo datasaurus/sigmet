@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.48 $ $Date: 2010/01/16 06:30:57 $
+ .	$Revision: 1.49 $ $Date: 2010/01/19 17:40:14 $
  */
 
 #include <stdlib.h>
@@ -32,12 +32,13 @@ char *cmd;
 char *cmd1;
 
 /* Subcommands */
-#define NCMD 8
+#define NCMD 9
 char *cmd1v[NCMD] = {
-    "types", "good", "read", "volume_headers", "ray_headers", "data",
+    "cmd_len", "types", "good", "read", "volume_headers", "ray_headers", "data",
     "bin_outline", "bintvls"
 };
 typedef int (callback)(int , char **);
+callback cmd_len_cb;
 callback types_cb;
 callback good_cb;
 callback read_cb;
@@ -47,8 +48,8 @@ callback data_cb;
 callback bin_outline_cb;
 callback bintvls_cb;
 callback *cb1v[NCMD] = {
-    types_cb, good_cb, read_cb, volume_headers_cb, ray_headers_cb, data_cb,
-    bin_outline_cb, bintvls_cb
+    cmd_len_cb, types_cb, good_cb, read_cb, volume_headers_cb, ray_headers_cb,
+    data_cb, bin_outline_cb, bintvls_cb
 };
 
 /* If true, use degrees instead of radians */
@@ -75,6 +76,9 @@ FILE *rslt_out;		/* Send results to client */
 FILE *rslt_in;		/* Unused input stream, to prevent process from
 			 * exiting while waiting for output. */
 
+/* Length of input line */
+long cmd_len;
+
 /* Shell type determines type of printout */
 enum SHELL_TYPE {C, SH};
 
@@ -100,7 +104,6 @@ int main(int argc, char *argv[])
     size_t l;			/* Length of an input string */
     size_t l1;			/* Terminator at end of input string */
     char *ln;			/* Input line from client */
-    long ln_l;			/* Allocation at ln */
 
     shtyp = SH;
     if ( (cmd = strrchr(argv[0], '/')) ) {
@@ -195,12 +198,12 @@ int main(int argc, char *argv[])
     }
 
     /* Allocate input line */
-    if ( (ln_l = fpathconf(i_cmd_in, _PC_PIPE_BUF)) == -1 ) {
+    if ( (cmd_len = fpathconf(i_cmd_in, _PC_PIPE_BUF)) == -1 ) {
 	fprintf(stderr, "%s: Could not get pipe buffer size.\n%s\n",
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-    if ( !(ln = MALLOC(ln_l)) ) {
+    if ( !(ln = MALLOC(cmd_len)) ) {
 	fprintf(stderr, "%s: Could not allocate input line.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -282,7 +285,7 @@ int main(int argc, char *argv[])
      */
     while (1) {
 	if ( fread(&l, sizeof(size_t), 1, cmd_in) == 1
-		&& l <= ln_l
+		&& l <= cmd_len
 		&& fread(ln, 1, l, cmd_in) == l
 		&& fread(&l1, sizeof(size_t), 1, cmd_in) == 1
 		&& l1 == 0 ) {
@@ -337,6 +340,17 @@ void unload(void)
     Sigmet_FreeVol(&vol);
     have_hdr = have_vol = 0;
     vol_nm[0] = '\0';
+}
+
+int cmd_len_cb(int argc, char *argv[])
+{
+    if (argc != 1) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	return 0;
+    }
+    printf("%ld\n", cmd_len);
+    return 1;
 }
 
 int types_cb(int argc, char *argv[])
