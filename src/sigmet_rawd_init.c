@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.47 $ $Date: 2010/01/16 05:48:30 $
+ .	$Revision: 1.48 $ $Date: 2010/01/16 06:30:57 $
  */
 
 #include <stdlib.h>
@@ -99,7 +99,8 @@ int main(int argc, char *argv[])
     char *ang_u;		/* Angle unit */
     size_t l;			/* Length of an input string */
     size_t l1;			/* Terminator at end of input string */
-    char ln[LEN];		/* Input line */
+    char *ln;			/* Input line from client */
+    long ln_l;			/* Allocation at ln */
 
     shtyp = SH;
     if ( (cmd = strrchr(argv[0], '/')) ) {
@@ -193,6 +194,17 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
+    /* Allocate input line */
+    if ( (ln_l = fpathconf(i_cmd_in, _PC_PIPE_BUF)) == -1 ) {
+	fprintf(stderr, "%s: Could not get pipe buffer size.\n%s\n",
+		cmd, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    if ( !(ln = MALLOC(ln_l)) ) {
+	fprintf(stderr, "%s: Could not allocate input line.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+
     /* Open result stream */
     if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.out") >= LEN ) {
 	fprintf(stderr, "%s: could not create name for server output pipe.\n", cmd);
@@ -270,7 +282,7 @@ int main(int argc, char *argv[])
      */
     while (1) {
 	if ( fread(&l, sizeof(size_t), 1, cmd_in) == 1
-		&& l <= LEN
+		&& l <= ln_l
 		&& fread(ln, 1, l, cmd_in) == l
 		&& fread(&l1, sizeof(size_t), 1, cmd_in) == 1
 		&& l1 == 0 ) {
@@ -315,6 +327,7 @@ int main(int argc, char *argv[])
     }
     unload();
     FREE(vol_nm);
+    FREE(ln);
 
     return 0;
 }
