@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.57 $ $Date: 2010/01/20 15:37:35 $
+ .	$Revision: 1.58 $ $Date: 2010/01/20 22:20:28 $
  */
 
 #include <stdlib.h>
@@ -533,7 +533,7 @@ int volume_headers_cb(int argc, char *argv[])
 	Err_Append("No volume loaded.  ");
 	return 0;
     }
-    Sigmet_PrintHdr(stdout, vol);
+    Sigmet_PrintHdr(rslt, vol);
     return 1;
 }
 
