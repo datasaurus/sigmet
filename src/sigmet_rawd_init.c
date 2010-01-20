@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.59 $ $Date: 2010/01/20 22:27:58 $
+ .	$Revision: 1.60 $ $Date: 2010/01/20 23:02:34 $
  */
 
 #include <stdlib.h>
@@ -454,8 +454,8 @@ int read_cb(int argc, char *argv[])
 			fprintf(dlog, "gzip child could not close server streams");
 			_exit(EXIT_FAILURE);
 		    }
-		    if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
-			    || close(pfd[0]) == -1 ) {
+		    if ( dup2(pfd[1], STDOUT_FILENO) == -1
+			    || close(pfd[1]) == -1 ) {
 			fprintf(dlog, "Could not set up gzip process");
 			_exit(EXIT_FAILURE);
 		    }
