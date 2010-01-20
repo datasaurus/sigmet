@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.54 $ $Date: 2010/01/19 23:18:14 $
+ .	$Revision: 1.55 $ $Date: 2010/01/20 00:53:47 $
  */
 
 #include <stdlib.h>
@@ -327,7 +327,7 @@ int cmd_len_cb(int argc, char *argv[])
 	Err_Append(cmd1);
 	return 0;
     }
-    printf("%ld\n", cmd_len);
+    fprintf(rslt, "%ld\n", cmd_len);
     return 1;
 }
 
@@ -341,7 +341,8 @@ int types_cb(int argc, char *argv[])
 	return 0;
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
-	printf("%s | %s\n", Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
+	fprintf(rslt, "%s | %s\n",
+		Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
     }
     return 1;
 }
@@ -546,18 +547,18 @@ int ray_headers_cb(int argc, char *argv[])
 	    if ( !vol.ray_ok[s][r] ) {
 		continue;
 	    }
-	    printf("sweep %3d ray %4d | ", s, r);
+	    fprintf(rslt, "sweep %3d ray %4d | ", s, r);
 	    if ( !Tm_JulToCal(vol.ray_time[s][r],
 			&yr, &mon, &da, &hr, &min, &sec) ) {
 		Err_Append("Bad ray time.  ");
 		return 0;
 	    }
-	    printf("%04d/%02d/%02d %02d:%02d:%04.1f | ",
+	    fprintf(rslt, "%04d/%02d/%02d %02d:%02d:%04.1f | ",
 		    yr, mon, da, hr, min, sec);
-	    printf("az %7.3f %7.3f | ",
+	    fprintf(rslt, "az %7.3f %7.3f | ",
 		    vol.ray_az0[s][r] * DEG_PER_RAD,
 		    vol.ray_az1[s][r] * DEG_PER_RAD);
-	    printf("tilt %6.3f %6.3f\n",
+	    fprintf(rslt, "tilt %6.3f %6.3f\n",
 		    vol.ray_tilt0[s][r] * DEG_PER_RAD,
 		    vol.ray_tilt1[s][r] * DEG_PER_RAD);
 	}
@@ -651,83 +652,83 @@ int data_cb(int argc, char *argv[])
 	    type = vol.types[y];
 	    abbrv = Sigmet_DataType_Abbrv(type);
 	    for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
-		printf("%s. sweep %d\n", abbrv, s);
+		fprintf(rslt, "%s. sweep %d\n", abbrv, s);
 		for (r = 0; r < vol.ih.ic.num_rays; r++) {
 		    if ( !vol.ray_ok[s][r] ) {
 			continue;
 		    }
-		    printf("ray %d: ", r);
+		    fprintf(rslt, "ray %d: ", r);
 		    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 			d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 			if (Sigmet_IsData(d)) {
-			    printf("%f ", d);
+			    fprintf(rslt, "%f ", d);
 			} else {
-			    printf("nodat ");
+			    fprintf(rslt, "nodat ");
 			}
 		    }
-		    printf("\n");
+		    fprintf(rslt, "\n");
 		}
 	    }
 	}
     } else if (s == ALL && r == ALL && b == ALL) {
 	for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
-	    printf("%s. sweep %d\n", abbrv, s);
+	    fprintf(rslt, "%s. sweep %d\n", abbrv, s);
 	    for (r = 0; r < vol.ih.ic.num_rays; r++) {
 		    if ( !vol.ray_ok[s][r] ) {
 			continue;
 		    }
-		printf("ray %d: ", r);
+		fprintf(rslt, "ray %d: ", r);
 		for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		    if (Sigmet_IsData(d)) {
-			printf("%f ", d);
+			fprintf(rslt, "%f ", d);
 		    } else {
-			printf("nodat ");
+			fprintf(rslt, "nodat ");
 		    }
 		}
-		printf("\n");
+		fprintf(rslt, "\n");
 	    }
 	}
     } else if (r == ALL && b == ALL) {
-	printf("%s. sweep %d\n", abbrv, s);
+	fprintf(rslt, "%s. sweep %d\n", abbrv, s);
 	for (r = 0; r < vol.ih.ic.num_rays; r++) {
 	    if ( !vol.ray_ok[s][r] ) {
 		continue;
 	    }
-	    printf("ray %d: ", r);
+	    fprintf(rslt, "ray %d: ", r);
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		if (Sigmet_IsData(d)) {
-		    printf("%f ", d);
+		    fprintf(rslt, "%f ", d);
 		} else {
-		    printf("nodat ");
+		    fprintf(rslt, "nodat ");
 		}
 	    }
-	    printf("\n");
+	    fprintf(rslt, "\n");
 	}
     } else if (b == ALL) {
 	if (vol.ray_ok[s][r]) {
-	    printf("%s. sweep %d, ray %d: ", abbrv, s, r);
+	    fprintf(rslt, "%s. sweep %d, ray %d: ", abbrv, s, r);
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		if (Sigmet_IsData(d)) {
-		    printf("%f ", d);
+		    fprintf(rslt, "%f ", d);
 		} else {
-		    printf("nodat ");
+		    fprintf(rslt, "nodat ");
 		}
 	    }
-	    printf("\n");
+	    fprintf(rslt, "\n");
 	}
     } else {
 	if (vol.ray_ok[s][r]) {
-	    printf("%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
+	    fprintf(rslt, "%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
 	    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 	    if (Sigmet_IsData(d)) {
-		printf("%f ", d);
+		fprintf(rslt, "%f ", d);
 	    } else {
-		printf("nodat ");
+		fprintf(rslt, "nodat ");
 	    }
-	    printf("\n");
+	    fprintf(rslt, "\n");
 	}
     }
     return 1;
@@ -784,7 +785,7 @@ int bin_outline_cb(int argc, char *argv[])
     }
     Sigmet_FreeVol(&vol);
     c = (use_deg ? DEG_RAD : 1.0);
-    printf("%f %f %f %f %f %f %f %f\n",
+    fprintf(rslt, "%f %f %f %f %f %f %f %f\n",
 	    corners[0] * c, corners[1] * c, corners[2] * c, corners[3] * c,
 	    corners[4] * c, corners[5] * c, corners[6] * c, corners[7] * c);
 
@@ -850,7 +851,7 @@ int bintvls_cb(int argc, char *argv[])
 	for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 	    d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
 	}
-	printf("\n");
+	fprintf(rslt, "\n");
     }
 
     return 1;
