@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.56 $ $Date: 2010/01/20 01:04:17 $
+ .	$Revision: 1.57 $ $Date: 2010/01/20 15:37:35 $
  */
 
 #include <stdlib.h>
@@ -96,6 +96,7 @@ int main(int argc, char *argv[])
     char log_nm[LEN];		/* Name of log file */
     pid_t pid;			/* Process id for this process */
     struct sigaction schld;	/* Signal action to ignore zombies */
+    int i_rslt;			/* File descriptor for rslt stream */
     time_t tm;			/* Time. For log. */
     char *ang_u;		/* Angle unit */
     size_t l;			/* Length of an input string */
@@ -275,7 +276,8 @@ int main(int argc, char *argv[])
 	    rslt_fl = argv1[0];
 	    rslt = NULL;
 	    if ( (strcmp(rslt_fl, "none") != 0)
-		    && !(rslt = fopen(rslt_fl, "w")) ) {
+		    && !(i_rslt = open(rslt_fl, O_WRONLY))
+		    && !(rslt = fdopen(i_rslt, "w")) ) {
 		fprintf(dlog, "Could not open %s for output.\n%s\n",
 			rslt_fl, strerror(errno));
 		continue;
