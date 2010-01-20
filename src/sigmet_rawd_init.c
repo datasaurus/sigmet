@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.55 $ $Date: 2010/01/20 00:53:47 $
+ .	$Revision: 1.56 $ $Date: 2010/01/20 01:04:17 $
  */
 
 #include <stdlib.h>
@@ -81,7 +81,7 @@ long cmd_len;
 enum SHELL_TYPE {C, SH};
 
 /* String size */
-#define LEN 16384
+#define LEN 1024
 
 /* Maximum number of arguments in input command */
 #define ARGCX 512
@@ -92,7 +92,8 @@ int main(int argc, char *argv[])
     int i_cmd_in;		/* File descriptor for cmd_in */
     int i_cmd_out;		/* File descriptor for cmd_out */
     char dir[LEN];		/* Working directory for server */
-    char path[LEN];		/* Space to print file names */
+    char cmd_in_nm[LEN];	/* Space to print file names */
+    char log_nm[LEN];		/* Name of log file */
     pid_t pid;			/* Process id for this process */
     struct sigaction schld;	/* Signal action to ignore zombies */
     time_t tm;			/* Time. For log. */
@@ -151,33 +152,33 @@ int main(int argc, char *argv[])
     }
 
     /* Open command input stream */
-    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.in") >= LEN ) {
+    if ( snprintf(cmd_in_nm, LEN, "%s/%s", dir, "sigmet.in") >= LEN ) {
 	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( (mkfifo(path, 0600) == -1) ) {
+    if ( (mkfifo(cmd_in_nm, 0600) == -1) ) {
 	fprintf(stderr, "%s: sigmet_rawd could not create input pipe.\n%s\n",
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-    if ( (i_cmd_in = open(path, O_RDONLY | O_NONBLOCK)) == -1 ) {
+    if ( (i_cmd_in = open(cmd_in_nm, O_RDONLY | O_NONBLOCK)) == -1 ) {
 	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
-		cmd, path, strerror(errno));
+		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     if ( !(cmd_in = fdopen(i_cmd_in, "r")) ) {
 	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
-		cmd, path, strerror(errno));
+		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-    if ( (i_cmd_out = open(path, O_WRONLY | O_NONBLOCK)) == -1 ) {
+    if ( (i_cmd_out = open(cmd_in_nm, O_WRONLY | O_NONBLOCK)) == -1 ) {
 	fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
-		cmd, path, strerror(errno));
+		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     if ( !(cmd_out = fdopen(i_cmd_out, "w")) ) {
 	fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
-		cmd, path, strerror(errno));
+		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
@@ -193,11 +194,11 @@ int main(int argc, char *argv[])
     }
 
     /* Open log file */
-    if ( snprintf(path, LEN, "%s/%s", dir, "sigmet.log") >= LEN ) {
+    if ( snprintf(log_nm, LEN, "%s/%s", dir, "sigmet.log") >= LEN ) {
 	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( !(dlog = fopen(path, "w")) ) {
+    if ( !(dlog = fopen(log_nm, "w")) ) {
 	fprintf(stderr, "%s: could not create log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -218,17 +219,20 @@ int main(int argc, char *argv[])
 	    if (shtyp == SH) {
 		printf("SIGMET_RAWD_PID=%d; export SIGMET_RAWD_PID;\n", pid);
 		printf("SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", dir);
+		printf("SIGMET_RAWD_IN=%s; export SIGMET_RAWD_IN;\n", cmd_in_nm);
 	    } else {
 		printf("setenv SIGMET_RAWD_PID %d;\n", pid);
 		printf("setenv SIGMET_RAWD_DIR %s;\n", dir);
+		printf("setenv SIGMET_RAWD_IN=%s;\n", cmd_in_nm);
 	    }
 	    printf("echo Starting sigmet_rawd. Process id = %d.;\n", pid);
 	    printf("echo Working directory = %s;\n", dir);
-	    printf("echo Log file = %s/sigmet.log;\n", dir);
+	    printf("echo Log file = %s;\n", log_nm);
 	    exit(EXIT_SUCCESS);
     }
     fclose(stdin);
     fclose(stdout);
+    fclose(stderr);
 
     /* Catch signals from children to prevent zombies */
     schld.sa_handler = SIG_DFL;
@@ -273,7 +277,7 @@ int main(int argc, char *argv[])
 	    if ( (strcmp(rslt_fl, "none") != 0)
 		    && !(rslt = fopen(rslt_fl, "w")) ) {
 		fprintf(dlog, "Could not open %s for output.\n%s\n",
-			path, strerror(errno));
+			rslt_fl, strerror(errno));
 		continue;
 	    }
 
