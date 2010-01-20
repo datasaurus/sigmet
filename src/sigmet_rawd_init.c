@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.53 $ $Date: 2010/01/19 21:44:32 $
+ .	$Revision: 1.54 $ $Date: 2010/01/19 23:18:14 $
  */
 
 #include <stdlib.h>
@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
 	    }
 
 	    /* Execute command on rest of command line */
-	    cmd1 = argv1[0];
+	    cmd1 = argv1[1];
 	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 		fprintf(rslt, "No option or subcommand named \"%s\"\n",
 			cmd1);
