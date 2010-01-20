@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.58 $ $Date: 2010/01/20 22:20:28 $
+ .	$Revision: 1.59 $ $Date: 2010/01/20 22:27:58 $
  */
 
 #include <stdlib.h>
@@ -71,6 +71,7 @@ void unload(void);	/* Delete and reinitialize contents of vol */
 FILE *cmd_in;		/* Stream from the file named in_nm */
 FILE *cmd_out;		/* Unused outptut stream, to prevent process from
 			 * exiting while waiting for input. */
+int idlog;		/* Error log */
 FILE *dlog;		/* Error log */
 FILE *rslt;		/* Send results to client */
 
@@ -199,7 +200,8 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( !(dlog = fopen(log_nm, "w")) ) {
+    if ( (idlog = open(log_nm, O_CREAT | O_TRUNC | O_WRONLY, 0600)) == -1
+	    || !(dlog = fdopen(idlog, "w")) ) {
 	fprintf(stderr, "%s: could not create log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -295,6 +297,7 @@ int main(int argc, char *argv[])
 		fprintf(rslt, "\n");
 	    } else if ( !(cb1v[i])(argc1 - 1, argv1 + 1) ) {
 		fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+		fprintf(dlog, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    }
 	    if ( rslt && (fclose(rslt) == EOF) ) {
 		fprintf(dlog, "Could not close %s.\n%s\n",
@@ -447,18 +450,19 @@ int read_cb(int argc, char *argv[])
 		case 0:
 		    /* Child process - gzip.  Send child stdout to pipe. */
 		    if ( fclose(cmd_in) == EOF || fclose(cmd_out) == EOF
-			    || fclose(dlog) == EOF
 			    || fclose(rslt) == EOF) {
-			perror("gzip could not close server streams");
+			fprintf(dlog, "gzip child could not close server streams");
 			_exit(EXIT_FAILURE);
 		    }
-		    if ( dup2(pfd[1], STDOUT_FILENO) == -1
-			    || close(pfd[1]) == -1 || close(pfd[0]) == -1 ) {
-			perror("Could not set up gzip process");
+		    if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
+			    || close(pfd[0]) == -1 ) {
+			fprintf(dlog, "Could not set up gzip process");
+			_exit(EXIT_FAILURE);
+		    }
+		    if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
 			_exit(EXIT_FAILURE);
 		    }
 		    execlp("gunzip", "gunzip", "-c", in_nm, (char *)NULL);
-		    fprintf(dlog, "Gunzip failed.\n");
 		    _exit(EXIT_FAILURE);
 		default:
 		    /* This process.  Read output from gzip. */
