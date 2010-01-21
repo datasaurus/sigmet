@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.63 $ $Date: 2010/01/21 16:44:36 $
+ .	$Revision: 1.64 $ $Date: 2010/01/21 17:26:11 $
  */
 
 #include <stdlib.h>
@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
 	    fprintf(rslt, "\n");
 	} else if ( !(cb1v[i])(argc1, argv1) ) {
 	    fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
-	    fprintf(dlog, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	    fprintf(dlog, "%s failed.\n%s\n", cmd1, Err_Get());
 	}
 	if ( rslt && (fclose(rslt) == EOF) ) {
 	    fprintf(dlog, "Could not close %s.\n%s\n",
