@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.67 $ $Date: 2010/01/21 21:45:21 $
+ .	$Revision: 1.68 $ $Date: 2010/01/21 22:06:47 $
  */
 
 #include <stdlib.h>
@@ -214,18 +214,20 @@ int main(int argc, char *argv[])
     fclose(stdout);
     fclose(stderr);
 
-    fprintf(dlog, "sigmet_rawd started. pid=%d\n", getpid());
+    fprintf(dlog, "%s: sigmet_rawd started. pid=%d\n", time_stamp(), getpid());
     fflush(dlog);
 
     /* Catch signals from children to prevent zombies */
     schld.sa_handler = SIG_DFL;
     if ( sigfillset(&schld.sa_mask) == -1) {
-	fprintf(dlog, "Could not initialize signal mask\n%s\n", strerror(errno));
+	fprintf(dlog, "%s: Could not initialize signal mask\n%s\n",
+		time_stamp(), strerror(errno));
 	exit(EXIT_FAILURE);
     }
     schld.sa_flags = SA_NOCLDWAIT;
     if ( sigaction(SIGCHLD, &schld, 0) == -1 ) {
-	fprintf(dlog, "Could not set up signals for piping\n%s\n", strerror(errno));
+	fprintf(dlog, "%s: Could not set up signals for piping\n%s\n",
+		time_stamp(), strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
@@ -262,8 +264,8 @@ int main(int argc, char *argv[])
 	/* Break input line into arguments */
 	argc1 = *(int *)buf;
 	if (argc1 > ARGCX) {
-	    fprintf(dlog, "Unable to parse command with %d arguments. "
-		    "Limit is %d\n", argc1, ARGCX);
+	    fprintf(dlog, "%s: Unable to parse command with %d arguments. "
+		    "Limit is %d\n", time_stamp(), argc1, ARGCX);
 	    continue;
 	}
 	buf += sizeof(int);
@@ -273,7 +275,7 @@ int main(int argc, char *argv[])
 	    }
 	}
 	if ( b == b1 ) {
-	    fprintf(dlog, "Command line gives no destination.\n");
+	    fprintf(dlog, "%s: Command line gives no destination.\n", time_stamp());
 	    continue;
 	}
 	rslt_fl = b;
@@ -282,7 +284,7 @@ int main(int argc, char *argv[])
 	rslt = NULL;
 	if ( (i_rslt = open(rslt_fl, O_WRONLY)) == -1
 		|| !(rslt = fdopen(i_rslt, "w")) ) {
-	    fprintf(dlog, "Could not open %s for output.\n%s\n",
+	    fprintf(dlog, "%s: Could not open %s for output.\n%s\n", time_stamp(),
 		    rslt_fl, strerror(errno));
 	    continue;
 	}
@@ -299,17 +301,18 @@ int main(int argc, char *argv[])
 	    fprintf(rslt, "\n");
 	} else if ( !(cb1v[i])(argc1, argv1) ) {
 	    fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
-	    fprintf(dlog, "%s failed.\n%s\n", cmd1, Err_Get());
+	    fprintf(dlog, "%s: %s failed.\n%s\n", time_stamp(), cmd1, Err_Get());
 	}
 	if ( rslt && (fclose(rslt) == EOF) ) {
-	    fprintf(dlog, "Could not close %s.\n%s\n",
+	    fprintf(dlog, "%s: Could not close %s.\n%s\n", time_stamp(),
 		    rslt_fl, strerror(errno));
 	    continue;
 	}
     }
-    fprintf(dlog, "Exiting. No more input.\n");
+    fprintf(dlog, "%s: exiting. No more input.\n", time_stamp());
     if ( close(i_cmd_in) == -1 ) {
-	fprintf(dlog, "Could not close command stream.\n%s\n", strerror(errno));
+	fprintf(dlog, "%s: could not close command stream.\n%s\n",
+		time_stamp(), strerror(errno));
     }
     fclose(dlog);
     unload();
@@ -329,9 +332,15 @@ void unload(void)
 /* Get a character string with the current time */
 char *time_stamp(void)
 {
-    time_t tm;
-    time(&tm);
-    return ctime(&tm);
+    static char ts[LEN];
+    time_t now;
+
+    now = time(NULL);
+    if (strftime(ts, LEN, "%Y/%m/%d %H:%M:%S %Z", localtime(&now))) {
+	return ts;
+    } else {
+	return "";
+    }
 }
 
 int cmd_len_cb(int argc, char *argv[])
@@ -484,12 +493,14 @@ int read_cb(int argc, char *argv[])
 		    /* Child process - gzip.  Send child stdout to pipe. */
 		    if ( close(i_cmd_in) == -1 || close(i_cmd_out) == -1
 			    || fclose(rslt) == EOF) {
-			fprintf(dlog, "gzip child could not close server streams");
+			fprintf(dlog, "%s: gzip child could not close"
+				" server streams", time_stamp());
 			_exit(EXIT_FAILURE);
 		    }
 		    if ( dup2(pfd[1], STDOUT_FILENO) == -1
 			    || close(pfd[1]) == -1 ) {
-			fprintf(dlog, "Could not set up gzip process");
+			fprintf(dlog, "%s: could not set up gzip process",
+				time_stamp());
 			_exit(EXIT_FAILURE);
 		    }
 		    if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
@@ -911,7 +922,7 @@ int stop_cb(int argc, char *argv[])
     if (snprintf(rm, LEN, "rm -r %s", dir) < LEN) {
 	system(rm);
     } else {
-	fprintf(dlog, "Could not delete working directory.\n");
+	fprintf(dlog, "%s: could not delete working directory.\n", time_stamp());
     }
     fprintf(rslt, "unset SIGMET_RAWD_PID SIGMET_RAWD_DIR SIGMET_RAWD_IN");
     exit(EXIT_SUCCESS);
