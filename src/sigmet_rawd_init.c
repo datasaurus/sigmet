@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.64 $ $Date: 2010/01/21 17:26:11 $
+ .	$Revision: 1.65 $ $Date: 2010/01/21 17:29:46 $
  */
 
 #include <stdlib.h>
@@ -31,14 +31,18 @@
 char *cmd;
 char *cmd1;
 
+/* Size for various strings */
+#define LEN 1024
+
 /* Subcommands */
-#define NCMD 9
+#define NCMD 10
 char *cmd1v[NCMD] = {
-    "cmd_len", "types", "good", "read", "volume_headers", "ray_headers", "data",
-    "bin_outline", "bintvls"
+    "cmd_len", "log", "types", "good", "read", "volume_headers", "ray_headers",
+    "data", "bin_outline", "bintvls"
 };
 typedef int (callback)(int , char **);
 callback cmd_len_cb;
+callback log_cb;
 callback types_cb;
 callback good_cb;
 callback read_cb;
@@ -48,8 +52,8 @@ callback data_cb;
 callback bin_outline_cb;
 callback bintvls_cb;
 callback *cb1v[NCMD] = {
-    cmd_len_cb, types_cb, good_cb, read_cb, volume_headers_cb, ray_headers_cb,
-    data_cb, bin_outline_cb, bintvls_cb
+    cmd_len_cb, log_cb, types_cb, good_cb, read_cb, volume_headers_cb,
+    ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb
 };
 
 /* If true, use degrees instead of radians */
@@ -71,6 +75,7 @@ void unload(void);	/* Delete and reinitialize contents of vol */
 int i_cmd_in;		/* Stream from the file named in_nm */
 int i_cmd_out;		/* Unused outptut stream (see explanation below). */
 int idlog;		/* Error log */
+char log_nm[LEN];	/* Name of log file */
 FILE *dlog;		/* Error log */
 FILE *rslt;		/* Send results to client */
 
@@ -80,9 +85,6 @@ long buf_l;
 /* Shell type determines type of printout */
 enum SHELL_TYPE {C, SH};
 
-/* String size */
-#define LEN 1024
-
 /* Maximum number of arguments in input command */
 #define ARGCX 512
 
@@ -91,7 +93,6 @@ int main(int argc, char *argv[])
     enum SHELL_TYPE shtyp;	/* Controls how environment variables are printed */
     char dir[LEN];		/* Working directory for server */
     char cmd_in_nm[LEN];	/* Space to print file names */
-    char log_nm[LEN];		/* Name of log file */
     pid_t pid;			/* Process id for this process */
     struct sigaction schld;	/* Signal action to ignore zombies */
     int i_rslt;			/* File descriptor for rslt stream */
@@ -332,6 +333,34 @@ int cmd_len_cb(int argc, char *argv[])
 	return 0;
     }
     fprintf(rslt, "%ld\n", buf_l);
+    return 1;
+}
+
+int log_cb(int argc, char *argv[])
+{
+    FILE *l;
+    int c;
+
+    if (argc != 1) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	return 0;
+    }
+    if ( !(l = fopen(log_nm, "r")) ) {
+	Err_Append("Could not open log file.\n");
+	return 0;
+    }
+    while ( (c = fgetc(l)) != EOF && fputc(c, rslt) != EOF ) {
+	continue;
+    }
+    if ( ferror(l) || ferror(rslt) ) {
+	Err_Append("Error writing log file.  ");
+	Err_Append(strerror(errno));
+    }
+    if ( fclose(l) == EOF ) {
+	Err_Append("Could not close log file.\n");
+	return 0;
+    }
     return 1;
 }
 
