@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.66 $ $Date: 2010/01/21 21:23:08 $
+ .	$Revision: 1.67 $ $Date: 2010/01/21 21:45:21 $
  */
 
 #include <stdlib.h>
@@ -57,6 +57,8 @@ callback *cb1v[NCMD] = {
     ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb, stop_cb
 };
 
+char *time_stamp(void);
+
 /* If true, use degrees instead of radians */
 int use_deg = 0;
 
@@ -97,7 +99,6 @@ int main(int argc, char *argv[])
     pid_t pid;			/* Process id for this process */
     struct sigaction schld;	/* Signal action to ignore zombies */
     int i_rslt;			/* File descriptor for rslt stream */
-    time_t tm;			/* Time. For log. */
     char *ang_u;		/* Angle unit */
     char *b, *b1;		/* Point into buf, end of buf */
 
@@ -183,8 +184,6 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "%s: could not create log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    time(&tm);
-    fprintf(dlog, "sigmet_rawd pid=%d started. %s\n", getpid(), ctime(&tm));
 
     /* Print information about input streams and put server in background */
     switch (pid = fork()) {
@@ -214,6 +213,9 @@ int main(int argc, char *argv[])
     fclose(stdin);
     fclose(stdout);
     fclose(stderr);
+
+    fprintf(dlog, "sigmet_rawd started. pid=%d\n", getpid());
+    fflush(dlog);
 
     /* Catch signals from children to prevent zombies */
     schld.sa_handler = SIG_DFL;
@@ -322,6 +324,14 @@ void unload(void)
     Sigmet_FreeVol(&vol);
     have_hdr = have_vol = 0;
     vol_nm[0] = '\0';
+}
+
+/* Get a character string with the current time */
+char *time_stamp(void)
+{
+    time_t tm;
+    time(&tm);
+    return ctime(&tm);
 }
 
 int cmd_len_cb(int argc, char *argv[])
@@ -903,6 +913,7 @@ int stop_cb(int argc, char *argv[])
     } else {
 	fprintf(dlog, "Could not delete working directory.\n");
     }
+    fprintf(rslt, "unset SIGMET_RAWD_PID SIGMET_RAWD_DIR SIGMET_RAWD_IN");
     exit(EXIT_SUCCESS);
     return 0;
 }
