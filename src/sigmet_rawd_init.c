@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.62 $ $Date: 2010/01/21 16:36:30 $
+ .	$Revision: 1.63 $ $Date: 2010/01/21 16:44:36 $
  */
 
 #include <stdlib.h>
@@ -69,8 +69,7 @@ void unload(void);	/* Delete and reinitialize contents of vol */
 /* These streams are global so that child processes can close them, since they do
  * not need them, and should not have command access to the server, anyway. */
 int i_cmd_in;		/* Stream from the file named in_nm */
-int i_cmd_out;		/* Unused outptut stream, to prevent process from
-			 * exiting while waiting for input. */
+int i_cmd_out;		/* Unused outptut stream (see explanation below). */
 int idlog;		/* Error log */
 FILE *dlog;		/* Error log */
 FILE *rslt;		/* Send results to client */
@@ -151,7 +150,7 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* Open command input stream */
+    /* Create named pipe for command input */
     if ( snprintf(cmd_in_nm, LEN, "%s/%s", dir, "sigmet.in") >= LEN ) {
 	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
 	exit(EXIT_FAILURE);
@@ -159,16 +158,6 @@ int main(int argc, char *argv[])
     if ( (mkfifo(cmd_in_nm, 0600) == -1) ) {
 	fprintf(stderr, "%s: sigmet_rawd could not create input pipe.\n%s\n",
 		cmd, strerror(errno));
-	exit(EXIT_FAILURE);
-    }
-    if ( (i_cmd_in = open(cmd_in_nm, O_RDONLY | O_NONBLOCK)) == -1 ) {
-	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
-		cmd, cmd_in_nm, strerror(errno));
-	exit(EXIT_FAILURE);
-    }
-    if ( (i_cmd_out = open(cmd_in_nm, O_WRONLY | O_NONBLOCK)) == -1 ) {
-	fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
-		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
@@ -238,66 +227,82 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
+    /* Open command input stream.  It will block until a client writes something. */
+    if ( (i_cmd_in = open(cmd_in_nm, O_RDONLY)) == -1 ) {
+	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
+		cmd, cmd_in_nm, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    i_cmd_out = -2;
+
     /*
        Read command from i_cmd_in into buf.
        Contents of buf: argc argv rslt_nm
-       argc sent as binary integer. argv members and rslt_nm nul separated.
+       argc transferred as binary integer. argv members and rslt_nm nul separated.
      */
-    while (1) {
-	if ( read(i_cmd_in, buf, buf_l) == buf_l ) {
-	    int argc1;		/* Number of arguments in an input line */
-	    char *argv1[ARGCX];	/* Arguments from an input line */
-	    int a;		/* Index into argv1 */
-	    char *rslt_fl;	/* Where to send output */
-	    int i;		/* Loop index */
+    while ( read(i_cmd_in, buf, buf_l) == buf_l ) {
+	int argc1;		/* Number of arguments in an input line */
+	char *argv1[ARGCX];	/* Arguments from an input line */
+	int a;			/* Index into argv1 */
+	char *rslt_fl;		/* Where to send output */
+	int i;			/* Loop index */
 
-	    /* Break input line into arguments */
-	    argc1 = *(int *)buf;
-	    if (argc1 > ARGCX) {
-		fprintf(dlog, "Unable to parse command with %d arguments. "
-			"Limit is %d\n", argc1, ARGCX);
-		continue;
-	    }
-	    buf += sizeof(int);
-	    for (a = 0, argv1[a] = b = buf; b < b1 && a < argc1; b++) {
-		if ( *b == '\0' ) {
-		    argv1[++a] = b + 1;
-		}
-	    }
-	    if ( b == b1 ) {
-		fprintf(dlog, "Command line gives no destination.\n");
-		continue;
-	    }
-	    rslt_fl = b;
+	/*
+	   Daemon now has something to read. Open command pipe for output so
+	   daemon keeps running while waiting for more clients.
+	 */
+	if ( i_cmd_out == -2 && (i_cmd_out = open(cmd_in_nm, O_WRONLY)) == -1 ) {
+	    fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
+		    cmd, cmd_in_nm, strerror(errno));
+	    exit(EXIT_FAILURE);
+	}
 
-	    /* First argument tells where to send output.  Open and block. */
-	    rslt = NULL;
-	    if ( (i_rslt = open(rslt_fl, O_WRONLY)) == -1
-		    || !(rslt = fdopen(i_rslt, "w")) ) {
-		fprintf(dlog, "Could not open %s for output.\n%s\n",
-			rslt_fl, strerror(errno));
-		continue;
+	/* Break input line into arguments */
+	argc1 = *(int *)buf;
+	if (argc1 > ARGCX) {
+	    fprintf(dlog, "Unable to parse command with %d arguments. "
+		    "Limit is %d\n", argc1, ARGCX);
+	    continue;
+	}
+	buf += sizeof(int);
+	for (a = 0, argv1[a] = b = buf; b < b1 && a < argc1; b++) {
+	    if ( *b == '\0' ) {
+		argv1[++a] = b + 1;
 	    }
+	}
+	if ( b == b1 ) {
+	    fprintf(dlog, "Command line gives no destination.\n");
+	    continue;
+	}
+	rslt_fl = b;
 
-	    /* Execute command on rest of command line */
-	    cmd1 = argv1[0];
-	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-		fprintf(rslt, "No option or subcommand named \"%s\"\n",
-			cmd1);
-		fprintf(rslt, "Subcommand must be one of: ");
-		for (i = 0; i < NCMD; i++) {
-		    fprintf(rslt, "%s ", cmd1v[i]);
-		}
-		fprintf(rslt, "\n");
-	    } else if ( !(cb1v[i])(argc1, argv1) ) {
-		fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
-		fprintf(dlog, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	/* First argument tells where to send output.  Open and block. */
+	rslt = NULL;
+	if ( (i_rslt = open(rslt_fl, O_WRONLY)) == -1
+		|| !(rslt = fdopen(i_rslt, "w")) ) {
+	    fprintf(dlog, "Could not open %s for output.\n%s\n",
+		    rslt_fl, strerror(errno));
+	    continue;
+	}
+
+	/* Execute command on rest of command line */
+	cmd1 = argv1[0];
+	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+	    fprintf(rslt, "No option or subcommand named \"%s\"\n",
+		    cmd1);
+	    fprintf(rslt, "Subcommand must be one of: ");
+	    for (i = 0; i < NCMD; i++) {
+		fprintf(rslt, "%s ", cmd1v[i]);
 	    }
-	    if ( rslt && (fclose(rslt) == EOF) ) {
-		fprintf(dlog, "Could not close %s.\n%s\n",
-			rslt_fl, strerror(errno));
-		continue;
-	    }
+	    fprintf(rslt, "\n");
+	} else if ( !(cb1v[i])(argc1, argv1) ) {
+	    fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	    fprintf(dlog, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	}
+	if ( rslt && (fclose(rslt) == EOF) ) {
+	    fprintf(dlog, "Could not close %s.\n%s\n",
+		    rslt_fl, strerror(errno));
+	    continue;
 	}
     }
     fprintf(dlog, "Exiting. No more input.\n");
