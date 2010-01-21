@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.60 $ $Date: 2010/01/20 23:02:34 $
+ .	$Revision: 1.61 $ $Date: 2010/01/20 23:08:26 $
  */
 
 #include <stdlib.h>
@@ -76,7 +76,7 @@ FILE *dlog;		/* Error log */
 FILE *rslt;		/* Send results to client */
 
 /* Length of input line */
-long cmd_len;
+long buf_l;
 
 /* Shell type determines type of printout */
 enum SHELL_TYPE {C, SH};
@@ -100,9 +100,9 @@ int main(int argc, char *argv[])
     int i_rslt;			/* File descriptor for rslt stream */
     time_t tm;			/* Time. For log. */
     char *ang_u;		/* Angle unit */
-    size_t l;			/* Length of an input string */
-    size_t l1;			/* Terminator at end of input string */
-    char *ln;			/* Input line from client */
+    char *buf;			/* Input from client */
+    size_t buf_l;		/* Allocation at buf */
+    char *b, *b1;		/* Point into buf, end of buf */
 
     shtyp = SH;
     if ( (cmd = strrchr(argv[0], '/')) ) {
@@ -185,15 +185,16 @@ int main(int argc, char *argv[])
     }
 
     /* Allocate input line */
-    if ( (cmd_len = fpathconf(i_cmd_in, _PC_PIPE_BUF)) == -1 ) {
+    if ( (buf_l = fpathconf(i_cmd_in, _PC_PIPE_BUF)) == -1 ) {
 	fprintf(stderr, "%s: Could not get pipe buffer size.\n%s\n",
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-    if ( !(ln = MALLOC(cmd_len)) ) {
-	fprintf(stderr, "%s: Could not allocate input line.\n", cmd);
+    if ( !(buf = CALLOC(buf_l, 1)) ) {
+	fprintf(stderr, "%s: Could not allocate input buffer.\n", cmd);
 	exit(EXIT_FAILURE);
     }
+    b1 = buf + buf_l;
 
     /* Open log file */
     if ( snprintf(log_nm, LEN, "%s/%s", dir, "sigmet.log") >= LEN ) {
@@ -250,43 +251,48 @@ int main(int argc, char *argv[])
     }
 
     /*
-       Read and execute commands from cmd_in
-       Input = byte_count(=l) + bytes + terminator(=0)
+       Read command from cmd_in into buf.
+       Contents of buf: argc argv rslt_nm
+       argc sent as binary integer. argv members and rslt_nm nul separated.
      */
     while (1) {
-	if ( fread(&l, sizeof(size_t), 1, cmd_in) == 1
-		&& l <= cmd_len
-		&& fread(ln, 1, l, cmd_in) == l
-		&& fread(&l1, sizeof(size_t), 1, cmd_in) == 1
-		&& l1 == 0 ) {
-
+	if ( read(i_cmd_in, buf, buf_l) == buf_l ) {
 	    int argc1;		/* Number of arguments in an input line */
 	    char *argv1[ARGCX];	/* Arguments from an input line */
+	    int a;		/* Index into argv1 */
 	    char *rslt_fl;	/* Where to send output */
-	    char *c, *c1;
-	    int a, i;
+	    int i;		/* Loop index */
 
 	    /* Break input line into arguments */
-	    for (a = 0, c = argv1[a] = ln, c1 = ln + l; c < c1 && a < ARGCX; c++) {
-		if ( *c == '\0' ) {
-		    argv1[++a] = c + 1;
+	    argc1 = *(int *)buf;
+	    if (argc1 > ARGCX) {
+		fprintf(dlog, "Unable to parse command with %d arguments. "
+			"Limit is %d\n", argc1, ARGCX);
+		continue;
+	    }
+	    buf += sizeof(int);
+	    for (a = 0, argv1[a] = b = buf; b < b1 && a < argc1; b++) {
+		if ( *b == '\0' ) {
+		    argv1[++a] = b + 1;
 		}
 	    }
-	    argc1 = a;
+	    if ( b == b1 ) {
+		fprintf(dlog, "Command line gives no destination.\n");
+		continue;
+	    }
+	    rslt_fl = b;
 
-	    /* First argument tells where to send output */
-	    rslt_fl = argv1[0];
+	    /* First argument tells where to send output.  Open and block. */
 	    rslt = NULL;
-	    if ( (strcmp(rslt_fl, "none") != 0)
-		    && !(i_rslt = open(rslt_fl, O_WRONLY))
-		    && !(rslt = fdopen(i_rslt, "w")) ) {
+	    if ( (i_rslt = open(rslt_fl, O_WRONLY)) == -1
+		    || !(rslt = fdopen(i_rslt, "w")) ) {
 		fprintf(dlog, "Could not open %s for output.\n%s\n",
 			rslt_fl, strerror(errno));
 		continue;
 	    }
 
 	    /* Execute command on rest of command line */
-	    cmd1 = argv1[1];
+	    cmd1 = argv1[0];
 	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 		fprintf(rslt, "No option or subcommand named \"%s\"\n",
 			cmd1);
@@ -295,7 +301,7 @@ int main(int argc, char *argv[])
 		    fprintf(rslt, "%s ", cmd1v[i]);
 		}
 		fprintf(rslt, "\n");
-	    } else if ( !(cb1v[i])(argc1 - 1, argv1 + 1) ) {
+	    } else if ( !(cb1v[i])(argc1, argv1) ) {
 		fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 		fprintf(dlog, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    }
@@ -317,7 +323,7 @@ int main(int argc, char *argv[])
     fclose(dlog);
     unload();
     FREE(vol_nm);
-    FREE(ln);
+    FREE(buf);
 
     return 0;
 }
@@ -336,7 +342,7 @@ int cmd_len_cb(int argc, char *argv[])
 	Err_Append(cmd1);
 	return 0;
     }
-    fprintf(rslt, "%ld\n", cmd_len);
+    fprintf(rslt, "%ld\n", buf_l);
     return 1;
 }
 
