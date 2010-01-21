@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.65 $ $Date: 2010/01/21 17:29:46 $
+ .	$Revision: 1.66 $ $Date: 2010/01/21 21:23:08 $
  */
 
 #include <stdlib.h>
@@ -35,10 +35,10 @@ char *cmd1;
 #define LEN 1024
 
 /* Subcommands */
-#define NCMD 10
+#define NCMD 11
 char *cmd1v[NCMD] = {
     "cmd_len", "log", "types", "good", "read", "volume_headers", "ray_headers",
-    "data", "bin_outline", "bintvls"
+    "data", "bin_outline", "bintvls", "stop"
 };
 typedef int (callback)(int , char **);
 callback cmd_len_cb;
@@ -51,9 +51,10 @@ callback ray_headers_cb;
 callback data_cb;
 callback bin_outline_cb;
 callback bintvls_cb;
+callback stop_cb;
 callback *cb1v[NCMD] = {
     cmd_len_cb, log_cb, types_cb, good_cb, read_cb, volume_headers_cb,
-    ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb
+    ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb, stop_cb
 };
 
 /* If true, use degrees instead of radians */
@@ -70,8 +71,8 @@ void unload(void);	/* Delete and reinitialize contents of vol */
 /* Bounds limit indicating all possible index values */
 #define ALL -1
 
-/* These streams are global so that child processes can close them, since they do
- * not need them, and should not have command access to the server, anyway. */
+/* Files and process streams */
+char dir[LEN];		/* Working directory for server */
 int i_cmd_in;		/* Stream from the file named in_nm */
 int i_cmd_out;		/* Unused outptut stream (see explanation below). */
 int idlog;		/* Error log */
@@ -79,8 +80,9 @@ char log_nm[LEN];	/* Name of log file */
 FILE *dlog;		/* Error log */
 FILE *rslt;		/* Send results to client */
 
-/* Length of input line */
-long buf_l;
+/* Input line - has commands for the daemon */
+char *buf;
+size_t buf_l;		/* Allocation at buf */
 
 /* Shell type determines type of printout */
 enum SHELL_TYPE {C, SH};
@@ -91,15 +93,12 @@ enum SHELL_TYPE {C, SH};
 int main(int argc, char *argv[])
 {
     enum SHELL_TYPE shtyp;	/* Controls how environment variables are printed */
-    char dir[LEN];		/* Working directory for server */
     char cmd_in_nm[LEN];	/* Space to print file names */
     pid_t pid;			/* Process id for this process */
     struct sigaction schld;	/* Signal action to ignore zombies */
     int i_rslt;			/* File descriptor for rslt stream */
     time_t tm;			/* Time. For log. */
     char *ang_u;		/* Angle unit */
-    char *buf;			/* Input from client */
-    size_t buf_l;		/* Allocation at buf */
     char *b, *b1;		/* Point into buf, end of buf */
 
     shtyp = SH;
@@ -889,4 +888,21 @@ int bintvls_cb(int argc, char *argv[])
     }
 
     return 1;
+}
+
+int stop_cb(int argc, char *argv[])
+{
+    char rm[LEN];
+
+    fclose(dlog);
+    unload();
+    FREE(vol_nm);
+    FREE(buf);
+    if (snprintf(rm, LEN, "rm -r %s", dir) < LEN) {
+	system(rm);
+    } else {
+	fprintf(dlog, "Could not delete working directory.\n");
+    }
+    exit(EXIT_SUCCESS);
+    return 0;
 }

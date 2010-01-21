@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.1 $ $Date: 2010/01/20 01:05:15 $
+ .	$Revision: 1.2 $ $Date: 2010/01/21 16:36:30 $
  */
 
 #include <stdlib.h>
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
 	    perror("could not remove result pipe");
 	}
     }
-    if ( unlink(rslt_nm) == -1 ) {
+    if ( access(rslt_nm, F_OK) == 0 && unlink(rslt_nm) == -1 ) {
 	perror("could not remove result pipe");
     }
 
