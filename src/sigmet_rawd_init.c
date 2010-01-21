@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.61 $ $Date: 2010/01/20 23:08:26 $
+ .	$Revision: 1.62 $ $Date: 2010/01/21 16:36:30 $
  */
 
 #include <stdlib.h>
@@ -68,8 +68,8 @@ void unload(void);	/* Delete and reinitialize contents of vol */
 
 /* These streams are global so that child processes can close them, since they do
  * not need them, and should not have command access to the server, anyway. */
-FILE *cmd_in;		/* Stream from the file named in_nm */
-FILE *cmd_out;		/* Unused outptut stream, to prevent process from
+int i_cmd_in;		/* Stream from the file named in_nm */
+int i_cmd_out;		/* Unused outptut stream, to prevent process from
 			 * exiting while waiting for input. */
 int idlog;		/* Error log */
 FILE *dlog;		/* Error log */
@@ -90,8 +90,6 @@ enum SHELL_TYPE {C, SH};
 int main(int argc, char *argv[])
 {
     enum SHELL_TYPE shtyp;	/* Controls how environment variables are printed */
-    int i_cmd_in;		/* File descriptor for cmd_in */
-    int i_cmd_out;		/* File descriptor for cmd_out */
     char dir[LEN];		/* Working directory for server */
     char cmd_in_nm[LEN];	/* Space to print file names */
     char log_nm[LEN];		/* Name of log file */
@@ -168,17 +166,7 @@ int main(int argc, char *argv[])
 		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-    if ( !(cmd_in = fdopen(i_cmd_in, "r")) ) {
-	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
-		cmd, cmd_in_nm, strerror(errno));
-	exit(EXIT_FAILURE);
-    }
     if ( (i_cmd_out = open(cmd_in_nm, O_WRONLY | O_NONBLOCK)) == -1 ) {
-	fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
-		cmd, cmd_in_nm, strerror(errno));
-	exit(EXIT_FAILURE);
-    }
-    if ( !(cmd_out = fdopen(i_cmd_out, "w")) ) {
 	fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
 		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
@@ -251,7 +239,7 @@ int main(int argc, char *argv[])
     }
 
     /*
-       Read command from cmd_in into buf.
+       Read command from i_cmd_in into buf.
        Contents of buf: argc argv rslt_nm
        argc sent as binary integer. argv members and rslt_nm nul separated.
      */
@@ -312,13 +300,9 @@ int main(int argc, char *argv[])
 	    }
 	}
     }
-    if ( feof(cmd_in) ) {
-	fprintf(dlog, "Exiting. No more input.\n");
-    } else if ( fclose(cmd_in) == EOF ) {
+    fprintf(dlog, "Exiting. No more input.\n");
+    if ( close(i_cmd_in) == -1 ) {
 	fprintf(dlog, "Could not close command stream.\n%s\n", strerror(errno));
-    }
-    if ( ferror(cmd_in) ) {
-	fprintf(dlog, "Failure on command stream.\n%s\n", strerror(errno));
     }
     fclose(dlog);
     unload();
@@ -455,7 +439,7 @@ int read_cb(int argc, char *argv[])
 		    return 0;
 		case 0:
 		    /* Child process - gzip.  Send child stdout to pipe. */
-		    if ( fclose(cmd_in) == EOF || fclose(cmd_out) == EOF
+		    if ( close(i_cmd_in) == -1 || close(i_cmd_out) == -1
 			    || fclose(rslt) == EOF) {
 			fprintf(dlog, "gzip child could not close server streams");
 			_exit(EXIT_FAILURE);
