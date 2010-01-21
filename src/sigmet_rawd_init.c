@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.68 $ $Date: 2010/01/21 22:06:47 $
+ .	$Revision: 1.69 $ $Date: 2010/01/21 22:28:54 $
  */
 
 #include <stdlib.h>
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
     }
 
     /* Open command input stream.  It will block until a client writes something. */
-    if ( (i_cmd_in = open(cmd_in_nm, O_RDONLY)) == -1 ) {
+    if ( (i_cmd_in = open(cmd_in_nm, O_RDONLY, 0600)) == -1 ) {
 	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
 		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
@@ -282,7 +282,8 @@ int main(int argc, char *argv[])
 
 	/* First argument tells where to send output.  Open and block. */
 	rslt = NULL;
-	if ( (i_rslt = open(rslt_fl, O_WRONLY)) == -1
+	if (       access(rslt_fl, W_OK) == -1
+		|| (i_rslt = open(rslt_fl, O_WRONLY)) == -1
 		|| !(rslt = fdopen(i_rslt, "w")) ) {
 	    fprintf(dlog, "%s: Could not open %s for output.\n%s\n", time_stamp(),
 		    rslt_fl, strerror(errno));
