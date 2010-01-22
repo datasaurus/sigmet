@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.75 $ $Date: 2010/01/22 19:14:02 $
+ .	$Revision: 1.76 $ $Date: 2010/01/22 21:39:51 $
  */
 
 #include <stdlib.h>
@@ -213,7 +213,20 @@ int main(int argc, char *argv[])
     fclose(stdout);
     fclose(stderr);
 
-    fprintf(dlog, "%s: sigmet_rawd started. pid=%d\n", time_stamp(), getpid());
+    /* Log initialization */
+    pid = getpid();
+    fprintf(dlog, "%s: sigmet_rawd started. pid=%d\n", time_stamp(), pid);
+    fprintf(dlog, "Set environment as follows:\n");
+    if (shtyp == SH) {
+	fprintf(dlog, "SIGMET_RAWD_PID=%d; export SIGMET_RAWD_PID;\n", pid);
+	fprintf(dlog, "SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", ddir);
+	fprintf(dlog, "SIGMET_RAWD_IN=%s; export SIGMET_RAWD_IN;\n", cmd_in_nm);
+    } else {
+	fprintf(dlog, "setenv SIGMET_RAWD_PID %d;\n", pid);
+	fprintf(dlog, "setenv SIGMET_RAWD_DIR %s;\n", ddir);
+	fprintf(dlog, "setenv SIGMET_RAWD_IN=%s;\n", cmd_in_nm);
+    }
+    fprintf(dlog, "\n");
     fflush(dlog);
 
     /* Catch signals from children to prevent zombies */
