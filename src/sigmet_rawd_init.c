@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.72 $ $Date: 2010/01/22 03:49:51 $
+ .	$Revision: 1.73 $ $Date: 2010/01/22 16:29:04 $
  */
 
 #include <stdlib.h>
@@ -84,7 +84,7 @@ FILE *rslt;		/* Send results to client */
 
 /* Input line - has commands for the daemon */
 char *buf;
-size_t buf_l;		/* Allocation at buf */
+long buf_l;		/* Allocation at buf */
 
 /* Shell type determines type of printout */
 enum SHELL_TYPE {C, SH};
@@ -98,7 +98,6 @@ int main(int argc, char *argv[])
     char cmd_in_nm[LEN];	/* Space to print file names */
     pid_t pid;			/* Process id for this process */
     struct sigaction schld;	/* Signal action to ignore zombies */
-    int i_rslt;			/* File descriptor for rslt stream */
     char *ang_u;		/* Angle unit */
     char *b, *b1;		/* Point into buf, end of buf */
 
@@ -168,7 +167,7 @@ int main(int argc, char *argv[])
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-    if ( !(buf = CALLOC(buf_l, 1)) ) {
+    if ( !(buf = CALLOC((size_t)buf_l, 1)) ) {
 	fprintf(stderr, "%s: Could not allocate input buffer.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -248,7 +247,7 @@ int main(int argc, char *argv[])
        Contents of buf: argc argv rslt_nm
        argc transferred as binary integer. argv members and rslt_nm nul separated.
      */
-    while ( read(i_cmd_in, buf, buf_l) == buf_l ) {
+    while ( read(i_cmd_in, buf, (size_t)buf_l) == buf_l ) {
 	int argc1;		/* Number of arguments in an input line */
 	char *argv1[ARGCX];	/* Arguments from an input line */
 	int a;			/* Index into argv1 */
@@ -269,26 +268,23 @@ int main(int argc, char *argv[])
 	    }
 	}
 
-	/* Last argument tells where to send output.  Open and block. */
+	/* Last argument tells where to send output. */
 	if ( b == b1 ) {
 	    fprintf(dlog, "%s: Command line gives no destination.\n", time_stamp());
 	    continue;
 	}
 	rslt_fl = b;
 	rslt = NULL;
-	if (       access(rslt_fl, W_OK) == -1
-		|| (i_rslt = open(rslt_fl, O_WRONLY)) == -1
-		|| !(rslt = fdopen(i_rslt, "w")) ) {
+	if ( !(rslt = fopen(rslt_fl, "w")) ) {
 	    fprintf(dlog, "%s: Could not open %s for output.\n%s\n", time_stamp(),
 		    rslt_fl, strerror(errno));
 	    continue;
 	}
 
-	/* Execute command on rest of command line */
+	/* Execute command */
 	cmd1 = argv1[0];
 	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-	    fprintf(rslt, "No option or subcommand named \"%s\"\n",
-		    cmd1);
+	    fprintf(rslt, "No option or subcommand named \"%s\"\n", cmd1);
 	    fprintf(rslt, "Subcommand must be one of: ");
 	    for (i = 0; i < NCMD; i++) {
 		fprintf(rslt, "%s ", cmd1v[i]);
@@ -437,7 +433,7 @@ int read_cb(int argc, char *argv[])
     FILE *in;
     char *t;
     size_t l;
-    pid_t pid = 0;
+    pid_t pid;
     char *sfx;		/* Filename suffix */
     int pfd[2];		/* Pipe for data */
 
@@ -462,7 +458,8 @@ int read_cb(int argc, char *argv[])
 	    Err_Append("\nCould not create pipe for gzip.  ");
 	    return 0;
 	}
-	switch (pid = fork()) {
+	pid = fork();
+	switch (pid) {
 	    case -1:
 		Err_Append(strerror(errno));
 		Err_Append("\nCould not spawn gzip process.  ");
@@ -565,7 +562,7 @@ int ray_headers_cb(int argc, char *argv[])
 	return 0;
     }
     for (s = 0; s < vol.ih.tc.tni.num_sweeps; s++) {
-	for (r = 0; r < vol.ih.ic.num_rays; r++) {
+	for (r = 0; r < (int)vol.ih.ic.num_rays; r++) {
 	    int yr, mon, da, hr, min;
 	    double sec;
 
@@ -662,7 +659,7 @@ int data_cb(int argc, char *argv[])
 	Err_Append("Sweep index greater than number of sweeps.  ");
 	return 0;
     }
-    if (r != ALL && r >= vol.ih.ic.num_rays) {
+    if (r != ALL && r >= (int)vol.ih.ic.num_rays) {
 	Err_Append("Ray index greater than number of rays.  ");
 	return 0;
     }
@@ -678,7 +675,7 @@ int data_cb(int argc, char *argv[])
 	    abbrv = Sigmet_DataType_Abbrv(type);
 	    for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
 		fprintf(rslt, "%s. sweep %d\n", abbrv, s);
-		for (r = 0; r < vol.ih.ic.num_rays; r++) {
+		for (r = 0; r < (int)vol.ih.ic.num_rays; r++) {
 		    if ( !vol.ray_ok[s][r] ) {
 			continue;
 		    }
