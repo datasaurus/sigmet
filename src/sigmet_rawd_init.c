@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.74 $ $Date: 2010/01/22 17:02:56 $
+ .	$Revision: 1.75 $ $Date: 2010/01/22 19:14:02 $
  */
 
 #include <stdlib.h>
@@ -74,13 +74,13 @@ void unload(void);	/* Delete and reinitialize contents of vol */
 #define ALL -1
 
 /* Files and process streams */
-char dir[LEN];		/* Working directory for server */
-int i_cmd_in;		/* Stream from the file named in_nm */
-int i_cmd_out;		/* Unused outptut stream (see explanation below). */
+char ddir[LEN];		/* Working directory for server */
+int i_cmd0;		/* Where to get commands */
+int i_cmd1;		/* Unused outptut (see explanation below). */
 int idlog;		/* Error log */
 char log_nm[LEN];	/* Name of log file */
 FILE *dlog;		/* Error log */
-FILE *rslt;		/* Send results to client */
+FILE *rslt1;		/* Where to send results */
 
 /* Input line - has commands for the daemon */
 char *buf;
@@ -95,7 +95,7 @@ enum SHELL_TYPE {C, SH};
 int main(int argc, char *argv[])
 {
     enum SHELL_TYPE shtyp;	/* Controls how environment variables are printed */
-    char cmd_in_nm[LEN];	/* Space to print file names */
+    char cmd_in_nm[LEN];	/* Name of fifo from which to read commands */
     pid_t pid;			/* Process id for this process */
     struct sigaction schld;	/* Signal action to ignore zombies */
     char *ang_u;		/* Angle unit */
@@ -140,18 +140,18 @@ int main(int argc, char *argv[])
     *vol_nm = '\0';
 
     /* Create working directory */
-    if ( snprintf(dir, LEN, "%s/.sigmet_raw", getenv("HOME")) >= LEN ) {
+    if ( snprintf(ddir, LEN, "%s/.sigmet_raw", getenv("HOME")) >= LEN ) {
 	fprintf(stderr, "%s: could not create name for working directory.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( (mkdir(dir, 0700) == -1) ) {
+    if ( (mkdir(ddir, 0700) == -1) ) {
 	fprintf(stderr, "%s: could not create\n%s\n%s\n",
-		cmd, dir, strerror(errno));
+		cmd, ddir, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
     /* Create named pipe for command input */
-    if ( snprintf(cmd_in_nm, LEN, "%s/%s", dir, "sigmet.in") >= LEN ) {
+    if ( snprintf(cmd_in_nm, LEN, "%s/%s", ddir, "sigmet.in") >= LEN ) {
 	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
     b1 = buf + buf_l;
 
     /* Open log file */
-    if ( snprintf(log_nm, LEN, "%s/%s", dir, "sigmet.log") >= LEN ) {
+    if ( snprintf(log_nm, LEN, "%s/%s", ddir, "sigmet.log") >= LEN ) {
 	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -197,15 +197,15 @@ int main(int argc, char *argv[])
 	    /* Parent. Print information and exit. Server will go to background. */
 	    if (shtyp == SH) {
 		printf("SIGMET_RAWD_PID=%d; export SIGMET_RAWD_PID;\n", pid);
-		printf("SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", dir);
+		printf("SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", ddir);
 		printf("SIGMET_RAWD_IN=%s; export SIGMET_RAWD_IN;\n", cmd_in_nm);
 	    } else {
 		printf("setenv SIGMET_RAWD_PID %d;\n", pid);
-		printf("setenv SIGMET_RAWD_DIR %s;\n", dir);
+		printf("setenv SIGMET_RAWD_DIR %s;\n", ddir);
 		printf("setenv SIGMET_RAWD_IN=%s;\n", cmd_in_nm);
 	    }
 	    printf("echo Starting sigmet_rawd. Process id = %d.;\n", pid);
-	    printf("echo Working directory = %s;\n", dir);
+	    printf("echo Working directory = %s;\n", ddir);
 	    printf("echo Log file = %s;\n", log_nm);
 	    exit(EXIT_SUCCESS);
     }
@@ -231,27 +231,28 @@ int main(int argc, char *argv[])
     }
 
     /* Open command input stream. */
-    if ( (i_cmd_in = open(cmd_in_nm, O_RDONLY)) == -1 ) {
+    if ( (i_cmd0 = open(cmd_in_nm, O_RDONLY)) == -1 ) {
 	fprintf(dlog, "%s: Could not open %s for input.\n%s\n",
 		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-    if ( (i_cmd_out = open(cmd_in_nm, O_WRONLY)) == -1 ) {
+    if ( (i_cmd1 = open(cmd_in_nm, O_WRONLY)) == -1 ) {
 	fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
 		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
     /*
-       Read command from i_cmd_in into buf.
-       Contents of buf: argc argv rslt_nm
-       argc transferred as binary integer. argv members and rslt_nm nul separated.
+       Read command from i_cmd0 into buf.
+       Contents of buf: argc argv rslt1_nm
+       argc transferred as binary integer.
+       argv members and rslt1_nm nul separated.
      */
-    while ( read(i_cmd_in, buf, buf_l) == buf_l ) {
+    while ( read(i_cmd0, buf, buf_l) == buf_l ) {
 	int argc1;		/* Number of arguments in an input line */
 	char *argv1[ARGCX];	/* Arguments from an input line */
 	int a;			/* Index into argv1 */
-	char *rslt_fl;		/* Where to send output */
+	char *rslt1_nm;		/* Name of fifo to which results will be sent */
 	int i;			/* Loop index */
 
 	/* Break input line into arguments */
@@ -272,35 +273,35 @@ int main(int argc, char *argv[])
 	    fprintf(dlog, "%s: Command line gives no destination.\n", time_stamp());
 	    continue;
 	}
-	rslt_fl = b;
-	rslt = NULL;
-	if ( !(rslt = fopen(rslt_fl, "w")) ) {
+	rslt1_nm = b;
+	rslt1 = NULL;
+	if ( !(rslt1 = fopen(rslt1_nm, "w")) ) {
 	    fprintf(dlog, "%s: Could not open %s for output.\n%s\n", time_stamp(),
-		    rslt_fl, strerror(errno));
+		    rslt1_nm, strerror(errno));
 	    continue;
 	}
 
 	/* Execute command */
 	cmd1 = argv1[0];
 	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-	    fprintf(rslt, "No option or subcommand named \"%s\"\n", cmd1);
-	    fprintf(rslt, "Subcommand must be one of: ");
+	    fprintf(rslt1, "No option or subcommand named \"%s\"\n", cmd1);
+	    fprintf(rslt1, "Subcommand must be one of: ");
 	    for (i = 0; i < NCMD; i++) {
-		fprintf(rslt, "%s ", cmd1v[i]);
+		fprintf(rslt1, "%s ", cmd1v[i]);
 	    }
-	    fprintf(rslt, "\n");
+	    fprintf(rslt1, "\n");
 	} else if ( !(cb1v[i])(argc1, argv1) ) {
-	    fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	    fprintf(rslt1, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    fprintf(dlog, "%s: %s failed.\n%s\n", time_stamp(), cmd1, Err_Get());
 	}
-	if ( (fclose(rslt) == EOF) ) {
+	if ( (fclose(rslt1) == EOF) ) {
 	    fprintf(dlog, "%s: Could not close %s.\n%s\n", time_stamp(),
-		    rslt_fl, strerror(errno));
+		    rslt1_nm, strerror(errno));
 	    continue;
 	}
     }
     fprintf(dlog, "%s: exiting. No more input.\n", time_stamp());
-    if ( close(i_cmd_in) == -1 ) {
+    if ( close(i_cmd0) == -1 ) {
 	fprintf(dlog, "%s: could not close command stream.\n%s\n",
 		time_stamp(), strerror(errno));
     }
@@ -340,7 +341,7 @@ int cmd_len_cb(int argc, char *argv[])
 	Err_Append(cmd1);
 	return 0;
     }
-    fprintf(rslt, "%ld\n", buf_l);
+    fprintf(rslt1, "%ld\n", buf_l);
     return 1;
 }
 
@@ -358,10 +359,10 @@ int log_cb(int argc, char *argv[])
 	Err_Append("Could not open log file.\n");
 	return 0;
     }
-    while ( (c = fgetc(l)) != EOF && fputc(c, rslt) != EOF ) {
+    while ( (c = fgetc(l)) != EOF && fputc(c, rslt1) != EOF ) {
 	continue;
     }
-    if ( ferror(l) || ferror(rslt) ) {
+    if ( ferror(l) || ferror(rslt1) ) {
 	Err_Append("Error writing log file.  ");
 	Err_Append(strerror(errno));
     }
@@ -382,7 +383,7 @@ int types_cb(int argc, char *argv[])
 	return 0;
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
-	fprintf(rslt, "%s | %s\n",
+	fprintf(rslt1, "%s | %s\n",
 		Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
     }
     return 1;
@@ -465,8 +466,8 @@ int read_cb(int argc, char *argv[])
 		return 0;
 	    case 0:
 		/* Child process - gzip.  Send child stdout to pipe. */
-		if ( close(i_cmd_in) == -1 || close(i_cmd_out) == -1
-			|| fclose(rslt) == EOF) {
+		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
+			|| fclose(rslt1) == EOF) {
 		    fprintf(dlog, "%s: gzip child could not close"
 			    " server streams", time_stamp());
 		    _exit(EXIT_FAILURE);
@@ -548,7 +549,7 @@ int volume_headers_cb(int argc, char *argv[])
 	Err_Append("No volume loaded.  ");
 	return 0;
     }
-    Sigmet_PrintHdr(rslt, vol);
+    Sigmet_PrintHdr(rslt1, vol);
     return 1;
 }
 
@@ -568,18 +569,18 @@ int ray_headers_cb(int argc, char *argv[])
 	    if ( !vol.ray_ok[s][r] ) {
 		continue;
 	    }
-	    fprintf(rslt, "sweep %3d ray %4d | ", s, r);
+	    fprintf(rslt1, "sweep %3d ray %4d | ", s, r);
 	    if ( !Tm_JulToCal(vol.ray_time[s][r],
 			&yr, &mon, &da, &hr, &min, &sec) ) {
 		Err_Append("Bad ray time.  ");
 		return 0;
 	    }
-	    fprintf(rslt, "%04d/%02d/%02d %02d:%02d:%04.1f | ",
+	    fprintf(rslt1, "%04d/%02d/%02d %02d:%02d:%04.1f | ",
 		    yr, mon, da, hr, min, sec);
-	    fprintf(rslt, "az %7.3f %7.3f | ",
+	    fprintf(rslt1, "az %7.3f %7.3f | ",
 		    vol.ray_az0[s][r] * DEG_PER_RAD,
 		    vol.ray_az1[s][r] * DEG_PER_RAD);
-	    fprintf(rslt, "tilt %6.3f %6.3f\n",
+	    fprintf(rslt1, "tilt %6.3f %6.3f\n",
 		    vol.ray_tilt0[s][r] * DEG_PER_RAD,
 		    vol.ray_tilt1[s][r] * DEG_PER_RAD);
 	}
@@ -673,83 +674,83 @@ int data_cb(int argc, char *argv[])
 	    type = vol.types[y];
 	    abbrv = Sigmet_DataType_Abbrv(type);
 	    for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
-		fprintf(rslt, "%s. sweep %d\n", abbrv, s);
+		fprintf(rslt1, "%s. sweep %d\n", abbrv, s);
 		for (r = 0; r < (int)vol.ih.ic.num_rays; r++) {
 		    if ( !vol.ray_ok[s][r] ) {
 			continue;
 		    }
-		    fprintf(rslt, "ray %d: ", r);
+		    fprintf(rslt1, "ray %d: ", r);
 		    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 			d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 			if (Sigmet_IsData(d)) {
-			    fprintf(rslt, "%f ", d);
+			    fprintf(rslt1, "%f ", d);
 			} else {
-			    fprintf(rslt, "nodat ");
+			    fprintf(rslt1, "nodat ");
 			}
 		    }
-		    fprintf(rslt, "\n");
+		    fprintf(rslt1, "\n");
 		}
 	    }
 	}
     } else if (s == ALL && r == ALL && b == ALL) {
 	for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
-	    fprintf(rslt, "%s. sweep %d\n", abbrv, s);
+	    fprintf(rslt1, "%s. sweep %d\n", abbrv, s);
 	    for (r = 0; r < vol.ih.ic.num_rays; r++) {
 		    if ( !vol.ray_ok[s][r] ) {
 			continue;
 		    }
-		fprintf(rslt, "ray %d: ", r);
+		fprintf(rslt1, "ray %d: ", r);
 		for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		    if (Sigmet_IsData(d)) {
-			fprintf(rslt, "%f ", d);
+			fprintf(rslt1, "%f ", d);
 		    } else {
-			fprintf(rslt, "nodat ");
+			fprintf(rslt1, "nodat ");
 		    }
 		}
-		fprintf(rslt, "\n");
+		fprintf(rslt1, "\n");
 	    }
 	}
     } else if (r == ALL && b == ALL) {
-	fprintf(rslt, "%s. sweep %d\n", abbrv, s);
+	fprintf(rslt1, "%s. sweep %d\n", abbrv, s);
 	for (r = 0; r < vol.ih.ic.num_rays; r++) {
 	    if ( !vol.ray_ok[s][r] ) {
 		continue;
 	    }
-	    fprintf(rslt, "ray %d: ", r);
+	    fprintf(rslt1, "ray %d: ", r);
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		if (Sigmet_IsData(d)) {
-		    fprintf(rslt, "%f ", d);
+		    fprintf(rslt1, "%f ", d);
 		} else {
-		    fprintf(rslt, "nodat ");
+		    fprintf(rslt1, "nodat ");
 		}
 	    }
-	    fprintf(rslt, "\n");
+	    fprintf(rslt1, "\n");
 	}
     } else if (b == ALL) {
 	if (vol.ray_ok[s][r]) {
-	    fprintf(rslt, "%s. sweep %d, ray %d: ", abbrv, s, r);
+	    fprintf(rslt1, "%s. sweep %d, ray %d: ", abbrv, s, r);
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		if (Sigmet_IsData(d)) {
-		    fprintf(rslt, "%f ", d);
+		    fprintf(rslt1, "%f ", d);
 		} else {
-		    fprintf(rslt, "nodat ");
+		    fprintf(rslt1, "nodat ");
 		}
 	    }
-	    fprintf(rslt, "\n");
+	    fprintf(rslt1, "\n");
 	}
     } else {
 	if (vol.ray_ok[s][r]) {
-	    fprintf(rslt, "%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
+	    fprintf(rslt1, "%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
 	    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 	    if (Sigmet_IsData(d)) {
-		fprintf(rslt, "%f ", d);
+		fprintf(rslt1, "%f ", d);
 	    } else {
-		fprintf(rslt, "nodat ");
+		fprintf(rslt1, "nodat ");
 	    }
-	    fprintf(rslt, "\n");
+	    fprintf(rslt1, "\n");
 	}
     }
     return 1;
@@ -806,7 +807,7 @@ int bin_outline_cb(int argc, char *argv[])
     }
     Sigmet_FreeVol(&vol);
     c = (use_deg ? DEG_RAD : 1.0);
-    fprintf(rslt, "%f %f %f %f %f %f %f %f\n",
+    fprintf(rslt1, "%f %f %f %f %f %f %f %f\n",
 	    corners[0] * c, corners[1] * c, corners[2] * c, corners[3] * c,
 	    corners[4] * c, corners[5] * c, corners[6] * c, corners[7] * c);
 
@@ -872,7 +873,7 @@ int bintvls_cb(int argc, char *argv[])
 	for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 	    d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
 	}
-	fprintf(rslt, "\n");
+	fprintf(rslt1, "\n");
     }
 
     return 1;
@@ -886,12 +887,12 @@ int stop_cb(int argc, char *argv[])
     unload();
     FREE(vol_nm);
     FREE(buf);
-    if (snprintf(rm, LEN, "rm -r %s", dir) < LEN) {
+    if (snprintf(rm, LEN, "rm -r %s", ddir) < LEN) {
 	system(rm);
     } else {
 	fprintf(dlog, "%s: could not delete working directory.\n", time_stamp());
     }
-    fprintf(rslt, "unset SIGMET_RAWD_PID SIGMET_RAWD_DIR SIGMET_RAWD_IN\n");
+    fprintf(rslt1, "unset SIGMET_RAWD_PID SIGMET_RAWD_DIR SIGMET_RAWD_IN\n");
     exit(EXIT_SUCCESS);
     return 0;
 }

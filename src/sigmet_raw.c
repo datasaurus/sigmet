@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.3 $ $Date: 2010/01/21 21:45:21 $
+ .	$Revision: 1.4 $ $Date: 2010/01/22 19:11:50 $
  */
 
 #include <stdlib.h>
@@ -27,16 +27,16 @@ int main(int argc, char *argv[])
 {
     char *cmd = argv[0];
     char *ddir;			/* Name of daemon working directory */
-    char *cmd_pipe_nm;		/* Name of daemon command pipe */
-    int cmd_pipe;		/* Where to send commands */
+    char *i_cmd1_nm;		/* Name of daemon command pipe */
+    int i_cmd1;			/* Where to send commands */
     char *buf;			/* Output buffer */
     size_t buf_l;		/* Allocation at buf */
     char *b;			/* Point into buf */
     char *b1;			/* End of buf */
     char **aa, *a;		/* Loop parameters */
     ssize_t w;			/* Return from write */
-    char rslt_nm[LEN];		/* Where to get results */
-    FILE *rslt;			/* Stream from rslt_nm */
+    char rslt0_nm[LEN];		/* Name of fifo from which to get results */
+    FILE *rslt0;		/* Where to get results */
     int c;			/* Character from daemon */
 
     /* Specify where to put the command and get the results */
@@ -45,24 +45,24 @@ int main(int argc, char *argv[])
 		cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( !(cmd_pipe_nm = getenv("SIGMET_RAWD_IN")) ) {
+    if ( !(i_cmd1_nm = getenv("SIGMET_RAWD_IN")) ) {
 	fprintf(stderr, "%s: SIGMET_RAWD_IN not set.  Is the daemon running?\n",
 		cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( snprintf(rslt_nm, LEN, "%s/%d.1", ddir, getpid()) > LEN ) {
+    if ( snprintf(rslt0_nm, LEN, "%s/%d.1", ddir, getpid()) > LEN ) {
 	fprintf(stderr, "%s: could not create name for result pipe.\n", cmd);
 	exit(EXIT_FAILURE);
     }
 
     /* Open command pipe */
-    if ( !(cmd_pipe = open(cmd_pipe_nm, O_WRONLY)) ) {
+    if ( !(i_cmd1 = open(i_cmd1_nm, O_WRONLY)) ) {
 	perror("could not open command pipe");
 	exit(EXIT_FAILURE);
     }
 
     /* Allocate command buffer */
-    if ( (buf_l = fpathconf(cmd_pipe, _PC_PIPE_BUF)) == -1 ) {
+    if ( (buf_l = fpathconf(i_cmd1, _PC_PIPE_BUF)) == -1 ) {
 	fprintf(stderr, "%s: Could not get pipe buffer size.\n%s\n",
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
@@ -74,15 +74,15 @@ int main(int argc, char *argv[])
     b1 = buf + buf_l;
 
     /* Create fifo to receive results from daemon */
-    if ( mkfifo(rslt_nm, 0600) == -1 ) {
+    if ( mkfifo(rslt0_nm, 0600) == -1 ) {
 	perror("could not create result pipe");
 	exit(EXIT_FAILURE);
     }
 
     /*
        Fill buf and send to daemon.
-       Contents of buf: argc argv rslt_nm
-       argc sent as binary integer. argv members and rslt_nm nul separated.
+       Contents of buf: argc argv rslt0_nm
+       argc sent as binary integer. argv members and rslt0_nm nul separated.
      */
     memset(buf, 0, buf_l);
     *(int *)buf = argc - 1;
@@ -95,53 +95,53 @@ int main(int argc, char *argv[])
     }
     if ( b == b1 ) {
 	fprintf(stderr, "%s: command line to big (%ld characters max)\n",
-		cmd, buf_l - sizeof(int) - strlen(rslt_nm) - 1);
+		cmd, buf_l - sizeof(int) - strlen(rslt0_nm) - 1);
 	exit(EXIT_FAILURE);
     }
-    for (a = rslt_nm; b < b1 && *a; b++, a++) {
+    for (a = rslt0_nm; b < b1 && *a; b++, a++) {
 	*b = *a;
     }
     if ( b == b1 ) {
 	fprintf(stderr, "%s: command line to big (%ld characters max)\n",
-		cmd, buf_l - sizeof(int) - strlen(rslt_nm) - 1);
+		cmd, buf_l - sizeof(int) - strlen(rslt0_nm) - 1);
 	exit(EXIT_FAILURE);
     }
     *b = '\0';
-    w = write(cmd_pipe, buf, buf_l);
+    w = write(i_cmd1, buf, buf_l);
     if ( w != buf_l ) {
 	if ( w == -1 ) {
 	    perror("could not write command size");
 	} else {
 	    fprintf(stderr, "%s: Incomplete write to daemon.\n", cmd);
 	}
-	if ( close(cmd_pipe) == -1 ) {
+	if ( close(i_cmd1) == -1 ) {
 	    perror("could not close command pipe");
 	}
 	FREE(buf);
 	exit(EXIT_FAILURE);
     }
-    if ( close(cmd_pipe) == -1 ) {
+    if ( close(i_cmd1) == -1 ) {
 	perror("could not close command pipe");
     }
 
     /* Get result from daemon and send to stdout */
-    if ( !(rslt = fopen(rslt_nm, "r")) ) {
+    if ( !(rslt0 = fopen(rslt0_nm, "r")) ) {
 	perror("could not open result pipe");
-	if ( unlink(rslt_nm) == -1 ) {
+	if ( unlink(rslt0_nm) == -1 ) {
 	    perror("could not remove result pipe");
 	}
 	exit(EXIT_FAILURE);
     }
-    while ( (c = fgetc(rslt)) != EOF ) {
+    while ( (c = fgetc(rslt0)) != EOF ) {
 	putchar(c);
     }
-    if ( fclose(rslt) == EOF ) {
+    if ( fclose(rslt0) == EOF ) {
 	perror("could not close result pipe");
-	if ( unlink(rslt_nm) == -1 ) {
+	if ( unlink(rslt0_nm) == -1 ) {
 	    perror("could not remove result pipe");
 	}
     }
-    if ( access(rslt_nm, F_OK) == 0 && unlink(rslt_nm) == -1 ) {
+    if ( access(rslt0_nm, F_OK) == 0 && unlink(rslt0_nm) == -1 ) {
 	perror("could not remove result pipe");
     }
 
