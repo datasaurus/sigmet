@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.70 $ $Date: 2010/01/21 22:41:14 $
+ .	$Revision: 1.71 $ $Date: 2010/01/22 03:29:22 $
  */
 
 #include <stdlib.h>
@@ -274,13 +274,13 @@ int main(int argc, char *argv[])
 		argv1[++a] = b + 1;
 	    }
 	}
+
+	/* Last argument tells where to send output.  Open and block. */
 	if ( b == b1 ) {
 	    fprintf(dlog, "%s: Command line gives no destination.\n", time_stamp());
 	    continue;
 	}
 	rslt_fl = b;
-
-	/* First argument tells where to send output.  Open and block. */
 	rslt = NULL;
 	if (       access(rslt_fl, W_OK) == -1
 		|| (i_rslt = open(rslt_fl, O_WRONLY)) == -1
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
 	    fprintf(rslt, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    fprintf(dlog, "%s: %s failed.\n%s\n", time_stamp(), cmd1, Err_Get());
 	}
-	if ( rslt && (fclose(rslt) == EOF) ) {
+	if ( (fclose(rslt) == EOF) ) {
 	    fprintf(dlog, "%s: Could not close %s.\n%s\n", time_stamp(),
 		    rslt_fl, strerror(errno));
 	    continue;
