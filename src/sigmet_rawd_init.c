@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.73 $ $Date: 2010/01/22 16:29:04 $
+ .	$Revision: 1.74 $ $Date: 2010/01/22 17:02:56 $
  */
 
 #include <stdlib.h>
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
        Contents of buf: argc argv rslt_nm
        argc transferred as binary integer. argv members and rslt_nm nul separated.
      */
-    while ( read(i_cmd_in, buf, (size_t)buf_l) == buf_l ) {
+    while ( read(i_cmd_in, buf, buf_l) == buf_l ) {
 	int argc1;		/* Number of arguments in an input line */
 	char *argv1[ARGCX];	/* Arguments from an input line */
 	int a;			/* Index into argv1 */
@@ -261,8 +261,7 @@ int main(int argc, char *argv[])
 		    "Limit is %d\n", time_stamp(), argc1, ARGCX);
 	    continue;
 	}
-	buf += sizeof(int);
-	for (a = 0, argv1[a] = b = buf; b < b1 && a < argc1; b++) {
+	for (a = 0, argv1[a] = b = buf + sizeof(int); b < b1 && a < argc1; b++) {
 	    if ( *b == '\0' ) {
 		argv1[++a] = b + 1;
 	    }
@@ -892,7 +891,7 @@ int stop_cb(int argc, char *argv[])
     } else {
 	fprintf(dlog, "%s: could not delete working directory.\n", time_stamp());
     }
-    fprintf(rslt, "unset SIGMET_RAWD_PID SIGMET_RAWD_DIR SIGMET_RAWD_IN");
+    fprintf(rslt, "unset SIGMET_RAWD_PID SIGMET_RAWD_DIR SIGMET_RAWD_IN\n");
     exit(EXIT_SUCCESS);
     return 0;
 }
