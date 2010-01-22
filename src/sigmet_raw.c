@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.4 $ $Date: 2010/01/22 19:11:50 $
+ .	$Revision: 1.5 $ $Date: 2010/01/22 21:39:51 $
  */
 
 #include <stdlib.h>
@@ -21,7 +21,7 @@
 #include "alloc.h"
 
 /* Array size */
-#define LEN 4000
+#define LEN 1024
 
 int main(int argc, char *argv[])
 {
