@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.71 $ $Date: 2010/01/22 03:29:22 $
+ .	$Revision: 1.72 $ $Date: 2010/01/22 03:49:51 $
  */
 
 #include <stdlib.h>
@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
     }
 
     /* Allocate input line */
-    if ( (buf_l = fpathconf(i_cmd_in, _PC_PIPE_BUF)) == -1 ) {
+    if ( (buf_l = pathconf(cmd_in_nm, _PC_PIPE_BUF)) == -1 ) {
 	fprintf(stderr, "%s: Could not get pipe buffer size.\n%s\n",
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
@@ -231,13 +231,17 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* Open command input stream.  It will block until a client writes something. */
-    if ( (i_cmd_in = open(cmd_in_nm, O_RDONLY, 0600)) == -1 ) {
-	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
+    /* Open command input stream. */
+    if ( (i_cmd_in = open(cmd_in_nm, O_RDONLY)) == -1 ) {
+	fprintf(dlog, "%s: Could not open %s for input.\n%s\n",
 		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-    i_cmd_out = -2;
+    if ( (i_cmd_out = open(cmd_in_nm, O_WRONLY)) == -1 ) {
+	fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
+		cmd, cmd_in_nm, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
 
     /*
        Read command from i_cmd_in into buf.
@@ -250,16 +254,6 @@ int main(int argc, char *argv[])
 	int a;			/* Index into argv1 */
 	char *rslt_fl;		/* Where to send output */
 	int i;			/* Loop index */
-
-	/*
-	   Daemon now has something to read. Open command pipe for output so
-	   daemon keeps running while waiting for more clients.
-	 */
-	if ( i_cmd_out == -2 && (i_cmd_out = open(cmd_in_nm, O_WRONLY)) == -1 ) {
-	    fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
-		    cmd, cmd_in_nm, strerror(errno));
-	    exit(EXIT_FAILURE);
-	}
 
 	/* Break input line into arguments */
 	argc1 = *(int *)buf;
