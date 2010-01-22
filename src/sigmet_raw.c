@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.2 $ $Date: 2010/01/21 16:36:30 $
+ .	$Revision: 1.3 $ $Date: 2010/01/21 21:45:21 $
  */
 
 #include <stdlib.h>
@@ -84,6 +84,7 @@ int main(int argc, char *argv[])
        Contents of buf: argc argv rslt_nm
        argc sent as binary integer. argv members and rslt_nm nul separated.
      */
+    memset(buf, 0, buf_l);
     *(int *)buf = argc - 1;
     for (b = buf + sizeof(int), aa = argv + 1, a = *aa; b < b1 && *aa; b++, a++) {
 	*b = *a;
@@ -105,7 +106,7 @@ int main(int argc, char *argv[])
 		cmd, buf_l - sizeof(int) - strlen(rslt_nm) - 1);
 	exit(EXIT_FAILURE);
     }
-    *++b = '\0';
+    *b = '\0';
     w = write(cmd_pipe, buf, buf_l);
     if ( w != buf_l ) {
 	if ( w == -1 ) {
