@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.69 $ $Date: 2010/01/21 22:28:54 $
+ .	$Revision: 1.70 $ $Date: 2010/01/21 22:41:14 $
  */
 
 #include <stdlib.h>
@@ -414,35 +414,27 @@ int good_cb(int argc, char *argv[])
 	Err_Append(" [sigmet_volume]");
 	return 0;
     }
-    if (strcmp(in_nm, "-") == 0) {
-	in = stdin;
-    } else if ( !(in = fopen(in_nm, "r")) ) {
+    if ( !(in = fopen(in_nm, "r")) ) {
 	Err_Append("Could not open ");
-	Err_Append((in == stdin) ? "standard in" : in_nm);
+	Err_Append(in_nm);
 	Err_Append(" for input.\n");
 	return 0;
     }
     if ( !Sigmet_GoodVol(in) ) {
-	if (in != stdin) {
-	    fclose(in);
-	}
+	fclose(in);
 	/* Skip output messages */
 	exit(1);
     }
-    if (in != stdin) {
-	fclose(in);
-    }
+    fclose(in);
     return 1;
 }
 
 /*
    Callback for the "read" command.
    Read a volume into memory.
-   Usage:
-       read
-       read -h
-       read raw_file
-       read -h raw_file
+   Usage --
+   read raw_file
+   read -h raw_file
  */
 int read_cb(int argc, char *argv[])
 {
@@ -452,80 +444,71 @@ int read_cb(int argc, char *argv[])
     char *t;
     size_t l;
     pid_t pid = 0;
+    char *sfx;		/* Filename suffix */
+    int pfd[2];		/* Pipe for data */
 
     hdr_only = 0;
-    if (argc == 1) {
-	in_nm = "-";
-    } else if (argc == 2) {
-	if (strcmp(argv[1], "-h") == 0) {
-	    hdr_only = 1;
-	    in_nm = "-";
-	} else {
-	    in_nm = argv[1];
-	}
+    if ( argc == 2 ) {
+	in_nm = argv[1];
     } else if ( argc == 3 && (strcmp(argv[1], "-h") == 0) ) {
-	    hdr_only = 1;
-	    in_nm = argv[2];
+	hdr_only = 1;
+	in_nm = argv[2];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
-	Err_Append(" [-h] [sigmet_volume]");
+	Err_Append(" [-h] sigmet_volume");
 	return 0;
     }
-    if (strcmp(in_nm, "-") == 0) {
-	in = stdin;
-    } else {
-	char *sfx;	/* Filename suffix */
-	int pfd[2];	/* Pipe for data */
 
-	sfx = strrchr(in_nm , '.');
-	if ( sfx && strcmp(sfx, ".gz") == 0 ) {
-	    if ( pipe(pfd) == -1 ) {
-		Err_Append(strerror(errno));
-		Err_Append("\nCould not create pipe for gzip.  ");
-		return 0;
-	    }
-	    switch (pid = fork()) {
-		case -1:
-		    Err_Append(strerror(errno));
-		    Err_Append("\nCould not spawn gzip process.  ");
-		    return 0;
-		case 0:
-		    /* Child process - gzip.  Send child stdout to pipe. */
-		    if ( close(i_cmd_in) == -1 || close(i_cmd_out) == -1
-			    || fclose(rslt) == EOF) {
-			fprintf(dlog, "%s: gzip child could not close"
-				" server streams", time_stamp());
-			_exit(EXIT_FAILURE);
-		    }
-		    if ( dup2(pfd[1], STDOUT_FILENO) == -1
-			    || close(pfd[1]) == -1 ) {
-			fprintf(dlog, "%s: could not set up gzip process",
-				time_stamp());
-			_exit(EXIT_FAILURE);
-		    }
-		    if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
-			_exit(EXIT_FAILURE);
-		    }
-		    execlp("gunzip", "gunzip", "-c", in_nm, (char *)NULL);
-		    _exit(EXIT_FAILURE);
-		default:
-		    /* This process.  Read output from gzip. */
-		    if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-			Err_Append(strerror(errno));
-			Err_Append("\nCould not read gzip process.  ");
-			return 0;
-		    }
-	    }
-	} else if ( !(in = fopen(in_nm, "r")) ) {
-	    Err_Append("Could not open ");
-	    Err_Append((in == stdin) ? "standard in" : in_nm);
-	    Err_Append(" for input.\n");
+    sfx = strrchr(in_nm , '.');
+    if ( sfx && strcmp(sfx, ".gz") == 0 ) {
+	/* If filename ends with ".gz", read from gunzip pipe */
+	if ( pipe(pfd) == -1 ) {
+	    Err_Append(strerror(errno));
+	    Err_Append("\nCould not create pipe for gzip.  ");
 	    return 0;
 	}
+	switch (pid = fork()) {
+	    case -1:
+		Err_Append(strerror(errno));
+		Err_Append("\nCould not spawn gzip process.  ");
+		return 0;
+	    case 0:
+		/* Child process - gzip.  Send child stdout to pipe. */
+		if ( close(i_cmd_in) == -1 || close(i_cmd_out) == -1
+			|| fclose(rslt) == EOF) {
+		    fprintf(dlog, "%s: gzip child could not close"
+			    " server streams", time_stamp());
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1
+			|| close(pfd[1]) == -1 ) {
+		    fprintf(dlog, "%s: could not set up gzip process",
+			    time_stamp());
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
+		    _exit(EXIT_FAILURE);
+		}
+		execlp("gunzip", "gunzip", "-c", in_nm, (char *)NULL);
+		_exit(EXIT_FAILURE);
+	    default:
+		/* This process.  Read output from gzip. */
+		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
+		    Err_Append(strerror(errno));
+		    Err_Append("\nCould not read gzip process.  ");
+		    return 0;
+		}
+	}
+    } else if ( !(in = fopen(in_nm, "r")) ) {
+	/* Uncompressed file */
+	Err_Append("Could not open ");
+	Err_Append(in_nm);
+	Err_Append(" for input.\n");
+	return 0;
     }
     if (hdr_only) {
-	if( have_hdr && (in != stdin) && (strcmp(in_nm, vol_nm) == 0) ) {
+	if( have_hdr && (strcmp(in_nm, vol_nm) == 0) ) {
 	    /* No need to read headers */
 	    fclose(in);
 	    return 1;
@@ -534,18 +517,15 @@ int read_cb(int argc, char *argv[])
 	unload();
 	if ( !Sigmet_ReadHdr(in, &vol) ) {
 	    Err_Append("Could not read headers from ");
-	    Err_Append((in == stdin) ? "standard input" : in_nm);
+	    Err_Append(in_nm);
 	    Err_Append(".\n");
-	    if (in != stdin) {
-		fclose(in);
-	    }
+	    fclose(in);
 	    return 0;
 	}
 	have_hdr = 1;
 	have_vol = 0;
     } else {
-	if ( have_vol && !vol.truncated && (in != stdin)
-		&& (strcmp(in_nm, vol_nm) == 0) ) {
+	if ( have_vol && !vol.truncated && (strcmp(in_nm, vol_nm) == 0) ) {
 	    /* No need to read volume */
 	    fclose(in);
 	    return 1;
@@ -554,18 +534,14 @@ int read_cb(int argc, char *argv[])
 	unload();
 	if ( !Sigmet_ReadVol(in, &vol) ) {
 	    Err_Append("Could not read volume from ");
-	    Err_Append((in == stdin) ? "standard input" : in_nm);
+	    Err_Append(in_nm);
 	    Err_Append(".\n");
-	    if (in != stdin) {
-		fclose(in);
-	    }
+	    fclose(in);
 	    return 0;
 	}
 	have_hdr = have_vol = 1;
     }
-    if (in != stdin) {
-	fclose(in);
-    }
+    fclose(in);
     l = 0;
     if ( !(t = Str_Append(vol_nm, &l, &vol_nm_l, in_nm, strlen(in_nm))) ) {
 	Err_Append("Could not store name of global volume.  ");
