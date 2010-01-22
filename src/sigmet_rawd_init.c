@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.76 $ $Date: 2010/01/22 21:39:51 $
+ .	$Revision: 1.77 $ $Date: 2010/01/22 22:13:39 $
  */
 
 #include <stdlib.h>
@@ -80,7 +80,8 @@ int i_cmd1;		/* Unused outptut (see explanation below). */
 int idlog;		/* Error log */
 char log_nm[LEN];	/* Name of log file */
 FILE *dlog;		/* Error log */
-FILE *rslt1;		/* Where to send results */
+FILE *rslt1;		/* Where to send standard output */
+FILE *rslt2;		/* Where to send standard error */
 
 /* Input line - has commands for the daemon */
 char *buf;
@@ -257,15 +258,17 @@ int main(int argc, char *argv[])
 
     /*
        Read command from i_cmd0 into buf.
-       Contents of buf: argc argv rslt1_nm
+       Contents of buf: argc argv client_pid
        argc transferred as binary integer.
-       argv members and rslt1_nm nul separated.
+       argv members and client_pid nul separated.
      */
     while ( read(i_cmd0, buf, buf_l) == buf_l ) {
 	int argc1;		/* Number of arguments in an input line */
 	char *argv1[ARGCX];	/* Arguments from an input line */
 	int a;			/* Index into argv1 */
-	char *rslt1_nm;		/* Name of fifo to which results will be sent */
+	char *client_pid;	/* Process id of client, used to make file names */
+	char rslt1_nm[LEN];	/* Name of file for standard output */
+	char rslt2_nm[LEN];	/* Name of file for error output */
 	int i;			/* Loop index */
 
 	/* Break input line into arguments */
@@ -281,35 +284,64 @@ int main(int argc, char *argv[])
 	    }
 	}
 
-	/* Last argument tells where to send output. */
+	/* Use client process id to make argeed upon file names for output. */
 	if ( b == b1 ) {
 	    fprintf(dlog, "%s: Command line gives no destination.\n", time_stamp());
 	    continue;
 	}
-	rslt1_nm = b;
+	client_pid = b;
+
+	/* Standard output */
 	rslt1 = NULL;
+	if (snprintf(rslt1_nm, LEN, "%s/%s.1", ddir, client_pid) > LEN) {
+	    fprintf(dlog, "%s: Could not create file name for client %s.\n",
+		    time_stamp(), client_pid);
+	    continue;
+	}
 	if ( !(rslt1 = fopen(rslt1_nm, "w")) ) {
-	    fprintf(dlog, "%s: Could not open %s for output.\n%s\n", time_stamp(),
-		    rslt1_nm, strerror(errno));
+	    fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
+		    time_stamp(), rslt1_nm, strerror(errno));
+	    continue;
+	}
+
+	/* Error output */
+	rslt2 = NULL;
+	if (snprintf(rslt2_nm, LEN, "%s/%s.2", ddir, client_pid) > LEN) {
+	    fprintf(dlog, "%s: Could not create file name for client %s.\n",
+		    time_stamp(), client_pid);
+	    continue;
+	}
+	if ( !(rslt2 = fopen(rslt2_nm, "w")) ) {
+	    fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
+		    time_stamp(), rslt2_nm, strerror(errno));
 	    continue;
 	}
 
 	/* Execute command */
 	cmd1 = argv1[0];
 	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-	    fprintf(rslt1, "No option or subcommand named \"%s\"\n", cmd1);
-	    fprintf(rslt1, "Subcommand must be one of: ");
+	    fputc(EXIT_FAILURE, rslt2);
+	    fprintf(rslt2, "No option or subcommand named \"%s\"\n", cmd1);
+	    fprintf(rslt2, "Subcommand must be one of: ");
 	    for (i = 0; i < NCMD; i++) {
-		fprintf(rslt1, "%s ", cmd1v[i]);
+		fprintf(rslt2, "%s ", cmd1v[i]);
 	    }
-	    fprintf(rslt1, "\n");
+	    fprintf(rslt2, "\n");
 	} else if ( !(cb1v[i])(argc1, argv1) ) {
-	    fprintf(rslt1, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	    fputc(EXIT_FAILURE, rslt2);
+	    fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    fprintf(dlog, "%s: %s failed.\n%s\n", time_stamp(), cmd1, Err_Get());
+	} else {
+	    fputc(EXIT_SUCCESS, rslt2);
 	}
 	if ( (fclose(rslt1) == EOF) ) {
 	    fprintf(dlog, "%s: Could not close %s.\n%s\n", time_stamp(),
 		    rslt1_nm, strerror(errno));
+	    continue;
+	}
+	if ( (fclose(rslt2) == EOF) ) {
+	    fprintf(dlog, "%s: Could not close %s.\n%s\n", time_stamp(),
+		    rslt2_nm, strerror(errno));
 	    continue;
 	}
     }
