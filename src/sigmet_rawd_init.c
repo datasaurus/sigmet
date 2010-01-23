@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.77 $ $Date: 2010/01/22 22:13:39 $
+ .	$Revision: 1.78 $ $Date: 2010/01/22 23:12:51 $
  */
 
 #include <stdlib.h>
@@ -438,15 +438,14 @@ int good_cb(int argc, char *argv[])
 {
     char *in_nm;
     FILE *in;
+    int status;
 
-    if (argc == 1) {
-	in_nm = "-";
-    } else if (argc == 2) {
+    if (argc == 2) {
 	in_nm = argv[1];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
-	Err_Append(" [sigmet_volume]");
+	Err_Append(" sigmet_volume");
 	return 0;
     }
     if ( !(in = fopen(in_nm, "r")) ) {
@@ -455,13 +454,13 @@ int good_cb(int argc, char *argv[])
 	Err_Append(" for input.\n");
 	return 0;
     }
-    if ( !Sigmet_GoodVol(in) ) {
-	fclose(in);
-	/* Skip output messages */
-	exit(1);
+    if ( Sigmet_GoodVol(in) ) {
+	status = 0;
+    } else {
+	status = 1;
     }
     fclose(in);
-    return 1;
+    return status;
 }
 
 /*
