@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.78 $ $Date: 2010/01/22 23:12:51 $
+ .	$Revision: 1.79 $ $Date: 2010/01/23 21:14:39 $
  */
 
 #include <stdlib.h>
@@ -95,26 +95,31 @@ enum SHELL_TYPE {C, SH};
 
 int main(int argc, char *argv[])
 {
-    enum SHELL_TYPE shtyp;	/* Controls how environment variables are printed */
+    int bg = 1;			/* If true, run in foreground (do not fork) */
+    enum SHELL_TYPE shtyp = SH;	/* Controls how environment variables are printed */
     char cmd_in_nm[LEN];	/* Name of fifo from which to read commands */
+    int a;			/* Index into argv */
     pid_t pid;			/* Process id for this process */
     struct sigaction schld;	/* Signal action to ignore zombies */
     char *ang_u;		/* Angle unit */
     char *b, *b1;		/* Point into buf, end of buf */
 
-    shtyp = SH;
     if ( (cmd = strrchr(argv[0], '/')) ) {
 	cmd++;
     } else {
 	cmd = argv[0];
     }
-    if ( argc == 1 ) {
-	shtyp = SH;
-    } else if ( argc == 2 && strcmp(argv[1], "-c") == 0 ) {
-	shtyp = C;
-    } else {
-	fprintf(stderr, "Usage: %s [-c]\n", cmd);
-	exit(EXIT_FAILURE);
+
+    /* Usage: sigmet_rawd [-c] [-f] */
+    for (a = 1; a < argc; a++) {
+	if (strcmp(argv[a], "-c") == 0) {
+	    shtyp = C;
+	} else if (strcmp(argv[a], "-f") == 0) {
+	    bg = 0;
+	} else {
+	    fprintf(stderr, "%s: unknown option \"%s\"\n", cmd, argv[a]);
+	    exit(EXIT_FAILURE);
+	}
     }
 
     /* Check for angle unit */
@@ -185,34 +190,37 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* Print information about input streams and put server in background */
-    switch (pid = fork()) {
-	case -1:
-	    Err_Append(strerror(errno));
-	    Err_Append("\nCould not spawn gzip process.  ");
-	    return 0;
-	case 0:
-	    /* Child. Run the server. */
-	    break;
-	default:
-	    /* Parent. Print information and exit. Server will go to background. */
-	    if (shtyp == SH) {
-		printf("SIGMET_RAWD_PID=%d; export SIGMET_RAWD_PID;\n", pid);
-		printf("SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", ddir);
-		printf("SIGMET_RAWD_IN=%s; export SIGMET_RAWD_IN;\n", cmd_in_nm);
-	    } else {
-		printf("setenv SIGMET_RAWD_PID %d;\n", pid);
-		printf("setenv SIGMET_RAWD_DIR %s;\n", ddir);
-		printf("setenv SIGMET_RAWD_IN=%s;\n", cmd_in_nm);
-	    }
-	    printf("echo Starting sigmet_rawd. Process id = %d.;\n", pid);
-	    printf("echo Working directory = %s;\n", ddir);
-	    printf("echo Log file = %s;\n", log_nm);
-	    exit(EXIT_SUCCESS);
+    /* If desired, put server in background */
+    if ( bg ) {
+	switch (pid = fork()) {
+	    case -1:
+		Err_Append(strerror(errno));
+		Err_Append("\nCould not spawn gzip process.  ");
+		return 0;
+	    case 0:
+		/* Child = daemon process. Go to background. */
+		break;
+	    default:
+		/* Parent. Print information and exit. */
+		if (shtyp == SH) {
+		    printf("SIGMET_RAWD_PID=%d; export SIGMET_RAWD_PID;\n", pid);
+		    printf("SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", ddir);
+		    printf("SIGMET_RAWD_IN=%s; export SIGMET_RAWD_IN;\n",
+			    cmd_in_nm);
+		} else {
+		    printf("setenv SIGMET_RAWD_PID %d;\n", pid);
+		    printf("setenv SIGMET_RAWD_DIR %s;\n", ddir);
+		    printf("setenv SIGMET_RAWD_IN=%s;\n", cmd_in_nm);
+		}
+		printf("echo Starting sigmet_rawd. Process id = %d.;\n", pid);
+		printf("echo Working directory = %s;\n", ddir);
+		printf("echo Log file = %s;\n", log_nm);
+		exit(EXIT_SUCCESS);
+	}
+	fclose(stdin);
+	fclose(stdout);
+	fclose(stderr);
     }
-    fclose(stdin);
-    fclose(stdout);
-    fclose(stderr);
 
     /* Log initialization */
     pid = getpid();
