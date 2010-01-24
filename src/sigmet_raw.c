@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.6 $ $Date: 2010/01/22 21:46:53 $
+ .	$Revision: 1.7 $ $Date: 2010/01/22 23:12:50 $
  */
 
 #include <stdlib.h>
@@ -152,14 +152,6 @@ int main(int argc, char *argv[])
     while ( (c = fgetc(rslt1)) != EOF ) {
 	putchar(c);
     }
-
-    /* Get error output from daemon and send to stdout */
-    status = fgetc(rslt2);
-    while ( (c = fgetc(rslt2)) != EOF ) {
-	fputc(c, stderr);
-    }
-
-    /* Close and delete files */
     if ( fclose(rslt1) == EOF ) {
 	perror("could not close result pipe");
 	if ( unlink(rslt1_nm) == -1 ) {
@@ -168,6 +160,12 @@ int main(int argc, char *argv[])
     }
     if ( access(rslt1_nm, F_OK) == 0 && unlink(rslt1_nm) == -1 ) {
 	perror("could not remove result pipe");
+    }
+
+    /* Get error output from daemon and send to stderr */
+    status = fgetc(rslt2);
+    while ( (c = fgetc(rslt2)) != EOF ) {
+	fputc(c, stderr);
     }
     if ( fclose(rslt2) == EOF ) {
 	perror("could not close result pipe");
