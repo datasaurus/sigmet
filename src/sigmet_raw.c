@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.7 $ $Date: 2010/01/22 23:12:50 $
+ .	$Revision: 1.8 $ $Date: 2010/01/24 01:10:25 $
  */
 
 #include <stdlib.h>
@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <signal.h>
 #include "alloc.h"
 
 /* Array size */
@@ -27,6 +28,7 @@ int main(int argc, char *argv[])
 {
     char *cmd = argv[0];
     pid_t pid = getpid();
+    char *dpid_s;		/* Process id of daemon */
     char *ddir;			/* Name of daemon working directory */
     char *i_cmd1_nm;		/* Name of daemon command pipe */
     int i_cmd1;			/* Where to send commands */
@@ -42,6 +44,19 @@ int main(int argc, char *argv[])
     FILE *rslt2;		/* File for error results */
     int c;			/* Character from daemon */
     int status;			/* Return from this process */
+
+    /* Check for daemon */
+    if ( !(dpid_s = getenv("SIGMET_RAWD_PID")) ) {
+	fprintf(stderr, "%s: SIGMET_RAWD_PID not set.  Is the daemon running?\n",
+		cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( (kill(strtol(dpid_s, NULL, 10), 0) == -1) ) {
+	fprintf(stderr, "%s: Could not find process corresponding to "
+		"SIGMET_RAWD_PID. Please reset SIGMET_RAWD_PID or restart "
+		"sigmet_rawd\n", cmd);
+	exit(EXIT_FAILURE);
+    }
 
     /* Specify where to put the command and get the results */
     if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
