@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.79 $ $Date: 2010/01/23 21:14:39 $
+ .	$Revision: 1.80 $ $Date: 2010/01/24 00:39:09 $
  */
 
 #include <stdlib.h>
@@ -277,6 +277,7 @@ int main(int argc, char *argv[])
 	char *client_pid;	/* Process id of client, used to make file names */
 	char rslt1_nm[LEN];	/* Name of file for standard output */
 	char rslt2_nm[LEN];	/* Name of file for error output */
+	int status;		/* Result of callback */
 	int i;			/* Loop index */
 
 	/* Break input line into arguments */
@@ -325,7 +326,7 @@ int main(int argc, char *argv[])
 	    continue;
 	}
 
-	/* Execute command */
+	/* Identify command */
 	cmd1 = argv1[0];
 	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 	    fputc(EXIT_FAILURE, rslt2);
@@ -335,25 +336,40 @@ int main(int argc, char *argv[])
 		fprintf(rslt2, "%s ", cmd1v[i]);
 	    }
 	    fprintf(rslt2, "\n");
-	} else if ( !(cb1v[i])(argc1, argv1) ) {
+	    if ( (fclose(rslt1) == EOF) ) {
+		fprintf(dlog, "%s: Could not close %s.\n%s\n",
+			time_stamp(), rslt1_nm, strerror(errno));
+	    }
+	    if ( (fclose(rslt2) == EOF) ) {
+		fprintf(dlog, "%s: Could not close %s.\n%s\n",
+			time_stamp(), rslt2_nm, strerror(errno));
+	    }
+	    continue;
+	}
+
+	/* Run command. Send "standard output" to rslt1 */
+	status = (cb1v[i])(argc1, argv1);
+	if ( (fclose(rslt1) == EOF) ) {
+	    fprintf(dlog, "%s: Could not close %s.\n%s\n",
+		    time_stamp(), rslt1_nm, strerror(errno));
+	}
+
+	/* Send status and error messages, if any, to rslt2 */
+	if ( status ) {
+	    fputc(EXIT_SUCCESS, rslt2);
+	} else {
 	    fputc(EXIT_FAILURE, rslt2);
 	    fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 	    fprintf(dlog, "%s: %s failed.\n%s\n", time_stamp(), cmd1, Err_Get());
-	} else {
-	    fputc(EXIT_SUCCESS, rslt2);
-	}
-	if ( (fclose(rslt1) == EOF) ) {
-	    fprintf(dlog, "%s: Could not close %s.\n%s\n", time_stamp(),
-		    rslt1_nm, strerror(errno));
-	    continue;
 	}
 	if ( (fclose(rslt2) == EOF) ) {
-	    fprintf(dlog, "%s: Could not close %s.\n%s\n", time_stamp(),
-		    rslt2_nm, strerror(errno));
-	    continue;
+	    fprintf(dlog, "%s: Could not close %s.\n%s\n",
+		    time_stamp(), rslt2_nm, strerror(errno));
 	}
     }
-    fprintf(dlog, "%s: exiting. No more input.\n", time_stamp());
+
+    /* Should not end up here */
+    fprintf(dlog, "%s: unexpected exit. No more input.\n", time_stamp());
     if ( close(i_cmd0) == -1 ) {
 	fprintf(dlog, "%s: could not close command stream.\n%s\n",
 		time_stamp(), strerror(errno));
@@ -485,7 +501,7 @@ int read_cb(int argc, char *argv[])
     FILE *in;
     char *t;
     size_t l;
-    pid_t pid;
+    pid_t pid = 0;
     char *sfx;		/* Filename suffix */
     int pfd[2];		/* Pipe for data */
 
@@ -500,6 +516,14 @@ int read_cb(int argc, char *argv[])
 	Err_Append(cmd1);
 	Err_Append(" [-h] sigmet_volume");
 	return 0;
+    }
+    if ( hdr_only && have_hdr && (strcmp(in_nm, vol_nm) == 0) ) {
+	/* No need to read headers again */
+	return 1;
+    }
+    if ( have_vol && !vol.truncated && (strcmp(in_nm, vol_nm) == 0) ) {
+	/* No need to read volume again */
+	return 1;
     }
 
     sfx = strrchr(in_nm , '.');
@@ -551,11 +575,6 @@ int read_cb(int argc, char *argv[])
 	return 0;
     }
     if (hdr_only) {
-	if( have_hdr && (strcmp(in_nm, vol_nm) == 0) ) {
-	    /* No need to read headers */
-	    fclose(in);
-	    return 1;
-	}
 	/* Read headers */
 	unload();
 	if ( !Sigmet_ReadHdr(in, &vol) ) {
@@ -563,16 +582,14 @@ int read_cb(int argc, char *argv[])
 	    Err_Append(in_nm);
 	    Err_Append(".\n");
 	    fclose(in);
+	    if (pid) {
+		kill(pid, SIGKILL);
+	    }
 	    return 0;
 	}
 	have_hdr = 1;
 	have_vol = 0;
     } else {
-	if ( have_vol && !vol.truncated && (strcmp(in_nm, vol_nm) == 0) ) {
-	    /* No need to read volume */
-	    fclose(in);
-	    return 1;
-	}
 	/* Read volume */
 	unload();
 	if ( !Sigmet_ReadVol(in, &vol) ) {
@@ -580,11 +597,17 @@ int read_cb(int argc, char *argv[])
 	    Err_Append(in_nm);
 	    Err_Append(".\n");
 	    fclose(in);
+	    if (pid) {
+		kill(pid, SIGKILL);
+	    }
 	    return 0;
 	}
 	have_hdr = have_vol = 1;
     }
     fclose(in);
+    if (pid) {
+	kill(pid, SIGKILL);
+    }
     l = 0;
     if ( !(t = Str_Append(vol_nm, &l, &vol_nm_l, in_nm, strlen(in_nm))) ) {
 	Err_Append("Could not store name of global volume.  ");
