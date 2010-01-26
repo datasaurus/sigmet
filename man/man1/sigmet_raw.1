@@ -4,20 +4,22 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.3 $ $Date: 2009/12/08 22:55:37 $
+.\" $Revision: 1.4 $ $Date: 2010/01/07 20:55:44 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
 sigmet_raw \- access Sigmet raw product volumes
 .SH SYNOPSIS
 .nf
+\fBeval `sigmet_raw start`\fP
+\fBeval `sigmet_raw stop`\fP
 \fBsigmet_raw\fP [\fIcommands\fP]
-\fBtypes\fP
-\fBread\fP \fIraw_volume\fP
-\fBvolume_headers\fP
-\fBray_headers\fP
-\fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP]
-\fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP
+\fBsigmet_raw\fP \fBtypes\fP
+\fBsigmet_raw\fP \fBread\fP \fIraw_volume\fP
+\fBsigmet_raw\fP \fBvolume_headers\fP
+\fBsigmet_raw\fP \fBray_headers\fP
+\fBsigmet_raw\fP \fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP]
+\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP
 .fi
 .SH DESCRIPTION
 The \fBsigmet_raw\fP application reads and manipulates data from
