@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.9 $ $Date: 2010/01/24 03:42:17 $
+ .	$Revision: 1.10 $ $Date: 2010/01/26 22:14:38 $
  */
 
 #include <stdlib.h>
@@ -55,6 +55,16 @@ int main(int argc, char *argv[])
     if ( !handle_signals() ) {
 	fprintf(stderr, "%s: could not set up signal management.", argv[0]);
 	exit(EXIT_FAILURE);
+    }
+
+    /* Check for "start" */
+    if ( argc == 2 && strcmp(argv[1], "start") == 0 ) {
+	if ( system("sigmet_rawd") == -1 ) {
+	    perror("could not start daemon");
+	    exit(EXIT_FAILURE);
+	} else {
+	    exit(EXIT_SUCCESS);
+	}
     }
 
     /* Check for daemon */
