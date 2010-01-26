@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.80 $ $Date: 2010/01/24 00:39:09 $
+ .	$Revision: 1.81 $ $Date: 2010/01/24 01:11:24 $
  */
 
 #include <stdlib.h>
@@ -26,6 +26,10 @@
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "sigmet.h"
+
+int handle_signals(void);
+void handler(int signum);
+void pipe_handler(int signum);
 
 /* Application and subcommand name */
 char *cmd;
@@ -77,7 +81,7 @@ void unload(void);	/* Delete and reinitialize contents of vol */
 char ddir[LEN];		/* Working directory for server */
 int i_cmd0;		/* Where to get commands */
 int i_cmd1;		/* Unused outptut (see explanation below). */
-int idlog;		/* Error log */
+int idlog = -1;		/* Error log */
 char log_nm[LEN];	/* Name of log file */
 FILE *dlog;		/* Error log */
 FILE *rslt1;		/* Where to send standard output */
@@ -96,13 +100,18 @@ enum SHELL_TYPE {C, SH};
 int main(int argc, char *argv[])
 {
     int bg = 1;			/* If true, run in foreground (do not fork) */
-    enum SHELL_TYPE shtyp = SH;	/* Controls how environment variables are printed */
+    enum SHELL_TYPE shtyp = SH;	/* Control how environment variables are printed */
     char cmd_in_nm[LEN];	/* Name of fifo from which to read commands */
     int a;			/* Index into argv */
     pid_t pid;			/* Process id for this process */
-    struct sigaction schld;	/* Signal action to ignore zombies */
     char *ang_u;		/* Angle unit */
     char *b, *b1;		/* Point into buf, end of buf */
+
+    /* Set up signal handling */
+    if ( !handle_signals() ) {
+	fprintf(stderr, "%s: could not set up signal management.", argv[0]);
+	exit(EXIT_FAILURE);
+    }
 
     if ( (cmd = strrchr(argv[0], '/')) ) {
 	cmd++;
@@ -238,17 +247,9 @@ int main(int argc, char *argv[])
     fprintf(dlog, "\n");
     fflush(dlog);
 
-    /* Catch signals from children to prevent zombies */
-    schld.sa_handler = SIG_DFL;
-    if ( sigfillset(&schld.sa_mask) == -1) {
-	fprintf(dlog, "%s: Could not initialize signal mask\n%s\n",
-		time_stamp(), strerror(errno));
-	exit(EXIT_FAILURE);
-    }
-    schld.sa_flags = SA_NOCLDWAIT;
-    if ( sigaction(SIGCHLD, &schld, 0) == -1 ) {
-	fprintf(dlog, "%s: Could not set up signals for piping\n%s\n",
-		time_stamp(), strerror(errno));
+    /* Set up signal handling */
+    if ( !handle_signals() ) {
+	fprintf(dlog, "%s: could not set up signal management.", cmd);
 	exit(EXIT_FAILURE);
     }
 
@@ -295,7 +296,8 @@ int main(int argc, char *argv[])
 
 	/* Use client process id to make argeed upon file names for output. */
 	if ( b == b1 ) {
-	    fprintf(dlog, "%s: Command line gives no destination.\n", time_stamp());
+	    fprintf(dlog, "%s: Command line gives no destination.\n",
+		    time_stamp());
 	    continue;
 	}
 	client_pid = b;
@@ -970,4 +972,145 @@ int stop_cb(int argc, char *argv[])
     fprintf(rslt1, "unset SIGMET_RAWD_PID SIGMET_RAWD_DIR SIGMET_RAWD_IN\n");
     exit(EXIT_SUCCESS);
     return 0;
+}
+
+/*
+   Basic signal management.
+
+   Reference --
+       Rochkind, Marc J., "Advanced UNIX Programming, Second Edition",
+       2004, Addison-Wesley, Boston.
+ */
+int handle_signals(void)
+{
+    sigset_t set;
+    struct sigaction act;
+    
+    if ( sigfillset(&set) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigprocmask(SIG_SETMASK, &set, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    memset(&act, 0, sizeof(struct sigaction));
+    if ( sigfillset(&act.sa_mask) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+
+    /* Signals to ignore */
+    act.sa_handler = SIG_IGN;
+    if ( sigaction(SIGHUP, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGINT, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGQUIT, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGCHLD, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+
+    /* Minimal action for pipes */
+    act.sa_handler = pipe_handler;
+    act.sa_flags = 0;
+    if ( sigaction(SIGPIPE, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+
+    /* Generic action for termination signals */
+    act.sa_handler = handler;
+    if ( sigaction(SIGTERM, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGBUS, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGFPE, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGILL, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGSEGV, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGSYS, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGXCPU, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGXFSZ, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigemptyset(&set) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigprocmask(SIG_SETMASK, &set, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+
+    return 1;
+}
+
+/* For exit signals, print an error message if possible */
+void handler(int signum)
+{
+    if ( idlog != -1 ) {
+	switch (signum) {
+	    case SIGTERM:
+		write(idlog, "Exiting on termination signal    \n", 34);
+		break;
+	    case SIGBUS:
+		write(idlog, "Exiting on bus error             \n", 34);
+		break;
+	    case SIGFPE:
+		write(idlog, "Exiting arithmetic exception     \n", 34);
+		break;
+	    case SIGILL:
+		write(idlog, "Exiting illegal instruction      \n", 34);
+		break;
+	    case SIGSEGV:
+		write(idlog, "Exiting invalid memory reference \n", 34);
+		break;
+	    case SIGSYS:
+		write(idlog, "Exiting on bad system call       \n", 34);
+		break;
+	    case SIGXCPU:
+		write(idlog, "Exiting: CPU time limit exceeded \n", 34);
+		break;
+	    case SIGXFSZ:
+		write(idlog, "Exiting: file size limit exceeded\n", 34);
+		break;
+	}
+    }
+    _exit(EXIT_FAILURE);
+}
+
+/* For pipe errors, report if possible, and keep going */
+void pipe_handler(int signum)
+{
+    if ( idlog != -1 ) {
+	write(idlog, "Received pipe error signal\n", 27);
+    }
 }
