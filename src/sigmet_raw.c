@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.8 $ $Date: 2010/01/24 01:10:25 $
+ .	$Revision: 1.9 $ $Date: 2010/01/24 03:42:17 $
  */
 
 #include <stdlib.h>
@@ -21,8 +21,16 @@
 #include <signal.h>
 #include "alloc.h"
 
+int handle_signals(void);
+void handler(int signum);
+void pipe_handler(int signum);
+
 /* Array size */
 #define LEN 1024
+
+/* Global file names.  Needed in signal handlers. */
+char rslt1_nm[LEN];		/* Name of file for standard results */
+char rslt2_nm[LEN];		/* Name of file for error results */
 
 int main(int argc, char *argv[])
 {
@@ -38,12 +46,16 @@ int main(int argc, char *argv[])
     char *b1;			/* End of buf */
     char **aa, *a;		/* Loop parameters */
     ssize_t w;			/* Return from write */
-    char rslt1_nm[LEN];		/* Name of file for standard results */
     FILE *rslt1;		/* File for standard results */
-    char rslt2_nm[LEN];		/* Name of file for error results */
     FILE *rslt2;		/* File for error results */
     int c;			/* Character from daemon */
     int status;			/* Return from this process */
+
+    /* Set up signal handling */
+    if ( !handle_signals() ) {
+	fprintf(stderr, "%s: could not set up signal management.", argv[0]);
+	exit(EXIT_FAILURE);
+    }
 
     /* Check for daemon */
     if ( !(dpid_s = getenv("SIGMET_RAWD_PID")) ) {
@@ -193,4 +205,136 @@ int main(int argc, char *argv[])
     }
 
     return status;
+}
+
+/*
+   Basic signal management.
+
+   Reference --
+       Rochkind, Marc J., "Advanced UNIX Programming, Second Edition",
+       2004, Addison-Wesley, Boston.
+ */
+int handle_signals(void)
+{
+    sigset_t set;
+    struct sigaction act;
+    
+    if ( sigfillset(&set) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigprocmask(SIG_SETMASK, &set, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    memset(&act, 0, sizeof(struct sigaction));
+    if ( sigfillset(&act.sa_mask) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+
+    /* Signals to ignore */
+    act.sa_handler = SIG_IGN;
+    if ( sigaction(SIGHUP, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGINT, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGQUIT, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGPIPE, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+
+    /* Generic action for termination signals */
+    act.sa_handler = handler;
+    if ( sigaction(SIGTERM, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGBUS, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGFPE, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGILL, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGSEGV, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGSYS, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGXCPU, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigaction(SIGXFSZ, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigemptyset(&set) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+    if ( sigprocmask(SIG_SETMASK, &set, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+
+    return 1;
+}
+
+/* For exit signals, print an error message if possible */
+void handler(int signum)
+{
+    switch (signum) {
+	case SIGKILL:
+	    write(STDERR_FILENO, "Exiting on kill signal           \n", 34);
+	    break;
+	case SIGTERM:
+	    write(STDERR_FILENO, "Exiting on termination signal    \n", 34);
+	    break;
+	case SIGBUS:
+	    write(STDERR_FILENO, "Exiting on bus error             \n", 34);
+	    break;
+	case SIGFPE:
+	    write(STDERR_FILENO, "Exiting arithmetic exception     \n", 34);
+	    break;
+	case SIGILL:
+	    write(STDERR_FILENO, "Exiting illegal instruction      \n", 34);
+	    break;
+	case SIGSEGV:
+	    write(STDERR_FILENO, "Exiting invalid memory reference \n", 34);
+	    break;
+	case SIGSYS:
+	    write(STDERR_FILENO, "Exiting on bad system call       \n", 34);
+	    break;
+	case SIGXCPU:
+	    write(STDERR_FILENO, "Exiting: CPU time limit exceeded \n", 34);
+	    break;
+	case SIGXFSZ:
+	    write(STDERR_FILENO, "Exiting: file size limit exceeded\n", 34);
+	    break;
+    }
+    if ( access(rslt1_nm, F_OK) == 0 && unlink(rslt1_nm) == -1 ) {
+	write(STDERR_FILENO, "Could not remove result pipe\n", 29);
+    }
+    if ( access(rslt2_nm, F_OK) == 0 && unlink(rslt2_nm) == -1 ) {
+	write(STDERR_FILENO, "Could not remove result pipe\n", 29);
+    }
+    _exit(EXIT_FAILURE);
 }
