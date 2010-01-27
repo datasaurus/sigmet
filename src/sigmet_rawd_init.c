@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.85 $ $Date: 2010/01/27 21:11:45 $
+ .	$Revision: 1.86 $ $Date: 2010/01/27 21:14:41 $
  */
 
 #include <stdlib.h>
@@ -35,17 +35,21 @@ static void pipe_handler(int signum);
 static char *cmd;
 static char *cmd1;
 
+/* If true, send full error messages. */
+static int verbose = 1;
+
 /* Size for various strings */
 #define LEN 1024
 
 /* Subcommands */
-#define NCMD 11
+#define NCMD 12
 static char *cmd1v[NCMD] = {
-    "cmd_len", "log", "types", "good", "read", "volume_headers", "ray_headers",
-    "data", "bin_outline", "bintvls", "stop"
+    "cmd_len", "verbose", "log", "types", "good", "read", "volume_headers",
+    "ray_headers", "data", "bin_outline", "bintvls", "stop"
 };
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
+static callback verbose_cb;
 static callback log_cb;
 static callback types_cb;
 static callback good_cb;
@@ -57,7 +61,7 @@ static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback stop_cb;
 static callback *cb1v[NCMD] = {
-    cmd_len_cb, log_cb, types_cb, good_cb, read_cb, volume_headers_cb,
+    cmd_len_cb, verbose_cb, log_cb, types_cb, good_cb, read_cb, volume_headers_cb,
     ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb, stop_cb
 };
 
@@ -335,12 +339,14 @@ int main(int argc, char *argv[])
 	cmd1 = argv1[0];
 	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 	    fputc(EXIT_FAILURE, rslt2);
-	    fprintf(rslt2, "No option or subcommand named \"%s\"\n", cmd1);
-	    fprintf(rslt2, "Subcommand must be one of: ");
-	    for (i = 0; i < NCMD; i++) {
-		fprintf(rslt2, "%s ", cmd1v[i]);
+	    if ( verbose ) {
+		fprintf(rslt2, "No option or subcommand named \"%s\"\n", cmd1);
+		fprintf(rslt2, "Subcommand must be one of: ");
+		for (i = 0; i < NCMD; i++) {
+		    fprintf(rslt2, "%s ", cmd1v[i]);
+		}
+		fprintf(rslt2, "\n");
 	    }
-	    fprintf(rslt2, "\n");
 	    if ( (fclose(rslt1) == EOF) ) {
 		fprintf(dlog, "%s: Could not close %s.\n%s\n",
 			time_stamp(), rslt1_nm, strerror(errno));
@@ -359,12 +365,14 @@ int main(int argc, char *argv[])
 		    time_stamp(), rslt1_nm, strerror(errno));
 	}
 
-	/* Send status and error messages, if any, to rslt2 */
+	/* Send status and error messages, if any, to rslt2 and log */
 	if ( status ) {
 	    fputc(EXIT_SUCCESS, rslt2);
 	} else {
 	    fputc(EXIT_FAILURE, rslt2);
-	    fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	    if ( verbose ) {
+		fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+	    }
 	    fprintf(dlog, "%s: %s failed.\n%s\n", time_stamp(), cmd1, Err_Get());
 	}
 	if ( (fclose(rslt2) == EOF) ) {
@@ -419,6 +427,30 @@ static int cmd_len_cb(int argc, char *argv[])
     return 1;
 }
 
+static int verbose_cb(int argc, char *argv[])
+{
+    char *val;
+
+    if (argc != 2) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" true|false");
+	return 0;
+    }
+    val = argv[1];
+    if ( strcmp(val, "true") == 0 ) {
+	verbose = 1;
+    } else if ( strcmp(val, "false") == 0 ) {
+	verbose = 0;
+    } else {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" true|false");
+	return 0;
+    }
+    return 1;
+}
+
 static int log_cb(int argc, char *argv[])
 {
     FILE *l;
@@ -466,6 +498,8 @@ static int types_cb(int argc, char *argv[])
 /*
  * Open volume file in_nm, possibly via a pipe.
  * Return file handle, or NULL if failure.
+ * If file is from a process, pidp gets the child's process id. O/w, pidp is
+ * not touched.
  */
 static FILE *vol_open(const char *in_nm, pid_t *pidp)
 {
@@ -474,7 +508,6 @@ static FILE *vol_open(const char *in_nm, pid_t *pidp)
     char *sfx;		/* Filename suffix */
     int pfd[2];		/* Pipe for data */
 
-    *pidp = 0;
     sfx = strrchr(in_nm , '.');
     if ( sfx && strcmp(sfx, ".gz") == 0 ) {
 	/* If filename ends with ".gz", read from gunzip pipe */
