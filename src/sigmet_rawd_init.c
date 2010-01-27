@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.83 $ $Date: 2010/01/27 16:20:48 $
+ .	$Revision: 1.84 $ $Date: 2010/01/27 16:38:57 $
  */
 
 #include <stdlib.h>
@@ -62,6 +62,7 @@ callback *cb1v[NCMD] = {
 };
 
 char *time_stamp(void);
+static FILE *vol_open(const char *in_nm, pid_t *pidp);
 
 /* If true, use degrees instead of radians */
 int use_deg = 0;
@@ -460,39 +461,133 @@ int types_cb(int argc, char *argv[])
     return 1;
 }
 
-int good_cb(int argc, char *argv[])
+/*
+ * Open volume file in_nm, possibly via a pipe.
+ * Return file handle, or NULL if failure.
+ */
+static FILE *vol_open(const char *in_nm, pid_t *pidp)
 {
-    char *in_nm;
-    FILE *in;
-    int status;
+    FILE *in;		/* Return value */
+    pid_t pid = 0;	/* Process identifier, for fork */
+    char *sfx;		/* Filename suffix */
+    int pfd[2];		/* Pipe for data */
 
-    if (argc == 1) {
-	in_nm = "-";
-    } else if (argc == 2) {
-	in_nm = argv[1];
-    } else {
-	Err_Append("Usage: ");
-	Err_Append(cmd1);
-	Err_Append(" sigmet_volume");
-	return 0;
-    }
-    if (strcmp(in_nm, "-") == 0) {
-	in = stdin;
+    *pidp = 0;
+    sfx = strrchr(in_nm , '.');
+    if ( sfx && strcmp(sfx, ".gz") == 0 ) {
+	/* If filename ends with ".gz", read from gunzip pipe */
+	if ( pipe(pfd) == -1 ) {
+	    Err_Append(strerror(errno));
+	    Err_Append("\nCould not create pipe for gzip.  ");
+	    return NULL;
+	}
+	pid = fork();
+	switch (pid) {
+	    case -1:
+		Err_Append(strerror(errno));
+		Err_Append("\nCould not spawn gzip process.  ");
+		return NULL;
+	    case 0:
+		/* Child process - gzip.  Send child stdout to pipe. */
+		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
+			|| fclose(rslt1) == EOF) {
+		    fprintf(dlog, "%s: gzip child could not close"
+			    " server streams", time_stamp());
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1
+			|| close(pfd[1]) == -1 ) {
+		    fprintf(dlog, "%s: could not set up gzip process",
+			    time_stamp());
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
+		    _exit(EXIT_FAILURE);
+		}
+		execlp("gunzip", "gunzip", "-c", in_nm, (char *)NULL);
+		_exit(EXIT_FAILURE);
+	    default:
+		/* This process.  Read output from gzip. */
+		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
+		    Err_Append(strerror(errno));
+		    Err_Append("\nCould not read gzip process.  ");
+		    return NULL;
+		} else {
+		    *pidp = pid;
+		    return in;
+		}
+	}
+    } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
+	/* If filename ends with ".bz2", read from bunzip2 pipe */
+	if ( pipe(pfd) == -1 ) {
+	    Err_Append(strerror(errno));
+	    Err_Append("\nCould not create pipe for gzip.  ");
+	    return NULL;
+	}
+	pid = fork();
+	switch (pid) {
+	    case -1:
+		Err_Append(strerror(errno));
+		Err_Append("\nCould not spawn gzip process.  ");
+		return NULL;
+	    case 0:
+		/* Child process - gzip.  Send child stdout to pipe. */
+		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
+			|| fclose(rslt1) == EOF) {
+		    fprintf(dlog, "%s: gzip child could not close"
+			    " server streams", time_stamp());
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1
+			|| close(pfd[1]) == -1 ) {
+		    fprintf(dlog, "%s: could not set up gzip process",
+			    time_stamp());
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
+		    _exit(EXIT_FAILURE);
+		}
+		execlp("bunzip2", "bunzip2", "-c", in_nm, (char *)NULL);
+		_exit(EXIT_FAILURE);
+	    default:
+		/* This process.  Read output from gzip. */
+		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
+		    Err_Append(strerror(errno));
+		    Err_Append("\nCould not read gzip process.  ");
+		    return NULL;
+		} else {
+		    *pidp = pid;
+		    return in;
+		}
+	}
     } else if ( !(in = fopen(in_nm, "r")) ) {
+	/* Uncompressed file */
 	Err_Append("Could not open ");
 	Err_Append(in_nm);
 	Err_Append(" for input.\n");
+	return NULL;
+    }
+    return in;
+}
+
+int good_cb(int argc, char *argv[])
+{
+    FILE *in;
+    int rslt;
+    pid_t pid = -1;
+
+    if ( argc != 2 ) {
 	return 0;
     }
-    if ( Sigmet_GoodVol(in) ) {
-	status = 0;
-    } else {
-	status = 1;
+    if ( !(in = vol_open(argv[1], &pid)) ) {
+	return 0;
     }
-    if ( in != stdin ) {
-	fclose(in);
+    rslt = Sigmet_GoodVol(in);
+    if ( pid != -1 ) {
+	kill(pid, SIGKILL);
     }
-    return status;
+    fclose(in);
+    return rslt;
 }
 
 /*
@@ -579,26 +674,26 @@ int read_cb(int argc, char *argv[])
 	/* If filename ends with ".bz2", read from bunzip2 pipe */
 	if ( pipe(pfd) == -1 ) {
 	    Err_Append(strerror(errno));
-	    Err_Append("\nCould not create pipe for gzip.  ");
+	    Err_Append("\nCould not create pipe for bunzip2.  ");
 	    return 0;
 	}
 	pid = fork();
 	switch (pid) {
 	    case -1:
 		Err_Append(strerror(errno));
-		Err_Append("\nCould not spawn gzip process.  ");
+		Err_Append("\nCould not spawn bunzip2 process.  ");
 		return 0;
 	    case 0:
-		/* Child process - gzip.  Send child stdout to pipe. */
+		/* Child process - bunzip2.  Send child stdout to pipe. */
 		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
 			|| fclose(rslt1) == EOF) {
-		    fprintf(dlog, "%s: gzip child could not close"
+		    fprintf(dlog, "%s: bunzip2 child could not close"
 			    " server streams", time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1
 			|| close(pfd[1]) == -1 ) {
-		    fprintf(dlog, "%s: could not set up gzip process",
+		    fprintf(dlog, "%s: could not set up bunzip2 process",
 			    time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
@@ -608,10 +703,10 @@ int read_cb(int argc, char *argv[])
 		execlp("bunzip2", "bunzip2", "-c", in_nm, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	    default:
-		/* This process.  Read output from gzip. */
+		/* This process.  Read output from bunzip2. */
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
 		    Err_Append(strerror(errno));
-		    Err_Append("\nCould not read gzip process.  ");
+		    Err_Append("\nCould not read bunzip2 process.  ");
 		    return 0;
 		}
 	}
