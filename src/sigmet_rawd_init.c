@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.84 $ $Date: 2010/01/27 16:38:57 $
+ .	$Revision: 1.85 $ $Date: 2010/01/27 21:11:45 $
  */
 
 #include <stdlib.h>
@@ -27,70 +27,72 @@
 #include "geog_lib.h"
 #include "sigmet.h"
 
-int handle_signals(void);
-void handler(int signum);
-void pipe_handler(int signum);
+static int handle_signals(void);
+static void handler(int signum);
+static void pipe_handler(int signum);
 
 /* Application and subcommand name */
-char *cmd;
-char *cmd1;
+static char *cmd;
+static char *cmd1;
 
 /* Size for various strings */
 #define LEN 1024
 
 /* Subcommands */
 #define NCMD 11
-char *cmd1v[NCMD] = {
+static char *cmd1v[NCMD] = {
     "cmd_len", "log", "types", "good", "read", "volume_headers", "ray_headers",
     "data", "bin_outline", "bintvls", "stop"
 };
 typedef int (callback)(int , char **);
-callback cmd_len_cb;
-callback log_cb;
-callback types_cb;
-callback good_cb;
-callback read_cb;
-callback volume_headers_cb;
-callback ray_headers_cb;
-callback data_cb;
-callback bin_outline_cb;
-callback bintvls_cb;
-callback stop_cb;
-callback *cb1v[NCMD] = {
+static callback cmd_len_cb;
+static callback log_cb;
+static callback types_cb;
+static callback good_cb;
+static callback read_cb;
+static callback volume_headers_cb;
+static callback ray_headers_cb;
+static callback data_cb;
+static callback bin_outline_cb;
+static callback bintvls_cb;
+static callback stop_cb;
+static callback *cb1v[NCMD] = {
     cmd_len_cb, log_cb, types_cb, good_cb, read_cb, volume_headers_cb,
     ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb, stop_cb
 };
 
-char *time_stamp(void);
+static char *time_stamp(void);
 static FILE *vol_open(const char *in_nm, pid_t *pidp);
 
 /* If true, use degrees instead of radians */
-int use_deg = 0;
+static int use_deg = 0;
 
 /* The global Sigmet volume, used by most callbacks. */
-struct Sigmet_Vol vol;	/* Sigmet volume */
-int have_hdr;		/* If true, vol has headers from a Sigmet volume */
-int have_vol;		/* If true, vol has headers and data from a Sigmet volume */
-char *vol_nm;		/* Name of volume file */
-size_t vol_nm_l;	/* Number of characters that can be stored at vol_nm */
-void unload(void);	/* Delete and reinitialize contents of vol */
+static struct Sigmet_Vol vol;	/* Sigmet volume */
+static int have_hdr;		/* If true, vol has headers from a Sigmet volume */
+static int have_vol;		/* If true, vol has headers and data from a Sigmet
+				 * volume */
+static char *vol_nm;		/* Name of volume file */
+static size_t vol_nm_l;		/* Number of characters that can be stored at
+				 * vol_nm */
+static void unload(void);	/* Delete and reinitialize contents of vol */
 
 /* Bounds limit indicating all possible index values */
 #define ALL -1
 
 /* Files and process streams */
-char ddir[LEN];		/* Working directory for server */
-int i_cmd0;		/* Where to get commands */
-int i_cmd1;		/* Unused outptut (see explanation below). */
-int idlog = -1;		/* Error log */
-char log_nm[LEN];	/* Name of log file */
-FILE *dlog;		/* Error log */
-FILE *rslt1;		/* Where to send standard output */
-FILE *rslt2;		/* Where to send standard error */
+static char ddir[LEN];		/* Working directory for server */
+static int i_cmd0;		/* Where to get commands */
+static int i_cmd1;		/* Unused outptut (see explanation below). */
+static int idlog = -1;		/* Error log */
+static char log_nm[LEN];	/* Name of log file */
+static FILE *dlog;		/* Error log */
+static FILE *rslt1;		/* Where to send standard output */
+static FILE *rslt2;		/* Where to send standard error */
 
 /* Input line - has commands for the daemon */
-char *buf;
-long buf_l;		/* Allocation at buf */
+static char *buf;
+static long buf_l;		/* Allocation at buf */
 
 /* Shell type determines type of printout */
 enum SHELL_TYPE {C, SH};
@@ -385,7 +387,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void unload(void)
+static void unload(void)
 {
     Sigmet_FreeVol(&vol);
     have_hdr = have_vol = 0;
@@ -393,7 +395,7 @@ void unload(void)
 }
 
 /* Get a character string with the current time */
-char *time_stamp(void)
+static char *time_stamp(void)
 {
     static char ts[LEN];
     time_t now;
@@ -406,7 +408,7 @@ char *time_stamp(void)
     }
 }
 
-int cmd_len_cb(int argc, char *argv[])
+static int cmd_len_cb(int argc, char *argv[])
 {
     if (argc != 1) {
 	Err_Append("Usage: ");
@@ -417,7 +419,7 @@ int cmd_len_cb(int argc, char *argv[])
     return 1;
 }
 
-int log_cb(int argc, char *argv[])
+static int log_cb(int argc, char *argv[])
 {
     FILE *l;
     int c;
@@ -445,7 +447,7 @@ int log_cb(int argc, char *argv[])
     return 1;
 }
 
-int types_cb(int argc, char *argv[])
+static int types_cb(int argc, char *argv[])
 {
     int y;
 
@@ -570,7 +572,7 @@ static FILE *vol_open(const char *in_nm, pid_t *pidp)
     return in;
 }
 
-int good_cb(int argc, char *argv[])
+static int good_cb(int argc, char *argv[])
 {
     FILE *in;
     int rslt;
@@ -597,7 +599,7 @@ int good_cb(int argc, char *argv[])
    read raw_file
    read -h raw_file
  */
-int read_cb(int argc, char *argv[])
+static int read_cb(int argc, char *argv[])
 {
     int hdr_only;
     char *in_nm;
@@ -761,7 +763,7 @@ int read_cb(int argc, char *argv[])
     return 1;
 }
 
-int volume_headers_cb(int argc, char *argv[])
+static int volume_headers_cb(int argc, char *argv[])
 {
     if ( !have_vol ) {
 	Err_Append("No volume loaded.  ");
@@ -771,7 +773,7 @@ int volume_headers_cb(int argc, char *argv[])
     return 1;
 }
 
-int ray_headers_cb(int argc, char *argv[])
+static int ray_headers_cb(int argc, char *argv[])
 {
     int s, r;
 
@@ -806,7 +808,7 @@ int ray_headers_cb(int argc, char *argv[])
     return 1;
 }
 
-int data_cb(int argc, char *argv[])
+static int data_cb(int argc, char *argv[])
 {
     int s, y, r, b;
     char *abbrv;
@@ -974,7 +976,7 @@ int data_cb(int argc, char *argv[])
     return 1;
 }
 
-int bin_outline_cb(int argc, char *argv[])
+static int bin_outline_cb(int argc, char *argv[])
 {
     char *s_s, *r_s, *b_s;
     int s, r, b;
@@ -1033,7 +1035,7 @@ int bin_outline_cb(int argc, char *argv[])
 }
 
 /* Usage: sigmet_raw bintvls type s bounds raw_vol */
-int bintvls_cb(int argc, char *argv[])
+static int bintvls_cb(int argc, char *argv[])
 {
     char *s_s;
     int s, y, r, b;
@@ -1097,7 +1099,7 @@ int bintvls_cb(int argc, char *argv[])
     return 1;
 }
 
-int stop_cb(int argc, char *argv[])
+static int stop_cb(int argc, char *argv[])
 {
     char rm[LEN];
 
@@ -1122,7 +1124,7 @@ int stop_cb(int argc, char *argv[])
        Rochkind, Marc J., "Advanced UNIX Programming, Second Edition",
        2004, Addison-Wesley, Boston.
  */
-int handle_signals(void)
+static int handle_signals(void)
 {
     sigset_t set;
     struct sigaction act;
@@ -1215,7 +1217,7 @@ int handle_signals(void)
 }
 
 /* For exit signals, print an error message if possible */
-void handler(int signum)
+static void handler(int signum)
 {
     if ( idlog != -1 ) {
 	switch (signum) {
@@ -1249,7 +1251,7 @@ void handler(int signum)
 }
 
 /* For pipe errors, report if possible, and keep going */
-void pipe_handler(int signum)
+static void pipe_handler(int signum)
 {
     if ( idlog != -1 ) {
 	write(idlog, "Received pipe error signal\n", 27);
