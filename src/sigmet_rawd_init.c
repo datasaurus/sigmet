@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.81 $ $Date: 2010/01/24 01:11:24 $
+ .	$Revision: 1.82 $ $Date: 2010/01/26 21:58:51 $
  */
 
 #include <stdlib.h>
@@ -560,6 +560,46 @@ int read_cb(int argc, char *argv[])
 		    _exit(EXIT_FAILURE);
 		}
 		execlp("gunzip", "gunzip", "-c", in_nm, (char *)NULL);
+		_exit(EXIT_FAILURE);
+	    default:
+		/* This process.  Read output from gzip. */
+		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
+		    Err_Append(strerror(errno));
+		    Err_Append("\nCould not read gzip process.  ");
+		    return 0;
+		}
+	}
+    } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
+	/* If filename ends with ".bz2", read from bunzip2 pipe */
+	if ( pipe(pfd) == -1 ) {
+	    Err_Append(strerror(errno));
+	    Err_Append("\nCould not create pipe for gzip.  ");
+	    return 0;
+	}
+	pid = fork();
+	switch (pid) {
+	    case -1:
+		Err_Append(strerror(errno));
+		Err_Append("\nCould not spawn gzip process.  ");
+		return 0;
+	    case 0:
+		/* Child process - gzip.  Send child stdout to pipe. */
+		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
+			|| fclose(rslt1) == EOF) {
+		    fprintf(dlog, "%s: gzip child could not close"
+			    " server streams", time_stamp());
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1
+			|| close(pfd[1]) == -1 ) {
+		    fprintf(dlog, "%s: could not set up gzip process",
+			    time_stamp());
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
+		    _exit(EXIT_FAILURE);
+		}
+		execlp("bunzip2", "bunzip2", "-c", in_nm, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	    default:
 		/* This process.  Read output from gzip. */
