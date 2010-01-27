@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.86 $ $Date: 2010/01/27 21:14:41 $
+ .	$Revision: 1.87 $ $Date: 2010/01/27 22:16:57 $
  */
 
 #include <stdlib.h>
@@ -496,10 +496,10 @@ static int types_cb(int argc, char *argv[])
 }
 
 /*
- * Open volume file in_nm, possibly via a pipe.
- * Return file handle, or NULL if failure.
- * If file is from a process, pidp gets the child's process id. O/w, pidp is
- * not touched.
+   Open volume file in_nm, possibly via a pipe.
+   Return file handle, or NULL if failure.
+   If file is from a process, pidp gets the child's process id. Otherwise,
+   pidp is not touched.
  */
 static FILE *vol_open(const char *in_nm, pid_t *pidp)
 {
