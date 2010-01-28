@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.87 $ $Date: 2010/01/27 22:16:57 $
+ .	$Revision: 1.88 $ $Date: 2010/01/27 22:46:40 $
  */
 
 #include <stdlib.h>
@@ -65,6 +65,7 @@ static callback *cb1v[NCMD] = {
     ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb, stop_cb
 };
 
+/* Convenience functions */
 static char *time_stamp(void);
 static FILE *vol_open(const char *in_nm, pid_t *pidp);
 
@@ -639,9 +640,7 @@ static int read_cb(int argc, char *argv[])
     FILE *in;
     char *t;
     size_t l;
-    pid_t pid = 0;
-    char *sfx;		/* Filename suffix */
-    int pfd[2];		/* Pipe for data */
+    pid_t pid;
 
     hdr_only = 0;
     if ( argc == 2 ) {
@@ -664,92 +663,11 @@ static int read_cb(int argc, char *argv[])
 	return 1;
     }
 
-    sfx = strrchr(in_nm , '.');
-    if ( sfx && strcmp(sfx, ".gz") == 0 ) {
-	/* If filename ends with ".gz", read from gunzip pipe */
-	if ( pipe(pfd) == -1 ) {
-	    Err_Append(strerror(errno));
-	    Err_Append("\nCould not create pipe for gzip.  ");
-	    return 0;
-	}
-	pid = fork();
-	switch (pid) {
-	    case -1:
-		Err_Append(strerror(errno));
-		Err_Append("\nCould not spawn gzip process.  ");
-		return 0;
-	    case 0:
-		/* Child process - gzip.  Send child stdout to pipe. */
-		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
-			|| fclose(rslt1) == EOF) {
-		    fprintf(dlog, "%s: gzip child could not close"
-			    " server streams", time_stamp());
-		    _exit(EXIT_FAILURE);
-		}
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1
-			|| close(pfd[1]) == -1 ) {
-		    fprintf(dlog, "%s: could not set up gzip process",
-			    time_stamp());
-		    _exit(EXIT_FAILURE);
-		}
-		if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
-		    _exit(EXIT_FAILURE);
-		}
-		execlp("gunzip", "gunzip", "-c", in_nm, (char *)NULL);
-		_exit(EXIT_FAILURE);
-	    default:
-		/* This process.  Read output from gzip. */
-		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-		    Err_Append(strerror(errno));
-		    Err_Append("\nCould not read gzip process.  ");
-		    return 0;
-		}
-	}
-    } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
-	/* If filename ends with ".bz2", read from bunzip2 pipe */
-	if ( pipe(pfd) == -1 ) {
-	    Err_Append(strerror(errno));
-	    Err_Append("\nCould not create pipe for bunzip2.  ");
-	    return 0;
-	}
-	pid = fork();
-	switch (pid) {
-	    case -1:
-		Err_Append(strerror(errno));
-		Err_Append("\nCould not spawn bunzip2 process.  ");
-		return 0;
-	    case 0:
-		/* Child process - bunzip2.  Send child stdout to pipe. */
-		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
-			|| fclose(rslt1) == EOF) {
-		    fprintf(dlog, "%s: bunzip2 child could not close"
-			    " server streams", time_stamp());
-		    _exit(EXIT_FAILURE);
-		}
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1
-			|| close(pfd[1]) == -1 ) {
-		    fprintf(dlog, "%s: could not set up bunzip2 process",
-			    time_stamp());
-		    _exit(EXIT_FAILURE);
-		}
-		if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
-		    _exit(EXIT_FAILURE);
-		}
-		execlp("bunzip2", "bunzip2", "-c", in_nm, (char *)NULL);
-		_exit(EXIT_FAILURE);
-	    default:
-		/* This process.  Read output from bunzip2. */
-		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-		    Err_Append(strerror(errno));
-		    Err_Append("\nCould not read bunzip2 process.  ");
-		    return 0;
-		}
-	}
-    } else if ( !(in = fopen(in_nm, "r")) ) {
-	/* Uncompressed file */
+    pid = -1;
+    if ( !(in = vol_open(in_nm, &pid)) ) {
 	Err_Append("Could not open ");
 	Err_Append(in_nm);
-	Err_Append(" for input.\n");
+	Err_Append(" for input. ");
 	return 0;
     }
     if (hdr_only) {
@@ -760,7 +678,7 @@ static int read_cb(int argc, char *argv[])
 	    Err_Append(in_nm);
 	    Err_Append(".\n");
 	    fclose(in);
-	    if (pid) {
+	    if (pid != -1) {
 		kill(pid, SIGKILL);
 	    }
 	    return 0;
@@ -775,7 +693,7 @@ static int read_cb(int argc, char *argv[])
 	    Err_Append(in_nm);
 	    Err_Append(".\n");
 	    fclose(in);
-	    if (pid) {
+	    if (pid != -1) {
 		kill(pid, SIGKILL);
 	    }
 	    return 0;
@@ -783,7 +701,7 @@ static int read_cb(int argc, char *argv[])
 	have_hdr = have_vol = 1;
     }
     fclose(in);
-    if (pid) {
+    if (pid != -1) {
 	kill(pid, SIGKILL);
     }
     l = 0;
