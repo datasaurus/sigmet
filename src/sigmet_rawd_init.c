@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.90 $ $Date: 2010/01/29 22:15:21 $
+ .	$Revision: 1.91 $ $Date: 2010/01/29 23:02:11 $
  */
 
 #include <stdlib.h>
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( (mkfifo(cmd_in_nm, 0600) == -1) ) {
+    if ( (mkfifo(cmd_in_nm, S_IRUSR | S_IWUSR) == -1) ) {
 	fprintf(stderr, "%s: sigmet_rawd could not create input pipe.\n%s\n",
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
@@ -310,6 +310,13 @@ int main(int argc, char *argv[])
 		    time_stamp());
 	    continue;
 	}
+
+	fprintf(dlog, "Parsing: ");
+	for (a = 0; a < argc1; a++) {
+	    fprintf(dlog, " %s", argv1[a]);
+	}
+	fprintf(dlog, "\n");
+	fflush(dlog);
 
 	/* Standard output */
 	rslt1 = NULL;
