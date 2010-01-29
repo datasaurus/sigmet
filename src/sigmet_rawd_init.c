@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.88 $ $Date: 2010/01/27 22:46:40 $
+ .	$Revision: 1.89 $ $Date: 2010/01/28 17:46:14 $
  */
 
 #include <stdlib.h>
@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
        argc transferred as binary integer.
        argv members and client_pid nul separated.
      */
-    while ( read(i_cmd0, buf, buf_l) == buf_l ) {
+    while ( read(i_cmd0, buf, buf_l) != -1 ) {
 	int argc1;		/* Number of arguments in an input line */
 	char *argv1[ARGCX];	/* Arguments from an input line */
 	int a;			/* Index into argv1 */
