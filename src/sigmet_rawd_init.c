@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.89 $ $Date: 2010/01/28 17:46:14 $
+ .	$Revision: 1.90 $ $Date: 2010/01/29 22:15:21 $
  */
 
 #include <stdlib.h>
@@ -283,37 +283,38 @@ int main(int argc, char *argv[])
 	int argc1;		/* Number of arguments in an input line */
 	char *argv1[ARGCX];	/* Arguments from an input line */
 	int a;			/* Index into argv1 */
-	char *client_pid;	/* Process id of client, used to make file names */
+	pid_t client_pid;	/* Process id of client, used to make file names */
 	char rslt1_nm[LEN];	/* Name of file for standard output */
 	char rslt2_nm[LEN];	/* Name of file for error output */
 	int status;		/* Result of callback */
 	int i;			/* Loop index */
 
 	/* Break input line into arguments */
-	argc1 = *(int *)buf;
+	b = buf;
+	client_pid = *(pid_t *)b;
+	b += sizeof(client_pid);
+	argc1 = *(int *)b;
+	b += sizeof(argc1);
 	if (argc1 > ARGCX) {
 	    fprintf(dlog, "%s: Unable to parse command with %d arguments. "
 		    "Limit is %d\n", time_stamp(), argc1, ARGCX);
 	    continue;
 	}
-	for (a = 0, argv1[a] = b = buf + sizeof(int); b < b1 && a < argc1; b++) {
+	for (a = 0, argv1[a] = b; b < b1 && a < argc1; b++) {
 	    if ( *b == '\0' ) {
 		argv1[++a] = b + 1;
 	    }
 	}
-
-	/* Use client process id to make argeed upon file names for output. */
 	if ( b == b1 ) {
 	    fprintf(dlog, "%s: Command line gives no destination.\n",
 		    time_stamp());
 	    continue;
 	}
-	client_pid = b;
 
 	/* Standard output */
 	rslt1 = NULL;
-	if (snprintf(rslt1_nm, LEN, "%s/%s.1", ddir, client_pid) > LEN) {
-	    fprintf(dlog, "%s: Could not create file name for client %s.\n",
+	if (snprintf(rslt1_nm, LEN, "%s/%d.1", ddir, client_pid) > LEN) {
+	    fprintf(dlog, "%s: Could not create file name for client %d.\n",
 		    time_stamp(), client_pid);
 	    continue;
 	}
@@ -325,8 +326,8 @@ int main(int argc, char *argv[])
 
 	/* Error output */
 	rslt2 = NULL;
-	if (snprintf(rslt2_nm, LEN, "%s/%s.2", ddir, client_pid) > LEN) {
-	    fprintf(dlog, "%s: Could not create file name for client %s.\n",
+	if (snprintf(rslt2_nm, LEN, "%s/%d.2", ddir, client_pid) > LEN) {
+	    fprintf(dlog, "%s: Could not create file name for client %d.\n",
 		    time_stamp(), client_pid);
 	    continue;
 	}

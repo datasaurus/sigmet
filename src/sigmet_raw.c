@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.10 $ $Date: 2010/01/26 22:14:38 $
+ .	$Revision: 1.11 $ $Date: 2010/01/26 23:17:55 $
  */
 
 #include <stdlib.h>
@@ -128,14 +128,14 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /*
-       Fill buf and send to daemon.
-       Contents of buf: argc argv rslt1_nm
-       argc sent as binary integer. argv members and rslt1_nm nul separated.
-     */
+    /* Fill buf and send to daemon. */
     memset(buf, 0, buf_l);
-    *(int *)buf = argc - 1;
-    for (b = buf + sizeof(int), aa = argv + 1, a = *aa; b < b1 && *aa; b++, a++) {
+    b = buf;
+    *(pid_t *)b = pid;
+    b += sizeof(pid);
+    *(int *)b = argc - 1;
+    b += sizeof(argc);
+    for (aa = argv + 1, a = *aa; b < b1 && *aa; b++, a++) {
 	*b = *a;
 	if (*a == '\0' && *++aa) {
 	    a = *aa;
@@ -143,11 +143,6 @@ int main(int argc, char *argv[])
 	}
     }
     if ( b == b1 ) {
-	fprintf(stderr, "%s: command line to big (%ld characters max)\n",
-		cmd, buf_l - sizeof(int) - strlen(rslt1_nm) - 1);
-	exit(EXIT_FAILURE);
-    }
-    if ( snprintf(b, b1 - b, "%d", pid) > b1 - b ) {
 	fprintf(stderr, "%s: command line to big (%ld characters max)\n",
 		cmd, buf_l - sizeof(int) - strlen(rslt1_nm) - 1);
 	exit(EXIT_FAILURE);
