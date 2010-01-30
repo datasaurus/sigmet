@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.92 $ $Date: 2010/01/29 23:48:21 $
+ .	$Revision: 1.93 $ $Date: 2010/01/30 00:21:47 $
  */
 
 #include <stdlib.h>
@@ -27,19 +27,51 @@
 #include "geog_lib.h"
 #include "sigmet.h"
 
-static int handle_signals(void);
-static void handler(int signum);
-static void pipe_handler(int signum);
+/* Size for various strings */
+#define LEN 1024
 
-/* Application and subcommand name */
-static char *cmd;
-static char *cmd1;
+/* Maximum number of arguments in input command */
+#define ARGCX 512
+
+/* Bounds limit indicating all possible index values */
+#define ALL -1
 
 /* If true, send full error messages. */
 static int verbose = 1;
 
-/* Size for various strings */
-#define LEN 1024
+/* If true, use degrees instead of radians */
+static int use_deg = 0;
+
+/* The global Sigmet volume, used by most callbacks. */
+static struct Sigmet_Vol vol;	/* Sigmet volume */
+static int have_hdr;		/* If true, vol has headers from a Sigmet volume */
+static int have_vol;		/* If true, vol has headers and data from a Sigmet
+				 * volume */
+static char *vol_nm;		/* Name of volume file */
+static size_t vol_nm_l;		/* Number of characters that can be stored at
+				 * vol_nm */
+static void unload(void);	/* Delete and reinitialize contents of vol */
+
+/* Process streams and files */
+static char ddir[LEN];		/* Working directory for server */
+static int i_cmd0;		/* Where to get commands */
+static int i_cmd1;		/* Unused outptut (see explanation below). */
+static int idlog = -1;		/* Error log */
+static char log_nm[LEN];	/* Name of log file */
+static FILE *dlog;		/* Error log */
+static FILE *rslt1;		/* Where to send standard output */
+static FILE *rslt2;		/* Where to send standard error */
+
+/* Input line - has commands for the daemon */
+static char *buf;
+static long buf_l;		/* Allocation at buf */
+
+/* Shell type determines type of printout */
+enum SHELL_TYPE {C, SH};
+
+/* Application and subcommand name */
+static char *cmd;
+static char *cmd1;
 
 /* Subcommands */
 #define NCMD 12
@@ -69,41 +101,10 @@ static callback *cb1v[NCMD] = {
 static char *time_stamp(void);
 static FILE *vol_open(const char *in_nm, pid_t *pidp);
 
-/* If true, use degrees instead of radians */
-static int use_deg = 0;
-
-/* The global Sigmet volume, used by most callbacks. */
-static struct Sigmet_Vol vol;	/* Sigmet volume */
-static int have_hdr;		/* If true, vol has headers from a Sigmet volume */
-static int have_vol;		/* If true, vol has headers and data from a Sigmet
-				 * volume */
-static char *vol_nm;		/* Name of volume file */
-static size_t vol_nm_l;		/* Number of characters that can be stored at
-				 * vol_nm */
-static void unload(void);	/* Delete and reinitialize contents of vol */
-
-/* Bounds limit indicating all possible index values */
-#define ALL -1
-
-/* Files and process streams */
-static char ddir[LEN];		/* Working directory for server */
-static int i_cmd0;		/* Where to get commands */
-static int i_cmd1;		/* Unused outptut (see explanation below). */
-static int idlog = -1;		/* Error log */
-static char log_nm[LEN];	/* Name of log file */
-static FILE *dlog;		/* Error log */
-static FILE *rslt1;		/* Where to send standard output */
-static FILE *rslt2;		/* Where to send standard error */
-
-/* Input line - has commands for the daemon */
-static char *buf;
-static long buf_l;		/* Allocation at buf */
-
-/* Shell type determines type of printout */
-enum SHELL_TYPE {C, SH};
-
-/* Maximum number of arguments in input command */
-#define ARGCX 512
+/* Signal handling functions */
+static int handle_signals(void);
+static void handler(int signum);
+static void pipe_handler(int signum);
 
 int main(int argc, char *argv[])
 {
@@ -209,15 +210,26 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* If desired, put server in background */
     if ( bg ) {
+	/* Put server in background */
 	switch (pid = fork()) {
 	    case -1:
 		Err_Append(strerror(errno));
-		Err_Append("\nCould not spawn gzip process.  ");
+		Err_Append("\nCould not spawn sigmet daemon in background.  ");
 		return 0;
 	    case 0:
-		/* Child = daemon process. Go to background. */
+		/* Child = daemon process. */
+
+		if ( !handle_signals() ) {
+		    fprintf(stderr, "%s: could not set up signal management "
+			    "in daemon.", cmd);
+		    exit(EXIT_FAILURE);
+		}
+
+		/* Go to background. */
+		fclose(stdin);
+		fclose(stdout);
+		fclose(stderr);
 		break;
 	    default:
 		/* Parent. Print information and exit. */
@@ -236,12 +248,9 @@ int main(int argc, char *argv[])
 		printf("echo Log file = %s;\n", log_nm);
 		exit(EXIT_SUCCESS);
 	}
-	fclose(stdin);
-	fclose(stdout);
-	fclose(stderr);
     }
 
-    /* Log initialization */
+    /* Initialize log */
     pid = getpid();
     fprintf(dlog, "%s: sigmet_rawd started. pid=%d\n", time_stamp(), pid);
     fprintf(dlog, "Set environment as follows:\n");
@@ -257,30 +266,19 @@ int main(int argc, char *argv[])
     fprintf(dlog, "\n");
     fflush(dlog);
 
-    /* Set up signal handling */
-    if ( !handle_signals() ) {
-	fprintf(dlog, "%s: could not set up signal management.", cmd);
-	exit(EXIT_FAILURE);
-    }
-
     /* Open command input stream. */
     if ( (i_cmd0 = open(cmd_in_nm, O_RDONLY)) == -1 ) {
-	fprintf(dlog, "%s: Could not open %s for input.\n%s\n",
+	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
 		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     if ( (i_cmd1 = open(cmd_in_nm, O_WRONLY)) == -1 ) {
-	fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
+	fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
 		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
-    /*
-       Read command from i_cmd0 into buf.
-       Contents of buf: argc argv client_pid
-       argc transferred as binary integer.
-       argv members and client_pid nul separated.
-     */
+    /* Read commands from i_cmd0 into buf and execute them.  */
     while ( read(i_cmd0, &l, sizeof(size_t)) != -1 ) {
 	if ( (r = read(i_cmd0, buf, l)) != l ) {
 	    fprintf(dlog, "%s: Failed to read command of %ld bytes. ",
@@ -289,8 +287,8 @@ int main(int argc, char *argv[])
 		fprintf(dlog, "%s\n", strerror(errno));
 	    }
 	} else {
-	    int argc1;		/* Number of arguments in an input line */
-	    char *argv1[ARGCX];	/* Arguments from an input line */
+	    int argc1;		/* Number of arguments in received command line */
+	    char *argv1[ARGCX];	/* Arguments from received command line */
 	    int a;		/* Index into argv1 */
 	    pid_t client_pid;	/* Process id of client, used to make file names */
 	    char rslt1_nm[LEN];	/* Name of file for standard output */
@@ -298,7 +296,7 @@ int main(int argc, char *argv[])
 	    int status;		/* Result of callback */
 	    int i;		/* Loop index */
 
-	    /* Break input line into arguments */
+	    /* Break received command line into arguments */
 	    b = buf;
 	    client_pid = *(pid_t *)b;
 	    b += sizeof(client_pid);
@@ -327,7 +325,7 @@ int main(int argc, char *argv[])
 	    fprintf(dlog, "\n");
 	    fflush(dlog);
 
-	    /* Standard output */
+	    /* Create and open "standard output" file */
 	    rslt1 = NULL;
 	    if (snprintf(rslt1_nm, LEN, "%s/%d.1", ddir, client_pid) > LEN) {
 		fprintf(dlog, "%s: Could not create file name for client %d.\n",
@@ -340,7 +338,7 @@ int main(int argc, char *argv[])
 		continue;
 	    }
 
-	    /* Error output */
+	    /* Create and open error file */
 	    rslt2 = NULL;
 	    if (snprintf(rslt2_nm, LEN, "%s/%d.2", ddir, client_pid) > LEN) {
 		fprintf(dlog, "%s: Could not create file name for client %d.\n",
@@ -391,7 +389,8 @@ int main(int argc, char *argv[])
 		if ( verbose ) {
 		    fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 		}
-		fprintf(dlog, "%s: %s failed.\n%s\n", time_stamp(), cmd1, Err_Get());
+		fprintf(dlog, "%s: %s failed.\n%s\n",
+			time_stamp(), cmd1, Err_Get());
 	    }
 	    if ( (fclose(rslt2) == EOF) ) {
 		fprintf(dlog, "%s: Could not close %s.\n%s\n",
@@ -401,7 +400,7 @@ int main(int argc, char *argv[])
     }
 
     /* Should not end up here */
-    fprintf(dlog, "%s: unexpected exit. No more input.\n", time_stamp());
+    fprintf(dlog, "%s: unexpected exit.  %s\n", time_stamp(), strerror(errno));
     if ( close(i_cmd0) == -1 ) {
 	fprintf(dlog, "%s: could not close command stream.\n%s\n",
 		time_stamp(), strerror(errno));
