@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.95 $ $Date: 2010/01/30 03:09:34 $
+ .	$Revision: 1.96 $ $Date: 2010/01/30 03:15:04 $
  */
 
 #include <stdlib.h>
@@ -61,6 +61,7 @@ static char log_nm[LEN];	/* Name of log file */
 static FILE *dlog;		/* Error log */
 static FILE *rslt1;		/* Where to send standard output */
 static FILE *rslt2;		/* Where to send standard error */
+pid_t client_pid;		/* Process id of client */
 
 /* Input line - has commands for the daemon */
 static char *buf;
@@ -103,6 +104,7 @@ static FILE *vol_open(const char *in_nm, pid_t *pidp);
 
 /* Signal handling functions */
 static int handle_signals(void);
+static void alarm_handler(int signum);
 static void handler(int signum);
 
 int main(int argc, char *argv[])
@@ -116,6 +118,8 @@ int main(int argc, char *argv[])
     char *b, *b1;		/* Point into buf, end of buf */
     ssize_t r;			/* Return value from read */
     size_t l;			/* Number of bytes to read from command buffer */
+    char *timeout_s;		/* Max time client can use the server (string) */
+    unsigned timeout = 20;	/* Max time seconds client can use the server */
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
@@ -137,6 +141,15 @@ int main(int argc, char *argv[])
 	    bg = 0;
 	} else {
 	    fprintf(stderr, "%s: unknown option \"%s\"\n", cmd, argv[a]);
+	    exit(EXIT_FAILURE);
+	}
+    }
+
+    /* Check for optional timeout */
+    if ( (timeout_s = getenv("SIGMET_RAWD_TIMEOUT")) ) {
+	if ( sscanf(timeout_s, "%u", &timeout) != 1 ) {
+	    fprintf(stderr, "%s: SIGMET_RAWD_TIMEOUT must be an integer.  "
+		    "Got %s.\n", cmd, timeout_s);
 	    exit(EXIT_FAILURE);
 	}
     }
@@ -289,7 +302,6 @@ int main(int argc, char *argv[])
 	    int argc1;		/* Number of arguments in received command line */
 	    char *argv1[ARGCX];	/* Arguments from received command line */
 	    int a;		/* Index into argv1 */
-	    pid_t client_pid;	/* Process id of client, used to make file names */
 	    char rslt1_nm[LEN];	/* Name of file for standard output */
 	    char rslt2_nm[LEN];	/* Name of file for error output */
 	    int status;		/* Result of callback */
@@ -366,7 +378,10 @@ int main(int argc, char *argv[])
 		continue;
 	    }
 
-	    /* Run command. Send "standard output" to rslt1 */
+	    /* Kill client if output takes more than timeout seconds */
+	    alarm(timeout);
+
+	    /* Run command. Send "standard output" to rslt1. */
 	    status = (cb1v[i])(argc1, argv1);
 	    if ( (fclose(rslt1) == EOF) ) {
 		fprintf(dlog, "%s: Could not close %s.\n%s\n",
@@ -388,6 +403,8 @@ int main(int argc, char *argv[])
 		fprintf(dlog, "%s: Could not close %s.\n%s\n",
 			time_stamp(), rslt2_nm, strerror(errno));
 	    }
+
+	    alarm(0);
 	}
     }
 
@@ -1126,6 +1143,13 @@ static int handle_signals(void)
 	return 0;
     }
 
+    /* Call special handler for alarm signals */
+    act.sa_handler = alarm_handler;
+    if ( sigaction(SIGALRM, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
+
     /* Generic action for termination signals */
     act.sa_handler = handler;
     if ( sigaction(SIGTERM, &act, NULL) == -1 ) {
@@ -1170,6 +1194,12 @@ static int handle_signals(void)
     }
 
     return 1;
+}
+
+/* Assume alarm signals are due to a blocking client. Attempt to kill client. */
+static void alarm_handler(int signum)
+{
+    kill(client_pid, SIGTERM);
 }
 
 /* For exit signals, print an error message if possible */
