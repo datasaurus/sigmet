@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.91 $ $Date: 2010/01/29 23:02:11 $
+ .	$Revision: 1.92 $ $Date: 2010/01/29 23:48:21 $
  */
 
 #include <stdlib.h>
@@ -114,6 +114,8 @@ int main(int argc, char *argv[])
     pid_t pid;			/* Process id for this process */
     char *ang_u;		/* Angle unit */
     char *b, *b1;		/* Point into buf, end of buf */
+    ssize_t r;			/* Return value from read */
+    size_t l;			/* Number of bytes to read from command buffer */
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
@@ -167,7 +169,7 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "%s: could not create name for working directory.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( (mkdir(ddir, 0700) == -1) ) {
+    if ( (mkdir(ddir, S_IRUSR | S_IWUSR | S_IXUSR) == -1) ) {
 	fprintf(stderr, "%s: could not create\n%s\n%s\n",
 		cmd, ddir, strerror(errno));
 	exit(EXIT_FAILURE);
@@ -201,8 +203,8 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( (idlog = open(log_nm, O_CREAT | O_TRUNC | O_WRONLY, 0600)) == -1
-	    || !(dlog = fdopen(idlog, "w")) ) {
+    if ( (idlog = open(log_nm, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR))
+	    == -1 || !(dlog = fdopen(idlog, "w")) ) {
 	fprintf(stderr, "%s: could not create log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -279,114 +281,122 @@ int main(int argc, char *argv[])
        argc transferred as binary integer.
        argv members and client_pid nul separated.
      */
-    while ( read(i_cmd0, buf, buf_l) != -1 ) {
-	int argc1;		/* Number of arguments in an input line */
-	char *argv1[ARGCX];	/* Arguments from an input line */
-	int a;			/* Index into argv1 */
-	pid_t client_pid;	/* Process id of client, used to make file names */
-	char rslt1_nm[LEN];	/* Name of file for standard output */
-	char rslt2_nm[LEN];	/* Name of file for error output */
-	int status;		/* Result of callback */
-	int i;			/* Loop index */
-
-	/* Break input line into arguments */
-	b = buf;
-	client_pid = *(pid_t *)b;
-	b += sizeof(client_pid);
-	argc1 = *(int *)b;
-	b += sizeof(argc1);
-	if (argc1 > ARGCX) {
-	    fprintf(dlog, "%s: Unable to parse command with %d arguments. "
-		    "Limit is %d\n", time_stamp(), argc1, ARGCX);
-	    continue;
-	}
-	for (a = 0, argv1[a] = b; b < b1 && a < argc1; b++) {
-	    if ( *b == '\0' ) {
-		argv1[++a] = b + 1;
+    while ( read(i_cmd0, &l, sizeof(size_t)) != -1 ) {
+	if ( (r = read(i_cmd0, buf, l)) != l ) {
+	    fprintf(dlog, "%s: Failed to read command of %ld bytes. ",
+		    time_stamp(), l);
+	    if ( r == -1 ) {
+		fprintf(dlog, "%s\n", strerror(errno));
 	    }
-	}
-	if ( b == b1 ) {
-	    fprintf(dlog, "%s: Command line gives no destination.\n",
-		    time_stamp());
-	    continue;
-	}
+	} else {
+	    int argc1;		/* Number of arguments in an input line */
+	    char *argv1[ARGCX];	/* Arguments from an input line */
+	    int a;		/* Index into argv1 */
+	    pid_t client_pid;	/* Process id of client, used to make file names */
+	    char rslt1_nm[LEN];	/* Name of file for standard output */
+	    char rslt2_nm[LEN];	/* Name of file for error output */
+	    int status;		/* Result of callback */
+	    int i;		/* Loop index */
 
-	fprintf(dlog, "Parsing: ");
-	for (a = 0; a < argc1; a++) {
-	    fprintf(dlog, " %s", argv1[a]);
-	}
-	fprintf(dlog, "\n");
-	fflush(dlog);
-
-	/* Standard output */
-	rslt1 = NULL;
-	if (snprintf(rslt1_nm, LEN, "%s/%d.1", ddir, client_pid) > LEN) {
-	    fprintf(dlog, "%s: Could not create file name for client %d.\n",
-		    time_stamp(), client_pid);
-	    continue;
-	}
-	if ( !(rslt1 = fopen(rslt1_nm, "w")) ) {
-	    fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
-		    time_stamp(), rslt1_nm, strerror(errno));
-	    continue;
-	}
-
-	/* Error output */
-	rslt2 = NULL;
-	if (snprintf(rslt2_nm, LEN, "%s/%d.2", ddir, client_pid) > LEN) {
-	    fprintf(dlog, "%s: Could not create file name for client %d.\n",
-		    time_stamp(), client_pid);
-	    continue;
-	}
-	if ( !(rslt2 = fopen(rslt2_nm, "w")) ) {
-	    fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
-		    time_stamp(), rslt2_nm, strerror(errno));
-	    continue;
-	}
-
-	/* Identify command */
-	cmd1 = argv1[0];
-	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-	    fputc(EXIT_FAILURE, rslt2);
-	    if ( verbose ) {
-		fprintf(rslt2, "No option or subcommand named \"%s\"\n", cmd1);
-		fprintf(rslt2, "Subcommand must be one of: ");
-		for (i = 0; i < NCMD; i++) {
-		    fprintf(rslt2, "%s ", cmd1v[i]);
+	    /* Break input line into arguments */
+	    b = buf;
+	    client_pid = *(pid_t *)b;
+	    b += sizeof(client_pid);
+	    argc1 = *(int *)b;
+	    b += sizeof(argc1);
+	    if (argc1 > ARGCX) {
+		fprintf(dlog, "%s: Unable to parse command with %d arguments. "
+			"Limit is %d\n", time_stamp(), argc1, ARGCX);
+		continue;
+	    }
+	    for (a = 0, argv1[a] = b; b < b1 && a < argc1; b++) {
+		if ( *b == '\0' ) {
+		    argv1[++a] = b + 1;
 		}
-		fprintf(rslt2, "\n");
 	    }
+	    if ( b == b1 ) {
+		fprintf(dlog, "%s: Command line gives no destination.\n",
+			time_stamp());
+		continue;
+	    }
+
+	    fprintf(dlog, "Parsing: ");
+	    for (a = 0; a < argc1; a++) {
+		fprintf(dlog, " %s", argv1[a]);
+	    }
+	    fprintf(dlog, "\n");
+	    fflush(dlog);
+
+	    /* Standard output */
+	    rslt1 = NULL;
+	    if (snprintf(rslt1_nm, LEN, "%s/%d.1", ddir, client_pid) > LEN) {
+		fprintf(dlog, "%s: Could not create file name for client %d.\n",
+			time_stamp(), client_pid);
+		continue;
+	    }
+	    if ( !(rslt1 = fopen(rslt1_nm, "w")) ) {
+		fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
+			time_stamp(), rslt1_nm, strerror(errno));
+		continue;
+	    }
+
+	    /* Error output */
+	    rslt2 = NULL;
+	    if (snprintf(rslt2_nm, LEN, "%s/%d.2", ddir, client_pid) > LEN) {
+		fprintf(dlog, "%s: Could not create file name for client %d.\n",
+			time_stamp(), client_pid);
+		continue;
+	    }
+	    if ( !(rslt2 = fopen(rslt2_nm, "w")) ) {
+		fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
+			time_stamp(), rslt2_nm, strerror(errno));
+		continue;
+	    }
+
+	    /* Identify command */
+	    cmd1 = argv1[0];
+	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+		fputc(EXIT_FAILURE, rslt2);
+		if ( verbose ) {
+		    fprintf(rslt2, "No option or subcommand named \"%s\"\n", cmd1);
+		    fprintf(rslt2, "Subcommand must be one of: ");
+		    for (i = 0; i < NCMD; i++) {
+			fprintf(rslt2, "%s ", cmd1v[i]);
+		    }
+		    fprintf(rslt2, "\n");
+		}
+		if ( (fclose(rslt1) == EOF) ) {
+		    fprintf(dlog, "%s: Could not close %s.\n%s\n",
+			    time_stamp(), rslt1_nm, strerror(errno));
+		}
+		if ( (fclose(rslt2) == EOF) ) {
+		    fprintf(dlog, "%s: Could not close %s.\n%s\n",
+			    time_stamp(), rslt2_nm, strerror(errno));
+		}
+		continue;
+	    }
+
+	    /* Run command. Send "standard output" to rslt1 */
+	    status = (cb1v[i])(argc1, argv1);
 	    if ( (fclose(rslt1) == EOF) ) {
 		fprintf(dlog, "%s: Could not close %s.\n%s\n",
 			time_stamp(), rslt1_nm, strerror(errno));
+	    }
+
+	    /* Send status and error messages, if any, to rslt2 and log */
+	    if ( status ) {
+		fputc(EXIT_SUCCESS, rslt2);
+	    } else {
+		fputc(EXIT_FAILURE, rslt2);
+		if ( verbose ) {
+		    fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+		}
+		fprintf(dlog, "%s: %s failed.\n%s\n", time_stamp(), cmd1, Err_Get());
 	    }
 	    if ( (fclose(rslt2) == EOF) ) {
 		fprintf(dlog, "%s: Could not close %s.\n%s\n",
 			time_stamp(), rslt2_nm, strerror(errno));
 	    }
-	    continue;
-	}
-
-	/* Run command. Send "standard output" to rslt1 */
-	status = (cb1v[i])(argc1, argv1);
-	if ( (fclose(rslt1) == EOF) ) {
-	    fprintf(dlog, "%s: Could not close %s.\n%s\n",
-		    time_stamp(), rslt1_nm, strerror(errno));
-	}
-
-	/* Send status and error messages, if any, to rslt2 and log */
-	if ( status ) {
-	    fputc(EXIT_SUCCESS, rslt2);
-	} else {
-	    fputc(EXIT_FAILURE, rslt2);
-	    if ( verbose ) {
-		fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
-	    }
-	    fprintf(dlog, "%s: %s failed.\n%s\n", time_stamp(), cmd1, Err_Get());
-	}
-	if ( (fclose(rslt2) == EOF) ) {
-	    fprintf(dlog, "%s: Could not close %s.\n%s\n",
-		    time_stamp(), rslt2_nm, strerror(errno));
 	}
     }
 

@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.11 $ $Date: 2010/01/26 23:17:55 $
+ .	$Revision: 1.12 $ $Date: 2010/01/29 23:02:11 $
  */
 
 #include <stdlib.h>
@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
     size_t buf_l;		/* Allocation at buf */
     char *b;			/* Point into buf */
     char *b1;			/* End of buf */
+    size_t l;			/* Length of command buffer as used */
     char **aa, *a;		/* Loop parameters */
     ssize_t w;			/* Return from write */
     FILE *rslt1;		/* File for standard results */
@@ -130,7 +131,7 @@ int main(int argc, char *argv[])
 
     /* Fill buf and send to daemon. */
     memset(buf, 0, buf_l);
-    b = buf;
+    b = buf + sizeof(size_t);
     *(pid_t *)b = pid;
     b += sizeof(pid);
     *(int *)b = argc - 1;
@@ -147,10 +148,11 @@ int main(int argc, char *argv[])
 		cmd, buf_l - sizeof(int) - strlen(rslt1_nm) - 1);
 	exit(EXIT_FAILURE);
     }
-    w = write(i_cmd1, buf, buf_l);
-    if ( w != buf_l ) {
+    l = b - buf;
+    *(size_t *)buf = l - sizeof(size_t);
+    if ( (w = write(i_cmd1, buf, l)) != l ) {
 	if ( w == -1 ) {
-	    perror("could not write command size");
+	    perror("could not write command to sigmet daemon");
 	} else {
 	    fprintf(stderr, "%s: Incomplete write to daemon.\n", cmd);
 	}
