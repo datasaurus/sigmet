@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.93 $ $Date: 2010/01/30 00:21:47 $
+ .	$Revision: 1.94 $ $Date: 2010/01/30 03:02:06 $
  */
 
 #include <stdlib.h>
@@ -317,13 +317,6 @@ int main(int argc, char *argv[])
 			time_stamp());
 		continue;
 	    }
-
-	    fprintf(dlog, "Parsing: ");
-	    for (a = 0; a < argc1; a++) {
-		fprintf(dlog, " %s", argv1[a]);
-	    }
-	    fprintf(dlog, "\n");
-	    fflush(dlog);
 
 	    /* Create and open "standard output" file */
 	    rslt1 = NULL;
