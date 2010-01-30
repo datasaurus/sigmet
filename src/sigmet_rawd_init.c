@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.94 $ $Date: 2010/01/30 03:02:06 $
+ .	$Revision: 1.95 $ $Date: 2010/01/30 03:09:34 $
  */
 
 #include <stdlib.h>
@@ -104,7 +104,6 @@ static FILE *vol_open(const char *in_nm, pid_t *pidp);
 /* Signal handling functions */
 static int handle_signals(void);
 static void handler(int signum);
-static void pipe_handler(int signum);
 
 int main(int argc, char *argv[])
 {
@@ -1122,10 +1121,6 @@ static int handle_signals(void)
 	perror(NULL);
 	return 0;
     }
-
-    /* Minimal action for pipes */
-    act.sa_handler = pipe_handler;
-    act.sa_flags = 0;
     if ( sigaction(SIGPIPE, &act, NULL) == -1 ) {
 	perror(NULL);
 	return 0;
@@ -1209,12 +1204,4 @@ static void handler(int signum)
 	}
     }
     _exit(EXIT_FAILURE);
-}
-
-/* For pipe errors, report if possible, and keep going */
-static void pipe_handler(int signum)
-{
-    if ( idlog != -1 ) {
-	write(idlog, "Received pipe error signal\n", 27);
-    }
 }
