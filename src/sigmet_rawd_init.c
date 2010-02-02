@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.96 $ $Date: 2010/01/30 03:15:04 $
+ .	$Revision: 1.97 $ $Date: 2010/01/30 03:40:17 $
  */
 
 #include <stdlib.h>
@@ -307,6 +307,9 @@ int main(int argc, char *argv[])
 	    int status;		/* Result of callback */
 	    int i;		/* Loop index */
 
+	    /* Break out if session takes more than timeout seconds */
+	    alarm(timeout);
+
 	    /* Break received command line into arguments */
 	    b = buf;
 	    client_pid = *(pid_t *)b;
@@ -377,9 +380,6 @@ int main(int argc, char *argv[])
 		}
 		continue;
 	    }
-
-	    /* Kill client if output takes more than timeout seconds */
-	    alarm(timeout);
 
 	    /* Run command. Send "standard output" to rslt1. */
 	    status = (cb1v[i])(argc1, argv1);
