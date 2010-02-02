@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.97 $ $Date: 2010/01/30 03:40:17 $
+ .	$Revision: 1.98 $ $Date: 2010/02/02 17:13:41 $
  */
 
 #include <stdlib.h>
@@ -118,8 +118,12 @@ int main(int argc, char *argv[])
     char *b, *b1;		/* Point into buf, end of buf */
     ssize_t r;			/* Return value from read */
     size_t l;			/* Number of bytes to read from command buffer */
-    char *timeout_s;		/* Max time client can use the server (string) */
-    unsigned timeout = 20;	/* Max time seconds client can use the server */
+    int tmgout = 1;		/* If true, time out blocking clients. */
+    unsigned timeout = 60;	/* Max time seconds client can block the server */
+    unsigned dchk;		/* After dchk clients, time one & adjust timeout */
+    struct timespec start, end;	/* When a client session starts, ends */
+    double timeout2;		/* Time taken by a client */
+    double rndx = 0x7fffffff;	/* Normalize calculations with random() */
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
@@ -133,23 +137,16 @@ int main(int argc, char *argv[])
 	cmd = argv[0];
     }
 
-    /* Usage: sigmet_rawd [-c] [-f] */
+    /* Usage: sigmet_rawd [-c] [-f] [-s] */
     for (a = 1; a < argc; a++) {
 	if (strcmp(argv[a], "-c") == 0) {
 	    shtyp = C;
 	} else if (strcmp(argv[a], "-f") == 0) {
 	    bg = 0;
+	} else if (strcmp(argv[a], "-s") == 0) {
+	    tmgout = 0;
 	} else {
 	    fprintf(stderr, "%s: unknown option \"%s\"\n", cmd, argv[a]);
-	    exit(EXIT_FAILURE);
-	}
-    }
-
-    /* Check for optional timeout */
-    if ( (timeout_s = getenv("SIGMET_RAWD_TIMEOUT")) ) {
-	if ( sscanf(timeout_s, "%u", &timeout) != 1 ) {
-	    fprintf(stderr, "%s: SIGMET_RAWD_TIMEOUT must be an integer.  "
-		    "Got %s.\n", cmd, timeout_s);
 	    exit(EXIT_FAILURE);
 	}
     }
@@ -216,8 +213,9 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( (idlog = open(log_nm, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR))
-	    == -1 || !(dlog = fdopen(idlog, "w")) ) {
+    idlog = open(log_nm, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR);
+    if ( idlog == -1 || !(dlog = fdopen(idlog, "w"))
+	    || setvbuf(dlog, NULL, _IOLBF, 0) != 0 ) {
 	fprintf(stderr, "%s: could not create log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -276,7 +274,6 @@ int main(int argc, char *argv[])
 	fprintf(dlog, "setenv SIGMET_RAWD_IN=%s;\n", cmd_in_nm);
     }
     fprintf(dlog, "\n");
-    fflush(dlog);
 
     /* Open command input stream. */
     if ( (i_cmd0 = open(cmd_in_nm, O_RDONLY)) == -1 ) {
@@ -289,6 +286,10 @@ int main(int argc, char *argv[])
 		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
+
+    timeout = 20;
+    dchk = 100 + 100 * rand() / rndx;
+    fprintf(dlog, "Will assess timeout after %d iterations\n", dchk );
 
     /* Read commands from i_cmd0 into buf and execute them.  */
     while ( read(i_cmd0, &l, sizeof(size_t)) != -1 ) {
@@ -307,8 +308,17 @@ int main(int argc, char *argv[])
 	    int status;		/* Result of callback */
 	    int i;		/* Loop index */
 
-	    /* Break out if session takes more than timeout seconds */
-	    alarm(timeout);
+	    if ( tmgout ) {
+		/* Break out if session takes more than timeout seconds */
+		alarm(timeout);
+		if ( --dchk == 0 && clock_gettime(CLOCK_REALTIME, &start) != -1 ) {
+		    dchk = 100 + 100 * random() / rndx;
+		    fprintf(dlog, "Will assess timeout after %d iterations\n",
+			    dchk );
+		} else {
+		    start.tv_sec = 0;
+		}
+	    }
 
 	    /* Break received command line into arguments */
 	    b = buf;
@@ -404,7 +414,21 @@ int main(int argc, char *argv[])
 			time_stamp(), rslt2_nm, strerror(errno));
 	    }
 
-	    alarm(0);
+	    if ( tmgout ) {
+		/* Session done. Clear alarm. Maybe shorten timeout. */
+		alarm(0);
+		if ( start.tv_sec != 0
+			&& clock_gettime(CLOCK_REALTIME, &end) != -1 ) {
+		    timeout2 = difftime(end.tv_sec, start.tv_sec)
+			+ end.tv_nsec * 1.0e-9 - start.tv_nsec * 1.0e-9;
+		    fprintf(dlog, "Session took %lf seconds.\n", timeout2);
+		    if ( timeout2 * 4 + 1 < timeout ) {
+			fprintf(dlog, "%s: Setting timeout to %u\n",
+				time_stamp(), (unsigned)(timeout2 + 1));
+			timeout = timeout2 + 1;
+		    }
+		}
+	    }
 	}
     }
 
@@ -1199,6 +1223,7 @@ static int handle_signals(void)
 /* Assume alarm signals are due to a blocking client. Attempt to kill client. */
 static void alarm_handler(int signum)
 {
+    write(idlog, "Client timed out\n", 17);
     kill(client_pid, SIGTERM);
 }
 
