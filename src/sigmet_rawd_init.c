@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.99 $ $Date: 2010/02/02 23:01:21 $
+ .	$Revision: 1.100 $ $Date: 2010/02/03 17:44:11 $
  */
 
 #include <stdlib.h>
@@ -62,6 +62,10 @@ static FILE *dlog;		/* Error log */
 static FILE *rslt1;		/* Where to send standard output */
 static FILE *rslt2;		/* Where to send standard error */
 pid_t client_pid;		/* Process id of client */
+
+/* These variables determine whether and when a slow client will be killed. */
+static int tmgout = 1;			/* If true, time out blocking clients. */
+static unsigned timeout = 60;		/* Max seconds client can block daemon */
 
 /* Input line - has commands for the daemon */
 static char *buf;
@@ -118,8 +122,6 @@ int main(int argc, char *argv[])
     char *b, *b1;		/* Point into buf, end of buf */
     ssize_t r;			/* Return value from read */
     size_t l;			/* Number of bytes to read from command buffer */
-    int tmgout = 1;		/* If true, time out blocking clients. */
-    unsigned timeout = 60;	/* Max time seconds client can block the server */
     unsigned dchk;		/* After dchk clients, time one & adjust timeout */
     struct timespec start, end;	/* When a client session starts, ends */
     double timeout2 = 0.0;	/* Time taken by a client */
@@ -1246,6 +1248,7 @@ static void alarm_handler(int signum)
 {
     write(idlog, "Client timed out\n", 17);
     kill(client_pid, SIGTERM);
+    timeout *= 2;
 }
 
 /* For exit signals, print an error message if possible */
