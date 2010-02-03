@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.100 $ $Date: 2010/02/03 17:44:11 $
+ .	$Revision: 1.101 $ $Date: 2010/02/03 18:42:42 $
  */
 
 #include <stdlib.h>
@@ -64,8 +64,9 @@ static FILE *rslt2;		/* Where to send standard error */
 pid_t client_pid;		/* Process id of client */
 
 /* These variables determine whether and when a slow client will be killed. */
-static int tmgout = 1;			/* If true, time out blocking clients. */
-static unsigned timeout = 60;		/* Max seconds client can block daemon */
+static int tmgout = 1;		/* If true, time out blocking clients. */
+static int tmoadj = 1;		/* If true, adjust timeout periodically. */
+static unsigned timeout = 60;	/* Max seconds client can block daemon */
 
 /* Input line - has commands for the daemon */
 static char *buf;
@@ -79,15 +80,16 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 12
+#define NCMD 13
 static char *cmd1v[NCMD] = {
-    "cmd_len", "verbose", "log", "types", "good", "read", "volume_headers",
-    "ray_headers", "data", "bin_outline", "bintvls", "stop"
+    "cmd_len", "verbose", "log", "timeout", "types", "good", "read",
+    "volume_headers", "ray_headers", "data", "bin_outline", "bintvls", "stop"
 };
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
 static callback log_cb;
+static callback timeout_cb;
 static callback types_cb;
 static callback good_cb;
 static callback read_cb;
@@ -98,8 +100,9 @@ static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback stop_cb;
 static callback *cb1v[NCMD] = {
-    cmd_len_cb, verbose_cb, log_cb, types_cb, good_cb, read_cb, volume_headers_cb,
-    ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb, stop_cb
+    cmd_len_cb, verbose_cb, log_cb, timeout_cb, types_cb, good_cb, read_cb,
+    volume_headers_cb, ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb,
+    stop_cb
 };
 
 /* Convenience functions */
@@ -145,8 +148,6 @@ int main(int argc, char *argv[])
 	    shtyp = C;
 	} else if (strcmp(argv[a], "-f") == 0) {
 	    bg = 0;
-	} else if (strcmp(argv[a], "-s") == 0) {
-	    tmgout = 0;
 	} else {
 	    fprintf(stderr, "%s: unknown option \"%s\"\n", cmd, argv[a]);
 	    exit(EXIT_FAILURE);
@@ -310,12 +311,18 @@ int main(int argc, char *argv[])
 	    int status;		/* Result of callback */
 	    int i;		/* Loop index */
 
+	    /*
+	       If imposing timeouts (tmgout is set), set alarm.
+	       If adjusting timeouts (tmoadj is set), store start time for
+	       this session.
+	     */
+	    
 	    if ( tmgout ) {
 		/* Break out if session takes more than timeout seconds */
 		alarm(timeout);
 
 		/* Set up timer to possibly adjust timeout at end of iteration.*/
-		if ( --dchk < 8 ) {
+		if ( tmoadj && --dchk < 8 ) {
 		    if ( clock_gettime(CLOCK_REALTIME, &start) == -1 ) {
 			fprintf(dlog, "%s: Could not get time.\n%s\n",
 				time_stamp(), strerror(errno));
@@ -420,36 +427,39 @@ int main(int argc, char *argv[])
 			time_stamp(), rslt2_nm, strerror(errno));
 	    }
 
+	    /*
+	       If imposing timeouts (tmgout is set), clear alarm.
+	       Adjust timeout if desired (tmoadj is set)
+	       and necessary (longest time in current sample is substantially
+	       shorter than current timeout).
+	     */
 	    if ( tmgout ) {
-		/* Session done. Clear alarm. Maybe shorten timeout. */
-
-		double t2;	/* Temporary */
-
 		alarm(0);
-		if ( start.tv_sec != 0
-			&& clock_gettime(CLOCK_REALTIME, &end) != -1 ) {
-		    t2 = difftime(end.tv_sec, start.tv_sec)
-			+ (end.tv_nsec - start.tv_nsec) * 1.0e-9;
-		    fprintf(dlog, "Session %d took %lf seconds.\n", dchk, t2);
-		    if (t2 > timeout2) {
-			fprintf(dlog, "Setting timeout2 to %lf seconds.\n", t2);
-			timeout2 = t2;
-		    }
-		}
+		if (tmoadj) {
+		    double t2;	/* Temporary */
 
-		if ( dchk == 0 ) {
-		    /* Adjust timeout if necessary */
-		    if ( timeout2 * 4 + 1 < timeout ) {
-			fprintf(dlog, "%s: Setting timeout to %u\n",
-				time_stamp(), (unsigned)(timeout2 + 1));
-			timeout = timeout2 + 1;
+		    if ( start.tv_sec != 0
+			    && clock_gettime(CLOCK_REALTIME, &end) != -1 ) {
+			t2 = difftime(end.tv_sec, start.tv_sec)
+			    + (end.tv_nsec - start.tv_nsec) * 1.0e-9;
+			fprintf(dlog, "Session %d took %lf sec.\n", dchk, t2);
+			if (t2 > timeout2) {
+			    fprintf(dlog, "Setting timeout2 to %lf sec.\n", t2);
+			    timeout2 = t2;
+			}
 		    }
-		    timeout2 = 0.0;
 
-		    /* Stop timing sessions for a while */
-		    dchk = 100 + 100 * random() / rndx;
-		    fprintf(dlog, "%s: will assess timeout after %d "
-			    "iterations\n", time_stamp(), dchk);
+		    if ( dchk == 0 ) {
+			if ( timeout2 * 4 + 1 < timeout ) {
+			    fprintf(dlog, "%s: Setting timeout to %u sec.\n",
+				    time_stamp(), (unsigned)(timeout2 + 1));
+			    timeout = timeout2 + 1;
+			}
+			timeout2 = 0.0;
+			dchk = 100 + 100 * random() / rndx;
+			fprintf(dlog, "%s: will assess timeout after %d "
+				"iterations\n", time_stamp(), dchk);
+		    }
 		}
 	    }
 	}
@@ -550,6 +560,50 @@ static int log_cb(int argc, char *argv[])
 	Err_Append("Could not close log file.\n");
 	return 0;
     }
+    return 1;
+}
+
+static int timeout_cb(int argc, char *argv[])
+{
+    char *a;
+
+    if (argc == 1) {
+	if (tmgout) {
+	    fprintf(rslt1, "Timeout=%d sec. %s\n",
+		    timeout, tmoadj ? "Adjustable." : "Fixed.");
+	} else {
+	    fprintf(rslt1, "No timeout.\n");
+	}
+	return 1;
+    } else if (argc == 2) {
+	a = argv[1];
+	if (strcmp(a, "none") == 0) {
+	    tmgout = 0;
+	    return 1;
+	}
+	if (strcmp(a, "default") == 0) {
+	    tmgout = 1;
+	    tmoadj = 1;
+	    return 1;
+	}
+	if (sscanf(a, "%d", &timeout) == 1) {
+	    tmgout = 1;
+	    tmoadj = 0;
+	    return 1;
+	} else {
+	    Err_Append(cmd1);
+	    Err_Append(" expected integer for timeout, got ");
+	    Err_Append(a);
+	    Err_Append(".  ");
+	    return 0;
+	}
+    } else {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" \"none\"|\"default\"|integer");
+	return 0;
+    }
+
     return 1;
 }
 
