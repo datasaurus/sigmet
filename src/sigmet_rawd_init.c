@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.98 $ $Date: 2010/02/02 17:13:41 $
+ .	$Revision: 1.99 $ $Date: 2010/02/02 23:01:21 $
  */
 
 #include <stdlib.h>
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
     unsigned timeout = 60;	/* Max time seconds client can block the server */
     unsigned dchk;		/* After dchk clients, time one & adjust timeout */
     struct timespec start, end;	/* When a client session starts, ends */
-    double timeout2;		/* Time taken by a client */
+    double timeout2 = 0.0;	/* Time taken by a client */
     double rndx = 0x7fffffff;	/* Normalize calculations with random() */
 
     /* Set up signal handling */
@@ -311,10 +311,14 @@ int main(int argc, char *argv[])
 	    if ( tmgout ) {
 		/* Break out if session takes more than timeout seconds */
 		alarm(timeout);
-		if ( --dchk == 0 && clock_gettime(CLOCK_REALTIME, &start) != -1 ) {
-		    dchk = 100 + 100 * random() / rndx;
-		    fprintf(dlog, "Will assess timeout after %d iterations\n",
-			    dchk );
+
+		/* Set up timer to possibly adjust timeout at end of iteration.*/
+		if ( --dchk < 8 ) {
+		    if ( clock_gettime(CLOCK_REALTIME, &start) == -1 ) {
+			fprintf(dlog, "%s: Could not get time.\n%s\n",
+				time_stamp(), strerror(errno));
+			start.tv_sec = 0;
+		    }
 		} else {
 		    start.tv_sec = 0;
 		}
@@ -416,17 +420,34 @@ int main(int argc, char *argv[])
 
 	    if ( tmgout ) {
 		/* Session done. Clear alarm. Maybe shorten timeout. */
+
+		double t2;	/* Temporary */
+
 		alarm(0);
 		if ( start.tv_sec != 0
 			&& clock_gettime(CLOCK_REALTIME, &end) != -1 ) {
-		    timeout2 = difftime(end.tv_sec, start.tv_sec)
-			+ end.tv_nsec * 1.0e-9 - start.tv_nsec * 1.0e-9;
-		    fprintf(dlog, "Session took %lf seconds.\n", timeout2);
+		    t2 = difftime(end.tv_sec, start.tv_sec)
+			+ (end.tv_nsec - start.tv_nsec) * 1.0e-9;
+		    fprintf(dlog, "Session %d took %lf seconds.\n", dchk, t2);
+		    if (t2 > timeout2) {
+			fprintf(dlog, "Setting timeout2 to %lf seconds.\n", t2);
+			timeout2 = t2;
+		    }
+		}
+
+		if ( dchk == 0 ) {
+		    /* Adjust timeout if necessary */
 		    if ( timeout2 * 4 + 1 < timeout ) {
 			fprintf(dlog, "%s: Setting timeout to %u\n",
 				time_stamp(), (unsigned)(timeout2 + 1));
 			timeout = timeout2 + 1;
 		    }
+		    timeout2 = 0.0;
+
+		    /* Stop timing sessions for a while */
+		    dchk = 100 + 100 * random() / rndx;
+		    fprintf(dlog, "%s: will assess timeout after %d "
+			    "iterations\n", time_stamp(), dchk);
 		}
 	    }
 	}
