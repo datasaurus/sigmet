@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.4 $ $Date: 2010/01/07 20:55:44 $
+.\" $Revision: 1.5 $ $Date: 2010/01/26 23:20:22 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -14,6 +14,8 @@ sigmet_raw \- access Sigmet raw product volumes
 \fBeval `sigmet_raw start`\fP
 \fBeval `sigmet_raw stop`\fP
 \fBsigmet_raw\fP [\fIcommands\fP]
+\fBsigmet_raw\fP \fBlog\fP
+\fBsigmet_raw\fP \fBtimeout\fP
 \fBsigmet_raw\fP \fBtypes\fP
 \fBsigmet_raw\fP \fBread\fP \fIraw_volume\fP
 \fBsigmet_raw\fP \fBvolume_headers\fP
@@ -23,10 +25,22 @@ sigmet_raw \- access Sigmet raw product volumes
 .fi
 .SH DESCRIPTION
 The \fBsigmet_raw\fP application reads and manipulates data from
-Sigmet raw product volumes.  It reads commands from standard input.
-Blank lines and lines whose first non- whitespace character is \fB#\fP
-are ignored. Otherwise, the first word must be a subcommand.  The
-following subcommands are recognized.
+Sigmet raw product volumes.
+.PP
+\fBsigmet_raw\fP requires the following environment variables:
+\fBSIGMET_RAWD_PID\fP contains the process id of the \fBsigmet_rawd\fP daemon.
+\fBSIGMET_RAWD_DIR\fP identifies the directory where the daemon keeps files.
+\fBSIGMET_RAWD_IN\fP stores the name of a fifo from which the deamon reads requests.
+\fBsigmet_rawd\fP generates values for these variables at startup and prints
+them to standard output. The \fBeval\fP calls shown above set these variables
+in the current environment.  The environment values are also printed in
+\fB${SIGMET_RAWD_DIR}/sigmet.log\fP.
+.PP
+If a client does not detach from the server in a reasonable amount of time, the
+daemon kills it. This prevents frozen clients from freezing the daemon. The
+\fBtimeout\fP subcommand regulates this behavior.
+.PP
+The following subcommands are recognized.
 .TP
 \fBtypes\fP
 Prints a list of Sigmet data types.  Output lines have form:
