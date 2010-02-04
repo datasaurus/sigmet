@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.101 $ $Date: 2010/02/03 18:42:42 $
+ .	$Revision: 1.102 $ $Date: 2010/02/03 20:19:50 $
  */
 
 #include <stdlib.h>
@@ -33,8 +33,8 @@
 /* Maximum number of arguments in input command */
 #define ARGCX 512
 
-/* Bounds limit indicating all possible index values */
-#define ALL -1
+/* Shell type determines type of printout */
+enum SHELL_TYPE {C, SH};
 
 /* If true, send full error messages. */
 static int verbose = 1;
@@ -71,9 +71,6 @@ static unsigned timeout = 60;	/* Max seconds client can block daemon */
 /* Input line - has commands for the daemon */
 static char *buf;
 static long buf_l;		/* Allocation at buf */
-
-/* Shell type determines type of printout */
-enum SHELL_TYPE {C, SH};
 
 /* Application and subcommand name */
 static char *cmd;
@@ -892,6 +889,7 @@ static int data_cb(int argc, char *argv[])
     char *abbrv;
     float d;
     enum Sigmet_DataType type;
+    int all=-1;
 
     if ( !have_vol ) {
 	Err_Append("No volume loaded.  ");
@@ -908,7 +906,7 @@ static int data_cb(int argc, char *argv[])
 	   data y s r b		(argc = 5)
      */
 
-    y = s = r = b = ALL;
+    y = s = r = b = all;
     type = DB_ERROR;
     if (argc > 1 && (type = Sigmet_DataType(argv[1])) == DB_ERROR) {
 	Err_Append("No data type named ");
@@ -938,7 +936,7 @@ static int data_cb(int argc, char *argv[])
     if (type != DB_ERROR) {
 	/*
 	   User has specified a data type.  Search for it in the volume,
-	   and set y to the specified type (instead of ALL).
+	   and set y to the specified type (instead of all).
 	 */
 	abbrv = Sigmet_DataType_Abbrv(type);
 	for (y = 0; y < vol.num_types; y++) {
@@ -953,21 +951,21 @@ static int data_cb(int argc, char *argv[])
 	    return 0;
 	}
     }
-    if (s != ALL && s >= vol.ih.ic.num_sweeps) {
+    if (s != all && s >= vol.ih.ic.num_sweeps) {
 	Err_Append("Sweep index greater than number of sweeps.  ");
 	return 0;
     }
-    if (r != ALL && r >= (int)vol.ih.ic.num_rays) {
+    if (r != all && r >= (int)vol.ih.ic.num_rays) {
 	Err_Append("Ray index greater than number of rays.  ");
 	return 0;
     }
-    if (b != ALL && b >= vol.ih.tc.tri.num_bins_out) {
+    if (b != all && b >= vol.ih.tc.tri.num_bins_out) {
 	Err_Append("Ray index greater than number of rays.  ");
 	return 0;
     }
 
     /* Write */
-    if (y == ALL && s == ALL && r == ALL && b == ALL) {
+    if (y == all && s == all && r == all && b == all) {
 	for (y = 0; y < vol.num_types; y++) {
 	    type = vol.types[y];
 	    abbrv = Sigmet_DataType_Abbrv(type);
@@ -990,7 +988,7 @@ static int data_cb(int argc, char *argv[])
 		}
 	    }
 	}
-    } else if (s == ALL && r == ALL && b == ALL) {
+    } else if (s == all && r == all && b == all) {
 	for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
 	    fprintf(rslt1, "%s. sweep %d\n", abbrv, s);
 	    for (r = 0; r < vol.ih.ic.num_rays; r++) {
@@ -1009,7 +1007,7 @@ static int data_cb(int argc, char *argv[])
 		fprintf(rslt1, "\n");
 	    }
 	}
-    } else if (r == ALL && b == ALL) {
+    } else if (r == all && b == all) {
 	fprintf(rslt1, "%s. sweep %d\n", abbrv, s);
 	for (r = 0; r < vol.ih.ic.num_rays; r++) {
 	    if ( !vol.ray_ok[s][r] ) {
@@ -1026,7 +1024,7 @@ static int data_cb(int argc, char *argv[])
 	    }
 	    fprintf(rslt1, "\n");
 	}
-    } else if (b == ALL) {
+    } else if (b == all) {
 	if (vol.ray_ok[s][r]) {
 	    fprintf(rslt1, "%s. sweep %d, ray %d: ", abbrv, s, r);
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
