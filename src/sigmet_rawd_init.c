@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.103 $ $Date: 2010/02/04 16:55:53 $
+ .	$Revision: 1.104 $ $Date: 2010/02/04 22:02:04 $
  */
 
 #include <stdlib.h>
@@ -105,6 +105,7 @@ static callback *cb1v[NCMD] = {
 /* Convenience functions */
 static char *time_stamp(void);
 static FILE *vol_open(const char *in_nm, pid_t *pidp);
+static unsigned new_dchk(void);
 
 /* Signal handling functions */
 static int handle_signals(void);
@@ -125,7 +126,6 @@ int main(int argc, char *argv[])
     unsigned dchk;		/* After dchk clients, time some, adjust tmout */
     struct timespec start, end;	/* When a client session starts, ends */
     double tmout2 = 0.0;	/* Time taken by a client */
-    double rndx = 0x7fffffff;	/* Normalize calculations with random() */
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
@@ -276,7 +276,7 @@ int main(int argc, char *argv[])
     fprintf(dlog, "\n");
 
     tmout = 20;
-    dchk = 100 + 100 * rand() / rndx;
+    dchk = new_dchk();
     fprintf(dlog, "Initializing client timeout. Clients that block the daemon"
 	    " for more %d seconds will be killed.\n", tmout);
     if (tmoadj) {
@@ -441,8 +441,8 @@ int main(int argc, char *argv[])
 			}
 			if (t2 > tmout2) {
 			    if (verbose) {
-				fprintf(dlog, "%s: Slowest client in this set "
-					"took %lf sec.\n", time_stamp(), t2);
+				fprintf(dlog, "%s: Slowest client in this set so "
+					"far took %lf sec.\n", time_stamp(), t2);
 			    }
 			    tmout2 = t2;
 			}
@@ -451,16 +451,17 @@ int main(int argc, char *argv[])
 
 		if ( dchk == 0 ) {
 		    if ( tmout2 != 0.0 && tmout2 * 4 + 1 < tmout ) {
+			tmout2 = tmout2 * 2 + 1;
 			if (verbose) {
-			    fprintf(dlog, "%s: Setting tmout to %u sec.\n",
-				    time_stamp(), (unsigned)(tmout2 + 1));
+			    fprintf(dlog, "%s: Setting timeout to %u sec.\n",
+				    time_stamp(), (unsigned)tmout2);
 			}
-			tmout = tmout2 + 1;
+			tmout = tmout2;
 		    }
 		    tmout2 = 0.0;
-		    dchk = 100 + 100 * random() / rndx;
+		    dchk = new_dchk();
 		    if (verbose) {
-			fprintf(dlog, "%s: will assess timeout after %d "
+			fprintf(dlog, "%s: Will assess timeout after %d "
 				"iterations\n", time_stamp(), dchk);
 		    }
 		}
@@ -501,6 +502,15 @@ static char *time_stamp(void)
     } else {
 	return "";
     }
+}
+
+/*
+   Daemon times a few clients after serving dchk of them.  This function
+   computes a new dchk so that the sampling intervals are somewhat random.
+ */
+static unsigned new_dchk(void)
+{
+    return 100 + 100 * random() / 0x7fffffff;
 }
 
 static int cmd_len_cb(int argc, char *argv[])
