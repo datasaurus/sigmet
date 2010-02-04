@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.102 $ $Date: 2010/02/03 20:19:50 $
+ .	$Revision: 1.103 $ $Date: 2010/02/04 16:55:53 $
  */
 
 #include <stdlib.h>
@@ -66,7 +66,7 @@ pid_t client_pid;		/* Process id of client */
 /* These variables determine whether and when a slow client will be killed. */
 static int tmgout = 1;		/* If true, time out blocking clients. */
 static int tmoadj = 1;		/* If true, adjust timeout periodically. */
-static unsigned timeout = 60;	/* Max seconds client can block daemon */
+static unsigned tmout = 60;	/* Max seconds client can block daemon */
 
 /* Input line - has commands for the daemon */
 static char *buf;
@@ -122,9 +122,9 @@ int main(int argc, char *argv[])
     char *b, *b1;		/* Point into buf, end of buf */
     ssize_t r;			/* Return value from read */
     size_t l;			/* Number of bytes to read from command buffer */
-    unsigned dchk;		/* After dchk clients, time one & adjust timeout */
+    unsigned dchk;		/* After dchk clients, time some, adjust tmout */
     struct timespec start, end;	/* When a client session starts, ends */
-    double timeout2 = 0.0;	/* Time taken by a client */
+    double tmout2 = 0.0;	/* Time taken by a client */
     double rndx = 0x7fffffff;	/* Normalize calculations with random() */
 
     /* Set up signal handling */
@@ -139,7 +139,7 @@ int main(int argc, char *argv[])
 	cmd = argv[0];
     }
 
-    /* Usage: sigmet_rawd [-c] [-f] [-s] */
+    /* Usage: sigmet_rawd [-c] [-f] */
     for (a = 1; a < argc; a++) {
 	if (strcmp(argv[a], "-c") == 0) {
 	    shtyp = C;
@@ -275,6 +275,14 @@ int main(int argc, char *argv[])
     }
     fprintf(dlog, "\n");
 
+    tmout = 20;
+    dchk = 100 + 100 * rand() / rndx;
+    fprintf(dlog, "Initializing client timeout. Clients that block the daemon"
+	    " for more %d seconds will be killed.\n", tmout);
+    if (tmoadj) {
+	fprintf(dlog, "Will assess timeout after %d iterations\n", dchk );
+    }
+
     /* Open command input stream. */
     if ( (i_cmd0 = open(cmd_in_nm, O_RDONLY)) == -1 ) {
 	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
@@ -286,10 +294,6 @@ int main(int argc, char *argv[])
 		cmd, cmd_in_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-
-    timeout = 20;
-    dchk = 100 + 100 * rand() / rndx;
-    fprintf(dlog, "Will assess timeout after %d iterations\n", dchk );
 
     /* Read commands from i_cmd0 into buf and execute them.  */
     while ( read(i_cmd0, &l, sizeof(size_t)) != -1 ) {
@@ -307,26 +311,20 @@ int main(int argc, char *argv[])
 	    char rslt2_nm[LEN];	/* Name of file for error output */
 	    int status;		/* Result of callback */
 	    int i;		/* Loop index */
+	    double t2;	/* Temporary */
 
 	    /*
 	       If imposing timeouts (tmgout is set), set alarm.
-	       If adjusting timeouts (tmoadj is set), store start time for
-	       this session.
+	       If adjusting timeouts store start time for this session.
 	     */
-	    
-	    if ( tmgout ) {
-		/* Break out if session takes more than timeout seconds */
-		alarm(timeout);
 
-		/* Set up timer to possibly adjust timeout at end of iteration.*/
-		if ( tmoadj && --dchk < 8 ) {
-		    if ( clock_gettime(CLOCK_REALTIME, &start) == -1 ) {
-			fprintf(dlog, "%s: Could not get time.\n%s\n",
-				time_stamp(), strerror(errno));
-			start.tv_sec = 0;
-		    }
-		} else {
-		    start.tv_sec = 0;
+	    if ( tmgout ) {
+		alarm(tmout);
+		start.tv_sec = 0;
+		if ( tmoadj && --dchk < 8
+			&& clock_gettime(CLOCK_REALTIME, &start) == -1 ) {
+		    fprintf(dlog, "%s: Could not get client start time.\n%s\n",
+			    time_stamp(), strerror(errno));
 		}
 	    }
 
@@ -425,35 +423,43 @@ int main(int argc, char *argv[])
 	    }
 
 	    /*
-	       If imposing timeouts (tmgout is set), clear alarm.
-	       Adjust timeout if desired (tmoadj is set)
-	       and necessary (longest time in current sample is substantially
-	       shorter than current timeout).
+	       If imposing timeouts, clear alarm.
+	       Adjust timeout if desired and necessary.
 	     */
 	    if ( tmgout ) {
 		alarm(0);
-		if (tmoadj) {
-		    double t2;	/* Temporary */
-
-		    if ( start.tv_sec != 0
-			    && clock_gettime(CLOCK_REALTIME, &end) != -1 ) {
+		if ( start.tv_sec != 0 ) {
+		    if ( clock_gettime(CLOCK_REALTIME, &end) == -1 ) {
+			fprintf(dlog, "%s: Could not get client end time.\n%s\n",
+				time_stamp(), strerror(errno));
+		    } else {
 			t2 = difftime(end.tv_sec, start.tv_sec)
 			    + (end.tv_nsec - start.tv_nsec) * 1.0e-9;
-			fprintf(dlog, "Session %d took %lf sec.\n", dchk, t2);
-			if (t2 > timeout2) {
-			    fprintf(dlog, "Setting timeout2 to %lf sec.\n", t2);
-			    timeout2 = t2;
+			if (verbose) {
+			    fprintf(dlog, "%s: Session %d took %lf sec.\n",
+				    time_stamp(), dchk, t2);
+			}
+			if (t2 > tmout2) {
+			    if (verbose) {
+				fprintf(dlog, "%s: Slowest client in this set "
+					"took %lf sec.\n", time_stamp(), t2);
+			    }
+			    tmout2 = t2;
 			}
 		    }
+		}
 
-		    if ( dchk == 0 ) {
-			if ( timeout2 * 4 + 1 < timeout ) {
-			    fprintf(dlog, "%s: Setting timeout to %u sec.\n",
-				    time_stamp(), (unsigned)(timeout2 + 1));
-			    timeout = timeout2 + 1;
+		if ( dchk == 0 ) {
+		    if ( tmout2 != 0.0 && tmout2 * 4 + 1 < tmout ) {
+			if (verbose) {
+			    fprintf(dlog, "%s: Setting tmout to %u sec.\n",
+				    time_stamp(), (unsigned)(tmout2 + 1));
 			}
-			timeout2 = 0.0;
-			dchk = 100 + 100 * random() / rndx;
+			tmout = tmout2 + 1;
+		    }
+		    tmout2 = 0.0;
+		    dchk = 100 + 100 * random() / rndx;
+		    if (verbose) {
 			fprintf(dlog, "%s: will assess timeout after %d "
 				"iterations\n", time_stamp(), dchk);
 		    }
@@ -562,14 +568,15 @@ static int log_cb(int argc, char *argv[])
 
 static int timeout_cb(int argc, char *argv[])
 {
-    char *a;
+    char *a, *m;
+    unsigned to;
 
     if (argc == 1) {
 	if (tmgout) {
-	    fprintf(rslt1, "Timeout=%d sec. %s\n",
-		    timeout, tmoadj ? "Adjustable." : "Fixed.");
+	    fprintf(rslt1, "timeout = %d sec %s\n",
+		    tmout, tmoadj ? "adjustable" : "fixed");
 	} else {
-	    fprintf(rslt1, "No timeout.\n");
+	    fprintf(rslt1, "None\n");
 	}
 	return 1;
     } else if (argc == 2) {
@@ -577,27 +584,44 @@ static int timeout_cb(int argc, char *argv[])
 	if (strcmp(a, "none") == 0) {
 	    tmgout = 0;
 	    return 1;
-	}
-	if (strcmp(a, "default") == 0) {
+	} else if (sscanf(a, "%d", &tmout) == 1) {
 	    tmgout = 1;
-	    tmoadj = 1;
-	    return 1;
-	}
-	if (sscanf(a, "%d", &timeout) == 1) {
-	    tmgout = 1;
-	    tmoadj = 0;
 	    return 1;
 	} else {
 	    Err_Append(cmd1);
-	    Err_Append(" expected integer for timeout, got ");
+	    Err_Append(" expected integer or \"none\" for timeout, got ");
 	    Err_Append(a);
 	    Err_Append(".  ");
 	    return 0;
 	}
+    } else if (argc == 3) {
+	a = argv[1];
+	m = argv[2];
+	if (sscanf(a, "%d", &to) != 1) {
+	    Err_Append(cmd1);
+	    Err_Append(" expected integer or \"none\" for timeout, got ");
+	    Err_Append(a);
+	    Err_Append(".  ");
+	    return 0;
+	}
+	if (strcmp(m, "adjustable") == 0) {
+	    tmoadj = 1;
+	} else if (strcmp(m, "fixed") == 0) {
+	    tmoadj = 0;
+	} else {
+	    Err_Append(cmd1);
+	    Err_Append(" expected \"adjustable\" or \"fixed\" for modifier, got ");
+	    Err_Append(m);
+	    Err_Append(".  ");
+	    return 0;
+	}
+	tmgout = 1;
+	tmout = to;
+	return 1;
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
-	Err_Append(" \"none\"|\"default\"|integer");
+	Err_Append(" \"none\"|integer \"adjustable\"|\"fixed\"");
 	return 0;
     }
 
@@ -1300,7 +1324,7 @@ static void alarm_handler(int signum)
 {
     write(idlog, "Client timed out\n", 17);
     kill(client_pid, SIGTERM);
-    timeout *= 2;
+    tmout *= 2;
 }
 
 /* For exit signals, print an error message if possible */
