@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.5 $ $Date: 2010/01/26 23:20:22 $
+.\" $Revision: 1.6 $ $Date: 2010/02/03 23:02:59 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -49,10 +49,25 @@ Prints a list of Sigmet data types.  Output lines have form:
 \fIDB_XXX\fP \fB|\fP \fIDescription\fP
 .sp 1
 .TP
+\fBsigmet_raw\fP \fBtimeout\fP
+Prints the timeout for clients.  Without arguments, this command prints
+the time limit for clients - the maximum time a client can block the daemon
+before the daemon kills it.  It also reports whether the timeout is \fBfixed\fP,
+meaning the daemon will never adjust the timemout, or \fBadjustable\fP, meaning
+the daemon will periodically shorten the timeout based on how long sampled
+clients are taking.
+.TP
+\fBsigmet_raw\fP \fBtimeout\fP \fBnone\fP
+Disables client timeout. Any client will have the daemon's input and output
+channels until the client exits. All other clients will be blocked.
+.TP
+\fBsigmet_raw\fP \fBtimeout\fP \fIinteger\fP [\fBadjustable\fP|\fBfixed\fP]
+Sets client timeout to \fIinteger\fP seconds.  If present, optional suffix is
+interpreted as described above.
+.TP
 \fBread\fP \fIraw_volume\fP
 Read \fIraw_volume\fP, which must be a Sigmet raw product volume.  If absent
-or "\fB-\fP", the command will read a raw product volume from standard
-input. Contents of the volume will be stored in memory for subsequent commands
+or "\fB-\fP", the command will read a raw product volume from standard input. Contents of the volume will be stored in memory for subsequent commands
 to act upon. Any previous volume in memory will be deleted.
 .TP
 \fBvolume_headers\fP
