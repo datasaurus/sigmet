@@ -8,7 +8,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.104 $ $Date: 2010/02/04 22:02:04 $
+ .	$Revision: 1.105 $ $Date: 2010/02/04 22:36:44 $
  */
 
 #include <stdlib.h>
@@ -42,15 +42,17 @@ static int verbose = 1;
 /* If true, use degrees instead of radians */
 static int use_deg = 0;
 
-/* The global Sigmet volume, used by most callbacks. */
-static struct Sigmet_Vol vol;	/* Sigmet volume */
-static int have_hdr;		/* If true, vol has headers from a Sigmet volume */
-static int have_vol;		/* If true, vol has headers and data from a Sigmet
-				 * volume */
-static char *vol_nm;		/* Name of volume file */
-static size_t vol_nm_l;		/* Number of characters that can be stored at
-				 * vol_nm */
-static void unload(void);	/* Delete and reinitialize contents of vol */
+/* Sigmet volumes */
+struct sig_vol {
+    int v;			/* If true, this struct contains a volume */
+    struct Sigmet_Vol vol;	/* Sigmet volume */
+    dev_t st_dev;		/* Device that provided vol */
+    ino_t st_ino;		/* I-number of file that provided vol */
+    int users;			/* Number of client sessions using vol */
+};
+static struct sig_vol *vols;	/* Available volumes */
+static size_t n_vols = 12;	/* Number of volumes can be stored at vols */
+static int free_sig_vol(int i);	/* Free a member of vols */
 
 /* Process streams and files */
 static char ddir[LEN];		/* Working directory for server */
@@ -77,10 +79,11 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 13
+#define NCMD 15
 static char *cmd1v[NCMD] = {
-    "cmd_len", "verbose", "log", "timeout", "types", "good", "read",
-    "volume_headers", "ray_headers", "data", "bin_outline", "bintvls", "stop"
+    "cmd_len", "verbose", "log", "timeout", "types", "good", "hread","read",
+    "release", "volume_headers", "ray_headers", "data", "bin_outline", "bintvls",
+    "stop"
 };
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
@@ -89,7 +92,9 @@ static callback log_cb;
 static callback timeout_cb;
 static callback types_cb;
 static callback good_cb;
+static callback hread_cb;
 static callback read_cb;
+static callback release_cb;
 static callback volume_headers_cb;
 static callback ray_headers_cb;
 static callback data_cb;
@@ -97,9 +102,9 @@ static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback stop_cb;
 static callback *cb1v[NCMD] = {
-    cmd_len_cb, verbose_cb, log_cb, timeout_cb, types_cb, good_cb, read_cb,
-    volume_headers_cb, ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb,
-    stop_cb
+    cmd_len_cb, verbose_cb, log_cb, timeout_cb, types_cb, good_cb, hread_cb,
+    read_cb, release_cb, volume_headers_cb, ray_headers_cb, data_cb,
+    bin_outline_cb, bintvls_cb, stop_cb
 };
 
 /* Convenience functions */
@@ -119,6 +124,7 @@ int main(int argc, char *argv[])
     char cmd_in_nm[LEN];	/* Name of fifo from which to read commands */
     int a;			/* Index into argv */
     pid_t pid;			/* Process id for this process */
+    struct sig_vol *sv_p;	/* Member of vols */
     char *ang_u;		/* Angle unit */
     char *b, *b1;		/* Point into buf, end of buf */
     ssize_t r;			/* Return value from read */
@@ -139,16 +145,39 @@ int main(int argc, char *argv[])
 	cmd = argv[0];
     }
 
-    /* Usage: sigmet_rawd [-c] [-f] */
+    /* Usage: sigmet_rawd [-c] [-f] [-n integer] */
     for (a = 1; a < argc; a++) {
 	if (strcmp(argv[a], "-c") == 0) {
 	    shtyp = C;
 	} else if (strcmp(argv[a], "-f") == 0) {
 	    bg = 0;
+	} else if (strcmp(argv[a], "-n") == 0) {
+	    if ( ++a == argc ) {
+		fprintf(stderr, "%s: -n requires an value\n", cmd);
+		exit(EXIT_FAILURE);
+	    }
+	    if ( sscanf(argv[a], "%lu", &n_vols) != 1 ) {
+		fprintf(stderr, "%s: expected integer for volume count, got %s\n",
+			cmd, argv[a]);
+		exit(EXIT_FAILURE);
+	    }
 	} else {
 	    fprintf(stderr, "%s: unknown option \"%s\"\n", cmd, argv[a]);
 	    exit(EXIT_FAILURE);
 	}
+    }
+
+    /* Create vols array */
+    if ( !(vols = CALLOC(n_vols, sizeof(struct sig_vol))) ) {
+	fprintf(stderr, "%s: Could not allocate vols array.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    for (sv_p = vols; sv_p < vols + n_vols; sv_p++) {
+	sv_p->v = 0;
+	Sigmet_InitVol(&sv_p->vol);
+	sv_p->st_dev = 0;
+	sv_p->st_ino = 0;
+	sv_p->users = 0;
     }
 
     /* Check for angle unit */
@@ -162,17 +191,6 @@ int main(int argc, char *argv[])
 	    exit(EXIT_FAILURE);
 	}
     }
-
-    /* Initialize globals */
-    have_hdr = have_vol = 0;
-    Sigmet_InitVol(&vol);
-    vol_nm_l = 1;
-    if ( !(vol_nm = MALLOC(vol_nm_l)) ) {
-	fprintf(stderr, "%s: could not allocate storage for volume file name.\n",
-		cmd);
-	exit(EXIT_FAILURE);
-    }
-    *vol_nm = '\0';
 
     /* Create working directory */
     if ( snprintf(ddir, LEN, "%s/.sigmet_raw", getenv("HOME")) >= LEN ) {
@@ -475,19 +493,14 @@ int main(int argc, char *argv[])
 	fprintf(dlog, "%s: could not close command stream.\n%s\n",
 		time_stamp(), strerror(errno));
     }
-    fclose(dlog);
-    unload();
-    FREE(vol_nm);
+    for (sv_p = vols; sv_p < vols + n_vols; sv_p++) {
+	Sigmet_FreeVol(&sv_p->vol);
+    }
+    FREE(vols);
     FREE(buf);
+    fclose(dlog);
 
     return 0;
-}
-
-static void unload(void)
-{
-    Sigmet_FreeVol(&vol);
-    have_hdr = have_vol = 0;
-    vol_nm[0] = '\0';
 }
 
 /* Get a character string with the current time */
@@ -784,43 +797,65 @@ static int good_cb(int argc, char *argv[])
     return rslt;
 }
 
-/*
-   Callback for the "read" command.
-   Read a volume into memory.
-   Usage --
-   read raw_file
-   read -h raw_file
- */
+static int hread_cb(int argc, char *argv[])
+{
+    return 1;
+}
+
 static int read_cb(int argc, char *argv[])
 {
-    int hdr_only;
-    char *in_nm;
-    FILE *in;
-    char *t;
-    size_t l;
-    pid_t pid;
+    struct stat buf;		/* Information about file to read */
+    struct sig_vol *sv_p;	/* Member of vols */
+    int i;			/* Index into vols */
+    char *in_nm;		/* Sigmet raw file */
+    FILE *in;			/* Stream from Sigmet raw file */
+    pid_t pid;			/* Decompressing child */
 
-    hdr_only = 0;
     if ( argc == 2 ) {
 	in_nm = argv[1];
-    } else if ( argc == 3 && (strcmp(argv[1], "-h") == 0) ) {
-	hdr_only = 1;
-	in_nm = argv[2];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
-	Err_Append(" [-h] sigmet_volume");
+	Err_Append(" sigmet_volume");
 	return 0;
     }
-    if ( hdr_only && have_hdr && (strcmp(in_nm, vol_nm) == 0) ) {
-	/* No need to read headers again */
-	return 1;
+
+    /* Check if volume is present */
+    if ( stat(in_nm, &buf) == -1 ) {
+	Err_Append("Could not get information about ");
+	Err_Append(in_nm);
+	Err_Append("\n");
+	Err_Append(strerror(errno));
+	return 0;
     }
-    if ( have_vol && !vol.truncated && (strcmp(in_nm, vol_nm) == 0) ) {
-	/* No need to read volume again */
-	return 1;
+    for (i = 0; i < n_vols; i++) {
+	if ( vols[i].v
+		&& vols[i].st_dev == buf.st_dev
+		&& vols[i].st_ino == buf.st_ino
+		&& !vols[i].vol.truncated ) {
+	    fprintf(rslt1, "%d\n", i);
+	    sv_p->users++;
+	    return 1;
+	}
     }
 
+    /* Find an unused space in vols, or a truncated installation of desired vol */
+    for (i = 0; i < n_vols; i++) {
+	if ( vols[i].users == 0 && free_sig_vol(i) ) {
+	    break;
+	}
+	if ( vols[i].st_dev == buf.st_dev && vols[i].st_ino == buf.st_ino
+		&& vols[i].vol.truncated ) {
+	    Sigmet_FreeVol(&vols[i].vol);
+	    break;
+	}
+    }
+    if ( i == n_vols ) {
+	Err_Append("No space for more vols. ");
+	return 0;
+    }
+
+    /* Read volume */
     pid = -1;
     if ( !(in = vol_open(in_nm, &pid)) ) {
 	Err_Append("Could not open ");
@@ -828,68 +863,91 @@ static int read_cb(int argc, char *argv[])
 	Err_Append(" for input. ");
 	return 0;
     }
-    if (hdr_only) {
-	/* Read headers */
-	unload();
-	if ( !Sigmet_ReadHdr(in, &vol) ) {
-	    Err_Append("Could not read headers from ");
-	    Err_Append(in_nm);
-	    Err_Append(".\n");
-	    fclose(in);
-	    if (pid != -1) {
-		kill(pid, SIGKILL);
-	    }
-	    return 0;
+    /* Read volume */
+    if ( !Sigmet_ReadVol(in, &vols[i].vol) ) {
+	Err_Append("Could not read volume from ");
+	Err_Append(in_nm);
+	Err_Append(".\n");
+	fclose(in);
+	if (pid != -1) {
+	    kill(pid, SIGKILL);
 	}
-	have_hdr = 1;
-	have_vol = 0;
-    } else {
-	/* Read volume */
-	unload();
-	if ( !Sigmet_ReadVol(in, &vol) ) {
-	    Err_Append("Could not read volume from ");
-	    Err_Append(in_nm);
-	    Err_Append(".\n");
-	    fclose(in);
-	    if (pid != -1) {
-		kill(pid, SIGKILL);
-	    }
-	    return 0;
-	}
-	have_hdr = have_vol = 1;
+	return 0;
     }
     fclose(in);
     if (pid != -1) {
 	kill(pid, SIGKILL);
     }
-    l = 0;
-    if ( !(t = Str_Append(vol_nm, &l, &vol_nm_l, in_nm, strlen(in_nm))) ) {
-	Err_Append("Could not store name of global volume.  ");
-	unload();
+    vols[i].v = 1;
+    vols[i].st_dev = buf.st_dev;
+    vols[i].st_ino = buf.st_ino;
+    vols[i].users++;
+    fprintf(rslt1, "%d\n", i);
+    return 1;
+}
+
+static int release_cb(int argc, char *argv[])
+{
+    char *i_s;
+    int i;
+
+    if ( argc != 2 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" volume_index\n");
 	return 0;
     }
-    vol_nm = t;
+    i_s = argv[1];
+    if ( sscanf(i_s, "%d", &i) != 1 ) {
+	Err_Append("Expected integer for volume index, got ");
+	Err_Append(i_s);
+	Err_Append(". ");
+	return 0;
+    }
+    if ( i >= n_vols || !vols[i].v ) {
+	Err_Append(i_s);
+	Err_Append(" is not a valid index. ");
+	return 0;
+    }
+    vols[i].users--;
+    return 1;
+}
+
+/* Free a sig_vol */
+static int free_sig_vol(int i)
+{
+    struct sig_vol *sv_p;	/* Member of vols */
+
+    if ( i >= n_vols ) {
+	Err_Append("Tried to free an out of bounds volume. ");
+	return 0;
+    }
+    sv_p = vols + i;
+    if ( sv_p->users > 0 ) {
+	Err_Append("Tried to free a volume in use. ");
+	return 0;
+    }
+    Sigmet_FreeVol(&sv_p->vol);
+    sv_p->v = 0;
+    sv_p->st_dev = 0;
+    sv_p->st_ino = 0;
+    sv_p->users = 0;
     return 1;
 }
 
 static int volume_headers_cb(int argc, char *argv[])
 {
-    if ( !have_vol ) {
-	Err_Append("No volume loaded.  ");
-	return 0;
-    }
+    struct Sigmet_Vol vol;
+
     Sigmet_PrintHdr(rslt1, vol);
     return 1;
 }
 
 static int ray_headers_cb(int argc, char *argv[])
 {
+    struct Sigmet_Vol vol;
     int s, r;
 
-    if ( !have_vol ) {
-	Err_Append("No volume loaded.  ");
-	return 0;
-    }
     for (s = 0; s < vol.ih.tc.tni.num_sweeps; s++) {
 	for (r = 0; r < (int)vol.ih.ic.num_rays; r++) {
 	    int yr, mon, da, hr, min;
@@ -919,16 +977,12 @@ static int ray_headers_cb(int argc, char *argv[])
 
 static int data_cb(int argc, char *argv[])
 {
+    struct Sigmet_Vol vol;
     int s, y, r, b;
     char *abbrv;
     float d;
     enum Sigmet_DataType type;
     int all=-1;
-
-    if ( !have_vol ) {
-	Err_Append("No volume loaded.  ");
-	return 0;
-    }
 
     /*
        Identify input and desired output
@@ -1088,15 +1142,12 @@ static int data_cb(int argc, char *argv[])
 
 static int bin_outline_cb(int argc, char *argv[])
 {
+    struct Sigmet_Vol vol;
     char *s_s, *r_s, *b_s;
     int s, r, b;
     double corners[8];
     double c;
 
-    if ( !have_vol ) {
-	Err_Append("No volume loaded.  ");
-	return 0;
-    }
     if (argc != 4) {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
@@ -1147,16 +1198,13 @@ static int bin_outline_cb(int argc, char *argv[])
 /* Usage: sigmet_raw bintvls type s bounds raw_vol */
 static int bintvls_cb(int argc, char *argv[])
 {
+    struct Sigmet_Vol vol;
     char *s_s;
     int s, y, r, b;
     char *abbrv;
     double d;
     enum Sigmet_DataType type_t;
 
-    if ( !have_vol ) {
-	Err_Append("No volume loaded.  ");
-	return 0;
-    }
     if (argc != 4) {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
@@ -1212,16 +1260,19 @@ static int bintvls_cb(int argc, char *argv[])
 static int stop_cb(int argc, char *argv[])
 {
     char rm[LEN];
+    struct sig_vol *sv_p;
 
-    fclose(dlog);
-    unload();
-    FREE(vol_nm);
+    for (sv_p = vols; sv_p < vols + n_vols; sv_p++) {
+	Sigmet_FreeVol(&sv_p->vol);
+    }
+    FREE(vols);
     FREE(buf);
     if (snprintf(rm, LEN, "rm -r %s", ddir) < LEN) {
 	system(rm);
     } else {
 	fprintf(dlog, "%s: could not delete working directory.\n", time_stamp());
     }
+    fclose(dlog);
     fprintf(rslt1, "unset SIGMET_RAWD_PID SIGMET_RAWD_DIR SIGMET_RAWD_IN\n");
     exit(EXIT_SUCCESS);
     return 0;
