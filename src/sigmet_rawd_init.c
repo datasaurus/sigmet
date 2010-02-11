@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.112 $ $Date: 2010/02/11 21:39:32 $
+ .	$Revision: 1.113 $ $Date: 2010/02/11 21:39:45 $
  */
 
 #include <stdlib.h>
@@ -958,7 +958,6 @@ static int volume_headers_cb(int argc, char *argv[])
 {
     char *vol_nm;
     int i;
-    struct Sigmet_Vol vol;
 
     if ( argc != 2 ) {
 	Err_Append("Usage: ");
@@ -974,7 +973,7 @@ static int volume_headers_cb(int argc, char *argv[])
 		" Please (re)load with read command. ");
 	return 0;
     }
-    Sigmet_PrintHdr(rslt1, vol);
+    Sigmet_PrintHdr(rslt1, vols[i].vol);
     return 1;
 }
 
