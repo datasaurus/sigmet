@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.108 $ $Date: 2010/02/11 20:39:38 $
+ .	$Revision: 1.109 $ $Date: 2010/02/11 20:42:14 $
  */
 
 #include <stdlib.h>
@@ -850,29 +850,28 @@ static int read_cb(int argc, char *argv[])
 	return 0;
     }
 
-    /*
-       Check if volume is present. If volume is present but truncated,
-       delete it and attempt to read again.
-     */
-    if ( (i = get_vol_i(vol_nm)) >= 0 ) {
-	if ( vols[i].vol.truncated ) {
-	    Sigmet_FreeVol(&vols[i].vol);
-	} else {
-	    vols[i].users++;
-	    fprintf(rslt1, "%s loaded.\n", vol_nm);
-	    return 1;
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	/* Volume is not loaded. Try to find a slot in which to load it. */
+	for (i = 0; i < n_vols; i++) {
+	    if ( vols[i].users <= 0 && free_sig_vol(i) ) {
+		break;
+	    }
 	}
-    }
-
-    /* Need to read volume. Find a slot. */
-    for (i = 0; i < n_vols; i++) {
-	if ( vols[i].users <= 0 && free_sig_vol(i) ) {
-	    break;
+	if ( i == n_vols ) {
+	    Err_Append("Could not find a slot while attempting to (re)load ");
+	    Err_Append(vol_nm);
+	    Err_Append(". ");
+	    return 0;
 	}
-    }
-    if ( i == n_vols ) {
-	Err_Append("No space for more vols. ");
-	return 0;
+    } else if ( i >= 0 && vols[i].vol.truncated ) {
+	/* Volume truncated. Will attempt reload. Preserve vols[i]. */
+	Sigmet_FreeVol(&vols[i].vol);
+    } else {
+	/* Volume is loaded and complete, return. */
+	vols[i].users++;
+	fprintf(rslt1, "%s loaded.\n", vol_nm);
+	return 1;
     }
 
     /* Read volume */
