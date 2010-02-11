@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.113 $ $Date: 2010/02/11 21:39:45 $
+ .	$Revision: 1.114 $ $Date: 2010/02/11 21:56:51 $
  */
 
 #include <stdlib.h>
@@ -979,9 +979,26 @@ static int volume_headers_cb(int argc, char *argv[])
 
 static int ray_headers_cb(int argc, char *argv[])
 {
+    char *vol_nm;
+    int i;
     struct Sigmet_Vol vol;
     int s, r;
 
+    if ( argc != 2 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" sigmet_volume");
+	return 0;
+    }
+    vol_nm = argv[1];
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	return 0;
+    }
+    vol = vols[i].vol;
     for (s = 0; s < vol.ih.tc.tni.num_sweeps; s++) {
 	for (r = 0; r < (int)vol.ih.ic.num_rays; r++) {
 	    int yr, mon, da, hr, min;
@@ -1011,49 +1028,60 @@ static int ray_headers_cb(int argc, char *argv[])
 
 static int data_cb(int argc, char *argv[])
 {
+    char *vol_nm;
+    int i;
     struct Sigmet_Vol vol;
     int s, y, r, b;
     char *abbrv;
     float d;
     enum Sigmet_DataType type;
-    int all=-1;
+    int all = -1;
 
     /*
        Identify input and desired output
        Possible forms:
-	   data			(argc = 1)
-	   data y		(argc = 2)
-	   data y s		(argc = 3)
-	   data y s r		(argc = 4)
-	   data y s r b		(argc = 5)
+	   data	vol_nm		(argc = 2)
+	   data y vol_nm	(argc = 3)
+	   data y s vol_nm	(argc = 4)
+	   data y s r vol_nm	(argc = 5)
+	   data y s r b vol_nm	(argc = 6)
      */
 
     y = s = r = b = all;
     type = DB_ERROR;
-    if (argc > 1 && (type = Sigmet_DataType(argv[1])) == DB_ERROR) {
+    if (argc > 2 && (type = Sigmet_DataType(argv[1])) == DB_ERROR) {
 	Err_Append("No data type named ");
 	Err_Append(argv[1]);
 	Err_Append(".  ");
 	return 0;
     }
-    if (argc > 2 && sscanf(argv[2], "%d", &s) != 1) {
+    if (argc > 3 && sscanf(argv[2], "%d", &s) != 1) {
 	Err_Append("Sweep index must be an integer.  ");
 	return 0;
     }
-    if (argc > 3 && sscanf(argv[3], "%d", &r) != 1) {
+    if (argc > 4 && sscanf(argv[3], "%d", &r) != 1) {
 	Err_Append("Ray index must be an integer.  ");
 	return 0;
     }
-    if (argc > 4 && sscanf(argv[4], "%d", &b) != 1) {
+    if (argc > 5 && sscanf(argv[4], "%d", &b) != 1) {
 	Err_Append("Bin index must be an integer.  ");
 	return 0;
     }
-    if (argc > 5) {
+    if (argc > 6) {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
-	Err_Append(" [type] [sweep] [ray] [bin]");
+	Err_Append(" [type] [sweep] [ray] [bin] sigmet_volume");
 	return 0;
     }
+    vol_nm = argv[argc - 1];
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	return 0;
+    }
+    vol = vols[i].vol;
 
     if (type != DB_ERROR) {
 	/*
