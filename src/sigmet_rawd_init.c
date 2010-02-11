@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.107 $ $Date: 2010/02/11 17:54:18 $
+ .	$Revision: 1.108 $ $Date: 2010/02/11 20:39:38 $
  */
 
 #include <stdlib.h>
@@ -670,19 +670,19 @@ static int types_cb(int argc, char *argv[])
 }
 
 /*
-   Open volume file in_nm, possibly via a pipe.
+   Open volume file vol_nm, possibly via a pipe.
    Return file handle, or NULL if failure.
    If file is actually a process, pidp gets the child's process id.
    Otherwise, pidp is left alone.
  */
-static FILE *vol_open(const char *in_nm, pid_t *pidp)
+static FILE *vol_open(const char *vol_nm, pid_t *pidp)
 {
     FILE *in;		/* Return value */
     pid_t pid = 0;	/* Process identifier, for fork */
     char *sfx;		/* Filename suffix */
     int pfd[2];		/* Pipe for data */
 
-    sfx = strrchr(in_nm , '.');
+    sfx = strrchr(vol_nm , '.');
     if ( sfx && strcmp(sfx, ".gz") == 0 ) {
 	/* If filename ends with ".gz", read from gunzip pipe */
 	if ( pipe(pfd) == -1 ) {
@@ -713,7 +713,7 @@ static FILE *vol_open(const char *in_nm, pid_t *pidp)
 		if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
 		    _exit(EXIT_FAILURE);
 		}
-		execlp("gunzip", "gunzip", "-c", in_nm, (char *)NULL);
+		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	    default:
 		/* This process.  Read output from gzip. */
@@ -756,7 +756,7 @@ static FILE *vol_open(const char *in_nm, pid_t *pidp)
 		if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
 		    _exit(EXIT_FAILURE);
 		}
-		execlp("bunzip2", "bunzip2", "-c", in_nm, (char *)NULL);
+		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	    default:
 		/* This process.  Read output from gzip. */
@@ -769,10 +769,10 @@ static FILE *vol_open(const char *in_nm, pid_t *pidp)
 		    return in;
 		}
 	}
-    } else if ( !(in = fopen(in_nm, "r")) ) {
+    } else if ( !(in = fopen(vol_nm, "r")) ) {
 	/* Uncompressed file */
 	Err_Append("Could not open ");
-	Err_Append(in_nm);
+	Err_Append(vol_nm);
 	Err_Append(" for input.\n");
 	return NULL;
     }
@@ -837,12 +837,12 @@ static int read_cb(int argc, char *argv[])
 {
     struct stat buf;		/* Information about file to read */
     int i;			/* Index into vols */
-    char *in_nm;		/* Sigmet raw file */
+    char *vol_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t pid;			/* Decompressing child */
 
     if ( argc == 2 ) {
-	in_nm = argv[1];
+	vol_nm = argv[1];
     } else {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
@@ -854,12 +854,12 @@ static int read_cb(int argc, char *argv[])
        Check if volume is present. If volume is present but truncated,
        delete it and attempt to read again.
      */
-    if ( (i = get_vol_i(in_nm)) >= 0 ) {
+    if ( (i = get_vol_i(vol_nm)) >= 0 ) {
 	if ( vols[i].vol.truncated ) {
 	    Sigmet_FreeVol(&vols[i].vol);
 	} else {
 	    vols[i].users++;
-	    fprintf(rslt1, "%s loaded.\n", in_nm);
+	    fprintf(rslt1, "%s loaded.\n", vol_nm);
 	    return 1;
 	}
     }
@@ -877,16 +877,16 @@ static int read_cb(int argc, char *argv[])
 
     /* Read volume */
     pid = -1;
-    if ( !(in = vol_open(in_nm, &pid)) ) {
+    if ( !(in = vol_open(vol_nm, &pid)) ) {
 	Err_Append("Could not open ");
-	Err_Append(in_nm);
+	Err_Append(vol_nm);
 	Err_Append(" for input. ");
 	return 0;
     }
     /* Read volume */
     if ( !Sigmet_ReadVol(in, &vols[i].vol) ) {
 	Err_Append("Could not read volume from ");
-	Err_Append(in_nm);
+	Err_Append(vol_nm);
 	Err_Append(".\n");
 	fclose(in);
 	if (pid != -1) {
@@ -903,7 +903,7 @@ static int read_cb(int argc, char *argv[])
     vols[i].st_dev = buf.st_dev;
     vols[i].st_ino = buf.st_ino;
     vols[i].users++;
-    fprintf(rslt1, "%s loaded.\n", in_nm);
+    fprintf(rslt1, "%s loaded.\n", vol_nm);
     return 1;
 }
 
@@ -915,7 +915,7 @@ static int release_cb(int argc, char *argv[])
     if ( argc != 2 ) {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
-	Err_Append(" volume_index\n");
+	Err_Append(" sigmet_volume");
 	return 0;
     }
     i_s = argv[1];
