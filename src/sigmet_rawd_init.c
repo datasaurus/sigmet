@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.106 $ $Date: 2010/02/05 23:29:55 $
+ .	$Revision: 1.107 $ $Date: 2010/02/11 17:54:18 $
  */
 
 #include <stdlib.h>
@@ -53,6 +53,7 @@ struct sig_vol {
 };
 static struct sig_vol *vols;	/* Available volumes */
 static size_t n_vols = 12;	/* Number of volumes can be stored at vols */
+static int get_vol_i(char *);	/* Find member of vols given file name */
 static int free_sig_vol(int);	/* Free a member of vols */
 
 /* Process streams and files */
@@ -803,10 +804,38 @@ static int hread_cb(int argc, char *argv[])
     return 1;
 }
 
+/*
+   This function returns the index from vols of the volume obtained
+   from Sigmet raw product file vol_nm, or -1 is the volume is not
+   loaded. Note: this function will return a non-negative offset to
+   a loaded truncated volume.
+ */
+static int get_vol_i(char *vol_nm)
+{
+    struct stat buf;		/* Information about file to read */
+    int i;			/* Index into vols */
+
+    /* Check if volume is present */
+    if ( stat(vol_nm, &buf) == -1 ) {
+	Err_Append("Could not get information about volume file ");
+	Err_Append(vol_nm);
+	Err_Append("\n");
+	Err_Append(strerror(errno));
+	return 0;
+    }
+    for (i = 0; i < n_vols; i++) {
+	if ( vols[i].v
+		&& vols[i].st_dev == buf.st_dev
+		&& vols[i].st_ino == buf.st_ino) {
+	    return i;
+	}
+    }
+    return -1;
+}
+
 static int read_cb(int argc, char *argv[])
 {
     struct stat buf;		/* Information about file to read */
-    struct sig_vol *sv_p;	/* Member of vols */
     int i;			/* Index into vols */
     char *in_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
@@ -821,33 +850,23 @@ static int read_cb(int argc, char *argv[])
 	return 0;
     }
 
-    /* Check if volume is present */
-    if ( stat(in_nm, &buf) == -1 ) {
-	Err_Append("Could not get information about ");
-	Err_Append(in_nm);
-	Err_Append("\n");
-	Err_Append(strerror(errno));
-	return 0;
-    }
-    for (i = 0; i < n_vols; i++) {
-	if ( vols[i].v
-		&& vols[i].st_dev == buf.st_dev
-		&& vols[i].st_ino == buf.st_ino
-		&& !vols[i].vol.truncated ) {
-	    fprintf(rslt1, "%d\n", i);
-	    sv_p->users++;
+    /*
+       Check if volume is present. If volume is present but truncated,
+       delete it and attempt to read again.
+     */
+    if ( (i = get_vol_i(in_nm)) >= 0 ) {
+	if ( vols[i].vol.truncated ) {
+	    Sigmet_FreeVol(&vols[i].vol);
+	} else {
+	    vols[i].users++;
+	    fprintf(rslt1, "%s loaded.\n", in_nm);
 	    return 1;
 	}
     }
 
-    /* Find an unused space in vols, or a truncated installation of desired vol */
+    /* Need to read volume. Find a slot. */
     for (i = 0; i < n_vols; i++) {
-	if ( vols[i].users == 0 && free_sig_vol(i) ) {
-	    break;
-	}
-	if ( vols[i].st_dev == buf.st_dev && vols[i].st_ino == buf.st_ino
-		&& vols[i].vol.truncated ) {
-	    Sigmet_FreeVol(&vols[i].vol);
+	if ( vols[i].users <= 0 && free_sig_vol(i) ) {
 	    break;
 	}
     }
@@ -873,6 +892,7 @@ static int read_cb(int argc, char *argv[])
 	if (pid != -1) {
 	    kill(pid, SIGKILL);
 	}
+	free_sig_vol(i);
 	return 0;
     }
     fclose(in);
@@ -883,7 +903,7 @@ static int read_cb(int argc, char *argv[])
     vols[i].st_dev = buf.st_dev;
     vols[i].st_ino = buf.st_ino;
     vols[i].users++;
-    fprintf(rslt1, "%d\n", i);
+    fprintf(rslt1, "%s loaded.\n", in_nm);
     return 1;
 }
 
@@ -910,7 +930,9 @@ static int release_cb(int argc, char *argv[])
 	Err_Append(" is not a valid index. ");
 	return 0;
     }
-    vols[i].users--;
+    if ( vols[i].users > 0 ) {
+	vols[i].users--;
+    }
     return 1;
 }
 
