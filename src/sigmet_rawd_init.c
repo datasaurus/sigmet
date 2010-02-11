@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.110 $ $Date: 2010/02/11 21:08:45 $
+ .	$Revision: 1.111 $ $Date: 2010/02/11 21:21:42 $
  */
 
 #include <stdlib.h>
@@ -803,35 +803,6 @@ static int hread_cb(int argc, char *argv[])
     return 1;
 }
 
-/*
-   This function returns the index from vols of the volume obtained
-   from Sigmet raw product file vol_nm, or -1 is the volume is not
-   loaded. Note: this function will return a non-negative offset to
-   a loaded truncated volume.
- */
-static int get_vol_i(char *vol_nm)
-{
-    struct stat buf;		/* Information about file to read */
-    int i;			/* Index into vols */
-
-    /* Check if volume is present */
-    if ( stat(vol_nm, &buf) == -1 ) {
-	Err_Append("Could not get information about volume file ");
-	Err_Append(vol_nm);
-	Err_Append("\n");
-	Err_Append(strerror(errno));
-	return 0;
-    }
-    for (i = 0; i < n_vols; i++) {
-	if ( vols[i].v
-		&& vols[i].st_dev == buf.st_dev
-		&& vols[i].st_ino == buf.st_ino) {
-	    return i;
-	}
-    }
-    return -1;
-}
-
 static int read_cb(int argc, char *argv[])
 {
     struct stat buf;		/* Information about file to read */
@@ -849,8 +820,22 @@ static int read_cb(int argc, char *argv[])
 	return 0;
     }
 
-    i = get_vol_i(vol_nm);
-    if ( i == -1 ) {
+    /* Check if volume from this file already loaded */
+    if ( stat(vol_nm, &buf) == -1 ) {
+	Err_Append("Could not get information about volume file ");
+	Err_Append(vol_nm);
+	Err_Append("\n");
+	Err_Append(strerror(errno));
+	return 0;
+    }
+    for (i = 0; i < n_vols; i++) {
+	if ( vols[i].v
+		&& vols[i].st_dev == buf.st_dev
+		&& vols[i].st_ino == buf.st_ino) {
+	    break;
+	}
+    }
+    if ( i == n_vols ) {
 	/* Volume is not loaded. Try to find a slot in which to load it. */
 	for (i = 0; i < n_vols; i++) {
 	    if ( vols[i].users <= 0 ) {
@@ -916,6 +901,34 @@ static int read_cb(int argc, char *argv[])
     return 1;
 }
 
+/*
+   This function returns the index from vols of the volume obtained
+   from Sigmet raw product file vol_nm, or -1 is the volume is not
+   loaded. Note: this function will return a non-negative offset to
+   a loaded truncated volume.
+ */
+static int get_vol_i(char *vol_nm)
+{
+    struct stat buf;		/* Information about file to read */
+    int i;			/* Index into vols */
+
+    if ( stat(vol_nm, &buf) == -1 ) {
+	Err_Append("Could not get information about volume file ");
+	Err_Append(vol_nm);
+	Err_Append("\n");
+	Err_Append(strerror(errno));
+	return 0;
+    }
+    for (i = 0; i < n_vols; i++) {
+	if ( vols[i].v
+		&& vols[i].st_dev == buf.st_dev
+		&& vols[i].st_ino == buf.st_ino) {
+	    return i;
+	}
+    }
+    return -1;
+}
+
 static int release_cb(int argc, char *argv[])
 {
     char *vol_nm;
@@ -943,8 +956,24 @@ static int release_cb(int argc, char *argv[])
 
 static int volume_headers_cb(int argc, char *argv[])
 {
+    char *vol_nm;
+    int i;
     struct Sigmet_Vol vol;
 
+    if ( argc != 2 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" sigmet_volume");
+	return 0;
+    }
+    vol_nm = argv[1];
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	return 0;
+    }
     Sigmet_PrintHdr(rslt1, vol);
     return 1;
 }
