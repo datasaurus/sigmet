@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.37 $ $Date: 2010/01/12 16:37:43 $
+   .	$Revision: 1.38 $ $Date: 2010/02/11 20:31:19 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -858,7 +858,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    }
 	}
     }
-    vol_p->truncated = (r + 1 < num_rays || s + 1 < num_sweeps);
+    vol_p->truncated = (r + 1 < num_rays || s + 1 < num_sweeps) ? 1 : 0;
     FREE(ray);
     return 1;
 
