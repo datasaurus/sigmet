@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.109 $ $Date: 2010/02/11 20:42:14 $
+ .	$Revision: 1.110 $ $Date: 2010/02/11 21:08:45 $
  */
 
 #include <stdlib.h>
@@ -54,7 +54,6 @@ struct sig_vol {
 static struct sig_vol *vols;	/* Available volumes */
 static size_t n_vols = 12;	/* Number of volumes can be stored at vols */
 static int get_vol_i(char *);	/* Find member of vols given file name */
-static int free_sig_vol(int);	/* Free a member of vols */
 
 /* Process streams and files */
 static char ddir[LEN];		/* Working directory for server */
@@ -854,7 +853,12 @@ static int read_cb(int argc, char *argv[])
     if ( i == -1 ) {
 	/* Volume is not loaded. Try to find a slot in which to load it. */
 	for (i = 0; i < n_vols; i++) {
-	    if ( vols[i].users <= 0 && free_sig_vol(i) ) {
+	    if ( vols[i].users <= 0 ) {
+		Sigmet_FreeVol(&vols[i].vol);
+		vols[i].v = 0;
+		vols[i].st_dev = 0;
+		vols[i].st_ino = 0;
+		vols[i].users = 0;
 		break;
 	    }
 	}
@@ -891,7 +895,12 @@ static int read_cb(int argc, char *argv[])
 	if (pid != -1) {
 	    kill(pid, SIGKILL);
 	}
-	free_sig_vol(i);
+
+	/* Volume is broken. Deny it to clients. */
+	vols[i].v = 0;
+	vols[i].st_dev = 0;
+	vols[i].st_ino = 0;
+	vols[i].users = 0;
 	return 0;
     }
     fclose(in);
@@ -902,13 +911,14 @@ static int read_cb(int argc, char *argv[])
     vols[i].st_dev = buf.st_dev;
     vols[i].st_ino = buf.st_ino;
     vols[i].users++;
-    fprintf(rslt1, "%s loaded.\n", vol_nm);
+    fprintf(rslt1, "%s loaded%s.\n",
+	    vol_nm, vols[i].vol.truncated ? " (truncated)" : "");
     return 1;
 }
 
 static int release_cb(int argc, char *argv[])
 {
-    char *i_s;
+    char *vol_nm;
     int i;
 
     if ( argc != 2 ) {
@@ -917,43 +927,17 @@ static int release_cb(int argc, char *argv[])
 	Err_Append(" sigmet_volume");
 	return 0;
     }
-    i_s = argv[1];
-    if ( sscanf(i_s, "%d", &i) != 1 ) {
-	Err_Append("Expected integer for volume index, got ");
-	Err_Append(i_s);
-	Err_Append(". ");
-	return 0;
-    }
-    if ( i >= n_vols || !vols[i].v ) {
-	Err_Append(i_s);
-	Err_Append(" is not a valid index. ");
+    vol_nm = argv[1];
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
 	return 0;
     }
     if ( vols[i].users > 0 ) {
 	vols[i].users--;
     }
-    return 1;
-}
-
-/* Free a sig_vol */
-static int free_sig_vol(int i)
-{
-    struct sig_vol *sv_p;	/* Member of vols */
-
-    if ( i >= n_vols ) {
-	Err_Append("Tried to free an out of bounds volume. ");
-	return 0;
-    }
-    sv_p = vols + i;
-    if ( sv_p->users > 0 ) {
-	Err_Append("Tried to free a volume in use. ");
-	return 0;
-    }
-    Sigmet_FreeVol(&sv_p->vol);
-    sv_p->v = 0;
-    sv_p->st_dev = 0;
-    sv_p->st_ino = 0;
-    sv_p->users = 0;
     return 1;
 }
 
