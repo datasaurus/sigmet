@@ -1,14 +1,15 @@
 /*
  -	sigmet_rawd.c --
- -		Server that accesses Sigmet raw volumes.
- -		See sigmet_rawd (1).
+ -		This file defines data structures and functions for a
+ -		daemon that reads, manipulates data from, and provides
+ -		access to Sigmet raw volumes. See sigmet_rawd (1).
  -
  .	Copyright (c) 2009 Gordon D. Carrie
  .	All rights reserved.
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.105 $ $Date: 2010/02/04 22:36:44 $
+ .	$Revision: 1.106 $ $Date: 2010/02/05 23:29:55 $
  */
 
 #include <stdlib.h>
@@ -33,7 +34,7 @@
 /* Maximum number of arguments in input command */
 #define ARGCX 512
 
-/* Shell type determines type of printout */
+/* Shell type determines how environment variables and commands are printed */
 enum SHELL_TYPE {C, SH};
 
 /* If true, send full error messages. */
@@ -52,7 +53,7 @@ struct sig_vol {
 };
 static struct sig_vol *vols;	/* Available volumes */
 static size_t n_vols = 12;	/* Number of volumes can be stored at vols */
-static int free_sig_vol(int i);	/* Free a member of vols */
+static int free_sig_vol(int);	/* Free a member of vols */
 
 /* Process streams and files */
 static char ddir[LEN];		/* Working directory for server */
@@ -109,13 +110,13 @@ static callback *cb1v[NCMD] = {
 
 /* Convenience functions */
 static char *time_stamp(void);
-static FILE *vol_open(const char *in_nm, pid_t *pidp);
+static FILE *vol_open(const char *, pid_t *);
 static unsigned new_dchk(void);
 
 /* Signal handling functions */
 static int handle_signals(void);
-static void alarm_handler(int signum);
-static void handler(int signum);
+static void alarm_handler(int);
+static void handler(int);
 
 int main(int argc, char *argv[])
 {
@@ -329,7 +330,7 @@ int main(int argc, char *argv[])
 	    char rslt2_nm[LEN];	/* Name of file for error output */
 	    int status;		/* Result of callback */
 	    int i;		/* Loop index */
-	    double t2;	/* Temporary */
+	    double t2;		/* Temporary */
 
 	    /*
 	       If imposing timeouts (tmgout is set), set alarm.
@@ -346,7 +347,7 @@ int main(int argc, char *argv[])
 		}
 	    }
 
-	    /* Break received command line into arguments */
+	    /* Break command line into arguments */
 	    b = buf;
 	    client_pid = *(pid_t *)b;
 	    b += sizeof(client_pid);
@@ -487,7 +488,7 @@ int main(int argc, char *argv[])
 	}
     }
 
-    /* Should not end up here */
+    /* Should not end up here. Process should exit with "stop" command. */
     fprintf(dlog, "%s: unexpected exit.  %s\n", time_stamp(), strerror(errno));
     if ( close(i_cmd0) == -1 ) {
 	fprintf(dlog, "%s: could not close command stream.\n%s\n",
@@ -519,7 +520,7 @@ static char *time_stamp(void)
 
 /*
    Daemon times a few clients after serving dchk of them.  This function
-   computes a new dchk so that the sampling intervals are somewhat random.
+   computes a new dchk so that the sampling intervals are random.
  */
 static unsigned new_dchk(void)
 {
@@ -670,8 +671,8 @@ static int types_cb(int argc, char *argv[])
 /*
    Open volume file in_nm, possibly via a pipe.
    Return file handle, or NULL if failure.
-   If file is from a process, pidp gets the child's process id. Otherwise,
-   pidp is not touched.
+   If file is actually a process, pidp gets the child's process id.
+   Otherwise, pidp is left alone.
  */
 static FILE *vol_open(const char *in_nm, pid_t *pidp)
 {
@@ -1380,7 +1381,11 @@ static int handle_signals(void)
     return 1;
 }
 
-/* Assume alarm signals are due to a blocking client. Attempt to kill client. */
+/*
+   Assume alarm signals are due to a blocking client. Attempt to kill client.
+   POSSIBLE BUG. This assumes client_pid identifies a blocking client, and not
+   an unrelated process that replaced the (possibly long dead) client.
+ */
 static void alarm_handler(int signum)
 {
     write(idlog, "Client timed out\n", 17);
