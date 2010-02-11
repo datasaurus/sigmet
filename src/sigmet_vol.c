@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.36 $ $Date: 2010/01/12 16:07:41 $
+   .	$Revision: 1.37 $ $Date: 2010/01/12 16:37:43 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -148,7 +148,7 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
     vol_p->ray_tilt0 = vol_p->ray_tilt1
 	= vol_p->ray_az0 = vol_p->ray_az1 = NULL;
     vol_p->dat = NULL;
-    vol_p->truncated = 0;
+    vol_p->truncated = 1;
     return;
 }
 
