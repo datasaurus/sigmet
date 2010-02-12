@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.117 $ $Date: 2010/02/12 20:30:15 $
+ .	$Revision: 1.118 $ $Date: 2010/02/12 21:29:17 $
  */
 
 #include <stdlib.h>
@@ -72,8 +72,9 @@ static int tmoadj = 1;		/* If true, adjust timeout periodically. */
 static unsigned tmout = 60;	/* Max seconds client can block daemon */
 
 /* Input line - has commands for the daemon */
-static char *buf;
-static long buf_l;		/* Allocation at buf */
+#define BUF_L 512
+static char buf[BUF_L];
+static char *buf_e = buf + BUF_L;
 
 /* Application and subcommand name */
 static char *cmd;
@@ -128,7 +129,7 @@ int main(int argc, char *argv[])
     pid_t pid;			/* Process id for this process */
     struct sig_vol *sv_p;	/* Member of vols */
     char *ang_u;		/* Angle unit */
-    char *b, *b1;		/* Point into buf, end of buf */
+    char *b;			/* Point into buf */
     ssize_t r;			/* Return value from read */
     size_t l;			/* Number of bytes to read from command buffer */
     unsigned dchk;		/* After dchk clients, time some, adjust tmout */
@@ -221,18 +222,6 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* Allocate input line */
-    if ( (buf_l = pathconf(cmd_in_nm, _PC_PIPE_BUF)) == -1 ) {
-	fprintf(stderr, "%s: Could not get pipe buffer size.\n%s\n",
-		cmd, strerror(errno));
-	exit(EXIT_FAILURE);
-    }
-    if ( !(buf = CALLOC((size_t)buf_l, 1)) ) {
-	fprintf(stderr, "%s: Could not allocate input buffer.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    b1 = buf + buf_l;
-
     /* Open log file */
     if ( snprintf(log_nm, LEN, "%s/%s", ddir, "sigmet.log") >= LEN ) {
 	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
@@ -322,7 +311,7 @@ int main(int argc, char *argv[])
 
     /* Read commands from i_cmd0 into buf and execute them.  */
     while ( read(i_cmd0, &l, sizeof(size_t)) != -1 ) {
-	if ( (r = read(i_cmd0, buf, l)) != l ) {
+	if ( l > BUF_L || (r = read(i_cmd0, buf, l)) != l ) {
 	    fprintf(dlog, "%s: Failed to read command of %ld bytes. ",
 		    time_stamp(), l);
 	    if ( r == -1 ) {
@@ -364,12 +353,12 @@ int main(int argc, char *argv[])
 			"Limit is %d\n", time_stamp(), argc1, ARGCX);
 		continue;
 	    }
-	    for (a = 0, argv1[a] = b; b < b1 && a < argc1; b++) {
+	    for (a = 0, argv1[a] = b; b < buf_e && a < argc1; b++) {
 		if ( *b == '\0' ) {
 		    argv1[++a] = b + 1;
 		}
 	    }
-	    if ( b == b1 ) {
+	    if ( b == buf_e ) {
 		fprintf(dlog, "%s: Command line gives no destination.\n",
 			time_stamp());
 		continue;
@@ -509,7 +498,6 @@ int main(int argc, char *argv[])
 	Sigmet_FreeVol(&sv_p->vol);
     }
     FREE(vols);
-    FREE(buf);
     fclose(dlog);
 
     return 0;
@@ -545,7 +533,7 @@ static int cmd_len_cb(int argc, char *argv[])
 	Err_Append(cmd1);
 	return 0;
     }
-    fprintf(rslt1, "%ld\n", buf_l);
+    fprintf(rslt1, "%d\n", BUF_L);
     return 1;
 }
 
@@ -816,7 +804,7 @@ static int hread_cb(int argc, char *argv[])
 
 static int read_cb(int argc, char *argv[])
 {
-    struct stat buf;		/* Information about file to read */
+    struct stat sbuf;		/* Information about file to read */
     int i;			/* Index into vols */
     char *vol_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
@@ -832,7 +820,7 @@ static int read_cb(int argc, char *argv[])
     }
 
     /* Check if volume from this file already loaded */
-    if ( stat(vol_nm, &buf) == -1 ) {
+    if ( stat(vol_nm, &sbuf) == -1 ) {
 	Err_Append("Could not get information about volume file ");
 	Err_Append(vol_nm);
 	Err_Append("\n");
@@ -841,8 +829,8 @@ static int read_cb(int argc, char *argv[])
     }
     for (i = 0; i < n_vols; i++) {
 	if ( vols[i].v
-		&& vols[i].st_dev == buf.st_dev
-		&& vols[i].st_ino == buf.st_ino) {
+		&& vols[i].st_dev == sbuf.st_dev
+		&& vols[i].st_ino == sbuf.st_ino) {
 	    break;
 	}
     }
@@ -904,8 +892,8 @@ static int read_cb(int argc, char *argv[])
 	kill(pid, SIGKILL);
     }
     vols[i].v = 1;
-    vols[i].st_dev = buf.st_dev;
-    vols[i].st_ino = buf.st_ino;
+    vols[i].st_dev = sbuf.st_dev;
+    vols[i].st_ino = sbuf.st_ino;
     vols[i].users++;
     fprintf(rslt1, "%s loaded%s.\n",
 	    vol_nm, vols[i].vol.truncated ? " (truncated)" : "");
@@ -920,10 +908,10 @@ static int read_cb(int argc, char *argv[])
  */
 static int get_vol_i(char *vol_nm)
 {
-    struct stat buf;		/* Information about file to read */
+    struct stat sbuf;		/* Information about file to read */
     int i;			/* Index into vols */
 
-    if ( stat(vol_nm, &buf) == -1 ) {
+    if ( stat(vol_nm, &sbuf) == -1 ) {
 	Err_Append("Could not get information about volume file ");
 	Err_Append(vol_nm);
 	Err_Append("\n");
@@ -932,8 +920,8 @@ static int get_vol_i(char *vol_nm)
     }
     for (i = 0; i < n_vols; i++) {
 	if ( vols[i].v
-		&& vols[i].st_dev == buf.st_dev
-		&& vols[i].st_ino == buf.st_ino) {
+		&& vols[i].st_dev == sbuf.st_dev
+		&& vols[i].st_ino == sbuf.st_ino) {
 	    return i;
 	}
     }
@@ -1339,7 +1327,6 @@ static int stop_cb(int argc, char *argv[])
 	Sigmet_FreeVol(&sv_p->vol);
     }
     FREE(vols);
-    FREE(buf);
     if (snprintf(rm, LEN, "rm -r %s", ddir) < LEN) {
 	system(rm);
     } else {
