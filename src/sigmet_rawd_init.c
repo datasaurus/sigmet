@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.115 $ $Date: 2010/02/11 22:15:26 $
+ .	$Revision: 1.116 $ $Date: 2010/02/12 04:57:53 $
  */
 
 #include <stdlib.h>
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "%s: could not create name for working directory.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( (mkdir(ddir, S_IRUSR | S_IWUSR | S_IXUSR) == -1) ) {
+    if ( (mkdir(ddir, S_IRWXU | S_IRWXG ) == -1) ) {
 	fprintf(stderr, "%s: could not create\n%s\n%s\n",
 		cmd, ddir, strerror(errno));
 	exit(EXIT_FAILURE);
