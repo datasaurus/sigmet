@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.12 $ $Date: 2010/01/29 23:02:11 $
+ .	$Revision: 1.13 $ $Date: 2010/01/30 00:21:47 $
  */
 
 #include <stdlib.h>
@@ -51,6 +51,11 @@ int main(int argc, char *argv[])
     FILE *rslt2;		/* File for error results */
     int c;			/* Character from daemon */
     int status;			/* Return from this process */
+
+    if ( argc < 2 ) {
+	fprintf(stderr, "Usage: %s command\n", cmd);
+	exit(EXIT_FAILURE);
+    }
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
