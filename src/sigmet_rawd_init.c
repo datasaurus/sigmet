@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.114 $ $Date: 2010/02/11 21:56:51 $
+ .	$Revision: 1.115 $ $Date: 2010/02/11 22:15:26 $
  */
 
 #include <stdlib.h>
@@ -131,8 +131,9 @@ int main(int argc, char *argv[])
     ssize_t r;			/* Return value from read */
     size_t l;			/* Number of bytes to read from command buffer */
     unsigned dchk;		/* After dchk clients, time some, adjust tmout */
-    struct timespec start, end;	/* When a client session starts, ends */
-    double tmout2 = 0.0;	/* Time taken by a client */
+    time_t start, end;		/* When a client session starts, ends */
+    double dt;			/* Time taken by a client */
+    double dtx;			/* Time taken by slowest client in a set */
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
@@ -330,7 +331,7 @@ int main(int argc, char *argv[])
 	    char rslt2_nm[LEN];	/* Name of file for error output */
 	    int status;		/* Result of callback */
 	    int i;		/* Loop index */
-	    double t2;		/* Temporary */
+	    int tmx;		/* If true, time this session */
 
 	    /*
 	       If imposing timeouts (tmgout is set), set alarm.
@@ -339,11 +340,11 @@ int main(int argc, char *argv[])
 
 	    if ( tmgout ) {
 		alarm(tmout);
-		start.tv_sec = 0;
-		if ( tmoadj && --dchk < 8
-			&& clock_gettime(CLOCK_REALTIME, &start) == -1 ) {
-		    fprintf(dlog, "%s: Could not get client start time.\n%s\n",
-			    time_stamp(), strerror(errno));
+		if ( tmoadj && --dchk < 8 ) {
+		    tmx = 1;
+		    start = time(NULL);
+		} else {
+		    tmx = 0;
 		}
 	    }
 
@@ -447,41 +448,46 @@ int main(int argc, char *argv[])
 	     */
 	    if ( tmgout ) {
 		alarm(0);
-		if ( start.tv_sec != 0 ) {
-		    if ( clock_gettime(CLOCK_REALTIME, &end) == -1 ) {
-			fprintf(dlog, "%s: Could not get client end time.\n%s\n",
-				time_stamp(), strerror(errno));
-		    } else {
-			t2 = difftime(end.tv_sec, start.tv_sec)
-			    + (end.tv_nsec - start.tv_nsec) * 1.0e-9;
-			if (verbose) {
-			    fprintf(dlog, "%s: Session %d took %lf sec.\n",
-				    time_stamp(), dchk, t2);
-			}
-			if (t2 > tmout2) {
-			    if (verbose) {
-				fprintf(dlog, "%s: Slowest client in this set so "
-					"far took %lf sec.\n", time_stamp(), t2);
-			    }
-			    tmout2 = t2;
-			}
-		    }
-		}
-
-		if ( dchk == 0 ) {
-		    if ( tmout2 != 0.0 && tmout2 * 4 + 1 < tmout ) {
-			tmout2 = tmout2 * 2 + 1;
-			if (verbose) {
-			    fprintf(dlog, "%s: Setting timeout to %u sec.\n",
-				    time_stamp(), (unsigned)tmout2);
-			}
-			tmout = tmout2;
-		    }
-		    tmout2 = 0.0;
-		    dchk = new_dchk();
+		if ( tmx ) {
+		    end = time(NULL);
+		    dt = difftime(end, start);
 		    if (verbose) {
-			fprintf(dlog, "%s: Will assess timeout after %d "
-				"iterations\n", time_stamp(), dchk);
+			fprintf(dlog, "%s: Session %d took ", time_stamp(), dchk);
+			if ( dt == 0.0 ) {
+			    fprintf(dlog, "< 1.0 sec.\n");
+			} else {
+			    fprintf(dlog, "%lf sec.\n", dt);
+			}
+		    }
+		    if (dt > dtx) {
+			dtx = dt;
+			if (verbose) {
+			    fprintf(dlog, "%s: Slowest client in this set so "
+				    "far took ", time_stamp());
+			    if ( dtx == 0.0 ) {
+				fprintf(dlog, "< 1.0 sec.\n");
+			    } else {
+				fprintf(dlog, "%lf sec.\n", dtx);
+			    }
+			}
+		    }
+		    if ( dchk == 0 ) {
+			if ( dtx == 0.0 ) {
+			    dtx = 1.0;
+			}
+			if ( dtx < tmout / 2 ) {
+			    tmout = tmout / 2 + 1;
+			    if (verbose) {
+				fprintf(dlog, "%s: Setting timeout to %u sec.\n",
+					time_stamp(), tmout);
+			    }
+			}
+			dchk = new_dchk();
+			if (verbose) {
+			    fprintf(dlog, "%s: Will assess timeout after %d "
+				    "iterations\n", time_stamp(), dchk);
+			}
+			dtx = -1.0;
 		    }
 		}
 	    }
