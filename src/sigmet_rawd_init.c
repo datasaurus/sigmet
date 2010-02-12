@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.118 $ $Date: 2010/02/12 21:29:17 $
+ .	$Revision: 1.119 $ $Date: 2010/02/12 22:17:11 $
  */
 
 #include <stdlib.h>
@@ -38,7 +38,7 @@
 enum SHELL_TYPE {C, SH};
 
 /* If true, send full error messages. */
-static int verbose = 1;
+static int verbose = 0;
 
 /* If true, use degrees instead of radians */
 static int use_deg = 0;
@@ -427,9 +427,9 @@ int main(int argc, char *argv[])
 		fputc(EXIT_FAILURE, rslt2);
 		if ( verbose ) {
 		    fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
+		    fprintf(dlog, "%s: %s failed.\n%s\n",
+			    time_stamp(), cmd1, Err_Get());
 		}
-		fprintf(dlog, "%s: %s failed.\n%s\n",
-			time_stamp(), cmd1, Err_Get());
 	    }
 	    if ( (fclose(rslt2) == EOF) ) {
 		fprintf(dlog, "%s: Could not close %s.\n%s\n",
