@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.116 $ $Date: 2010/02/12 04:57:53 $
+ .	$Revision: 1.117 $ $Date: 2010/02/12 20:30:15 $
  */
 
 #include <stdlib.h>
@@ -56,7 +56,7 @@ static size_t n_vols = 12;	/* Number of volumes can be stored at vols */
 static int get_vol_i(char *);	/* Find member of vols given file name */
 
 /* Process streams and files */
-static char ddir[LEN];		/* Working directory for server */
+static char *ddir;		/* Working directory for server */
 static int i_cmd0;		/* Where to get commands */
 static int i_cmd1;		/* Unused outptut (see explanation below). */
 static int idlog = -1;		/* Error log */
@@ -121,6 +121,7 @@ static void handler(int);
 int main(int argc, char *argv[])
 {
     int bg = 1;			/* If true, run in foreground (do not fork) */
+    char dtmpl[] = "/tmp/sigmet_rawd.XXXXXX"; /* Work directory */
     enum SHELL_TYPE shtyp = SH;	/* Control how environment variables are printed */
     char cmd_in_nm[LEN];	/* Name of fifo from which to read commands */
     int a;			/* Index into argv */
@@ -195,13 +196,17 @@ int main(int argc, char *argv[])
     }
 
     /* Create working directory */
-    if ( snprintf(ddir, LEN, "%s/.sigmet_raw", getenv("HOME")) >= LEN ) {
-	fprintf(stderr, "%s: could not create name for working directory.\n", cmd);
+    if ( (ddir = getenv("SIGMET_RAWD_DIR"))
+	    && (mkdir(ddir, S_IRWXU | S_IRWXG ) == -1) ) {
+	fprintf(stderr, "%s: could not create directory %s\n%s\n",
+		cmd, ddir, strerror(errno));
+	exit(EXIT_FAILURE);
+    } else if ( !(ddir = mkdtemp(dtmpl)) ) {
+	perror("could not create daemon work directory");
 	exit(EXIT_FAILURE);
     }
-    if ( (mkdir(ddir, S_IRWXU | S_IRWXG ) == -1) ) {
-	fprintf(stderr, "%s: could not create\n%s\n%s\n",
-		cmd, ddir, strerror(errno));
+    if ( (chmod(ddir, S_IRWXU | S_IRWXG ) == -1) ) {
+	perror("could not set permissions for work directory");
 	exit(EXIT_FAILURE);
     }
 
