@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.122 $ $Date: 2010/02/15 16:55:12 $
+ .	$Revision: 1.123 $ $Date: 2010/02/15 20:19:25 $
  */
 
 #include <stdlib.h>
@@ -34,9 +34,6 @@
 
 /* Maximum number of arguments in input command */
 #define ARGCX 512
-
-/* Shell type determines how environment variables and commands are printed */
-enum SHELL_TYPE {C, SH};
 
 /* If true, send full error messages. */
 static int verbose = 0;
@@ -122,8 +119,6 @@ static void handler(int);
 int main(int argc, char *argv[])
 {
     char *ddir;			/* Working directory for server */
-    int bg = 1;			/* If true, run in foreground (do not fork) */
-    enum SHELL_TYPE shtyp = SH;	/* Control how environment variables are printed */
     int a;			/* Index into argv */
     pid_t pid;			/* Process id for this process */
     struct sig_vol *sv_p;	/* Member of vols */
@@ -148,13 +143,9 @@ int main(int argc, char *argv[])
 	cmd = argv[0];
     }
 
-    /* Usage: sigmet_rawd [-c] [-f] [-n integer] */
+    /* Usage: sigmet_rawd [-n integer] */
     for (a = 1; a < argc; a++) {
-	if (strcmp(argv[a], "-c") == 0) {
-	    shtyp = C;
-	} else if (strcmp(argv[a], "-f") == 0) {
-	    bg = 0;
-	} else if (strcmp(argv[a], "-n") == 0) {
+	if (strcmp(argv[a], "-n") == 0) {
 	    if ( ++a == argc ) {
 		fprintf(stderr, "%s: -n requires an value\n", cmd);
 		exit(EXIT_FAILURE);
@@ -223,35 +214,6 @@ int main(int argc, char *argv[])
 	    || setvbuf(dlog, NULL, _IOLBF, 0) != 0 ) {
 	fprintf(stderr, "%s: could not create log file.\n", cmd);
 	exit(EXIT_FAILURE);
-    }
-
-    if ( bg ) {
-	/* Put server in background */
-	switch (pid = fork()) {
-	    case -1:
-		Err_Append(strerror(errno));
-		Err_Append("\nCould not spawn sigmet daemon in background.  ");
-		return 0;
-	    case 0:
-		/* Child = daemon process. */
-
-		if ( !handle_signals() ) {
-		    fprintf(stderr, "%s: could not set up signal management "
-			    "in daemon.", cmd);
-		    exit(EXIT_FAILURE);
-		}
-
-		/* Go to background. */
-		fclose(stdin);
-		fclose(stdout);
-		fclose(stderr);
-		break;
-	    default:
-		/* Parent. Print information and exit. */
-		printf("echo Starting sigmet_rawd. Process id = %d.;\n", pid);
-		printf("echo Log file = %s;\n", log_nm);
-		exit(EXIT_SUCCESS);
-	}
     }
 
     /* Initialize log */
