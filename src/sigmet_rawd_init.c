@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.123 $ $Date: 2010/02/15 20:19:25 $
+ .	$Revision: 1.124 $ $Date: 2010/02/15 20:24:15 $
  */
 
 #include <stdlib.h>
@@ -56,9 +56,6 @@ static int get_vol_i(char *);	/* Find member of vols given file name */
 /* Process streams and files */
 static int i_cmd0;		/* Where to get commands */
 static int i_cmd1;		/* Unused outptut (see explanation below). */
-static int idlog = -1;		/* Error log */
-static char log_nm[LEN];	/* Name of log file */
-static FILE *dlog;		/* Error log */
 static FILE *rslt1;		/* Where to send standard output */
 static FILE *rslt2;		/* Where to send standard error */
 pid_t client_pid;		/* Process id of client */
@@ -78,16 +75,15 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 15
+#define NCMD 14
 static char *cmd1v[NCMD] = {
-    "cmd_len", "verbose", "log", "timeout", "types", "good", "hread","read",
+    "cmd_len", "verbose", "timeout", "types", "good", "hread","read",
     "release", "volume_headers", "ray_headers", "data", "bin_outline", "bintvls",
     "stop"
 };
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
-static callback log_cb;
 static callback timeout_cb;
 static callback types_cb;
 static callback good_cb;
@@ -101,7 +97,7 @@ static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback stop_cb;
 static callback *cb1v[NCMD] = {
-    cmd_len_cb, verbose_cb, log_cb, timeout_cb, types_cb, good_cb, hread_cb,
+    cmd_len_cb, verbose_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, release_cb, volume_headers_cb, ray_headers_cb, data_cb,
     bin_outline_cb, bintvls_cb, stop_cb
 };
@@ -118,9 +114,8 @@ static void handler(int);
 
 int main(int argc, char *argv[])
 {
+    cmd = argv[0];
     char *ddir;			/* Working directory for server */
-    int a;			/* Index into argv */
-    pid_t pid;			/* Process id for this process */
     struct sig_vol *sv_p;	/* Member of vols */
     char *ang_u;		/* Angle unit */
     char *b;			/* Point into buf */
@@ -133,37 +128,27 @@ int main(int argc, char *argv[])
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
-	fprintf(stderr, "%s: could not set up signal management.", argv[0]);
+	fprintf(stderr, "Could not set up signal management.");
 	exit(EXIT_FAILURE);
     }
 
-    if ( (cmd = strrchr(argv[0], '/')) ) {
-	cmd++;
-    } else {
-	cmd = argv[0];
-    }
-
     /* Usage: sigmet_rawd [-n integer] */
-    for (a = 1; a < argc; a++) {
-	if (strcmp(argv[a], "-n") == 0) {
-	    if ( ++a == argc ) {
-		fprintf(stderr, "%s: -n requires an value\n", cmd);
-		exit(EXIT_FAILURE);
-	    }
-	    if ( sscanf(argv[a], "%lu", &n_vols) != 1 ) {
-		fprintf(stderr, "%s: expected integer for volume count, got %s\n",
-			cmd, argv[a]);
-		exit(EXIT_FAILURE);
-	    }
+    if ( argc == 3 ) {
+	if (strcmp(argv[1], "-n") == 0) {
 	} else {
-	    fprintf(stderr, "%s: unknown option \"%s\"\n", cmd, argv[a]);
+	    fprintf(stderr, "Unknown option \"%s\"\n", argv[1]);
+	    exit(EXIT_FAILURE);
+	}
+	if ( sscanf(argv[2], "%lu", &n_vols) != 1 ) {
+	    fprintf(stderr, "Expected integer for volume count, got %s\n",
+		    argv[2]);
 	    exit(EXIT_FAILURE);
 	}
     }
 
     /* Create vols array */
     if ( !(vols = CALLOC(n_vols, sizeof(struct sig_vol))) ) {
-	fprintf(stderr, "%s: Could not allocate vols array.\n", cmd);
+	fprintf(stderr, "Could not allocate storage for volumes.\n");
 	exit(EXIT_FAILURE);
     }
     for (sv_p = vols; sv_p < vols + n_vols; sv_p++) {
@@ -181,15 +166,15 @@ int main(int argc, char *argv[])
 	} else if (strcmp(ang_u, "RADIAN") == 0) {
 	    use_deg = 0;
 	} else {
-	    fprintf(stderr, "%s: Unknown angle unit %s.\n", cmd, ang_u);
+	    fprintf(stderr, "Unknown angle unit %s.\n", ang_u);
 	    exit(EXIT_FAILURE);
 	}
     }
 
     /* Create working directory */
     if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	fprintf(stderr, "%s: Please set SIGMET_RAWD_DIR to name of working "
-		"directory.\n", cmd);
+	fprintf(stderr, "Could not identify daemon directory. Please specify "
+		"daemon directory with SIGMET_RAWD_DIR environment variable.\n");
 	exit(EXIT_FAILURE);
     }
     if ( chdir(ddir) == -1 ) {
@@ -199,54 +184,37 @@ int main(int argc, char *argv[])
 
     /* Create named pipe for command input */
     if ( (mkfifo(SIGMET_RAWD_IN, S_IRUSR | S_IWUSR) == -1) ) {
-	fprintf(stderr, "%s: sigmet_rawd could not create input pipe.\n%s\n",
-		cmd, strerror(errno));
+	fprintf(stderr, "Could not create input pipe.\n%s\n", strerror(errno));
 	exit(EXIT_FAILURE);
     }
-
-    /* Open log file */
-    if ( snprintf(log_nm, LEN, "%s", "sigmet.log") >= LEN ) {
-	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    idlog = open(log_nm, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR);
-    if ( idlog == -1 || !(dlog = fdopen(idlog, "w"))
-	    || setvbuf(dlog, NULL, _IOLBF, 0) != 0 ) {
-	fprintf(stderr, "%s: could not create log file.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-
-    /* Initialize log */
-    pid = getpid();
-    fprintf(dlog, "%s: sigmet_rawd started. pid=%d\n", time_stamp(), pid);
 
     tmout = 20;
     dchk = new_dchk();
-    fprintf(dlog, "Initializing client timeout. Clients that block the daemon"
-	    " for more %d seconds will be killed.\n", tmout);
-    if (tmoadj) {
-	fprintf(dlog, "Will assess timeout after %d iterations\n", dchk );
+    fprintf(stderr, "Clients that block daemon for more than %d seconds will "
+	    "be killed.\n", tmout);
+    if (tmoadj && verbose) {
+	printf("Will assess timeout after %d iterations\n", dchk );
     }
 
     /* Open command input stream. */
     if ( (i_cmd0 = open(SIGMET_RAWD_IN, O_RDONLY)) == -1 ) {
-	fprintf(dlog, "%s: Could not open %s for input.\n%s\n",
-		cmd, SIGMET_RAWD_IN, strerror(errno));
+	fprintf(stderr, "Could not open %s for input.\n%s\n",
+		SIGMET_RAWD_IN, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     if ( (i_cmd1 = open(SIGMET_RAWD_IN, O_WRONLY)) == -1 ) {
-	fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
-		cmd, SIGMET_RAWD_IN, strerror(errno));
+	fprintf(stderr, "Could not open %s for output.\n%s\n",
+		SIGMET_RAWD_IN, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
     /* Read commands from i_cmd0 into buf and execute them.  */
     while ( read(i_cmd0, &l, sizeof(size_t)) != -1 ) {
 	if ( l > BUF_L || (r = read(i_cmd0, buf, l)) != l ) {
-	    fprintf(dlog, "%s: Failed to read command of %ld bytes. ",
+	    fprintf(stderr, "%s: Failed to read command of %ld bytes. ",
 		    time_stamp(), l);
 	    if ( r == -1 ) {
-		fprintf(dlog, "%s\n", strerror(errno));
+		fprintf(stderr, "%s\n", strerror(errno));
 	    }
 	} else {
 	    int argc1;		/* Number of arguments in received command line */
@@ -254,7 +222,7 @@ int main(int argc, char *argv[])
 	    int a;		/* Index into argv1 */
 	    char rslt1_nm[LEN];	/* Name of file for standard output */
 	    char rslt2_nm[LEN];	/* Name of file for error output */
-	    int status;		/* Result of callback */
+	    int success;	/* Result of callback */
 	    int i;		/* Loop index */
 	    int tmx;		/* If true, time this session */
 
@@ -280,7 +248,7 @@ int main(int argc, char *argv[])
 	    argc1 = *(int *)b;
 	    b += sizeof(argc1);
 	    if (argc1 > ARGCX) {
-		fprintf(dlog, "%s: Unable to parse command with %d arguments. "
+		fprintf(stderr, "%s: Unable to parse command with %d arguments. "
 			"Limit is %d\n", time_stamp(), argc1, ARGCX);
 		continue;
 	    }
@@ -290,7 +258,7 @@ int main(int argc, char *argv[])
 		}
 	    }
 	    if ( b == buf_e ) {
-		fprintf(dlog, "%s: Command line gives no destination.\n",
+		fprintf(stderr, "%s: Command line gives no destination.\n",
 			time_stamp());
 		continue;
 	    }
@@ -298,12 +266,12 @@ int main(int argc, char *argv[])
 	    /* Create and open "standard output" file */
 	    rslt1 = NULL;
 	    if (snprintf(rslt1_nm, LEN, "%d.1", client_pid) > LEN) {
-		fprintf(dlog, "%s: Could not create file name for client %d.\n",
+		fprintf(stderr, "%s: Could not create file name for client %d.\n",
 			time_stamp(), client_pid);
 		continue;
 	    }
 	    if ( !(rslt1 = fopen(rslt1_nm, "w")) ) {
-		fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
+		fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
 			time_stamp(), rslt1_nm, strerror(errno));
 		continue;
 	    }
@@ -311,12 +279,12 @@ int main(int argc, char *argv[])
 	    /* Create and open error file */
 	    rslt2 = NULL;
 	    if (snprintf(rslt2_nm, LEN, "%d.2", client_pid) > LEN) {
-		fprintf(dlog, "%s: Could not create file name for client %d.\n",
+		fprintf(stderr, "%s: Could not create file name for client %d.\n",
 			time_stamp(), client_pid);
 		continue;
 	    }
 	    if ( !(rslt2 = fopen(rslt2_nm, "w")) ) {
-		fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
+		fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
 			time_stamp(), rslt2_nm, strerror(errno));
 		continue;
 	    }
@@ -325,45 +293,47 @@ int main(int argc, char *argv[])
 	    cmd1 = argv1[0];
 	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 		fputc(EXIT_FAILURE, rslt2);
-		if ( verbose ) {
-		    fprintf(rslt2, "No option or subcommand named \"%s\"\n", cmd1);
-		    fprintf(rslt2, "Subcommand must be one of: ");
-		    for (i = 0; i < NCMD; i++) {
-			fprintf(rslt2, "%s ", cmd1v[i]);
-		    }
-		    fprintf(rslt2, "\n");
+		fprintf(rslt2, "No option or subcommand named \"%s\"\n", cmd1);
+		fprintf(rslt2, "Subcommand must be one of: ");
+		for (i = 0; i < NCMD; i++) {
+		    fprintf(rslt2, "%s ", cmd1v[i]);
 		}
+		fprintf(rslt2, "\n");
 		if ( (fclose(rslt1) == EOF) ) {
-		    fprintf(dlog, "%s: Could not close %s.\n%s\n",
+		    fprintf(stderr, "%s: Could not close %s.\n%s\n",
 			    time_stamp(), rslt1_nm, strerror(errno));
 		}
 		if ( (fclose(rslt2) == EOF) ) {
-		    fprintf(dlog, "%s: Could not close %s.\n%s\n",
+		    fprintf(stderr, "%s: Could not close %s.\n%s\n",
 			    time_stamp(), rslt2_nm, strerror(errno));
 		}
 		continue;
 	    }
 
-	    /* Run command. Send "standard output" to rslt1. */
-	    status = (cb1v[i])(argc1, argv1);
+	    /* Run command. Callback will send "standard output" to rslt1. */
+	    success = (cb1v[i])(argc1, argv1);
 	    if ( (fclose(rslt1) == EOF) ) {
-		fprintf(dlog, "%s: Could not close %s.\n%s\n",
+		fprintf(stderr, "%s: Could not close %s.\n%s\n",
 			time_stamp(), rslt1_nm, strerror(errno));
 	    }
 
-	    /* Send status and error messages, if any, to rslt2 and log */
-	    if ( status ) {
-		fputc(EXIT_SUCCESS, rslt2);
+	    /* Send status and error messages, if any */
+	    if ( success ) {
+		if ( fputc(EXIT_SUCCESS, rslt2) == EOF ) {
+		    fprintf(stderr, "%s: Could not send return code for %s.\n"
+			    "%s\n", time_stamp(), cmd1, strerror(errno) );
+		}
 	    } else {
-		fputc(EXIT_FAILURE, rslt2);
-		fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
-		if ( verbose ) {
-		    fprintf(dlog, "%s: %s failed.\n%s\n",
-			    time_stamp(), cmd1, Err_Get());
+		if ( fputc(EXIT_FAILURE, rslt2) == EOF
+			|| fprintf(rslt2, "%s failed.\n%s\n",
+			    cmd1, Err_Get()) == -1 ) {
+		    fprintf(stderr, "%s: Could not send return code or error "
+			    "output for %s.\n%s\n",
+			    time_stamp(), cmd1, strerror(errno) );
 		}
 	    }
 	    if ( (fclose(rslt2) == EOF) ) {
-		fprintf(dlog, "%s: Could not close %s.\n%s\n",
+		fprintf(stderr, "%s: Could not close %s.\n%s\n",
 			time_stamp(), rslt2_nm, strerror(errno));
 	    }
 
@@ -377,22 +347,22 @@ int main(int argc, char *argv[])
 		    end = time(NULL);
 		    dt = difftime(end, start);
 		    if (verbose) {
-			fprintf(dlog, "%s: Session %d took ", time_stamp(), dchk);
+			printf("%s: Session %d took ", time_stamp(), dchk);
 			if ( dt == 0.0 ) {
-			    fprintf(dlog, "< 1.0 sec.\n");
+			    printf("< 1.0 sec.\n");
 			} else {
-			    fprintf(dlog, "%lf sec.\n", dt);
+			    printf("%lf sec.\n", dt);
 			}
 		    }
 		    if (dt > dtx) {
 			dtx = dt;
 			if (verbose) {
-			    fprintf(dlog, "%s: Slowest client in this set so "
+			    printf("%s: Slowest client in this set so "
 				    "far took ", time_stamp());
 			    if ( dtx == 0.0 ) {
-				fprintf(dlog, "< 1.0 sec.\n");
+				printf("< 1.0 sec.\n");
 			    } else {
-				fprintf(dlog, "%lf sec.\n", dtx);
+				printf("%lf sec.\n", dtx);
 			    }
 			}
 		    }
@@ -403,13 +373,13 @@ int main(int argc, char *argv[])
 			if ( dtx < tmout / 2 ) {
 			    tmout = tmout / 2 + 1;
 			    if (verbose) {
-				fprintf(dlog, "%s: Setting timeout to %u sec.\n",
+				printf("%s: Setting timeout to %u sec.\n",
 					time_stamp(), tmout);
 			    }
 			}
 			dchk = new_dchk();
 			if (verbose) {
-			    fprintf(dlog, "%s: Will assess timeout after %d "
+			    printf("%s: Will assess timeout after %d "
 				    "iterations\n", time_stamp(), dchk);
 			}
 			dtx = -1.0;
@@ -420,19 +390,18 @@ int main(int argc, char *argv[])
     }
 
     /* Should not end up here. Process should exit with "stop" command. */
-    fprintf(dlog, "%s: unexpected exit.  %s\n", time_stamp(), strerror(errno));
+    fprintf(stderr, "%s: unexpected exit.  %s\n", time_stamp(), strerror(errno));
     if ( close(i_cmd0) == -1 ) {
-	fprintf(dlog, "%s: could not close command stream.\n%s\n",
+	fprintf(stderr, "%s: could not close command stream.\n%s\n",
 		time_stamp(), strerror(errno));
     }
     if ( unlink(SIGMET_RAWD_IN) == -1 ) {
-	fprintf(dlog, "%s: could not delete input pipe.\n", time_stamp());
+	fprintf(stderr, "%s: could not delete input pipe.\n", time_stamp());
     }
     for (sv_p = vols; sv_p < vols + n_vols; sv_p++) {
 	Sigmet_FreeVol(&sv_p->vol);
     }
     FREE(vols);
-    fclose(dlog);
 
     return 0;
 }
@@ -490,34 +459,6 @@ static int verbose_cb(int argc, char *argv[])
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
 	Err_Append(" true|false");
-	return 0;
-    }
-    return 1;
-}
-
-static int log_cb(int argc, char *argv[])
-{
-    FILE *l;
-    int c;
-
-    if (argc != 1) {
-	Err_Append("Usage: ");
-	Err_Append(cmd1);
-	return 0;
-    }
-    if ( !(l = fopen(log_nm, "r")) ) {
-	Err_Append("Could not open log file.\n");
-	return 0;
-    }
-    while ( (c = fgetc(l)) != EOF && fputc(c, rslt1) != EOF ) {
-	continue;
-    }
-    if ( ferror(l) || ferror(rslt1) ) {
-	Err_Append("Error writing log file.  ");
-	Err_Append(strerror(errno));
-    }
-    if ( fclose(l) == EOF ) {
-	Err_Append("Could not close log file.\n");
 	return 0;
     }
     return 1;
@@ -632,17 +573,14 @@ static FILE *vol_open(const char *vol_nm, pid_t *pidp)
 		/* Child process - gzip.  Send child stdout to pipe. */
 		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
 			|| fclose(rslt1) == EOF) {
-		    fprintf(dlog, "%s: gzip child could not close"
+		    fprintf(stderr, "%s: gzip child could not close"
 			    " server streams", time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1
 			|| close(pfd[1]) == -1 ) {
-		    fprintf(dlog, "%s: could not set up gzip process",
+		    fprintf(stderr, "%s: could not set up gzip process",
 			    time_stamp());
-		    _exit(EXIT_FAILURE);
-		}
-		if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
 		    _exit(EXIT_FAILURE);
 		}
 		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
@@ -675,17 +613,14 @@ static FILE *vol_open(const char *vol_nm, pid_t *pidp)
 		/* Child process - gzip.  Send child stdout to pipe. */
 		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
 			|| fclose(rslt1) == EOF) {
-		    fprintf(dlog, "%s: gzip child could not close"
+		    fprintf(stderr, "%s: gzip child could not close"
 			    " server streams", time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1
 			|| close(pfd[1]) == -1 ) {
-		    fprintf(dlog, "%s: could not set up gzip process",
+		    fprintf(stderr, "%s: could not set up gzip process",
 			    time_stamp());
-		    _exit(EXIT_FAILURE);
-		}
-		if ( dup2(idlog, STDERR_FILENO) == -1 || close(idlog) == -1 ) {
 		    _exit(EXIT_FAILURE);
 		}
 		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
@@ -1261,10 +1196,9 @@ static int stop_cb(int argc, char *argv[])
     }
     FREE(vols);
     if ( unlink(SIGMET_RAWD_IN) == -1 ) {
-	fprintf(dlog, "%s: could not delete input pipe.\n", time_stamp());
+	fprintf(stderr, "%s: could not delete input pipe.\n", time_stamp());
     }
-    fprintf(dlog, "%s: exiting.\n", time_stamp());
-    fclose(dlog);
+    fprintf(stderr, "%s: received stop command, exiting.\n", time_stamp());
     exit(EXIT_SUCCESS);
     return 0;
 }
@@ -1378,7 +1312,7 @@ static int handle_signals(void)
  */
 static void alarm_handler(int signum)
 {
-    write(idlog, "Client timed out\n", 17);
+    write(STDERR_FILENO, "Client timed out\n", 17);
     kill(client_pid, SIGTERM);
     tmout *= 2;
 }
@@ -1386,33 +1320,31 @@ static void alarm_handler(int signum)
 /* For exit signals, print an error message if possible */
 static void handler(int signum)
 {
-    if ( idlog != -1 ) {
-	switch (signum) {
-	    case SIGTERM:
-		write(idlog, "Exiting on termination signal    \n", 34);
-		break;
-	    case SIGBUS:
-		write(idlog, "Exiting on bus error             \n", 34);
-		break;
-	    case SIGFPE:
-		write(idlog, "Exiting arithmetic exception     \n", 34);
-		break;
-	    case SIGILL:
-		write(idlog, "Exiting illegal instruction      \n", 34);
-		break;
-	    case SIGSEGV:
-		write(idlog, "Exiting invalid memory reference \n", 34);
-		break;
-	    case SIGSYS:
-		write(idlog, "Exiting on bad system call       \n", 34);
-		break;
-	    case SIGXCPU:
-		write(idlog, "Exiting: CPU time limit exceeded \n", 34);
-		break;
-	    case SIGXFSZ:
-		write(idlog, "Exiting: file size limit exceeded\n", 34);
-		break;
-	}
+    switch (signum) {
+	case SIGTERM:
+	    write(STDERR_FILENO, "Exiting on termination signal    \n", 34);
+	    break;
+	case SIGBUS:
+	    write(STDERR_FILENO, "Exiting on bus error             \n", 34);
+	    break;
+	case SIGFPE:
+	    write(STDERR_FILENO, "Exiting arithmetic exception     \n", 34);
+	    break;
+	case SIGILL:
+	    write(STDERR_FILENO, "Exiting illegal instruction      \n", 34);
+	    break;
+	case SIGSEGV:
+	    write(STDERR_FILENO, "Exiting invalid memory reference \n", 34);
+	    break;
+	case SIGSYS:
+	    write(STDERR_FILENO, "Exiting on bad system call       \n", 34);
+	    break;
+	case SIGXCPU:
+	    write(STDERR_FILENO, "Exiting: CPU time limit exceeded \n", 34);
+	    break;
+	case SIGXFSZ:
+	    write(STDERR_FILENO, "Exiting: file size limit exceeded\n", 34);
+	    break;
     }
     _exit(EXIT_FAILURE);
 }
