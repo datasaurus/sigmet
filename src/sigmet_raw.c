@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.13 $ $Date: 2010/01/30 00:21:47 $
+ .	$Revision: 1.14 $ $Date: 2010/02/12 19:37:38 $
  */
 
 #include <stdlib.h>
@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include "alloc.h"
+#include "sigmet_raw.h"
 
 int handle_signals(void);
 void handler(int signum);
@@ -38,7 +39,6 @@ int main(int argc, char *argv[])
     pid_t pid = getpid();
     char *dpid_s;		/* Process id of daemon */
     char *ddir;			/* Name of daemon working directory */
-    char *i_cmd1_nm;		/* Name of daemon command pipe */
     int i_cmd1;			/* Where to send commands */
     char *buf;			/* Output buffer */
     size_t buf_l;		/* Allocation at buf */
@@ -73,6 +73,25 @@ int main(int argc, char *argv[])
 	}
     }
 
+    /* Specify where to put the command and get the results */
+    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
+	fprintf(stderr, "%s: SIGMET_RAWD_DIR not set.  Is the daemon running?\n",
+		cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( chdir(ddir) == -1 ) {
+	perror("Could not change to daemon working directory.");
+	exit(EXIT_FAILURE);
+    }
+    if ( snprintf(rslt1_nm, LEN, "%d.1", pid) > LEN ) {
+	fprintf(stderr, "%s: could not create name for result pipe.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( snprintf(rslt2_nm, LEN, "%d.2", pid) > LEN ) {
+	fprintf(stderr, "%s: could not create name for result pipe.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+
     /* Check for daemon */
     if ( !(dpid_s = getenv("SIGMET_RAWD_PID")) ) {
 	fprintf(stderr, "%s: SIGMET_RAWD_PID not set.  Is the daemon running?\n",
@@ -86,28 +105,8 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* Specify where to put the command and get the results */
-    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	fprintf(stderr, "%s: SIGMET_RAWD_DIR not set.  Is the daemon running?\n",
-		cmd);
-	exit(EXIT_FAILURE);
-    }
-    if ( !(i_cmd1_nm = getenv("SIGMET_RAWD_IN")) ) {
-	fprintf(stderr, "%s: SIGMET_RAWD_IN not set.  Is the daemon running?\n",
-		cmd);
-	exit(EXIT_FAILURE);
-    }
-    if ( snprintf(rslt1_nm, LEN, "%s/%d.1", ddir, pid) > LEN ) {
-	fprintf(stderr, "%s: could not create name for result pipe.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    if ( snprintf(rslt2_nm, LEN, "%s/%d.2", ddir, pid) > LEN ) {
-	fprintf(stderr, "%s: could not create name for result pipe.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-
     /* Open command pipe */
-    if ( !(i_cmd1 = open(i_cmd1_nm, O_WRONLY)) ) {
+    if ( !(i_cmd1 = open(SIGMET_RAWD_IN, O_WRONLY)) ) {
 	perror("could not open command pipe");
 	exit(EXIT_FAILURE);
     }

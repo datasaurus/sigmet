@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.120 $ $Date: 2010/02/12 22:51:26 $
+ .	$Revision: 1.121 $ $Date: 2010/02/15 16:17:09 $
  */
 
 #include <stdlib.h>
@@ -27,15 +27,13 @@
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "sigmet.h"
+#include "sigmet_raw.h"
 
 /* Size for various strings */
 #define LEN 1024
 
 /* Maximum number of arguments in input command */
 #define ARGCX 512
-
-/* Name of fifo from which daemon will read commands */
-#define SIGMET_RAWD_IN "sigmet.in"
 
 /* Shell type determines how environment variables and commands are printed */
 enum SHELL_TYPE {C, SH};
@@ -418,8 +416,8 @@ int main(int argc, char *argv[])
 		fputc(EXIT_SUCCESS, rslt2);
 	    } else {
 		fputc(EXIT_FAILURE, rslt2);
+		fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 		if ( verbose ) {
-		    fprintf(rslt2, "%s: %s failed.\n%s\n", cmd, cmd1, Err_Get());
 		    fprintf(dlog, "%s: %s failed.\n%s\n",
 			    time_stamp(), cmd1, Err_Get());
 		}
@@ -483,6 +481,9 @@ int main(int argc, char *argv[])
 
     /* Should not end up here. Process should exit with "stop" command. */
     fprintf(dlog, "%s: unexpected exit.  %s\n", time_stamp(), strerror(errno));
+    if ( unlink(SIGMET_RAWD_IN) == -1 ) {
+	fprintf(dlog, "%s: could not delete input pipe.\n", time_stamp());
+    }
     if ( close(i_cmd0) == -1 ) {
 	fprintf(dlog, "%s: could not close command stream.\n%s\n",
 		time_stamp(), strerror(errno));
