@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.14 $ $Date: 2010/02/12 19:37:38 $
+ .	$Revision: 1.15 $ $Date: 2010/02/15 16:55:12 $
  */
 
 #include <stdlib.h>
@@ -37,7 +37,6 @@ int main(int argc, char *argv[])
 {
     char *cmd = argv[0];
     pid_t pid = getpid();
-    char *dpid_s;		/* Process id of daemon */
     char *ddir;			/* Name of daemon working directory */
     int i_cmd1;			/* Where to send commands */
     char *buf;			/* Output buffer */
@@ -92,19 +91,6 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* Check for daemon */
-    if ( !(dpid_s = getenv("SIGMET_RAWD_PID")) ) {
-	fprintf(stderr, "%s: SIGMET_RAWD_PID not set.  Is the daemon running?\n",
-		cmd);
-	exit(EXIT_FAILURE);
-    }
-    if ( (kill(strtol(dpid_s, NULL, 10), 0) == -1) ) {
-	fprintf(stderr, "%s: Could not find process corresponding to "
-		"SIGMET_RAWD_PID. Please reset SIGMET_RAWD_PID or restart "
-		"sigmet_rawd\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-
     /* Open command pipe */
     if ( !(i_cmd1 = open(SIGMET_RAWD_IN, O_WRONLY)) ) {
 	perror("could not open command pipe");
@@ -149,7 +135,7 @@ int main(int argc, char *argv[])
     }
     if ( b == b1 ) {
 	fprintf(stderr, "%s: command line to big (%ld characters max)\n",
-		cmd, buf_l - sizeof(int) - strlen(rslt1_nm) - 1);
+		cmd, buf_l - sizeof(int) - 1);
 	exit(EXIT_FAILURE);
     }
     l = b - buf;
