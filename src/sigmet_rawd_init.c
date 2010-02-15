@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.124 $ $Date: 2010/02/15 20:24:15 $
+ .	$Revision: 1.125 $ $Date: 2010/02/15 21:31:34 $
  */
 
 #include <stdlib.h>
@@ -75,15 +75,16 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 14
+#define NCMD 15
 static char *cmd1v[NCMD] = {
-    "cmd_len", "verbose", "timeout", "types", "good", "hread","read",
+    "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread","read",
     "release", "volume_headers", "ray_headers", "data", "bin_outline", "bintvls",
     "stop"
 };
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
+static callback pid_cb;
 static callback timeout_cb;
 static callback types_cb;
 static callback good_cb;
@@ -97,7 +98,7 @@ static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback stop_cb;
 static callback *cb1v[NCMD] = {
-    cmd_len_cb, verbose_cb, timeout_cb, types_cb, good_cb, hread_cb,
+    cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, release_cb, volume_headers_cb, ray_headers_cb, data_cb,
     bin_outline_cb, bintvls_cb, stop_cb
 };
@@ -461,6 +462,17 @@ static int verbose_cb(int argc, char *argv[])
 	Err_Append(" true|false");
 	return 0;
     }
+    return 1;
+}
+
+static int pid_cb(int argc, char *argv[])
+{
+    if (argc != 1) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	return 0;
+    }
+    fprintf(rslt1, "%d\n", getpid());
     return 1;
 }
 
