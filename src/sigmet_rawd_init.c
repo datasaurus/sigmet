@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.119 $ $Date: 2010/02/12 22:17:11 $
+ .	$Revision: 1.120 $ $Date: 2010/02/12 22:51:26 $
  */
 
 #include <stdlib.h>
@@ -34,6 +34,9 @@
 /* Maximum number of arguments in input command */
 #define ARGCX 512
 
+/* Name of fifo from which daemon will read commands */
+#define SIGMET_RAWD_IN "sigmet.in"
+
 /* Shell type determines how environment variables and commands are printed */
 enum SHELL_TYPE {C, SH};
 
@@ -56,7 +59,6 @@ static size_t n_vols = 12;	/* Number of volumes can be stored at vols */
 static int get_vol_i(char *);	/* Find member of vols given file name */
 
 /* Process streams and files */
-static char *ddir;		/* Working directory for server */
 static int i_cmd0;		/* Where to get commands */
 static int i_cmd1;		/* Unused outptut (see explanation below). */
 static int idlog = -1;		/* Error log */
@@ -121,10 +123,9 @@ static void handler(int);
 
 int main(int argc, char *argv[])
 {
+    char *ddir;			/* Working directory for server */
     int bg = 1;			/* If true, run in foreground (do not fork) */
-    char dtmpl[] = "/tmp/sigmet_rawd.XXXXXX"; /* Work directory */
     enum SHELL_TYPE shtyp = SH;	/* Control how environment variables are printed */
-    char cmd_in_nm[LEN];	/* Name of fifo from which to read commands */
     int a;			/* Index into argv */
     pid_t pid;			/* Process id for this process */
     struct sig_vol *sv_p;	/* Member of vols */
@@ -197,33 +198,25 @@ int main(int argc, char *argv[])
     }
 
     /* Create working directory */
-    if ( (ddir = getenv("SIGMET_RAWD_DIR"))
-	    && (mkdir(ddir, S_IRWXU | S_IRWXG ) == -1) ) {
-	fprintf(stderr, "%s: could not create directory %s\n%s\n",
-		cmd, ddir, strerror(errno));
-	exit(EXIT_FAILURE);
-    } else if ( !(ddir = mkdtemp(dtmpl)) ) {
-	perror("could not create daemon work directory");
+    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
+	fprintf(stderr, "%s: Please set SIGMET_RAWD_DIR to name of working "
+		"directory.\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    if ( (chmod(ddir, S_IRWXU | S_IRWXG ) == -1) ) {
-	perror("could not set permissions for work directory");
+    if ( chdir(ddir) == -1 ) {
+	perror("Could not set working directory.");
 	exit(EXIT_FAILURE);
     }
 
     /* Create named pipe for command input */
-    if ( snprintf(cmd_in_nm, LEN, "%s/%s", ddir, "sigmet.in") >= LEN ) {
-	fprintf(stderr, "%s: could not create name for server input pipe.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    if ( (mkfifo(cmd_in_nm, S_IRUSR | S_IWUSR) == -1) ) {
+    if ( (mkfifo(SIGMET_RAWD_IN, S_IRUSR | S_IWUSR) == -1) ) {
 	fprintf(stderr, "%s: sigmet_rawd could not create input pipe.\n%s\n",
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
     /* Open log file */
-    if ( snprintf(log_nm, LEN, "%s/%s", ddir, "sigmet.log") >= LEN ) {
+    if ( snprintf(log_nm, LEN, "%s", "sigmet.log") >= LEN ) {
 	fprintf(stderr, "%s: could not create name for log file.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -260,12 +253,12 @@ int main(int argc, char *argv[])
 		if (shtyp == SH) {
 		    printf("SIGMET_RAWD_PID=%d; export SIGMET_RAWD_PID;\n", pid);
 		    printf("SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", ddir);
-		    printf("SIGMET_RAWD_IN=%s; export SIGMET_RAWD_IN;\n",
-			    cmd_in_nm);
+		    printf("SIGMET_RAWD_IN=%s/%s; export SIGMET_RAWD_IN;\n",
+			    ddir, SIGMET_RAWD_IN);
 		} else {
 		    printf("setenv SIGMET_RAWD_PID %d;\n", pid);
 		    printf("setenv SIGMET_RAWD_DIR %s;\n", ddir);
-		    printf("setenv SIGMET_RAWD_IN=%s;\n", cmd_in_nm);
+		    printf("setenv SIGMET_RAWD_IN=%s/%s;\n", ddir, SIGMET_RAWD_IN);
 		}
 		printf("echo Starting sigmet_rawd. Process id = %d.;\n", pid);
 		printf("echo Working directory = %s;\n", ddir);
@@ -281,11 +274,11 @@ int main(int argc, char *argv[])
     if (shtyp == SH) {
 	fprintf(dlog, "SIGMET_RAWD_PID=%d; export SIGMET_RAWD_PID;\n", pid);
 	fprintf(dlog, "SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", ddir);
-	fprintf(dlog, "SIGMET_RAWD_IN=%s; export SIGMET_RAWD_IN;\n", cmd_in_nm);
+	fprintf(dlog, "SIGMET_RAWD_IN=%s; export SIGMET_RAWD_IN;\n", SIGMET_RAWD_IN);
     } else {
 	fprintf(dlog, "setenv SIGMET_RAWD_PID %d;\n", pid);
 	fprintf(dlog, "setenv SIGMET_RAWD_DIR %s;\n", ddir);
-	fprintf(dlog, "setenv SIGMET_RAWD_IN=%s;\n", cmd_in_nm);
+	fprintf(dlog, "setenv SIGMET_RAWD_IN=%s;\n", SIGMET_RAWD_IN);
     }
     fprintf(dlog, "\n");
 
@@ -298,14 +291,14 @@ int main(int argc, char *argv[])
     }
 
     /* Open command input stream. */
-    if ( (i_cmd0 = open(cmd_in_nm, O_RDONLY)) == -1 ) {
+    if ( (i_cmd0 = open(SIGMET_RAWD_IN, O_RDONLY)) == -1 ) {
 	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
-		cmd, cmd_in_nm, strerror(errno));
+		cmd, SIGMET_RAWD_IN, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-    if ( (i_cmd1 = open(cmd_in_nm, O_WRONLY)) == -1 ) {
+    if ( (i_cmd1 = open(SIGMET_RAWD_IN, O_WRONLY)) == -1 ) {
 	fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
-		cmd, cmd_in_nm, strerror(errno));
+		cmd, SIGMET_RAWD_IN, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
@@ -366,7 +359,7 @@ int main(int argc, char *argv[])
 
 	    /* Create and open "standard output" file */
 	    rslt1 = NULL;
-	    if (snprintf(rslt1_nm, LEN, "%s/%d.1", ddir, client_pid) > LEN) {
+	    if (snprintf(rslt1_nm, LEN, "%d.1", client_pid) > LEN) {
 		fprintf(dlog, "%s: Could not create file name for client %d.\n",
 			time_stamp(), client_pid);
 		continue;
@@ -379,7 +372,7 @@ int main(int argc, char *argv[])
 
 	    /* Create and open error file */
 	    rslt2 = NULL;
-	    if (snprintf(rslt2_nm, LEN, "%s/%d.2", ddir, client_pid) > LEN) {
+	    if (snprintf(rslt2_nm, LEN, "%d.2", client_pid) > LEN) {
 		fprintf(dlog, "%s: Could not create file name for client %d.\n",
 			time_stamp(), client_pid);
 		continue;
@@ -1320,20 +1313,17 @@ static int bintvls_cb(int argc, char *argv[])
 
 static int stop_cb(int argc, char *argv[])
 {
-    char rm[LEN];
     struct sig_vol *sv_p;
 
     for (sv_p = vols; sv_p < vols + n_vols; sv_p++) {
 	Sigmet_FreeVol(&sv_p->vol);
     }
     FREE(vols);
-    if (snprintf(rm, LEN, "rm -r %s", ddir) < LEN) {
-	system(rm);
-    } else {
-	fprintf(dlog, "%s: could not delete working directory.\n", time_stamp());
+    if ( unlink(SIGMET_RAWD_IN) == -1 ) {
+	fprintf(dlog, "%s: could not delete input pipe.\n", time_stamp());
     }
+    fprintf(dlog, "%s: exiting.\n", time_stamp());
     fclose(dlog);
-    fprintf(rslt1, "unset SIGMET_RAWD_PID SIGMET_RAWD_DIR SIGMET_RAWD_IN\n");
     exit(EXIT_SUCCESS);
     return 0;
 }
