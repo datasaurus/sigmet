@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.121 $ $Date: 2010/02/15 16:17:09 $
+ .	$Revision: 1.122 $ $Date: 2010/02/15 16:55:12 $
  */
 
 #include <stdlib.h>
@@ -248,18 +248,7 @@ int main(int argc, char *argv[])
 		break;
 	    default:
 		/* Parent. Print information and exit. */
-		if (shtyp == SH) {
-		    printf("SIGMET_RAWD_PID=%d; export SIGMET_RAWD_PID;\n", pid);
-		    printf("SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", ddir);
-		    printf("SIGMET_RAWD_IN=%s/%s; export SIGMET_RAWD_IN;\n",
-			    ddir, SIGMET_RAWD_IN);
-		} else {
-		    printf("setenv SIGMET_RAWD_PID %d;\n", pid);
-		    printf("setenv SIGMET_RAWD_DIR %s;\n", ddir);
-		    printf("setenv SIGMET_RAWD_IN=%s/%s;\n", ddir, SIGMET_RAWD_IN);
-		}
 		printf("echo Starting sigmet_rawd. Process id = %d.;\n", pid);
-		printf("echo Working directory = %s;\n", ddir);
 		printf("echo Log file = %s;\n", log_nm);
 		exit(EXIT_SUCCESS);
 	}
@@ -268,17 +257,6 @@ int main(int argc, char *argv[])
     /* Initialize log */
     pid = getpid();
     fprintf(dlog, "%s: sigmet_rawd started. pid=%d\n", time_stamp(), pid);
-    fprintf(dlog, "Set environment as follows:\n");
-    if (shtyp == SH) {
-	fprintf(dlog, "SIGMET_RAWD_PID=%d; export SIGMET_RAWD_PID;\n", pid);
-	fprintf(dlog, "SIGMET_RAWD_DIR=%s; export SIGMET_RAWD_DIR;\n", ddir);
-	fprintf(dlog, "SIGMET_RAWD_IN=%s; export SIGMET_RAWD_IN;\n", SIGMET_RAWD_IN);
-    } else {
-	fprintf(dlog, "setenv SIGMET_RAWD_PID %d;\n", pid);
-	fprintf(dlog, "setenv SIGMET_RAWD_DIR %s;\n", ddir);
-	fprintf(dlog, "setenv SIGMET_RAWD_IN=%s;\n", SIGMET_RAWD_IN);
-    }
-    fprintf(dlog, "\n");
 
     tmout = 20;
     dchk = new_dchk();
@@ -290,12 +268,12 @@ int main(int argc, char *argv[])
 
     /* Open command input stream. */
     if ( (i_cmd0 = open(SIGMET_RAWD_IN, O_RDONLY)) == -1 ) {
-	fprintf(stderr, "%s: Could not open %s for input.\n%s\n",
+	fprintf(dlog, "%s: Could not open %s for input.\n%s\n",
 		cmd, SIGMET_RAWD_IN, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     if ( (i_cmd1 = open(SIGMET_RAWD_IN, O_WRONLY)) == -1 ) {
-	fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
+	fprintf(dlog, "%s: Could not open %s for output.\n%s\n",
 		cmd, SIGMET_RAWD_IN, strerror(errno));
 	exit(EXIT_FAILURE);
     }
@@ -481,12 +459,12 @@ int main(int argc, char *argv[])
 
     /* Should not end up here. Process should exit with "stop" command. */
     fprintf(dlog, "%s: unexpected exit.  %s\n", time_stamp(), strerror(errno));
-    if ( unlink(SIGMET_RAWD_IN) == -1 ) {
-	fprintf(dlog, "%s: could not delete input pipe.\n", time_stamp());
-    }
     if ( close(i_cmd0) == -1 ) {
 	fprintf(dlog, "%s: could not close command stream.\n%s\n",
 		time_stamp(), strerror(errno));
+    }
+    if ( unlink(SIGMET_RAWD_IN) == -1 ) {
+	fprintf(dlog, "%s: could not delete input pipe.\n", time_stamp());
     }
     for (sv_p = vols; sv_p < vols + n_vols; sv_p++) {
 	Sigmet_FreeVol(&sv_p->vol);
