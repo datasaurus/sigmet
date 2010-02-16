@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.127 $ $Date: 2010/02/16 22:58:06 $
+ .	$Revision: 1.128 $ $Date: 2010/02/16 22:58:58 $
  */
 
 #include <stdlib.h>
@@ -487,10 +487,11 @@ static int timeout_cb(int argc, char *argv[])
 	    fprintf(rslt1, "timeout = %d sec %s\n",
 		    tmout, tmoadj ? "adjustable" : "fixed");
 	} else {
-	    fprintf(rslt1, "None\n");
+	    fprintf(rslt1, "none\n");
 	}
 	return 1;
     } else if (argc == 2) {
+	alarm(0);
 	a = argv[1];
 	if (strcmp(a, "none") == 0) {
 	    tmgout = 0;
@@ -506,6 +507,7 @@ static int timeout_cb(int argc, char *argv[])
 	    return 0;
 	}
     } else if (argc == 3) {
+	alarm(0);
 	a = argv[1];
 	m = argv[2];
 	if (sscanf(a, "%d", &to) != 1) {
