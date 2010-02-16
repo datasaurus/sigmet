@@ -4,75 +4,123 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.6 $ $Date: 2010/02/03 23:02:59 $
+.\" $Revision: 1.7 $ $Date: 2010/02/04 22:37:39 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
-sigmet_raw \- access Sigmet raw product volumes
+sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 .SH SYNOPSIS
 .nf
-\fBeval `sigmet_raw start`\fP
-\fBeval `sigmet_raw stop`\fP
-\fBsigmet_raw\fP [\fIcommands\fP]
-\fBsigmet_raw\fP \fBlog\fP
+\fBexport\fP \fBSIGMET_RAWD_DIR=\fP\fIdirectory\fP 
+\fBsigmet_rawd\fP > \fIoutput\fP 2> \fIerror\fP &
+\fBsigmet_raw\fP [\fIcommand\fP] [\fIoptions\fP]
 \fBsigmet_raw\fP \fBtimeout\fP
 \fBsigmet_raw\fP \fBtypes\fP
-\fBsigmet_raw\fP \fBread\fP \fIraw_volume\fP
-\fBsigmet_raw\fP \fBvolume_headers\fP
-\fBsigmet_raw\fP \fBray_headers\fP
-\fBsigmet_raw\fP \fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP]
-\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP
+\fBsigmet_raw\fP \fBread\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBrelease\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBvolume_headers\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBray_headers\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP] \fIvolume_file\fP
+\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBstop\fP
 .fi
 .SH DESCRIPTION
-The \fBsigmet_raw\fP application reads and manipulates data from
-Sigmet raw product volumes.
+\fBsigmet_rawd\fP is a daemon that reads, stores, and manipulates data from
+Sigmet raw product volumes.  \fBsigmet_raw\fP is a client that interacts with it.
 .PP
-\fBsigmet_raw\fP requires the following environment variables:
-\fBSIGMET_RAWD_PID\fP contains the process id of the \fBsigmet_rawd\fP daemon.
-\fBSIGMET_RAWD_DIR\fP identifies the directory where the daemon keeps files.
-\fBSIGMET_RAWD_IN\fP stores the name of a fifo from which the deamon reads requests.
-\fBsigmet_rawd\fP generates values for these variables at startup and prints
-them to standard output. The \fBeval\fP calls shown above set these variables
-in the current environment.  The environment values are also printed in
-\fB${SIGMET_RAWD_DIR}/sigmet.log\fP.
+\fBsigmet_rawd\fP and \fBsigmet_raw\fP require environment variable
+\fBSIGMET_RAWD_DIR\fP, that identifies the directory where the daemon and clients
+keep files.  This directory must exist before the \fBsigmet_rawd\fP can start.
+Users with read-write-execute permission to this directory will be able to
+access and manipulate the daemon. Therefore, directory permissions should be set
+according to who should have access to the daemon.
 .PP
-If a client does not detach from the server in a reasonable amount of time, the
-daemon kills it. This prevents frozen clients from freezing the daemon. The
-\fBtimeout\fP subcommand regulates this behavior.
+The daemon stores an array of volumes for repeated access.  Multiple invocations
+of \fBsigmet_raw\fP in various shells where \fBSIGMET_RAWD_DIR\fP is set can
+access the stored volumes.  Subcommands and options to \fBsigmet_raw\fP, described
+below, tell the daemon to read, manipulate, provide information from, and release
+volumes in the daemon's internal array
 .PP
-The following subcommands are recognized.
+When a \fBsigmet_raw\fP instance connects to the daemon, other clients are
+blocked.  If a client does not detach from the server in a reasonable amount of
+time, the daemon kills it. This prevents frozen clients from freezing the daemon.
+Users who want to interact with a personal daemon can override this potentially
+obnoxious behavior with the \fBtimeout\fP subcommand.
+.PP
+Once \fBsigmet_rawd\fP is running, the following commands are recognized.
 .TP
-\fBtypes\fP
+\fBsigmet_raw\fB \fBtypes\fP
 Prints a list of Sigmet data types.  Output lines have form:
 .sp 1
 .ti +4
 \fIDB_XXX\fP \fB|\fP \fIDescription\fP
 .sp 1
+See the IRIS Programmer's Manual for information about Sigmet data types.
 .TP
 \fBsigmet_raw\fP \fBtimeout\fP
-Prints the timeout for clients.  Without arguments, this command prints
-the time limit for clients - the maximum time a client can block the daemon
+Prints the time limit for clients - the maximum time a client can block the daemon
 before the daemon kills it.  It also reports whether the timeout is \fBfixed\fP,
-meaning the daemon will never adjust the timemout, or \fBadjustable\fP, meaning
-the daemon will periodically shorten the timeout based on how long sampled
+meaning the daemon will never adjust the timeout, or \fBadjustable\fP, meaning
+the daemon will periodically adjust the timeout based on how long sampled
 clients are taking.
 .TP
 \fBsigmet_raw\fP \fBtimeout\fP \fBnone\fP
 Disables client timeout. Any client will have the daemon's input and output
-channels until the client exits. All other clients will be blocked.
+channels until the client exits. All other clients will be blocked. Human
+users who want to interact with output, e.g. send it through pagers, should
+probably disable the timeout.
 .TP
 \fBsigmet_raw\fP \fBtimeout\fP \fIinteger\fP [\fBadjustable\fP|\fBfixed\fP]
-Sets client timeout to \fIinteger\fP seconds.  If present, optional suffix is
-interpreted as described above.
+Sets client timeout to \fIinteger\fP seconds.  If present, optional suffix
+adjusts the timeout behavior as described above. Daemons that provide output to
+multitudes of anonymous users should be allowed to adjust their timeout to boost
+performance.  Timeout will decrease if clients run quickly, meaning frozen clients
+will be quickly killed.  Timeout will increase if clients get killed, allowing for
+possibly slow network connections or user interaction. Scripts that access
+impatient daemons should probably make several connection attempts to improve
+chances of reaching a potentially overloaded daemon.
 .TP
-\fBread\fP \fIraw_volume\fP
-Read \fIraw_volume\fP, which must be a Sigmet raw product volume.  If absent
-or "\fB-\fP", the command will read a raw product volume from standard input. Contents of the volume will be stored in memory for subsequent commands
-to act upon. Any previous volume in memory will be deleted.
+\fBsigmet_raw\fP \fBstop\fP
+Stops the daemon. Working directory continues to exist. Subsequent calls to
+\fBsigmet_raw\fP will fail.
 .TP
-\fBvolume_headers\fP
-Prints volume headers for the latest volume loaded with \fBread\fP.  Ray headers
-and data are not printed.  Output lines have form:
+\fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
+Returns success if \fIvolume_file\fP contains a valid Sigmet raw product
+volume. Otherwise, \fBsigmet_raw\fP returns failure. No output is printed,
+and nothing from the volume is stored. The daemon only tries the read the
+headers and navigate the data section of the file.
+.TP
+\fBsigmet_raw\fP \fBread\fP \fIvolume_file\fP
+Tells the daemon to read \fIvolume_file\fP, which must be the path of a Sigmet raw
+product file.  Contents of the volume will be stored in memory for subsequent
+calls to \fBsigmet_raw\fP.  Calls that use the volume will identify it by the file
+that provided it. Paths given later do not have to perfectly match
+\fIvolume_file\fP, they just have to identify the same file.
+(Links and relative paths are handled correctly.)
+Each call to \fBread\fP increments a user count associated with the volume.
+The daemon will not delete a volume with a positive user count.  The user
+count should eventually be decreased with a call to \fBrelease\fP.
+If a volume is already in storage, the daemon will not normally read it again.
+It will only increment the user count. The daemon will attempt to re-read the
+volume if it is loaded but truncated - missing sweeps. This could happen if
+the volume is being written by a slow network connection, or if the radar
+operator issued a "stop now" command before the Sigmet task completed.  The
+\fBtruncated\fP header member obtained with
+\fBsigmet_raw\fP\ \fBvolume_headers\fP indicates whether a loaded volume is
+truncated.
+.TP
+\fBsigmet_raw\fP \fBrelease\fP \fIvolume_file\fP
+Decrements the user count associated with the Sigmet volume obtained from
+\fIvolume_file\fP. When user count reaches \fB0\fP, storage associated with
+the volume becomes available for new volumes.  Every call to
+\fBsigmet_raw\fP\ \fBread\fP should have a corresponding call to
+\fBsigmet_raw\fP\ \fBrelease\fP
+.TP
+\fBsigmet_raw\fP \fBvolume_headers\fP \fIvolume_file\fP
+Prints volume headers for
+the volume obtained from \fIvolume_file\fP, which should have been loaded with a
+call to \fBsigmet_raw\fP\ \fBread\fP.
+Ray headers and data are not printed.  Output lines have form:
 .sp 1
 .ti +4
 \fIvalue\fP \fB|\fP \fIhierarchy\fP \fB|\fP \fIdescriptor\fP
@@ -85,35 +133,47 @@ levels, it would look like
 \fI<struct1>.<struct2>.member\fP.
 .sp 1
 Be aware that the same member might reside in several structure
-hierarchies.  See the IRIS Programmers Manual for details.
+hierarchies.  See the IRIS Programmer's Manual for details.
 .TP
-\fBray_headers\fP
-Prints ray times, azimuths, and tilts for the latest volume loaded with \fBread\fP.
+\fBsigmet_raw\fP \fBray_headers\fP \fIvolume_file\fP
+Prints ray times, azimuths, and tilts for
+the volume obtained from \fIvolume_file\fP, which should have been loaded with a
+call to \fBsigmet_raw\fP\ \fBread\fP.
 Volume headers and data are not printed.
 .TP
-\fBdata\fP
-Prints an ASCII stream of all volume data for the latest volume loaded with
-\fBread\fP. Headers are not printed.
+\fBsigmet_raw\fP \fBdata\fP \fIvolume_file\fP
+Prints an ASCII stream of all volume data for 
+the volume obtained from \fIvolume_file\fP, which should have been loaded with a
+call to \fBsigmet_raw\fP\ \fBread\fP.
+Headers are not printed.
 .TP
-\fBdata\fP \fItype\fP
-Prints an ASCII stream of data for the latest volume loaded with \fBread\fP for
-data type \fItype\fP.
+\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIvolume_file\fP
+Prints an ASCII stream of data for data type \fItype\fP for
+the volume obtained from \fIvolume_file\fP, which should have been loaded with a
+call to \fBsigmet_raw\fP\ \fBread\fP.
 .TP
-\fBdata\fP \fItype\fP \fIs\fP
-Prints an ASCII stream of data for the latest volume loaded with \fBread\fP for
-data type \fItype\fP, sweep \fIs\fP.
+\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIvolume_file\fP
+Prints an ASCII stream of data for data type \fItype\fP, sweep \fIs\fP.
+for the volume obtained from \fIvolume_file\fP, which should have been loaded with a
+call to \fBsigmet_raw\fP\ \fBread\fP.
 .TP
-\fBdata\fP \fItype\fP \fIs\fP \fIr\fP
-Prints an ASCII stream of data for the latest volume loaded with \fBread\fP for
-data type \fItype\fP, sweep \fIs\fP, ray \fIr\fP.
+\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIvolume_file\fP
+Prints an ASCII stream of data for data type \fItype\fP, sweep \fIs\fP, ray \fIr\fP
+for the volume obtained from \fIvolume_file\fP, which should have been loaded with
+a call to \fBsigmet_raw\fP\ \fBread\fP.
 .TP
-\fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIb\fP
-Prints an ASCII stream of data for the latest volume loaded with \fBread\fP for
-data type \fItype\fP, sweep \fIs\fP, ray \fIr\fP, bin \fIb\fP.
+\fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
+Prints an ASCII stream of data for data type \fItype\fP, sweep \fIs\fP,
+ray \fIr\fP, bin \fIb\fP for
+the volume obtained from \fIvolume_file\fP, which should have been loaded with a
+call to \fBsigmet_raw\fP\ \fBread\fP.
 .TP
-\fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP
-Prints the corners of bin \fIs\fP \fIr\fP \fIb\fP for the latest volume loaded
-with \fBread\fP as "\fIlon1\ lat1\ lon2\ lat2\ lon3\ lat3\ lon4\ lat4\fP."
+\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
+Prints the corners of bin \fIs\fP \fIr\fP \fIb\fP for
+the volume obtained from \fIvolume_file\fP, which should have been loaded with a
+call to \fBsigmet_raw\fP\ \fBread\fP.
+The corners will be printed as
+"\fIlon1\ lat1 lon2\ lat2 lon3\ lat3 lon4\ lat4\fP".
 .SH SEE ALSO
 sigmet (3)
 .br
