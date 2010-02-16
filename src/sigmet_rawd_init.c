@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.125 $ $Date: 2010/02/15 21:31:34 $
+ .	$Revision: 1.126 $ $Date: 2010/02/15 21:35:23 $
  */
 
 #include <stdlib.h>
@@ -26,6 +26,7 @@
 #include "err_msg.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
+#include "bisearch_lib.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
@@ -1137,34 +1138,76 @@ static int bin_outline_cb(int argc, char *argv[])
     return 1;
 }
 
-/* Usage: sigmet_raw bintvls type s bounds raw_vol */
+/*
+   Structures of this type associate an index from a bounds array and a gate
+   from a sweep in a volume. bintvls_cb needs it to sort gates by data value.
+   If vol is a volume, and bnds is an array of data values, then the gate
+   at r,b satisfies: bnds[n] <= vol.dat[y][s][r][b] < bnds[n+1].
+ */
+struct bintvl {
+    int n;		/* Index from bnds */
+    int r;		/* Ray index for a gate with data value in bnds[n] */
+    int b;		/* Bin index for a gate with data value in bnds[n] */
+};
+
+/* This function helps sort an array of bintvl structs. */
+int bintvl_cmp(const void *, const void *);
+int bintvl_cmp(const void *v1, const void *v2)
+{
+    struct bintvl *b1 = (struct bintvl *)v1;
+    struct bintvl *b2 = (struct bintvl *)v2;
+    return (b1->n < b2->n) ? -1 : (b1->n == b2->n) ? 0 : 1;
+}
+
+/* Usage: sigmet_raw bintvls type s bounds_file raw_vol */
 static int bintvls_cb(int argc, char *argv[])
 {
-    struct Sigmet_Vol vol;
-    char *s_s;
-    int s, y, r, b;
-    char *abbrv;
-    double d;
-    enum Sigmet_DataType type_t;
+    char *vol_nm;		/* Sigmet raw file */
+    struct Sigmet_Vol vol;	/* Volume from global vols array */
+    char *s_s;			/* Sweep index, as a string */
+    char *abbrv;		/* Data type abbreviation */
+    enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
+    int i;			/* Volume index. */
+    int y, s, r, b, n;		/* Indeces: data type, sweep, ray, bin, bound */
+    char *bnds_fl_nm;		/* File with bounds */
+    FILE *bnds_fl = NULL;	/* File with bounds */
+    size_t n_bnds;		/* Number of bounds */
+    double *bnds = NULL;	/* Bounds */
+    double d;			/* Data value */
+    struct bintvl *bintvls = NULL;/* Bin identifiers with their data indeces */
+    size_t n_bintvls_max;	/* Storage at bintvls */
+    int n_bintvls;		/* Number of used elements in bintvls */
 
-    if (argc != 4) {
+    /* Parse command line */
+    if (argc != 5) {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
-	Err_Append(" type sweep bounds");
-	return 0;
+	Err_Append(" type sweep bounds_file volume");
+	goto error;
     }
     abbrv = argv[1];
+    s_s = argv[2];
+    bnds_fl_nm = argv[3];
+    vol_nm = argv[4];
     if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
 	Err_Append("No data type named ");
 	Err_Append(abbrv);
 	Err_Append(".  ");
     }
-    s_s = argv[2];
     if (sscanf(s_s, "%d", &s) != 1) {
 	Err_Append("Sweep index must be an integer.  ");
-	return 0;
+	goto error;
+    }
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	goto error;
     }
 
+    /* Make sure command line asks for what exists */
+    vol = vols[i].vol;
     for (y = 0; y < vol.num_types; y++) {
 	if (type_t == vol.types[y]) {
 	    break;
@@ -1174,29 +1217,100 @@ static int bintvls_cb(int argc, char *argv[])
 	Err_Append("Data type ");
 	Err_Append(abbrv);
 	Err_Append(" not in volume.\n");
-	return 0;
+	goto error;
     }
-
     if (s >= vol.ih.ic.num_sweeps) {
 	Err_Append("Sweep index greater than number of sweeps.  ");
-	return 0;
+	goto error;
     }
     if ( !vol.sweep_ok[s] ) {
 	Err_Append("Sweep not valid in this volume.  ");
-	return 0;
+	goto error;
     }
 
-    for (r = 0; r < vol.ih.ic.num_rays; r++) {
-	if ( !vol.ray_ok[s][r] ) {
-	    continue;
+    /* Allocate bintvls array */
+    for (n_bintvls_max = 0, r = 0; r < vol.ih.ic.num_rays; r++) {
+	if ( vol.ray_ok[s][r] ) {
+	    n_bintvls_max += vol.ray_num_bins[s][r];
 	}
-	for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
-	    d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
-	}
-	fprintf(rslt1, "\n");
     }
+    if ( !(bintvls = CALLOC(n_bintvls_max, sizeof(struct bintvl))) ) {
+	Err_Append("Could not allocate bin intervals array. ");
+	goto error;
+    }
+
+    /*
+       Get bnds from bnds_fl
+       Format
+	   number_of_bounds
+	   bound
+	   bound
+	   ...
+     */
+    if ( !(bnds_fl = fopen(bnds_fl_nm, "r")) ) {
+	Err_Append("Could not open bounds file ");
+	Err_Append(bnds_fl_nm);
+	Err_Append(". ");
+	Err_Append(strerror(errno));
+	goto error;
+    }
+    if ( fscanf(bnds_fl, "%lu", &n_bnds) != 1 ) {
+	Err_Append("Could not get number of bounds from ");
+	Err_Append(bnds_fl_nm);
+	Err_Append(". ");
+	goto error;
+    }
+    if ( !(bnds = CALLOC(n_bnds, sizeof(double))) ) {
+	Err_Append("Could not allocate bounds array. ");
+	goto error;
+    }
+    for (n = 0; n < n_bnds; n++) {
+	if ( fscanf(bnds_fl, "%lf", bnds + n) != 1 ) {
+	    Err_Append("Could not read bounds value");
+	    goto error;
+	}
+    }
+    if ( fclose(bnds_fl) == EOF ) {
+	Err_Append("Could not close bounds file ");
+	Err_Append(bnds_fl_nm);
+	Err_Append(". ");
+	Err_Append(strerror(errno));
+	goto error;
+    }
+
+    /*
+       Determine which interval from bounds each gate value is in.
+       Store in bintvls and sort by interval index.
+     */
+    for (n_bintvls = 0, r = 0; r < vol.ih.ic.num_rays; r++) {
+	if ( vol.ray_ok[s][r] ) {
+	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
+		d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
+		if ( Sigmet_IsData(d) && (n = BISearch(d, bnds, n_bnds)) != -1 ) {
+		    bintvls[n_bintvls].n = n;
+		    bintvls[n_bintvls].r = r;
+		    bintvls[n_bintvls].b = b;
+		    n_bintvls++;
+		}
+	    }
+	}
+    }
+    qsort(bintvls, n_bintvls, sizeof(struct bintvl), bintvl_cmp);
+
+    FREE(bnds);
+    FREE(bintvls);
 
     return 1;
+error:
+    FREE(bnds);
+    FREE(bintvls);
+    if ( bnds_fl && (fclose(bnds_fl) == EOF) ) {
+	Err_Append("Could not close bounds file ");
+	Err_Append(bnds_fl_nm);
+	Err_Append(". ");
+	Err_Append(strerror(errno));
+    }
+    return 0;
 }
 
 static int stop_cb(int argc, char *argv[])
