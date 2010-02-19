@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.7 $ $Date: 2010/02/04 22:37:39 $
+.\" $Revision: 1.8 $ $Date: 2010/02/16 23:16:29 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -47,7 +47,9 @@ time, the daemon kills it. This prevents frozen clients from freezing the daemon
 Users who want to interact with a personal daemon can override this potentially
 obnoxious behavior with the \fBtimeout\fP subcommand.
 .PP
-Once \fBsigmet_rawd\fP is running, the following commands are recognized.
+Once \fBsigmet_rawd\fP is running, the commands listed below are recognized.
+Note that file names should be given as absolute paths, since the daemon
+is probably not using the same current working directory as the client.
 .TP
 \fBsigmet_raw\fB \fBtypes\fP
 Prints a list of Sigmet data types.  Output lines have form:
