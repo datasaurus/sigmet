@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.4 $ $Date: 2009/12/08 22:56:15 $
+.\" $Revision: 1.5 $ $Date: 2009/12/09 17:36:25 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
 Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_InitVol, Sigmet_FreeVol, Sigmet_GoodVol, Sigmet_ReadHdr, Sigmet_PrintHdr, Sigmet_ReadVol, Sigmet_BadRay, Sigmet_BinOutl \- read Sigmet raw data
@@ -132,11 +132,10 @@ should eventually be freed with a call to \fISigmet_FreeVol\fP.
 \fBSigmet_BinOutl\fP computes the geographic coordinates of the bin for sweep
 \fIs\fP, ray \fIr\fP, bin \fIb\fP in the Sigmet volume at \fIsigPtr\fP.  The
 coordinates are placed into array \fIll\fP as (\fIlon1 lat1 lon2 lat2 lon3 lat3
-lon4 lat4 lon5 lat5 lon6 lat6 lon7 lat7 lon8 lat8\fP), denoting the corners
-of the bin.
-Array \fIll\fP should point to space for 16 double values.  \fBSigmet_BinOutl\fP
-returns true if it succeeds. If something goes wrong it returns false, leaving an
-error message which can be retrieved with \fBerr_get\fP.
+lon4 lat4\fP), denoting the corners of the bin.  Array \fIll\fP should point to
+space for eight double values.  \fBSigmet_BinOutl\fP returns true if it succeeds.
+If something goes wrong it returns false, leaving an error message which can be
+retrieved with \fBerr_get\fP.
 .SH KEYWORDS
 radar sigmet data
 .SH AUTHOR
