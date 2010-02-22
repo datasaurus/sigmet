@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.38 $ $Date: 2010/02/11 20:31:19 $
+   .	$Revision: 1.39 $ $Date: 2010/02/11 20:34:09 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -893,7 +893,7 @@ int Sigmet_BinOutl(struct Sigmet_Vol *sigPtr, int s, int r, int b, double *ll)
 	Err_Append("Ray index out of bounds.  ");
 	return 0;
     }
-    if (b + 1 >= sigPtr->ih.tc.tri.num_bins_out) {
+    if (b >= sigPtr->ray_num_bins[s][r]) {
 	Err_Append("Bin index out of bounds.  ");
 	return 0;
     }
@@ -903,8 +903,8 @@ int Sigmet_BinOutl(struct Sigmet_Vol *sigPtr, int s, int r, int b, double *ll)
     lat_r = Sigmet_Bin4Rad(sigPtr->ih.ic.latitude);
     r00 = sigPtr->ih.tc.tri.rng_1st_bin;
     dr = sigPtr->ih.tc.tri.step_out;
-    r0 = 0.01 * (r00 + r * dr);
-    r1 = 0.01 * (r00 + (r + 1) * dr);
+    r0 = 0.01 * (r00 + b * dr);
+    r1 = 0.01 * (r00 + (b + 1) * dr);
     az0 = sigPtr->ray_az0[s][r];
     az1 = sigPtr->ray_az1[s][r];
     if (az1 < az0) {
