@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.128 $ $Date: 2010/02/16 22:58:58 $
+ .	$Revision: 1.129 $ $Date: 2010/02/16 23:12:58 $
  */
 
 #include <stdlib.h>
@@ -29,6 +29,7 @@
 #include "bisearch_lib.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
+#include "cairo_app.h"
 
 /* Size for various strings */
 #define LEN 1024
@@ -737,10 +738,13 @@ static int read_cb(int argc, char *argv[])
 	    return 0;
 	}
     } else if ( i >= 0 && vols[i].vol.truncated ) {
-	/* Volume truncated. Will attempt reload. Preserve vols[i]. */
+	/*
+	   Volume truncated. Free volume and attempt reload, but preserve the
+	   entry at vols[i].
+	 */
 	Sigmet_FreeVol(&vols[i].vol);
     } else {
-	/* Volume is loaded and complete, return. */
+	/* Volume is loaded and complete. Increment user count return. */
 	vols[i].users++;
 	fprintf(rslt1, "%s loaded.\n", vol_nm);
 	return 1;
@@ -1131,7 +1135,6 @@ static int bin_outline_cb(int argc, char *argv[])
 	Err_Append("Could not compute bin outlines.  ");
 	return 0;
     }
-    Sigmet_FreeVol(&vol);
     c = (use_deg ? DEG_RAD : 1.0);
     fprintf(rslt1, "%f %f %f %f %f %f %f %f\n",
 	    corners[0] * c, corners[1] * c, corners[2] * c, corners[3] * c,
@@ -1142,26 +1145,32 @@ static int bin_outline_cb(int argc, char *argv[])
 
 /*
    Structures of this type associate an index from a bounds array and a gate
-   from a sweep in a volume. bintvls_cb needs it to sort gates by data value.
+   from a sweep in a volume. bintvls_cb needs it to sort gates into data intervals
+   by data value.
    If vol is a volume, and bnds is an array of data values, then the gate
    at r,b satisfies: bnds[n] <= vol.dat[y][s][r][b] < bnds[n+1].
  */
-struct bintvl {
+struct gate {
     int n;		/* Index from bnds */
     int r;		/* Ray index for a gate with data value in bnds[n] */
     int b;		/* Bin index for a gate with data value in bnds[n] */
 };
 
-/* This function helps sort an array of bintvl structs. */
-int bintvl_cmp(const void *, const void *);
-int bintvl_cmp(const void *v1, const void *v2)
+/* This function helps sort an array of gate structs. */
+int gate_cmp(const void *, const void *);
+int gate_cmp(const void *v1, const void *v2)
 {
-    struct bintvl *b1 = (struct bintvl *)v1;
-    struct bintvl *b2 = (struct bintvl *)v2;
+    struct gate *b1 = (struct gate *)v1;
+    struct gate *b2 = (struct gate *)v2;
     return (b1->n < b2->n) ? -1 : (b1->n == b2->n) ? 0 : 1;
 }
 
-/* Usage: sigmet_raw bintvls type s bounds_file raw_vol */
+/* Color specifier */
+struct color {
+    double red, green, blue;
+};
+
+/* Usage: sigmet_raw bintvls type s bounds_file dest_file raw_vol */
 static int bintvls_cb(int argc, char *argv[])
 {
     char *vol_nm;		/* Sigmet raw file */
@@ -1170,27 +1179,34 @@ static int bintvls_cb(int argc, char *argv[])
     char *abbrv;		/* Data type abbreviation */
     enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
     int i;			/* Volume index. */
-    int y, s, r, b, n;		/* Indeces: data type, sweep, ray, bin, bound */
+    int y, s, r, b;		/* Indeces: data type, sweep, ray, bin */
     char *bnds_fl_nm;		/* File with bounds */
     FILE *bnds_fl = NULL;	/* File with bounds */
     size_t n_bnds;		/* Number of bounds */
-    double *bnds = NULL;	/* Bounds */
+    double *bnds = NULL;	/* Data bounds */
+    int n;			/* Index from bnds */
+    struct color *clrs = NULL;	/* Colors - one less than number of bounds */
+    char *dest_fl_nm;		/* Destination file name */
+    FILE *dest_fl = NULL;	/* Destination file */
     double d;			/* Data value */
-    struct bintvl *bintvls = NULL;/* Bin identifiers with their data indeces */
-    size_t n_bintvls_max;	/* Storage at bintvls */
-    int n_bintvls;		/* Number of used elements in bintvls */
+    struct gate *gates = NULL;	/* Array of gates with data values in the
+				   interval set */
+    size_t n_gates_max;		/* Storage at gates */
+    int n_gates;		/* Number of used elements in gates */
+    int g;			/* Index from gates */
 
     /* Parse command line */
-    if (argc != 5) {
+    if (argc != 6) {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
-	Err_Append(" type sweep bounds_file volume");
+	Err_Append(" type sweep bounds_file dest_file volume");
 	goto error;
     }
     abbrv = argv[1];
     s_s = argv[2];
     bnds_fl_nm = argv[3];
-    vol_nm = argv[4];
+    dest_fl_nm = argv[4];
+    vol_nm = argv[5];
     if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
 	Err_Append("No data type named ");
 	Err_Append(abbrv);
@@ -1230,23 +1246,25 @@ static int bintvls_cb(int argc, char *argv[])
 	goto error;
     }
 
-    /* Allocate bintvls array */
-    for (n_bintvls_max = 0, r = 0; r < vol.ih.ic.num_rays; r++) {
+    /* Allocate gates array */
+    for (n_gates_max = 0, r = 0; r < vol.ih.ic.num_rays; r++) {
 	if ( vol.ray_ok[s][r] ) {
-	    n_bintvls_max += vol.ray_num_bins[s][r];
+	    n_gates_max += vol.ray_num_bins[s][r];
 	}
     }
-    if ( !(bintvls = CALLOC(n_bintvls_max, sizeof(struct bintvl))) ) {
+    if ( !(gates = CALLOC(n_gates_max, sizeof(struct gate))) ) {
 	Err_Append("Could not allocate bin intervals array. ");
 	goto error;
     }
 
     /*
-       Get bnds from bnds_fl
+       Get bnds and clrs from bnds_fl
        Format
 	   number_of_bounds
 	   bound
+	   color
 	   bound
+	   color
 	   ...
      */
     if ( !(bnds_fl = fopen(bnds_fl_nm, "r")) ) {
@@ -1254,6 +1272,7 @@ static int bintvls_cb(int argc, char *argv[])
 	Err_Append(bnds_fl_nm);
 	Err_Append(". ");
 	Err_Append(strerror(errno));
+	Err_Append(". ");
 	goto error;
     }
     if ( fscanf(bnds_fl, "%lu", &n_bnds) != 1 ) {
@@ -1266,11 +1285,28 @@ static int bintvls_cb(int argc, char *argv[])
 	Err_Append("Could not allocate bounds array. ");
 	goto error;
     }
-    for (n = 0; n < n_bnds; n++) {
+    if ( !(clrs = CALLOC(n_bnds - 1, sizeof(struct color))) ) {
+	Err_Append("Could not allocate bounds array. ");
+	goto error;
+    }
+    for (n = 0; n < n_bnds - 1; n++) {
+	int r, g, b;
+
 	if ( fscanf(bnds_fl, "%lf", bnds + n) != 1 ) {
-	    Err_Append("Could not read bounds value");
+	    Err_Append("Could not read bounds value. ");
 	    goto error;
 	}
+	if ( fscanf(bnds_fl, " #%2x%2x%2x", &r, &g, &b) != 3 ) {
+	    Err_Append("Could not read color value. ");
+	    goto error;
+	}
+	clrs[n].red = r / 0xff;
+	clrs[n].green = g / 0xff;
+	clrs[n].blue = b / 0xff;
+    }
+    if ( fscanf(bnds_fl, "%lf", bnds + n) != 1 ) {
+	Err_Append("Could not read bounds value. ");
+	goto error;
     }
     if ( fclose(bnds_fl) == EOF ) {
 	Err_Append("Could not close bounds file ");
@@ -1279,35 +1315,98 @@ static int bintvls_cb(int argc, char *argv[])
 	Err_Append(strerror(errno));
 	goto error;
     }
+    bnds_fl = NULL;
 
     /*
        Determine which interval from bounds each gate value is in.
-       Store in bintvls and sort by interval index.
+       Store in gates and sort by interval index.
      */
-    for (n_bintvls = 0, r = 0; r < vol.ih.ic.num_rays; r++) {
+    for (n_gates = 0, r = 0; r < vol.ih.ic.num_rays; r++) {
 	if ( vol.ray_ok[s][r] ) {
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
 		if ( Sigmet_IsData(d) && (n = BISearch(d, bnds, n_bnds)) != -1 ) {
-		    bintvls[n_bintvls].n = n;
-		    bintvls[n_bintvls].r = r;
-		    bintvls[n_bintvls].b = b;
-		    n_bintvls++;
+		    gates[n_gates].n = n;
+		    gates[n_gates].r = r;
+		    gates[n_gates].b = b;
+		    n_gates++;
 		}
 	    }
 	}
     }
-    qsort(bintvls, n_bintvls, sizeof(struct bintvl), bintvl_cmp);
+    qsort(gates, n_gates, sizeof(struct gate), gate_cmp);
+
+    /* Send colors and bin outlines.  Output is suitable for cairo_app. */
+    if ( !(dest_fl = fopen(dest_fl_nm, "w")) ) {
+	Err_Append("Could not open ");
+	Err_Append(dest_fl_nm);
+	Err_Append(" for output. ");
+	Err_Append(strerror(errno));
+	goto error;
+    }
+    n = -1;
+    for (g = 0; g < n_gates; g++) {
+	enum CAIRO_APP_ACT act;		/* cairo_app action. See cairo_app (1) */
+	double ll[8];			/* Gate outline */
+	int npts;			/* Point count */
+	int npts1 = 0;			/* Point count indicates end of outline */
+
+	if ( gates[g].n != n ) {
+	    n = gates[g].n;
+	    act = CAIRO_APP_RGB;
+	    if ( fwrite(&act, sizeof(enum CAIRO_APP_ACT), 1, dest_fl) != 1
+		    || fwrite(&clrs[n].red, sizeof(double), 1, dest_fl) != 1
+		    || fwrite(&clrs[n].green, sizeof(double), 1, dest_fl) != 1
+		    || fwrite(&clrs[n].blue, sizeof(double), 1, dest_fl) != 1 ) {
+		Err_Append("Could not write color specifier. ");
+		Err_Append(strerror(errno));
+		Err_Append(". ");
+		goto error;
+	    }
+	}
+	r = gates[g].r;
+	b = gates[g].b;
+	if ( !Sigmet_BinOutl(&vol, s, r, b, ll) ) {
+	    Err_Append("Could not compute bin outline. ");
+	    goto error;
+	}
+	act = CAIRO_APP_FILL_POLYS;
+	npts = 4;
+	if ( fwrite(&act, sizeof(enum CAIRO_APP_ACT), 1, dest_fl) != 1
+		|| fwrite(&npts, sizeof(int), 1, dest_fl) != 1
+		|| fwrite(ll, sizeof(double), 4, dest_fl) != 4
+		|| fwrite(&npts1, sizeof(int), 1, dest_fl) != 1 ) {
+	    Err_Append("Could not write bin outline. ");
+	    Err_Append(strerror(errno));
+	    Err_Append(". ");
+	    goto error;
+	}
+    }
+    if ( fclose(dest_fl) == EOF ) {
+	Err_Append("Could not close destination file ");
+	Err_Append(dest_fl_nm);
+	Err_Append(". ");
+	Err_Append(strerror(errno));
+	goto error;
+    }
 
     FREE(bnds);
-    FREE(bintvls);
+    FREE(clrs);
+    FREE(gates);
 
     return 1;
 error:
     FREE(bnds);
-    FREE(bintvls);
+    FREE(clrs);
+    FREE(gates);
     if ( bnds_fl && (fclose(bnds_fl) == EOF) ) {
 	Err_Append("Could not close bounds file ");
+	Err_Append(bnds_fl_nm);
+	Err_Append(". ");
+	Err_Append(strerror(errno));
+    }
+    if ( dest_fl && (fclose(dest_fl) == EOF) ) {
+	Err_Append("Could not close destination file ");
 	Err_Append(bnds_fl_nm);
 	Err_Append(". ");
 	Err_Append(strerror(errno));
