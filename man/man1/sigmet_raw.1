@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.10 $ $Date: 2010/02/23 17:29:57 $
+.\" $Revision: 1.11 $ $Date: 2010/02/23 21:10:21 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -26,6 +26,7 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fB#ifdef PROJ4\fP
 \fBsigmet_raw\fP \fBproj\fP \fIargs ...\fP
 \fB#endif\fP
+\fBsigmet_raw\fP \fBimg_config\fP \fIformat\fP \fIwidth_phys\fP \fIwidth_dpy\fP \fIheight_dpy\fP
 \fBsigmet_raw\fP \fBstop\fP
 .fi
 .SH DESCRIPTION
@@ -198,10 +199,25 @@ where \fIi\fP specifies an index from the sequence of data bounds, and \fIr\fP a
 \fBsigmet_raw\fP \fBproj\fP \fIargs ...\fP
 Sets the cartographic projection. \fIargs ...\fP should define a cartographic
 projection known to the Unix \fBproj\fP command.
+.TP
+\fBsigmet_raw\fP \fBimg_config\fP \fIformat\fP \fIwidth_phys\fP \fIwidth_dpy\fP \fIheight_dpy\fP
+Specifies a configuration for output images.
+\fIformat\fP indicates image type, currently
+\fBpng\fP for Portable Network Graphics files, or
+\fBps\fP for postscript.
+\fIwidth_phys\fP indicates the physical width of the area presented in the image.
+It should be something commensurate with the real size of a radar sweep. Units
+depend on what is displayed (e.g. PPI or RHI) and how it is transformed.  They
+will probably be meters, degrees of latitude or the like.
+\fIwidth_dpy\fP and \fIheight_dpy\fP specify the image size in display units,
+pixels for \fBpng\fP or points for \fBps\fP.
 .SH SEE ALSO
 sigmet (3)
+.br
 proj (1)
+.br
 pj_init (3)
+.br
 Cartographic Projection Procedures for the  UNIX  Environment--A  User's  Manual,
 (Evenden, 1990, Open-file report 90-284).
 .br

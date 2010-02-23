@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.133 $ $Date: 2010/02/23 17:29:31 $
+ .	$Revision: 1.134 $ $Date: 2010/02/23 21:10:21 $
  */
 
 #include <stdlib.h>
@@ -77,11 +77,11 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 16
+#define NCMD 17
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread","read",
     "release", "volume_headers", "ray_headers", "data", "bin_outline", "bintvls",
-    "proj", "stop"
+    "proj", "img_config", "stop"
 };
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
@@ -99,11 +99,12 @@ static callback data_cb;
 static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback proj_cb;
+static callback img_config_cb;
 static callback stop_cb;
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, release_cb, volume_headers_cb, ray_headers_cb, data_cb,
-    bin_outline_cb, bintvls_cb, proj_cb, stop_cb
+    bin_outline_cb, bintvls_cb, proj_cb, img_config_cb, stop_cb
 };
 
 /* Color specifier */
@@ -116,6 +117,18 @@ struct color {
 #include <proj_api.h>
 static projPJ pj;
 #endif
+
+/* Configuration for output images */
+enum SIGMET_IMG_FMT {SIGMET_PNG, SIGMET_PS};
+static enum SIGMET_IMG_FMT img_fmt;	/* Image format */
+static double img_w_phys;		/* Width of physical area displayed in
+					   output image. Units depend on how
+					   image is made - could be degrees
+					   latitude, meters, kilometers ... */
+static int img_w_dpy;			/* Width of image in display units,
+					   pixels, points, cm */
+static int img_h_dpy;			/* Height of image in display units,
+					   pixels, points, cm */
 
 /* Convenience functions */
 static char *time_stamp(void);
@@ -1308,6 +1321,49 @@ static int proj_cb(int argc, char *argv[])
     return 1;
 }
 #endif
+
+/* Specify image configuration */
+static int img_config_cb(int argc, char *argv[])
+{
+    char *img_fmt_s, *img_w_phys_s, *img_w_dpy_s, *img_h_dpy_s;
+
+    if ( argc != 5 ) {
+	Err_Append("Usage: img_config format width_phys width_dpy height_dpy. ");
+	return 0;
+    }
+    img_fmt_s = argv[1];
+    img_w_phys_s = argv[2];
+    img_w_dpy_s = argv[3];
+    img_h_dpy_s = argv[4];
+    if (strcmp(img_fmt_s, "png") == 0) {
+	img_fmt = SIGMET_PNG;
+    } else if (strcmp(img_fmt_s, "ps") == 0) {
+	img_fmt = SIGMET_PS;
+    } else {
+	Err_Append("Unknown image format: ");
+	Err_Append(img_fmt_s);
+	return 0;
+    }
+    if ( sscanf(img_w_phys_s, "%lf", &img_w_phys) != 1 ) {
+	Err_Append("Expected float value for physical width, got ");
+	Err_Append(img_w_phys_s);
+	Err_Append(". ");
+	return 0;
+    }
+    if ( sscanf(img_w_dpy_s, "%d", &img_w_dpy) != 1 ) {
+	Err_Append("Expected integer value for display width, got ");
+	Err_Append(img_w_dpy_s);
+	Err_Append(". ");
+	return 0;
+    }
+    if ( sscanf(img_h_dpy_s, "%d", &img_h_dpy) != 1 ) {
+	Err_Append("Expected integer value for display height, got ");
+	Err_Append(img_h_dpy_s);
+	Err_Append(". ");
+	return 0;
+    }
+    return 1;
+}
 
 static int stop_cb(int argc, char *argv[])
 {
