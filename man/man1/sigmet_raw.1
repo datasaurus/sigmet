@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.8 $ $Date: 2010/02/16 23:16:29 $
+.\" $Revision: 1.9 $ $Date: 2010/02/19 23:29:51 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -22,6 +22,7 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_raw\fP \fBray_headers\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP] \fIvolume_file\fP
 \fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIbounds_file\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBstop\fP
 .fi
 .SH DESCRIPTION
@@ -176,6 +177,20 @@ the volume obtained from \fIvolume_file\fP, which should have been loaded with a
 call to \fBsigmet_raw\fP\ \fBread\fP.
 The corners will be printed as
 "\fIlon1\ lat1 lon2\ lat2 lon3\ lat3 lon4\ lat4\fP".
+.TP
+\fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIbounds_file\fP \fIvolume_file\fP
+Assigns bins (gates) for data type \fItype\fP, sweep \fIs\fP, in the volume from
+\fIvolume_file\fP, to intervals in a given sequence of data bounds.
+The volume in \fIvolume_file\fP should have been loaded with a call to
+\fBsigmet_raw\fP\ \fBread\fP.  The data bounds are taken from \fIbounds_file\fP,
+which should contain a value count followed by that number of floating point
+values, encoded as text.  For each bin with a data value in the given bounds
+sequence, there will be one line in standard output, of form:
+.nf
+i: r b
+.fi
+where \fIi\fP specifies an index from the sequence of data bounds, and \fIr\fP and
+\fIb\fP specify a bin whose value satisfies bounds[i]\ <=\ value\ <\ bounds[i+1].
 .SH SEE ALSO
 sigmet (3)
 .br
