@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.130 $ $Date: 2010/02/22 21:43:28 $
+ .	$Revision: 1.131 $ $Date: 2010/02/23 16:24:09 $
  */
 
 #include <stdlib.h>
@@ -1168,7 +1168,7 @@ static int bintvls_cb(int argc, char *argv[])
     size_t n_intvl;		/* Number of data intervals = number of colors */
     double *bnds = NULL;	/* Data bounds. Number of bounds = n_intvl + 1 */
     int n;			/* Index from bnds */
-    struct color *clrs = NULL;	/* Colors - one less than number of bounds */
+    struct color *clrs = NULL;	/* Colors, dimensioned n_intvl */
     double d;			/* Data value */
     double ll[8];		/* Bin (gate) outline */
 
@@ -1308,7 +1308,6 @@ static int bintvls_cb(int argc, char *argv[])
 
     FREE(bnds);
     FREE(clrs);
-
     return 1;
 error:
     FREE(bnds);
