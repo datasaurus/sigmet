@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.132 $ $Date: 2010/02/23 16:26:54 $
+ .	$Revision: 1.133 $ $Date: 2010/02/23 17:29:31 $
  */
 
 #include <stdlib.h>
@@ -77,11 +77,11 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 15
+#define NCMD 16
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread","read",
     "release", "volume_headers", "ray_headers", "data", "bin_outline", "bintvls",
-    "stop"
+    "proj", "stop"
 };
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
@@ -98,17 +98,24 @@ static callback ray_headers_cb;
 static callback data_cb;
 static callback bin_outline_cb;
 static callback bintvls_cb;
+static callback proj_cb;
 static callback stop_cb;
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, release_cb, volume_headers_cb, ray_headers_cb, data_cb,
-    bin_outline_cb, bintvls_cb, stop_cb
+    bin_outline_cb, bintvls_cb, proj_cb, stop_cb
 };
 
 /* Color specifier */
 struct color {
     double red, green, blue;
 };
+
+/* Cartographic projection */
+#ifdef PROJ4
+#include <proj_api.h>
+static projPJ pj;
+#endif
 
 /* Convenience functions */
 static char *time_stamp(void);
@@ -1287,6 +1294,20 @@ error:
     }
     return 0;
 }
+
+#ifdef PROJ4
+static int proj_cb(int argc, char *argv[])
+{
+    if ( pj ) {
+	pj_free(pj);
+    }
+    if ( !(pj = pj_init(argc - 1, argv + 1)) ) {
+	Err_Append("Unknown projection.");
+	return 0;
+    }
+    return 1;
+}
+#endif
 
 static int stop_cb(int argc, char *argv[])
 {
