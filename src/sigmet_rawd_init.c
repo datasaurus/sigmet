@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.131 $ $Date: 2010/02/23 16:24:09 $
+ .	$Revision: 1.132 $ $Date: 2010/02/23 16:26:54 $
  */
 
 #include <stdlib.h>
@@ -1151,8 +1151,8 @@ static int bin_outline_cb(int argc, char *argv[])
 /*
    Put bins (gates) into data intervals.
    Usage: sigmet_raw bintvls type s bounds_file raw_vol
-   Output stream has one line for each bin, color, bin outline:
-   r g b: lo1 la1 lo2 la2 lo3 la3 lo4 la4 lo5 la5 lo6 la6 lo7 la7 lo8 la8
+   Output stream has one line for each bin, index, bin outline:
+    i: lo1 la1 lo2 la2 lo3 la3 lo4 la4 lo5 la5 lo6 la6 lo7 la7 lo8 la8
  */
 static int bintvls_cb(int argc, char *argv[])
 {
@@ -1165,12 +1165,11 @@ static int bintvls_cb(int argc, char *argv[])
     int y, s, r, b;		/* Indeces: data type, sweep, ray, bin */
     char *bnds_fl_nm;		/* File with bounds */
     FILE *bnds_fl = NULL;	/* File with bounds */
-    size_t n_intvl;		/* Number of data intervals = number of colors */
-    double *bnds = NULL;	/* Data bounds. Number of bounds = n_intvl + 1 */
+    size_t n_bnd;		/* Number of bounds, one more than number of
+				   data intervals */
+    double *bnds = NULL;	/* Data bounds */
     int n;			/* Index from bnds */
-    struct color *clrs = NULL;	/* Colors, dimensioned n_intvl */
     double d;			/* Data value */
-    double ll[8];		/* Bin (gate) outline */
 
     /* Parse command line */
     if (argc != 5) {
@@ -1223,13 +1222,11 @@ static int bintvls_cb(int argc, char *argv[])
     }
 
     /*
-       Get bnds and clrs from bnds_fl
+       Get bnds from bnds_fl
        Format
 	   number_of_intervals
 	   bound
-	   color
 	   bound
-	   color
 	   ...
      */
     if ( !(bnds_fl = fopen(bnds_fl_nm, "r")) ) {
@@ -1240,38 +1237,21 @@ static int bintvls_cb(int argc, char *argv[])
 	Err_Append(". ");
 	goto error;
     }
-    if ( fscanf(bnds_fl, "%lu", &n_intvl) != 1 ) {
+    if ( fscanf(bnds_fl, "%lu", &n_bnd) != 1 ) {
 	Err_Append("Could not get number of bounds from ");
 	Err_Append(bnds_fl_nm);
 	Err_Append(". ");
 	goto error;
     }
-    if ( !(bnds = CALLOC(n_intvl + 1, sizeof(double))) ) {
+    if ( !(bnds = CALLOC(n_bnd, sizeof(double))) ) {
 	Err_Append("Could not allocate bounds array. ");
 	goto error;
     }
-    if ( !(clrs = CALLOC(n_intvl, sizeof(struct color))) ) {
-	Err_Append("Could not allocate colors array. ");
-	goto error;
-    }
-    for (n = 0; n < n_intvl; n++) {
-	int r, g, b;
-
+    for (n = 0; n < n_bnd; n++) {
 	if ( fscanf(bnds_fl, "%lf", bnds + n) != 1 ) {
 	    Err_Append("Could not read bounds value. ");
 	    goto error;
 	}
-	if ( fscanf(bnds_fl, " #%2x%2x%2x", &r, &g, &b) != 3 ) {
-	    Err_Append("Could not read color value. ");
-	    goto error;
-	}
-	clrs[n].red = r / 0xff;
-	clrs[n].green = g / 0xff;
-	clrs[n].blue = b / 0xff;
-    }
-    if ( fscanf(bnds_fl, "%lf", bnds + n) != 1 ) {
-	Err_Append("Could not read bounds value. ");
-	goto error;
     }
     if ( fclose(bnds_fl) == EOF ) {
 	Err_Append("Could not close bounds file ");
@@ -1282,36 +1262,23 @@ static int bintvls_cb(int argc, char *argv[])
     }
     bnds_fl = NULL;
 
-    /*
-       Determine which interval from bounds each bin value is in.
-       Print the color and bounds.
-     */
+    /* Determine which interval from bounds each bin value is in and print. */
     for (r = 0; r < vol.ih.ic.num_rays; r++) {
 	if ( vol.ray_ok[s][r] ) {
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
 		if ( Sigmet_IsData(d)
-			&& (n = BISearch(d, bnds, n_intvl + 1)) != -1 ) {
-		    if ( !Sigmet_BinOutl(&vol, s, r, b, ll) ) {
-			Err_Append("Could not compute bin outline. ");
-			goto error;
-		    }
-		    fprintf(rslt1, "%lf %lf %lf:"
-			    " %lf %lf %lf %lf %lf %lf %lf %lf\n",
-			    clrs[n].red, clrs[n].green, clrs[n].blue, 
-			    ll[0], ll[1], ll[2], ll[3],
-			    ll[4], ll[5], ll[6], ll[7]);
+			&& (n = BISearch(d, bnds, n_bnd)) != -1 ) {
+		    fprintf(rslt1, "%6d: %3d %5d\n", n, r, b);
 		}
 	    }
 	}
     }
 
     FREE(bnds);
-    FREE(clrs);
     return 1;
 error:
     FREE(bnds);
-    FREE(clrs);
     if ( bnds_fl && (fclose(bnds_fl) == EOF) ) {
 	Err_Append("Could not close bounds file ");
 	Err_Append(bnds_fl_nm);
