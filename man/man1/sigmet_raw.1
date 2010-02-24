@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.12 $ $Date: 2010/02/23 22:05:53 $
+.\" $Revision: 1.13 $ $Date: 2010/02/24 16:48:45 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -24,7 +24,7 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBbounds\fP \fIdata_type\fP \fInum_bounds\fP \fIbounds_file\fP
 \fBsigmet_raw\fP \fBcolors\fP \fIdata_type\fP \fIcolors_file\fP
-\fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIbounds_file\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIvolume_file\fP
 \fB#ifdef PROJ4\fP
 \fBsigmet_raw\fP \fBproj\fP \fIargs ...\fP
 \fB#endif\fP
@@ -200,13 +200,13 @@ range \fB[0,1]\fP, giving red, green, and blue values for the data interval.
 In subsequent displays, a bin (gate) whose value satisfies
 bounds[i]\ <=\ value\ <\ bounds[i+1] will be displayed with colors[i].
 .TP
-\fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIbounds_file\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIvolume_file\fP
 Assigns bins (gates) for data type \fItype\fP, sweep \fIs\fP, in the volume from
-\fIvolume_file\fP, to intervals in a given sequence of data bounds.
+\fIvolume_file\fP, to intervals in the current sequence of data bounds.
 The volume in \fIvolume_file\fP should have been loaded with a call to
-\fBsigmet_raw\fP\ \fBread\fP.  The data bounds are taken from \fIbounds_file\fP,
-which should contain a value count followed by that number of floating point
-values, encoded as text.  For each bin with a data value in the given bounds
+\fBsigmet_raw\fP\ \fBread\fP.  The data bounds for the data type should have
+been set with a call to \fBbounds\fP.
+For each bin with a data value in the current bounds
 sequence, there will be one line in standard output, of form:
 .nf
 i: r b

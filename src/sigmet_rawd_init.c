@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.136 $ $Date: 2010/02/23 23:30:23 $
+ .	$Revision: 1.137 $ $Date: 2010/02/24 16:24:38 $
  */
 
 #include <stdlib.h>
@@ -1357,43 +1357,47 @@ static int bintvls_cb(int argc, char *argv[])
     enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
     int i;			/* Volume index. */
     int y, s, r, b;		/* Indeces: data type, sweep, ray, bin */
-    char *bnds_fl_nm;		/* File with bounds */
-    FILE *bnds_fl = NULL;	/* File with bounds */
-    size_t n_bnd;		/* Number of bounds, one more than number of
-				   data intervals */
-    double *bnds = NULL;	/* Data bounds */
+    double *bnds;		/* bounds[type_t] */
+    int n_bnds;			/* n_bounds[type_t] */
     int n;			/* Index from bnds */
     double d;			/* Data value */
 
     /* Parse command line */
-    if (argc != 5) {
+    if ( argc != 4 ) {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
-	Err_Append(" type sweep bounds_file volume");
-	goto error;
+	Err_Append(" type sweep volume");
+	return 0;
     }
     abbrv = argv[1];
     s_s = argv[2];
-    bnds_fl_nm = argv[3];
-    vol_nm = argv[4];
+    vol_nm = argv[3];
     if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
 	Err_Append("No data type named ");
 	Err_Append(abbrv);
 	Err_Append(".  ");
+	return 0;
     }
-    if (sscanf(s_s, "%d", &s) != 1) {
+    if ( (n_bnds = n_bounds[type_t]) == 0 ) {
+	Err_Append("Cannot put gates into data intervals for ");
+	Err_Append(abbrv);
+	Err_Append(". Bounds not set");
+	return 0;
+    }
+    bnds = bounds[type_t];
+    if ( sscanf(s_s, "%d", &s) != 1 ) {
 	Err_Append("Sweep index must be an integer.  ");
-	goto error;
+	return 0;
     }
     i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command. ");
-	goto error;
+	return 0;
     }
 
-    /* Make sure command line asks for what exists */
+    /* Make sure volume, type, and sweep are valid */
     vol = vols[i].vol;
     for (y = 0; y < vol.num_types; y++) {
 	if (type_t == vol.types[y]) {
@@ -1404,57 +1408,16 @@ static int bintvls_cb(int argc, char *argv[])
 	Err_Append("Data type ");
 	Err_Append(abbrv);
 	Err_Append(" not in volume.\n");
-	goto error;
+	return 0;
     }
     if (s >= vol.ih.ic.num_sweeps) {
 	Err_Append("Sweep index greater than number of sweeps.  ");
-	goto error;
+	return 0;
     }
     if ( !vol.sweep_ok[s] ) {
 	Err_Append("Sweep not valid in this volume.  ");
-	goto error;
+	return 0;
     }
-
-    /*
-       Get bnds from bnds_fl
-       Format
-	   number_of_intervals
-	   bound
-	   bound
-	   ...
-     */
-    if ( !(bnds_fl = fopen(bnds_fl_nm, "r")) ) {
-	Err_Append("Could not open bounds file ");
-	Err_Append(bnds_fl_nm);
-	Err_Append(". ");
-	Err_Append(strerror(errno));
-	Err_Append(". ");
-	goto error;
-    }
-    if ( fscanf(bnds_fl, "%lu", &n_bnd) != 1 ) {
-	Err_Append("Could not get number of bounds from ");
-	Err_Append(bnds_fl_nm);
-	Err_Append(". ");
-	goto error;
-    }
-    if ( !(bnds = CALLOC(n_bnd, sizeof(double))) ) {
-	Err_Append("Could not allocate bounds array. ");
-	goto error;
-    }
-    for (n = 0; n < n_bnd; n++) {
-	if ( fscanf(bnds_fl, "%lf", bnds + n) != 1 ) {
-	    Err_Append("Could not read bounds value. ");
-	    goto error;
-	}
-    }
-    if ( fclose(bnds_fl) == EOF ) {
-	Err_Append("Could not close bounds file ");
-	Err_Append(bnds_fl_nm);
-	Err_Append(". ");
-	Err_Append(strerror(errno));
-	goto error;
-    }
-    bnds_fl = NULL;
 
     /* Determine which interval from bounds each bin value is in and print. */
     for (r = 0; r < vol.ih.ic.num_rays; r++) {
@@ -1462,24 +1425,14 @@ static int bintvls_cb(int argc, char *argv[])
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
 		if ( Sigmet_IsData(d)
-			&& (n = BISearch(d, bnds, n_bnd)) != -1 ) {
+			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
 		    fprintf(rslt1, "%6d: %3d %5d\n", n, r, b);
 		}
 	    }
 	}
     }
 
-    FREE(bnds);
     return 1;
-error:
-    FREE(bnds);
-    if ( bnds_fl && (fclose(bnds_fl) == EOF) ) {
-	Err_Append("Could not close bounds file ");
-	Err_Append(bnds_fl_nm);
-	Err_Append(". ");
-	Err_Append(strerror(errno));
-    }
-    return 0;
 }
 
 #ifdef PROJ4
