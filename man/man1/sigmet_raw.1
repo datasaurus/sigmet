@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.11 $ $Date: 2010/02/23 21:10:21 $
+.\" $Revision: 1.12 $ $Date: 2010/02/23 22:05:53 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -22,6 +22,8 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_raw\fP \fBray_headers\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP] \fIvolume_file\fP
 \fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBbounds\fP \fIdata_type\fP \fInum_bounds\fP \fIbounds_file\fP
+\fBsigmet_raw\fP \fBcolors\fP \fIdata_type\fP \fIcolors_file\fP
 \fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIbounds_file\fP \fIvolume_file\fP
 \fB#ifdef PROJ4\fP
 \fBsigmet_raw\fP \fBproj\fP \fIargs ...\fP
@@ -181,6 +183,22 @@ the volume obtained from \fIvolume_file\fP, which should have been loaded with a
 call to \fBsigmet_raw\fP\ \fBread\fP.
 The corners will be printed as
 "\fIlon1\ lat1 lon2\ lat2 lon3\ lat3 lon4\ lat4\fP".
+.TP
+\fBsigmet_raw\fP \fBbounds\fP \fIdata_type\fP \fInum_bounds\fP \fIbounds_file\fP
+Obtains the bounds for data intervals to be displayed with given colors, for
+Sigmet data type \fIdata_type\fP. The command will read \fInum_bounds\fP
+values from \fIbounds_file\fP, which should contain a monotonic sequence of
+float values, separated by whitespace.  Display and manipulation commands
+will use these bounds to bin data values into discrete intervals.
+.TP
+\fBsigmet_raw\fP \fBcolors\fP \fIdata_type\fP \fIcolors_file\fP
+Sets display colors for Sigmet data type \fIdata_type\fP. Bounds for the data
+intervals should have already been set with a call to \fBbounds\fP. This command
+will read \fInum_bounds\fP\fB-1\fP color values from \fIcolors_file\fP. Each
+color value must consist of three whitespace separated floating point values in 
+range \fB[0,1]\fP, giving red, green, and blue values for the data interval.
+In subsequent displays, a bin (gate) whose value satisfies
+bounds[i]\ <=\ value\ <\ bounds[i+1] will be displayed with colors[i].
 .TP
 \fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIbounds_file\fP \fIvolume_file\fP
 Assigns bins (gates) for data type \fItype\fP, sweep \fIs\fP, in the volume from
