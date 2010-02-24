@@ -9,18 +9,22 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.137 $ $Date: 2010/02/24 16:24:38 $
+ .	$Revision: 1.138 $ $Date: 2010/02/24 17:23:46 $
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <signal.h>
 #include <time.h>
+#ifdef CAIRO
+#include <cairo.h>
+#endif
 #include "alloc.h"
 #include "str.h"
 #include "err_msg.h"
@@ -77,11 +81,11 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 19
+#define NCMD 20
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread","read",
     "release", "volume_headers", "ray_headers", "data", "bin_outline", "bounds",
-    "colors", "bintvls", "proj", "img_config", "stop"
+    "colors", "bintvls", "proj", "img_config", "img", "stop"
 };
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
@@ -102,12 +106,13 @@ static callback colors_cb;
 static callback bintvls_cb;
 static callback proj_cb;
 static callback img_config_cb;
+static callback img_cb;
 static callback stop_cb;
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, release_cb, volume_headers_cb, ray_headers_cb, data_cb,
     bin_outline_cb, bounds_cb, colors_cb, bintvls_cb, proj_cb, img_config_cb,
-    stop_cb
+    img_cb, stop_cb
 };
 
 /* Arrays of data bounds for Sigmet data types */
@@ -132,14 +137,15 @@ static projPJ pj;
 /* Configuration for output images */
 enum SIGMET_IMG_FMT {SIGMET_PNG, SIGMET_PS};
 static enum SIGMET_IMG_FMT img_fmt;	/* Image format */
-static double img_w_phys;		/* Width of physical area displayed in
+static double w_phys;		/* Width of physical area displayed in
 					   output image. Units depend on how
 					   image is made - could be degrees
 					   latitude, meters, kilometers ... */
-static int img_w_dpy;			/* Width of image in display units,
+static int w_dpy;			/* Width of image in display units,
 					   pixels, points, cm */
-static int img_h_dpy;			/* Height of image in display units,
+static int h_dpy;			/* Height of image in display units,
 					   pixels, points, cm */
+static double alpha = 1.0;		/* alpha channel. 1.0 => translucent */
 
 /* Convenience functions */
 static char *time_stamp(void);
@@ -165,6 +171,7 @@ int main(int argc, char *argv[])
     double dt;			/* Time taken by a client */
     double dtx;			/* Time taken by slowest client in a set */
     int y;			/* Loop index */
+    char *dflt_proj[] = { "proj=aeqd" }; /* Defalut projection */
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
@@ -199,11 +206,18 @@ int main(int argc, char *argv[])
 	sv_p->users = 0;
     }
 
-    /* Initialize other arrays */
+    /* Initialize other variables */
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	n_bounds[y] = 0;
 	bounds[y] = NULL;
 	colors[y] = NULL;
+    }
+    img_fmt = SIGMET_PNG;
+    w_phys = 100000.0;
+    w_dpy = h_dpy = 600;
+    if ( !(pj = pj_init(1, dflt_proj)) ) {
+	fprintf(stderr, "Could not set default projection.\n");
+	exit(EXIT_FAILURE);
     }
 
     /* Check for angle unit */
@@ -1452,16 +1466,16 @@ static int proj_cb(int argc, char *argv[])
 /* Specify image configuration */
 static int img_config_cb(int argc, char *argv[])
 {
-    char *img_fmt_s, *img_w_phys_s, *img_w_dpy_s, *img_h_dpy_s;
+    char *img_fmt_s, *w_phys_s, *w_dpy_s, *h_dpy_s;
 
     if ( argc != 5 ) {
 	Err_Append("Usage: img_config format width_phys width_dpy height_dpy. ");
 	return 0;
     }
     img_fmt_s = argv[1];
-    img_w_phys_s = argv[2];
-    img_w_dpy_s = argv[3];
-    img_h_dpy_s = argv[4];
+    w_phys_s = argv[2];
+    w_dpy_s = argv[3];
+    h_dpy_s = argv[4];
     if (strcmp(img_fmt_s, "png") == 0) {
 	img_fmt = SIGMET_PNG;
     } else if (strcmp(img_fmt_s, "ps") == 0) {
@@ -1471,26 +1485,204 @@ static int img_config_cb(int argc, char *argv[])
 	Err_Append(img_fmt_s);
 	return 0;
     }
-    if ( sscanf(img_w_phys_s, "%lf", &img_w_phys) != 1 ) {
+    if ( sscanf(w_phys_s, "%lf", &w_phys) != 1 ) {
 	Err_Append("Expected float value for physical width, got ");
-	Err_Append(img_w_phys_s);
+	Err_Append(w_phys_s);
 	Err_Append(". ");
 	return 0;
     }
-    if ( sscanf(img_w_dpy_s, "%d", &img_w_dpy) != 1 ) {
+    if ( sscanf(w_dpy_s, "%d", &w_dpy) != 1 ) {
 	Err_Append("Expected integer value for display width, got ");
-	Err_Append(img_w_dpy_s);
+	Err_Append(w_dpy_s);
 	Err_Append(". ");
 	return 0;
     }
-    if ( sscanf(img_h_dpy_s, "%d", &img_h_dpy) != 1 ) {
+    if ( sscanf(h_dpy_s, "%d", &h_dpy) != 1 ) {
 	Err_Append("Expected integer value for display height, got ");
-	Err_Append(img_h_dpy_s);
+	Err_Append(h_dpy_s);
 	Err_Append(". ");
 	return 0;
     }
     return 1;
 }
+
+#ifdef CAIRO
+static int img_cb(int argc, char *argv[])
+{
+    char *vol_nm;		/* Sigmet raw file */
+    struct Sigmet_Vol vol;	/* Volume from global vols array */
+    char *s_s;			/* Sweep index, as a string */
+    char *abbrv;		/* Data type abbreviation */
+    enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
+    int i;			/* Volume index. */
+    int y, s, r, b;		/* Indeces: data type, sweep, ray, bin */
+    cairo_surface_t *surface;	/* Where to draw */
+    cairo_t *cr;		/* Drawing context */
+    cairo_matrix_t matrix;	/* Set map coordinates to display */
+    double left;		/* Map coordinate of left side */
+    double rght;		/* Map coordinate of right side */
+    double btm;			/* Map coordinate of bottom */
+    double top;			/* Map coordinate of top */
+    double xx, x0, yy, y0;	/* Parameters for cairo transformation matrix */
+    double *bnds;		/* bounds[type_t] */
+    struct color *clrs;		/* colors[type_t] */
+    int n_bnds;			/* n_bounds[type_t] */
+    double d;			/* Data value */
+    projUV radar;		/* Radar location lon-lat or x-y */
+    double cnrs_ll[8];		/* Corners of a gate, lon-lat */
+    double *ll;			/* Element from cnrs_ll */
+    projUV cnrs_uv[4];		/* Corner of a gate, lon-lat or x-y */
+    projUV *uv;			/* Element from cnrs_uv */
+    int n;			/* Loop index */
+    int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
+    double sec;			/* Sweep second */
+    char of[LEN];		/* Output file */
+
+    /* Parse command line */
+    if ( argc != 4 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" type sweep volume");
+	return 0;
+    }
+    abbrv = argv[1];
+    s_s = argv[2];
+    vol_nm = argv[3];
+    if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
+	Err_Append("No data type named ");
+	Err_Append(abbrv);
+	Err_Append(".  ");
+	return 0;
+    }
+    if ( (n_bnds = n_bounds[type_t]) == 0 || !bounds[type_t]) {
+	Err_Append("Cannot put gates into data intervals for ");
+	Err_Append(abbrv);
+	Err_Append(". Bounds not set");
+	return 0;
+    }
+    bnds = bounds[type_t];
+    if ( !colors[type_t]) {
+	Err_Append("Cannot put gates into data intervals for ");
+	Err_Append(abbrv);
+	Err_Append(". Colors not set");
+	return 0;
+    }
+    clrs = colors[type_t];
+    if ( sscanf(s_s, "%d", &s) != 1 ) {
+	Err_Append("Sweep index must be an integer.  ");
+	return 0;
+    }
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	return 0;
+    }
+
+    /* Make sure volume, type, and sweep are valid */
+    vol = vols[i].vol;
+    for (y = 0; y < vol.num_types; y++) {
+	if (type_t == vol.types[y]) {
+	    break;
+	}
+    }
+    if (y == vol.num_types) {
+	Err_Append("Data type ");
+	Err_Append(abbrv);
+	Err_Append(" not in volume.\n");
+	return 0;
+    }
+    if (s >= vol.ih.ic.num_sweeps) {
+	Err_Append("Sweep index greater than number of sweeps.  ");
+	return 0;
+    }
+    if ( !vol.sweep_ok[s] ) {
+	Err_Append("Sweep not valid in this volume.  ");
+	return 0;
+    }
+
+    /* Define map/display area */
+    radar.u = Sigmet_Bin4Rad(vol.ih.ic.longitude);
+    radar.v = Sigmet_Bin4Rad(vol.ih.ic.latitude);
+    radar = pj_fwd(radar, pj);
+    if ( radar.u == HUGE_VAL || radar.v == HUGE_VAL ) {
+	Err_Append("Could not get map coordinates of radar. ");
+	return 0;
+    }
+    left = radar.u - 0.5 * w_phys;
+    rght = radar.u + 0.5 * w_phys;
+    top = radar.v + 0.5 * (h_dpy / w_dpy) * w_phys;
+    btm = radar.v - 0.5 * (h_dpy / w_dpy) * w_phys;
+
+    /* Make name of output file */
+    if ( !Tm_JulToCal(vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
+	Err_Append("Sweep time garbled. ");
+	return 0;
+    }
+    if ( snprintf(of, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f.png",
+		vol.ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
+		abbrv, vol.sweep_angle[s] * DEG_PER_RAD) > LEN ) {
+	Err_Append("Could not make image file name. ");
+	return 0;
+    }
+
+    /* Initialize cairo */
+    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w_dpy, h_dpy);
+    cr = cairo_create(surface);
+    xx = w_dpy / (rght - left);
+    x0 = -w_dpy * left / (rght - left);
+    yy = -h_dpy / (top - btm);
+    y0 = h_dpy * top / (top - btm);
+    cairo_matrix_init(&matrix, xx, 0.0, 0.0, yy, x0, y0);
+    cairo_set_matrix(cr, &matrix);
+
+    /* Determine which interval from bounds each bin value is in. */
+    for (r = 0; r < vol.ih.ic.num_rays; r++) {
+	if ( vol.ray_ok[s][r] ) {
+	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
+		d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
+		if ( Sigmet_IsData(d)
+			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
+		    int undef = 0;
+
+		    if ( !Sigmet_BinOutl(&vol, s, r, b, cnrs_ll) ) {
+			continue;
+		    }
+		    for (ll = cnrs_ll, uv = cnrs_uv; uv < cnrs_uv + 4; uv++) {
+			uv->u = *ll++;
+			uv->v = *ll++;
+			*uv = pj_fwd(*uv, pj);
+			if ( uv->u == HUGE_VAL || uv->v == HUGE_VAL ) {
+			    undef = 1;
+			    break;
+			}
+		    }
+		    if ( undef ) {
+			continue;
+		    }
+
+		    cairo_set_source_rgba(cr,
+			    clrs[n].red, clrs[n].green, clrs[n].blue, alpha);
+		    cairo_move_to(cr, cnrs_uv[0].u, cnrs_uv[0].v);
+		    cairo_line_to(cr, cnrs_uv[1].u, cnrs_uv[1].v);
+		    cairo_line_to(cr, cnrs_uv[2].u, cnrs_uv[2].v);
+		    cairo_line_to(cr, cnrs_uv[3].u, cnrs_uv[3].v);
+		    cairo_close_path(cr);
+		    cairo_fill(cr);
+		}
+	    }
+	}
+    }
+
+    /* Make output and clean up */
+    cairo_destroy(cr);
+    cairo_surface_write_to_png(surface, of);
+    cairo_surface_destroy(surface);
+    fprintf(rslt1, "%s\n", of);
+    return 1;
+}
+#endif
 
 static int stop_cb(int argc, char *argv[])
 {
