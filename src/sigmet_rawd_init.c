@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.135 $ $Date: 2010/02/23 22:05:53 $
+ .	$Revision: 1.136 $ $Date: 2010/02/23 23:30:23 $
  */
 
 #include <stdlib.h>
@@ -77,12 +77,11 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 18
+#define NCMD 19
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread","read",
     "release", "volume_headers", "ray_headers", "data", "bin_outline", "bounds",
-    "bintvls",
-    "proj", "img_config", "stop"
+    "colors", "bintvls", "proj", "img_config", "stop"
 };
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
@@ -99,6 +98,7 @@ static callback ray_headers_cb;
 static callback data_cb;
 static callback bin_outline_cb;
 static callback bounds_cb;
+static callback colors_cb;
 static callback bintvls_cb;
 static callback proj_cb;
 static callback img_config_cb;
@@ -106,16 +106,17 @@ static callback stop_cb;
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, release_cb, volume_headers_cb, ray_headers_cb, data_cb,
-    bin_outline_cb, bounds_cb, bintvls_cb, proj_cb, img_config_cb, stop_cb
+    bin_outline_cb, bounds_cb, colors_cb, bintvls_cb, proj_cb, img_config_cb,
+    stop_cb
 };
 
 /* Arrays of data bounds for Sigmet data types */
-static int n_bnds[SIGMET_NTYPES];
+static int n_bounds[SIGMET_NTYPES];
 static double *bounds[SIGMET_NTYPES];
 
 /*
    Arrays of colors for Sigmet data types.
-   For each data type y, colors[y] will have n_bnds[y]-1 elements.
+   For each data type y, colors[y] must have n_bounds[y]-1 elements.
  */
 struct color {
     double red, green, blue;
@@ -200,7 +201,7 @@ int main(int argc, char *argv[])
 
     /* Initialize other arrays */
     for (y = 0; y < SIGMET_NTYPES; y++) {
-	n_bnds[y] = 0;
+	n_bounds[y] = 0;
 	bounds[y] = NULL;
 	colors[y] = NULL;
     }
@@ -1190,30 +1191,27 @@ static int bin_outline_cb(int argc, char *argv[])
     return 1;
 }
 
-/* Set bounds and display colors for a data type */
+/* Set bounds for a data type */
 static int bounds_cb(int argc, char *argv[])
 {
     char *abbrv;		/* Data type abbreviation */
     enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
-    size_t n_bnds;		/* Number of bounds, or number of colors + 1 */
+    size_t n_bnds;		/* Number of bounds */
     char *n_bnds_s;		/* Number of bounds, as given on command line */
     char *bnds_fl_nm;		/* File with bounds */
     FILE *bnds_fl = NULL;	/* File with bounds */
-    char *colors_fl_nm;		/* File with colors */
-    FILE *colors_fl = NULL;	/* File with colors */
     int n;			/* Index from bounds[type_t] */
 
     /* Parse command line */
-    if (argc != 5) {
+    if (argc != 4) {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
-	Err_Append(" type n_bnds bounds_file colors_file");
+	Err_Append(" type num_bounds bounds_file");
 	return 0;
     }
     abbrv = argv[1];
     n_bnds_s = argv[2];
     bnds_fl_nm = argv[3];
-    colors_fl_nm = argv[4];
     if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
 	Err_Append("No data type named ");
 	Err_Append(abbrv);
@@ -1224,6 +1222,10 @@ static int bounds_cb(int argc, char *argv[])
 	Err_Append("Expected integer for number of bounds, got ");
 	Err_Append(n_bnds_s);
 	Err_Append(". ");
+	return 0;
+    }
+    if ( n_bnds < 2 ) {
+	Err_Append("Must have more than one bound. ");
 	return 0;
     }
 
@@ -1246,6 +1248,7 @@ static int bounds_cb(int argc, char *argv[])
 	Err_Append("Could not allocate bounds array. ");
 	return 0;
     }
+    n_bounds[type_t] = n_bnds;
     for (n = 0; n < n_bnds; n++) {
 	if ( fscanf(bnds_fl, "%lf", bounds[type_t] + n) != 1 ) {
 	    Err_Append("Could not read bounds value. ");
@@ -1260,37 +1263,79 @@ static int bounds_cb(int argc, char *argv[])
 	goto error;
     }
 
+    return 1;
+error:
+    FREE(bounds[type_t]);
+    n_bounds[type_t] = 0;
+    bounds[type_t] = NULL;
+    return 0;
+}
+
+/* Set display colors for a data type.  Bounds should have been set */
+static int colors_cb(int argc, char *argv[])
+{
+    char *abbrv;		/* Data type abbreviation */
+    enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
+    int n_clrs;			/* Number of colors = number of bounds - 1 */
+    char *color_fl_nm;		/* File with colors */
+    FILE *color_fl = NULL;	/* File with colors */
+    int n;			/* Index from colors[type_t] */
+
+    /* Parse command line */
+    if (argc != 3) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" type colors_file");
+	return 0;
+    }
+    abbrv = argv[1];
+    color_fl_nm = argv[2];
+    if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
+	Err_Append("No data type named ");
+	Err_Append(abbrv);
+	Err_Append(".  ");
+	return 0;
+    }
+    if ( n_bounds[type_t] == 0 ) {
+	Err_Append("Cannot set colors for ");
+	Err_Append(abbrv);
+	Err_Append(" without bounds. ");
+	return 0;
+    }
+    n_clrs = n_bounds[type_t] - 1;
+
     /*
-       Get colors for the data type from colors_fl
+       Get colors for the data type from color_fl
        Format:
 	   color
 	   color
 	   ...
      */
-    if ( !(colors_fl = fopen(colors_fl_nm, "r")) ) {
+    if ( !(color_fl = fopen(color_fl_nm, "r")) ) {
 	Err_Append("Could not open colors file ");
-	Err_Append(colors_fl_nm);
+	Err_Append(color_fl_nm);
 	Err_Append(". ");
 	Err_Append(strerror(errno));
 	Err_Append(". ");
 	return 0;
     }
-    if ( !(colors[type_t] = CALLOC(n_bnds, sizeof(struct color))) ) {
+    if ( !(colors[type_t] = CALLOC(n_clrs, sizeof(struct color))) ) {
 	Err_Append("Could not allocate colors array. ");
 	return 0;
     }
-    for (n = 0; n < n_bnds - 1; n++) {
-	if ( fscanf(colors_fl, "%lf %lf %lf",
+    for (n = 0; n < n_clrs; n++) {
+	if ( fscanf(color_fl, "%lf %lf %lf",
 		    &colors[type_t][n].red,
 		    &colors[type_t][n].green,
 		    &colors[type_t][n].blue) != 3 ) {
-	    Err_Append("Could not read color value. ");
+	    Err_Append(color_fl_nm);
+	    Err_Append(" does not have enough colors. ");
 	    goto error;
 	}
     }
-    if ( fclose(colors_fl) == EOF ) {
+    if ( fclose(color_fl) == EOF ) {
 	Err_Append("Could not close colors file ");
-	Err_Append(colors_fl_nm);
+	Err_Append(color_fl_nm);
 	Err_Append(". ");
 	Err_Append(strerror(errno));
 	goto error;
@@ -1298,8 +1343,6 @@ static int bounds_cb(int argc, char *argv[])
 
     return 1;
 error:
-    FREE(bounds[type_t]);
-    bounds[type_t] = NULL;
     FREE(colors[type_t]);
     colors[type_t] = NULL;
     return 0;
