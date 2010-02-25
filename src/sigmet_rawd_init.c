@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.138 $ $Date: 2010/02/24 17:23:46 $
+ .	$Revision: 1.139 $ $Date: 2010/02/24 21:19:58 $
  */
 
 #include <stdlib.h>
@@ -171,7 +171,8 @@ int main(int argc, char *argv[])
     double dt;			/* Time taken by a client */
     double dtx;			/* Time taken by slowest client in a set */
     int y;			/* Loop index */
-    char *dflt_proj[] = { "proj=aeqd" }; /* Defalut projection */
+    char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" };
+				/* Defalut projection */
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
@@ -215,7 +216,7 @@ int main(int argc, char *argv[])
     img_fmt = SIGMET_PNG;
     w_phys = 100000.0;
     w_dpy = h_dpy = 600;
-    if ( !(pj = pj_init(1, dflt_proj)) ) {
+    if ( !(pj = pj_init(2, dflt_proj)) ) {
 	fprintf(stderr, "Could not set default projection.\n");
 	exit(EXIT_FAILURE);
     }
