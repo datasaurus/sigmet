@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.139 $ $Date: 2010/02/24 21:19:58 $
+ .	$Revision: 1.140 $ $Date: 2010/02/25 15:37:02 $
  */
 
 #include <stdlib.h>
@@ -1508,6 +1508,24 @@ static int img_config_cb(int argc, char *argv[])
 }
 
 #ifdef CAIRO
+
+/* Structures of this type store information about a gate. */
+struct gate {
+    int n;	/* Data interval */
+    int r;	/* Ray index */
+    int b;	/* Bin index */
+    double d;
+};
+
+/* This function compares two gates by data interval */
+static int gate_cmp(const void *, const void *);
+static int gate_cmp(const void *v1, const void *v2)
+{
+    struct gate *b1 = (struct gate *)v1;
+    struct gate *b2 = (struct gate *)v2;
+    return (b1->n < b2->n) ? -1 : (b1->n == b2->n) ? 0 : 1;
+}
+
 static int img_cb(int argc, char *argv[])
 {
     char *vol_nm;		/* Sigmet raw file */
@@ -1529,6 +1547,11 @@ static int img_cb(int argc, char *argv[])
     struct color *clrs;		/* colors[type_t] */
     int n_bnds;			/* n_bounds[type_t] */
     double d;			/* Data value */
+    struct gate *gates = NULL;	/* Array of gates with data values in the
+				   interval set */
+    size_t n_gates_max;		/* Storage at gates */
+    int n_gates;		/* Number of used elements in gates */
+    int g;			/* Index from gates */
     projUV radar;		/* Radar location lon-lat or x-y */
     double cnrs_ll[8];		/* Corners of a gate, lon-lat */
     double *ll;			/* Element from cnrs_ll */
@@ -1628,6 +1651,17 @@ static int img_cb(int argc, char *argv[])
 	return 0;
     }
 
+    /* Allocate gates array */
+    for (n_gates_max = 0, r = 0; r < vol.ih.ic.num_rays; r++) {
+	if ( vol.ray_ok[s][r] ) {
+	    n_gates_max += vol.ray_num_bins[s][r];
+	}
+    }
+    if ( !(gates = CALLOC(n_gates_max, sizeof(struct gate))) ) {
+	Err_Append("Could not allocate bin intervals array. ");
+	return 0;
+    }
+
     /* Initialize cairo */
     surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w_dpy, h_dpy);
     cr = cairo_create(surface);
@@ -1639,47 +1673,65 @@ static int img_cb(int argc, char *argv[])
     cairo_set_matrix(cr, &matrix);
 
     /* Determine which interval from bounds each bin value is in. */
-    for (r = 0; r < vol.ih.ic.num_rays; r++) {
+    for (n_gates = 0, r = 0; r < vol.ih.ic.num_rays; r++) {
 	if ( vol.ray_ok[s][r] ) {
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
 		if ( Sigmet_IsData(d)
 			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
-		    int undef = 0;
-
-		    if ( !Sigmet_BinOutl(&vol, s, r, b, cnrs_ll) ) {
-			continue;
-		    }
-		    for (ll = cnrs_ll, uv = cnrs_uv; uv < cnrs_uv + 4; uv++) {
-			uv->u = *ll++;
-			uv->v = *ll++;
-			*uv = pj_fwd(*uv, pj);
-			if ( uv->u == HUGE_VAL || uv->v == HUGE_VAL ) {
-			    undef = 1;
-			    break;
-			}
-		    }
-		    if ( undef ) {
-			continue;
-		    }
-
-		    cairo_set_source_rgba(cr,
-			    clrs[n].red, clrs[n].green, clrs[n].blue, alpha);
-		    cairo_move_to(cr, cnrs_uv[0].u, cnrs_uv[0].v);
-		    cairo_line_to(cr, cnrs_uv[1].u, cnrs_uv[1].v);
-		    cairo_line_to(cr, cnrs_uv[2].u, cnrs_uv[2].v);
-		    cairo_line_to(cr, cnrs_uv[3].u, cnrs_uv[3].v);
-		    cairo_close_path(cr);
-		    cairo_fill(cr);
+		    gates[n_gates].n = n;
+		    gates[n_gates].r = r;
+		    gates[n_gates].b = b;
+		    gates[n_gates].d = d;
+		    n_gates++;
 		}
 	    }
 	}
+    }
+
+    qsort(gates, n_gates, sizeof(struct gate), gate_cmp);
+    n = -1;
+    for (g = 0; g < n_gates; g++) {
+	int undef = 0;
+
+	if ( gates[g].n != n ) {
+	    if ( n != -1 ) {
+		cairo_fill(cr);
+	    }
+	    n = gates[g].n;
+	    cairo_set_source_rgba(cr,
+		    clrs[n].red, clrs[n].green, clrs[n].blue, alpha);
+	}
+
+	r = gates[g].r;
+	b = gates[g].b;
+	if ( !Sigmet_BinOutl(&vol, s, r, b, cnrs_ll) ) {
+	    continue;
+	}
+	for (ll = cnrs_ll, uv = cnrs_uv; uv < cnrs_uv + 4; uv++) {
+	    uv->u = *ll++;
+	    uv->v = *ll++;
+	    *uv = pj_fwd(*uv, pj);
+	    if ( uv->u == HUGE_VAL || uv->v == HUGE_VAL ) {
+		undef = 1;
+		break;
+	    }
+	}
+	if ( undef ) {
+	    continue;
+	}
+	cairo_move_to(cr, cnrs_uv[0].u, cnrs_uv[0].v);
+	cairo_line_to(cr, cnrs_uv[1].u, cnrs_uv[1].v);
+	cairo_line_to(cr, cnrs_uv[2].u, cnrs_uv[2].v);
+	cairo_line_to(cr, cnrs_uv[3].u, cnrs_uv[3].v);
+	cairo_close_path(cr);
     }
 
     /* Make output and clean up */
     cairo_destroy(cr);
     cairo_surface_write_to_png(surface, of);
     cairo_surface_destroy(surface);
+    FREE(gates);
     fprintf(rslt1, "%s\n", of);
     return 1;
 }
