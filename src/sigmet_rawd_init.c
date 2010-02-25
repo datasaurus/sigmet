@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.140 $ $Date: 2010/02/25 15:37:02 $
+ .	$Revision: 1.142 $ $Date: 2010/02/25 18:14:23 $
  */
 
 #include <stdlib.h>
@@ -33,7 +33,6 @@
 #include "bisearch_lib.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
-#include "cairo_app.h"
 
 /* Size for various strings */
 #define LEN 1024
