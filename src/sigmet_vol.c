@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.39 $ $Date: 2010/02/11 20:34:09 $
+   .	$Revision: 1.40 $ $Date: 2010/02/22 21:44:10 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -311,6 +311,7 @@ int Sigmet_GoodVol(FILE *f)
     int s, y, r;			/* Sweep, type, ray indeces */
     int i, n;				/* Temporary values */
 
+    s = y = r = 0;
     Sigmet_InitVol(&vol);
 
     /* record 1, <product_header> */
@@ -529,7 +530,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
     int year, month, day, sec;
     unsigned msec;
-    double swpTm;
+    double swpTm = 0.0;
     double angle;			/* Sweep angle */
 
     U16BIT *ray = NULL;			/* Buffer, receives data from rec */
@@ -544,6 +545,9 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     int i, n;				/* Temporary values */
     int nbins;				/* vol_p->ray_num_bins */
     int tm_incr;			/* Ray time adjustment */
+
+    s = r = b = 0;
+    yf = y = 0;
 
     /* Read headers. */
     if ( !Sigmet_ReadHdr(f, vol_p) ) {
