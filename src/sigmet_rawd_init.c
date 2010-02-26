@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.142 $ $Date: 2010/02/25 18:14:23 $
+ .	$Revision: 1.143 $ $Date: 2010/02/25 22:34:31 $
  */
 
 #include <stdlib.h>
@@ -166,9 +166,9 @@ int main(int argc, char *argv[])
     ssize_t r;			/* Return value from read */
     size_t l;			/* Number of bytes to read from command buffer */
     unsigned dchk;		/* After dchk clients, time some, adjust tmout */
-    time_t start, end;		/* When a client session starts, ends */
+    time_t start = 0, end = 1;	/* When a client session starts, ends */
     double dt;			/* Time taken by a client */
-    double dtx;			/* Time taken by slowest client in a set */
+    double dtx = -1.0;		/* Time taken by slowest client in a set */
     int y;			/* Loop index */
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" };
 				/* Defalut projection */
@@ -271,180 +271,186 @@ int main(int argc, char *argv[])
 
     /* Read commands from i_cmd0 into buf and execute them.  */
     while ( read(i_cmd0, &l, sizeof(size_t)) != -1 ) {
-	if ( l > BUF_L || (r = read(i_cmd0, buf, l)) != l ) {
+	int argc1;		/* Number of arguments in received command line */
+	char *argv1[ARGCX];	/* Arguments from received command line */
+	int a;			/* Index into argv1 */
+	char rslt1_nm[LEN];	/* Name of file for standard output */
+	char rslt2_nm[LEN];	/* Name of file for error output */
+	int success;		/* Result of callback */
+	int i;			/* Loop index */
+	int tmx = 0;		/* If true, time this session */
+
+	if ( l > BUF_L ) {
+	    fprintf(stderr, "%s: Command with %lu bytes to large for buffer.\n",
+		    time_stamp(), l);
+	    continue;
+	}
+	if ( (r = read(i_cmd0, buf, l)) != l ) {
 	    fprintf(stderr, "%s: Failed to read command of %ld bytes. ",
 		    time_stamp(), l);
 	    if ( r == -1 ) {
 		fprintf(stderr, "%s\n", strerror(errno));
 	    }
-	} else {
-	    int argc1;		/* Number of arguments in received command line */
-	    char *argv1[ARGCX];	/* Arguments from received command line */
-	    int a;		/* Index into argv1 */
-	    char rslt1_nm[LEN];	/* Name of file for standard output */
-	    char rslt2_nm[LEN];	/* Name of file for error output */
-	    int success;	/* Result of callback */
-	    int i;		/* Loop index */
-	    int tmx;		/* If true, time this session */
+	    continue;
+	}
 
-	    /*
-	       If imposing timeouts (tmgout is set), set alarm.
-	       If adjusting timeouts store start time for this session.
-	     */
+	/*
+	   If imposing timeouts (tmgout is set), set alarm.
+	   If adjusting timeouts store start time for this session.
+	 */
 
-	    if ( tmgout ) {
-		alarm(tmout);
-		if ( tmoadj && --dchk < 8 ) {
-		    tmx = 1;
-		    start = time(NULL);
-		} else {
-		    tmx = 0;
-		}
+	if ( tmgout ) {
+	    alarm(tmout);
+	    if ( tmoadj && --dchk < 8 ) {
+		tmx = 1;
+		start = time(NULL);
+	    } else {
+		tmx = 0;
 	    }
+	}
 
-	    /* Break command line into arguments */
-	    b = buf;
-	    client_pid = *(pid_t *)b;
-	    b += sizeof(client_pid);
-	    argc1 = *(int *)b;
-	    b += sizeof(argc1);
-	    if (argc1 > ARGCX) {
-		fprintf(stderr, "%s: Unable to parse command with %d arguments. "
-			"Limit is %d\n", time_stamp(), argc1, ARGCX);
-		continue;
+	/* Break command line into arguments */
+	b = buf;
+	client_pid = *(pid_t *)b;
+	b += sizeof(client_pid);
+	argc1 = *(int *)b;
+	b += sizeof(argc1);
+	if (argc1 > ARGCX) {
+	    fprintf(stderr, "%s: Unable to parse command with %d arguments. "
+		    "Limit is %d\n", time_stamp(), argc1, ARGCX);
+	    continue;
+	}
+	for (a = 0, argv1[a] = b; b < buf_e && a < argc1; b++) {
+	    if ( *b == '\0' ) {
+		argv1[++a] = b + 1;
 	    }
-	    for (a = 0, argv1[a] = b; b < buf_e && a < argc1; b++) {
-		if ( *b == '\0' ) {
-		    argv1[++a] = b + 1;
-		}
-	    }
-	    if ( b == buf_e ) {
-		fprintf(stderr, "%s: Command line gives no destination.\n",
-			time_stamp());
-		continue;
-	    }
+	}
+	if ( b == buf_e ) {
+	    fprintf(stderr, "%s: Command line gives no destination.\n",
+		    time_stamp());
+	    continue;
+	}
 
-	    /* Create and open "standard output" file */
-	    rslt1 = NULL;
-	    if (snprintf(rslt1_nm, LEN, "%d.1", client_pid) > LEN) {
-		fprintf(stderr, "%s: Could not create file name for client %d.\n",
-			time_stamp(), client_pid);
-		continue;
-	    }
-	    if ( !(rslt1 = fopen(rslt1_nm, "w")) ) {
-		fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
-			time_stamp(), rslt1_nm, strerror(errno));
-		continue;
-	    }
+	/* Open "standard output" file */
+	rslt1 = NULL;
+	if (snprintf(rslt1_nm, LEN, "%d.1", client_pid) > LEN) {
+	    fprintf(stderr, "%s: Could not create file name for client %d.\n",
+		    time_stamp(), client_pid);
+	    continue;
+	}
+	if ( !(rslt1 = fopen(rslt1_nm, "w")) ) {
+	    fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
+		    time_stamp(), rslt1_nm, strerror(errno));
+	    continue;
+	}
 
-	    /* Create and open error file */
-	    rslt2 = NULL;
-	    if (snprintf(rslt2_nm, LEN, "%d.2", client_pid) > LEN) {
-		fprintf(stderr, "%s: Could not create file name for client %d.\n",
-			time_stamp(), client_pid);
-		continue;
-	    }
-	    if ( !(rslt2 = fopen(rslt2_nm, "w")) ) {
-		fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
-			time_stamp(), rslt2_nm, strerror(errno));
-		continue;
-	    }
+	/* Open error file */
+	rslt2 = NULL;
+	if (snprintf(rslt2_nm, LEN, "%d.2", client_pid) > LEN) {
+	    fprintf(stderr, "%s: Could not create file name for client %d.\n",
+		    time_stamp(), client_pid);
+	    continue;
+	}
+	if ( !(rslt2 = fopen(rslt2_nm, "w")) ) {
+	    fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
+		    time_stamp(), rslt2_nm, strerror(errno));
+	    continue;
+	}
 
-	    /* Identify command */
-	    cmd1 = argv1[0];
-	    if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-		fputc(EXIT_FAILURE, rslt2);
-		fprintf(rslt2, "No option or subcommand named \"%s\"\n", cmd1);
-		fprintf(rslt2, "Subcommand must be one of: ");
-		for (i = 0; i < NCMD; i++) {
-		    fprintf(rslt2, "%s ", cmd1v[i]);
-		}
-		fprintf(rslt2, "\n");
-		if ( (fclose(rslt1) == EOF) ) {
-		    fprintf(stderr, "%s: Could not close %s.\n%s\n",
-			    time_stamp(), rslt1_nm, strerror(errno));
-		}
-		if ( (fclose(rslt2) == EOF) ) {
-		    fprintf(stderr, "%s: Could not close %s.\n%s\n",
-			    time_stamp(), rslt2_nm, strerror(errno));
-		}
-		continue;
+	/* Identify command */
+	cmd1 = argv1[0];
+	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+	    fputc(EXIT_FAILURE, rslt2);
+	    fprintf(rslt2, "No option or subcommand named \"%s\"\n", cmd1);
+	    fprintf(rslt2, "Subcommand must be one of: ");
+	    for (i = 0; i < NCMD; i++) {
+		fprintf(rslt2, "%s ", cmd1v[i]);
 	    }
-
-	    /* Run command. Callback will send "standard output" to rslt1. */
-	    success = (cb1v[i])(argc1, argv1);
+	    fprintf(rslt2, "\n");
 	    if ( (fclose(rslt1) == EOF) ) {
 		fprintf(stderr, "%s: Could not close %s.\n%s\n",
 			time_stamp(), rslt1_nm, strerror(errno));
-	    }
-
-	    /* Send status and error messages, if any */
-	    if ( success ) {
-		if ( fputc(EXIT_SUCCESS, rslt2) == EOF ) {
-		    fprintf(stderr, "%s: Could not send return code for %s.\n"
-			    "%s\n", time_stamp(), cmd1, strerror(errno) );
-		}
-	    } else {
-		if ( fputc(EXIT_FAILURE, rslt2) == EOF
-			|| fprintf(rslt2, "%s failed.\n%s\n",
-			    cmd1, Err_Get()) == -1 ) {
-		    fprintf(stderr, "%s: Could not send return code or error "
-			    "output for %s.\n%s\n",
-			    time_stamp(), cmd1, strerror(errno) );
-		}
 	    }
 	    if ( (fclose(rslt2) == EOF) ) {
 		fprintf(stderr, "%s: Could not close %s.\n%s\n",
 			time_stamp(), rslt2_nm, strerror(errno));
 	    }
+	    continue;
+	}
 
-	    /*
-	       If imposing timeouts, clear alarm.
-	       Adjust timeout if desired and necessary.
-	     */
-	    if ( tmgout ) {
-		alarm(0);
-		if ( tmx ) {
-		    end = time(NULL);
-		    dt = difftime(end, start);
+	/* Run command. Callback will send "standard output" to rslt1. */
+	success = (cb1v[i])(argc1, argv1);
+	if ( (fclose(rslt1) == EOF) ) {
+	    fprintf(stderr, "%s: Could not close %s.\n%s\n",
+		    time_stamp(), rslt1_nm, strerror(errno));
+	}
+
+	/* Send status and error messages, if any */
+	if ( success ) {
+	    if ( fputc(EXIT_SUCCESS, rslt2) == EOF ) {
+		fprintf(stderr, "%s: Could not send return code for %s.\n"
+			"%s\n", time_stamp(), cmd1, strerror(errno) );
+	    }
+	} else {
+	    if ( fputc(EXIT_FAILURE, rslt2) == EOF
+		    || fprintf(rslt2, "%s failed.\n%s\n",
+			cmd1, Err_Get()) == -1 ) {
+		fprintf(stderr, "%s: Could not send return code or error "
+			"output for %s.\n%s\n",
+			time_stamp(), cmd1, strerror(errno) );
+	    }
+	}
+	if ( (fclose(rslt2) == EOF) ) {
+	    fprintf(stderr, "%s: Could not close %s.\n%s\n",
+		    time_stamp(), rslt2_nm, strerror(errno));
+	}
+
+	/*
+	   If imposing timeouts, clear alarm.
+	   Adjust timeout if desired and necessary.
+	 */
+	if ( tmgout ) {
+	    alarm(0);
+	    if ( tmx ) {
+		end = time(NULL);
+		dt = difftime(end, start);
+		if (verbose) {
+		    printf("%s: Session %d took ", time_stamp(), dchk);
+		    if ( dt == 0.0 ) {
+			printf("< 1.0 sec.\n");
+		    } else {
+			printf("%lf sec.\n", dt);
+		    }
+		}
+		if (dt > dtx) {
+		    dtx = dt;
 		    if (verbose) {
-			printf("%s: Session %d took ", time_stamp(), dchk);
-			if ( dt == 0.0 ) {
+			printf("%s: Slowest client in this set so "
+				"far took ", time_stamp());
+			if ( dtx == 0.0 ) {
 			    printf("< 1.0 sec.\n");
 			} else {
-			    printf("%lf sec.\n", dt);
+			    printf("%lf sec.\n", dtx);
 			}
 		    }
-		    if (dt > dtx) {
-			dtx = dt;
+		}
+		if ( dchk == 0 ) {
+		    if ( dtx == 0.0 ) {
+			dtx = 1.0;
+		    }
+		    if ( dtx < tmout / 2 ) {
+			tmout = tmout / 2 + 1;
 			if (verbose) {
-			    printf("%s: Slowest client in this set so "
-				    "far took ", time_stamp());
-			    if ( dtx == 0.0 ) {
-				printf("< 1.0 sec.\n");
-			    } else {
-				printf("%lf sec.\n", dtx);
-			    }
+			    printf("%s: Setting timeout to %u sec.\n",
+				    time_stamp(), tmout);
 			}
 		    }
-		    if ( dchk == 0 ) {
-			if ( dtx == 0.0 ) {
-			    dtx = 1.0;
-			}
-			if ( dtx < tmout / 2 ) {
-			    tmout = tmout / 2 + 1;
-			    if (verbose) {
-				printf("%s: Setting timeout to %u sec.\n",
-					time_stamp(), tmout);
-			    }
-			}
-			dchk = new_dchk();
-			if (verbose) {
-			    printf("%s: Will assess timeout after %d "
-				    "iterations\n", time_stamp(), dchk);
-			}
-			dtx = -1.0;
+		    dchk = new_dchk();
+		    if (verbose) {
+			printf("%s: Will assess timeout after %d "
+				"iterations\n", time_stamp(), dchk);
 		    }
+		    dtx = -1.0;
 		}
 	    }
 	}
@@ -985,6 +991,8 @@ static int data_cb(int argc, char *argv[])
     float d;
     enum Sigmet_DataType type;
     int all = -1;
+
+    abbrv = Sigmet_DataType_Abbrv(DB_ERROR);
 
     /*
        Identify input and desired output
