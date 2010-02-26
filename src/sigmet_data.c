@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.9 $ $Date: 2009/11/10 17:51:49 $
+   .	$Revision: 1.10 $ $Date: 2009/12/22 18:08:35 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -166,21 +166,21 @@ static float itof_DBZ(struct Sigmet_Vol v, unsigned i)
 /* Nyquist velocity */
 static double v_nq(struct Sigmet_Vol vol)
 {
-    double wav_len, prf, v;
+    double wav_len, prf;
 
     prf = vol.ih.tc.tdi.prf;
     wav_len = 0.01 * 0.01 * vol.ih.tc.tmi.wave_len;
     switch (vol.ih.tc.tdi.m_prf_mode) {
 	case ONE_ONE:
-	    v = 0.25 * wav_len * prf;
+	    return 0.25 * wav_len * prf;
 	case TWO_THREE:
-	    v = 2 * 0.25 * wav_len * prf;
+	    return 2 * 0.25 * wav_len * prf;
 	case THREE_FOUR:
-	    v = 3 * 0.25 * wav_len * prf;
+	    return 3 * 0.25 * wav_len * prf;
 	case FOUR_FIVE:
-	    v = 3 * 0.25 * wav_len * prf;
+	    return 3 * 0.25 * wav_len * prf;
     }
-    return v;
+    return Sigmet_NoData();
 }
 
 /* Scale velocity to Nyquist. */
