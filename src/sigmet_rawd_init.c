@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.143 $ $Date: 2010/02/25 22:34:31 $
+ .	$Revision: 1.144 $ $Date: 2010/02/26 16:09:43 $
  */
 
 #include <stdlib.h>
@@ -80,11 +80,11 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 20
+#define NCMD 21
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread","read",
-    "release", "volume_headers", "ray_headers", "data", "bin_outline", "bounds",
-    "colors", "bintvls", "proj", "img_config", "img", "stop"
+    "release", "volume_headers", "vol_hdr", "ray_headers", "data", "bin_outline",
+    "bounds", "colors", "bintvls", "proj", "img_config", "img", "stop"
 };
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
@@ -97,6 +97,7 @@ static callback hread_cb;
 static callback read_cb;
 static callback release_cb;
 static callback volume_headers_cb;
+static callback vol_hdr_cb;
 static callback ray_headers_cb;
 static callback data_cb;
 static callback bin_outline_cb;
@@ -109,7 +110,7 @@ static callback img_cb;
 static callback stop_cb;
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
-    read_cb, release_cb, volume_headers_cb, ray_headers_cb, data_cb,
+    read_cb, release_cb, volume_headers_cb, vol_hdr_cb, ray_headers_cb, data_cb,
     bin_outline_cb, bounds_cb, colors_cb, bintvls_cb, proj_cb, img_config_cb,
     img_cb, stop_cb
 };
@@ -929,6 +930,48 @@ static int volume_headers_cb(int argc, char *argv[])
 	return 0;
     }
     Sigmet_PrintHdr(rslt1, vols[i].vol);
+    return 1;
+}
+
+static int vol_hdr_cb(int argc, char *argv[])
+{
+    char *vol_nm;
+    int i;
+    struct Sigmet_Vol vol;
+    int y;
+
+    if ( argc != 2 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" sigmet_volume");
+	return 0;
+    }
+    vol_nm = argv[1];
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	return 0;
+    }
+    vol = vols[i].vol;
+    fprintf(rslt1, "site_name=\"%s\"\n", vol.ih.ic.su_site_name);
+    fprintf(rslt1, "radar_lon=%lf\n",
+	   GeogLonR(Sigmet_Bin4Rad(vol.ih.ic.longitude), 0.0) * DEG_PER_RAD);
+    fprintf(rslt1, "radar_lat=%lf\n",
+	    Sigmet_Bin4Rad(vol.ih.ic.latitude) * DEG_PER_RAD);
+    fprintf(rslt1, "task_name=\"%s\"\n", vol.ph.pc.task_name);
+    fprintf(rslt1, "types=\"");
+    fprintf(rslt1, "%s", Sigmet_DataType_Abbrv(vol.types[0]));
+    for (y = 1; y < vol.num_types; y++) {
+	fprintf(rslt1, " %s", Sigmet_DataType_Abbrv(vol.types[y]));
+    }
+    fprintf(rslt1, "\"\n");
+    fprintf(rslt1, "num_sweeps=%d\n", vol.ih.ic.num_sweeps);
+    fprintf(rslt1, "num_rays=%d\n", vol.ih.ic.num_rays);
+    fprintf(rslt1, "num_bins=%d\n", vol.ih.tc.tri.num_bins_out);
+    fprintf(rslt1, "range_bin0=%d\n", vol.ih.tc.tri.rng_1st_bin);
+    fprintf(rslt1, "bin_step=%d\n", vol.ih.tc.tri.step_out);
     return 1;
 }
 
