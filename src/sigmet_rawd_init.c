@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.144 $ $Date: 2010/02/26 16:09:43 $
+ .	$Revision: 1.145 $ $Date: 2010/02/26 17:20:27 $
  */
 
 #include <stdlib.h>
@@ -24,6 +24,8 @@
 #include <time.h>
 #ifdef CAIRO
 #include <cairo.h>
+#elif defined GD
+#include <gd.h>
 #endif
 #include "alloc.h"
 #include "str.h"
@@ -1517,16 +1519,18 @@ static int proj_cb(int argc, char *argv[])
 /* Specify image configuration */
 static int img_config_cb(int argc, char *argv[])
 {
-    char *img_fmt_s, *w_phys_s, *w_dpy_s, *h_dpy_s;
+    char *img_fmt_s, *w_phys_s, *w_dpy_s, *h_dpy_s, *alpha_s;
 
-    if ( argc != 5 ) {
-	Err_Append("Usage: img_config format width_phys width_dpy height_dpy. ");
+    if ( argc != 6 ) {
+	Err_Append("Usage: img_config format width_phys "
+		"width_dpy height_dpy alpha");
 	return 0;
     }
     img_fmt_s = argv[1];
     w_phys_s = argv[2];
     w_dpy_s = argv[3];
     h_dpy_s = argv[4];
+    alpha_s = argv[5];
     if (strcmp(img_fmt_s, "png") == 0) {
 	img_fmt = SIGMET_PNG;
     } else if (strcmp(img_fmt_s, "ps") == 0) {
@@ -1554,10 +1558,26 @@ static int img_config_cb(int argc, char *argv[])
 	Err_Append(". ");
 	return 0;
     }
+    if ( sscanf(alpha_s, "%lf", &alpha) != 1 ) {
+	Err_Append("Expected float value for alpha, got ");
+	Err_Append(alpha_s);
+	Err_Append(". ");
+	return 0;
+    }
     return 1;
 }
 
-#ifdef CAIRO
+#ifdef GD
+/* This function compares two integers. It is needed to find unused colors. */
+static int i_cmp(const void *, const void *);
+static int i_cmp(const void *p1, const void *p2)
+{
+    int i1 = *(int *)p1;
+    int i2 = *(int *)p2;
+    return (i1 < i2) ? -1 : (i1 == i2) ? 0 : 1;
+}
+#endif
+
 static int img_cb(int argc, char *argv[])
 {
     char *vol_nm;		/* Sigmet raw file */
@@ -1567,27 +1587,37 @@ static int img_cb(int argc, char *argv[])
     enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
     int i;			/* Volume index. */
     int y, s, r, b;		/* Indeces: data type, sweep, ray, bin */
-    cairo_surface_t *surface;	/* Where to draw */
-    cairo_t *cr;		/* Drawing context */
-    cairo_matrix_t matrix;	/* Set map coordinates to display */
     double left;		/* Map coordinate of left side */
     double rght;		/* Map coordinate of right side */
     double btm;			/* Map coordinate of bottom */
     double top;			/* Map coordinate of top */
-    double xx, x0, yy, y0;	/* Parameters for cairo transformation matrix */
     double *bnds;		/* bounds[type_t] */
-    struct color *clrs;		/* colors[type_t] */
     int n_bnds;			/* n_bounds[type_t] */
+    struct color *clrs;		/* colors[type_t] */
     double d;			/* Data value */
     projUV radar;		/* Radar location lon-lat or x-y */
     double cnrs_ll[8];		/* Corners of a gate, lon-lat */
     double *ll;			/* Element from cnrs_ll */
-    projUV cnrs_uv[4];		/* Corner of a gate, lon-lat or x-y */
+    projUV cnrs_uv[4];		/* Corners of a gate, lon-lat or x-y */
     projUV *uv;			/* Element from cnrs_uv */
     int n;			/* Loop index */
     int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
     double sec;			/* Sweep second */
-    char of[LEN];		/* Output file */
+    char of_nm[LEN];		/* Output file */
+
+#ifdef CAIRO
+    cairo_surface_t *surface;	/* Where to draw */
+    cairo_t *cr;		/* Drawing context */
+    cairo_matrix_t matrix;	/* Set map coordinates to display */
+    double xx, x0, yy, y0;	/* Parameters for cairo transformation matrix */
+#elif defined GD
+    gdImagePtr im;		/* Image for gdlib */
+    FILE *of;			/* gdlib image file */
+    int *iclrs;			/* Indeces for colors */
+    int n_clrs;			/* Number of colors = number of bounds - 1 */
+    double px_per_m;		/* Display units per map unit */
+    gdPoint points[4];		/* Corners of a gate in device coordinates */
+#endif
 
     /* Parse command line */
     if ( argc != 4 ) {
@@ -1671,14 +1701,15 @@ static int img_cb(int argc, char *argv[])
 	Err_Append("Sweep time garbled. ");
 	return 0;
     }
-    if ( snprintf(of, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f.png",
+    if ( snprintf(of_nm, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f.png",
 		vol.ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
 		abbrv, vol.sweep_angle[s] * DEG_PER_RAD) > LEN ) {
 	Err_Append("Could not make image file name. ");
 	return 0;
     }
 
-    /* Initialize cairo */
+    /* Initialize graphics library */
+#ifdef CAIRO
     surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w_dpy, h_dpy);
     cr = cairo_create(surface);
     xx = w_dpy / (rght - left);
@@ -1687,6 +1718,51 @@ static int img_cb(int argc, char *argv[])
     y0 = h_dpy * top / (top - btm);
     cairo_matrix_init(&matrix, xx, 0.0, 0.0, yy, x0, y0);
     cairo_set_matrix(cr, &matrix);
+#elif defined GD
+    im = gdImageCreateTrueColor(w_dpy, h_dpy);
+    n_clrs = n_bnds - 1;
+    if ( !(iclrs = CALLOC(n_clrs, sizeof(int))) ) {
+	Err_Append("Could not allocate gd colors array. ");
+	return 0;
+    }
+
+    /* Find a color not in colors to use as transparent */
+    for (n = 0; n < n_clrs; n++) {
+	iclrs[n]
+	    = (int)(colors[type_t][n].red   * 0xff)
+	    & (int)(colors[type_t][n].green * 0xff) << 8
+	    & (int)(colors[type_t][n].blue  * 0xff) << 16;
+    }
+    qsort(iclrs, n_clrs, sizeof(int), i_cmp);
+    for (n = 0; n < n_clrs - 1; n++) {
+	int txp, r, g, b;	/* The transparent color */
+
+	if ( iclrs[n] + 1 != iclrs[n + 1] ) {
+	    txp = iclrs[n] + 1;
+	    r = txp & 0xff;
+	    g = (txp & 0xff00) >> 8;
+	    b = (txp & 0xff0000) >> 16;
+	    txp = gdImageColorAllocate (im, r, g, b);
+	    gdImageFilledRectangle (im, 0, 0, w_dpy, h_dpy, txp);
+	    gdImageColorTransparent (im, txp);
+	}
+    }
+
+    /* Allocate colors in gd */
+    for (n = 0; n < n_clrs; n++) {
+	iclrs[n] = gdImageColorAllocateAlpha(im,
+		colors[type_t][n].red * 255,
+		colors[type_t][n].green * 255,
+		colors[type_t][n].blue * 255,
+		127 * (1.0 - alpha));
+	if ( iclrs[n] == -1 ) {
+	    Err_Append("Could not set gd colors array. ");
+	    FREE(iclrs);
+	    return 0;
+	}
+    }
+    px_per_m = w_dpy / w_phys;
+#endif
 
     /* Determine which interval from bounds each bin value is in. */
     for (r = 0; r < vol.ih.ic.num_rays; r++) {
@@ -1713,6 +1789,7 @@ static int img_cb(int argc, char *argv[])
 			continue;
 		    }
 
+#ifdef CAIRO
 		    cairo_set_source_rgba(cr,
 			    clrs[n].red, clrs[n].green, clrs[n].blue, alpha);
 		    cairo_move_to(cr, cnrs_uv[0].u, cnrs_uv[0].v);
@@ -1721,19 +1798,41 @@ static int img_cb(int argc, char *argv[])
 		    cairo_line_to(cr, cnrs_uv[3].u, cnrs_uv[3].v);
 		    cairo_close_path(cr);
 		    cairo_fill(cr);
+#elif defined GD
+		    points[0].x = (cnrs_uv[0].u - left) * px_per_m;
+		    points[0].y = (top - cnrs_uv[0].v) * px_per_m;
+		    points[1].x = (cnrs_uv[1].u - left) * px_per_m;
+		    points[1].y = (top - cnrs_uv[1].v) * px_per_m;
+		    points[2].x = (cnrs_uv[2].u - left) * px_per_m;
+		    points[2].y = (top - cnrs_uv[2].v) * px_per_m;
+		    points[3].x = (cnrs_uv[3].u - left) * px_per_m;
+		    points[3].y = (top - cnrs_uv[3].v) * px_per_m;
+		    gdImageFilledPolygon(im, points, 4, iclrs[n]);
+#endif
 		}
 	    }
 	}
     }
 
     /* Make output and clean up */
+#ifdef CAIRO
     cairo_destroy(cr);
-    cairo_surface_write_to_png(surface, of);
+    cairo_surface_write_to_png(surface, of_nm);
     cairo_surface_destroy(surface);
-    fprintf(rslt1, "%s\n", of);
+#elif defined GD
+    if ( (of = fopen(of_nm, "w")) ) {
+	gdImagePng(im, of);
+	fclose(of);
+    } else {
+	Err_Append("Could not open image file ");
+	Err_Append(of_nm);
+    }
+    FREE(iclrs);
+    gdImageDestroy(im);
+#endif
+    fprintf(rslt1, "%s\n", of_nm);
     return 1;
 }
-#endif
 
 static int stop_cb(int argc, char *argv[])
 {
