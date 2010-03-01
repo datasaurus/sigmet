@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.145 $ $Date: 2010/02/26 17:20:27 $
+ .	$Revision: 1.146 $ $Date: 2010/02/26 23:26:30 $
  */
 
 #include <stdlib.h>
@@ -1745,6 +1745,7 @@ static int img_cb(int argc, char *argv[])
 	    txp = gdImageColorAllocate (im, r, g, b);
 	    gdImageFilledRectangle (im, 0, 0, w_dpy, h_dpy, txp);
 	    gdImageColorTransparent (im, txp);
+	    break;
 	}
     }
 
