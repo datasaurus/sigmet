@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.146 $ $Date: 2010/02/26 23:26:30 $
+ .	$Revision: 1.147 $ $Date: 2010/03/01 16:52:53 $
  */
 
 #include <stdlib.h>
@@ -1808,7 +1808,8 @@ static int img_cb(int argc, char *argv[])
 		    points[2].y = (top - cnrs_uv[2].v) * px_per_m;
 		    points[3].x = (cnrs_uv[3].u - left) * px_per_m;
 		    points[3].y = (top - cnrs_uv[3].v) * px_per_m;
-		    gdImageFilledPolygon(im, points, 4, iclrs[n]);
+		    gdImageSetAntiAliased(im, iclrs[n]);
+		    gdImageFilledPolygon(im, points, 4, gdAntiAliased);
 #endif
 		}
 	    }
