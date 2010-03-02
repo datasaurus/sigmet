@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.147 $ $Date: 2010/03/01 16:52:53 $
+ .	$Revision: 1.148 $ $Date: 2010/03/01 17:11:32 $
  */
 
 #include <stdlib.h>
@@ -33,6 +33,7 @@
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "bisearch_lib.h"
+#include "data_types.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
@@ -83,11 +84,6 @@ static char *cmd1;
 
 /* Subcommands */
 #define NCMD 21
-static char *cmd1v[NCMD] = {
-    "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread","read",
-    "release", "volume_headers", "vol_hdr", "ray_headers", "data", "bin_outline",
-    "bounds", "colors", "bintvls", "proj", "img_config", "img", "stop"
-};
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -103,32 +99,23 @@ static callback vol_hdr_cb;
 static callback ray_headers_cb;
 static callback data_cb;
 static callback bin_outline_cb;
-static callback bounds_cb;
-static callback colors_cb;
 static callback bintvls_cb;
 static callback proj_cb;
 static callback img_config_cb;
 static callback img_cb;
 static callback stop_cb;
+static char *cmd1v[NCMD] = {
+    "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread",
+    "read", "release", "volume_headers", "vol_hdr", "ray_headers", "data",
+    "bin_outline", "bounds", "colors", "bintvls",
+    "proj", "img_config", "img", "stop"
+};
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, release_cb, volume_headers_cb, vol_hdr_cb, ray_headers_cb, data_cb,
-    bin_outline_cb, bounds_cb, colors_cb, bintvls_cb, proj_cb, img_config_cb,
-    img_cb, stop_cb
+    bin_outline_cb, DataType_SetBounds_CB, DataType_SetColors_CB, bintvls_cb,
+    proj_cb, img_config_cb, img_cb, stop_cb
 };
-
-/* Arrays of data bounds for Sigmet data types */
-static int n_bounds[SIGMET_NTYPES];
-static double *bounds[SIGMET_NTYPES];
-
-/*
-   Arrays of colors for Sigmet data types.
-   For each data type y, colors[y] must have n_bounds[y]-1 elements.
- */
-struct color {
-    double red, green, blue;
-};
-static struct color *colors[SIGMET_NTYPES];
 
 /* Cartographic projection */
 #ifdef PROJ4
@@ -210,17 +197,19 @@ int main(int argc, char *argv[])
     }
 
     /* Initialize other variables */
-    for (y = 0; y < SIGMET_NTYPES; y++) {
-	n_bounds[y] = 0;
-	bounds[y] = NULL;
-	colors[y] = NULL;
-    }
     img_fmt = SIGMET_PNG;
     w_phys = 100000.0;
     w_dpy = h_dpy = 600;
     if ( !(pj = pj_init(2, dflt_proj)) ) {
 	fprintf(stderr, "Could not set default projection.\n");
 	exit(EXIT_FAILURE);
+    }
+    for (y = 0; y < SIGMET_NTYPES; y++) {
+	if ( !DataType_Add(Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y)) ) {
+	    fprintf(stderr, "Could not register data type %s\n",
+		    Sigmet_DataType_Abbrv(y));
+	    exit(EXIT_FAILURE);
+	}
     }
 
     /* Check for angle unit */
@@ -472,8 +461,7 @@ int main(int argc, char *argv[])
 	Sigmet_FreeVol(&sv_p->vol);
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
-	FREE(bounds[y]);
-	FREE(colors[y]);
+	DataType_Rm(Sigmet_DataType_Abbrv(y));
     }
     FREE(vols);
 
@@ -1258,163 +1246,6 @@ static int bin_outline_cb(int argc, char *argv[])
     return 1;
 }
 
-/* Set bounds for a data type */
-static int bounds_cb(int argc, char *argv[])
-{
-    char *abbrv;		/* Data type abbreviation */
-    enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
-    size_t n_bnds;		/* Number of bounds */
-    char *n_bnds_s;		/* Number of bounds, as given on command line */
-    char *bnds_fl_nm;		/* File with bounds */
-    FILE *bnds_fl = NULL;	/* File with bounds */
-    int n;			/* Index from bounds[type_t] */
-
-    /* Parse command line */
-    if (argc != 4) {
-	Err_Append("Usage: ");
-	Err_Append(cmd1);
-	Err_Append(" type num_bounds bounds_file");
-	return 0;
-    }
-    abbrv = argv[1];
-    n_bnds_s = argv[2];
-    bnds_fl_nm = argv[3];
-    if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
-	Err_Append("No data type named ");
-	Err_Append(abbrv);
-	Err_Append(".  ");
-	return 0;
-    }
-    if (sscanf(n_bnds_s, "%lu", &n_bnds) != 1) {
-	Err_Append("Expected integer for number of bounds, got ");
-	Err_Append(n_bnds_s);
-	Err_Append(". ");
-	return 0;
-    }
-    if ( n_bnds < 2 ) {
-	Err_Append("Must have more than one bound. ");
-	return 0;
-    }
-
-    /*
-       Get bounds for the data type from bnds_fl
-       Format:
-	   bound
-	   bound
-	   ...
-     */
-    if ( !(bnds_fl = fopen(bnds_fl_nm, "r")) ) {
-	Err_Append("Could not open bounds file ");
-	Err_Append(bnds_fl_nm);
-	Err_Append(". ");
-	Err_Append(strerror(errno));
-	Err_Append(". ");
-	return 0;
-    }
-    if ( !(bounds[type_t] = CALLOC(n_bnds, sizeof(double))) ) {
-	Err_Append("Could not allocate bounds array. ");
-	return 0;
-    }
-    n_bounds[type_t] = n_bnds;
-    for (n = 0; n < n_bnds; n++) {
-	if ( fscanf(bnds_fl, "%lf", bounds[type_t] + n) != 1 ) {
-	    Err_Append("Could not read bounds value. ");
-	    goto error;
-	}
-    }
-    if ( fclose(bnds_fl) == EOF ) {
-	Err_Append("Could not close bounds file ");
-	Err_Append(bnds_fl_nm);
-	Err_Append(". ");
-	Err_Append(strerror(errno));
-	goto error;
-    }
-
-    return 1;
-error:
-    FREE(bounds[type_t]);
-    n_bounds[type_t] = 0;
-    bounds[type_t] = NULL;
-    return 0;
-}
-
-/* Set display colors for a data type.  Bounds should have been set */
-static int colors_cb(int argc, char *argv[])
-{
-    char *abbrv;		/* Data type abbreviation */
-    enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
-    int n_clrs;			/* Number of colors = number of bounds - 1 */
-    char *color_fl_nm;		/* File with colors */
-    FILE *color_fl = NULL;	/* File with colors */
-    int n;			/* Index from colors[type_t] */
-
-    /* Parse command line */
-    if (argc != 3) {
-	Err_Append("Usage: ");
-	Err_Append(cmd1);
-	Err_Append(" type colors_file");
-	return 0;
-    }
-    abbrv = argv[1];
-    color_fl_nm = argv[2];
-    if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
-	Err_Append("No data type named ");
-	Err_Append(abbrv);
-	Err_Append(".  ");
-	return 0;
-    }
-    if ( n_bounds[type_t] == 0 ) {
-	Err_Append("Cannot set colors for ");
-	Err_Append(abbrv);
-	Err_Append(" without bounds. ");
-	return 0;
-    }
-    n_clrs = n_bounds[type_t] - 1;
-
-    /*
-       Get colors for the data type from color_fl
-       Format:
-	   color
-	   color
-	   ...
-     */
-    if ( !(color_fl = fopen(color_fl_nm, "r")) ) {
-	Err_Append("Could not open colors file ");
-	Err_Append(color_fl_nm);
-	Err_Append(". ");
-	Err_Append(strerror(errno));
-	Err_Append(". ");
-	return 0;
-    }
-    if ( !(colors[type_t] = CALLOC(n_clrs, sizeof(struct color))) ) {
-	Err_Append("Could not allocate colors array. ");
-	return 0;
-    }
-    for (n = 0; n < n_clrs; n++) {
-	if ( fscanf(color_fl, "%lf %lf %lf",
-		    &colors[type_t][n].red,
-		    &colors[type_t][n].green,
-		    &colors[type_t][n].blue) != 3 ) {
-	    Err_Append(color_fl_nm);
-	    Err_Append(" does not have enough colors. ");
-	    goto error;
-	}
-    }
-    if ( fclose(color_fl) == EOF ) {
-	Err_Append("Could not close colors file ");
-	Err_Append(color_fl_nm);
-	Err_Append(". ");
-	Err_Append(strerror(errno));
-	goto error;
-    }
-
-    return 1;
-error:
-    FREE(colors[type_t]);
-    colors[type_t] = NULL;
-    return 0;
-}
-
 static int bintvls_cb(int argc, char *argv[])
 {
     char *vol_nm;		/* Sigmet raw file */
@@ -1445,13 +1276,12 @@ static int bintvls_cb(int argc, char *argv[])
 	Err_Append(".  ");
 	return 0;
     }
-    if ( (n_bnds = n_bounds[type_t]) == 0 ) {
+    if ( !(bnds = DataType_GetBounds(abbrv, &n_bnds)) ) {
 	Err_Append("Cannot put gates into data intervals for ");
 	Err_Append(abbrv);
 	Err_Append(". Bounds not set");
 	return 0;
     }
-    bnds = bounds[type_t];
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	Err_Append("Sweep index must be an integer.  ");
 	return 0;
@@ -1593,7 +1423,7 @@ static int img_cb(int argc, char *argv[])
     double top;			/* Map coordinate of top */
     double *bnds;		/* bounds[type_t] */
     int n_bnds;			/* n_bounds[type_t] */
-    struct color *clrs;		/* colors[type_t] */
+    struct DataType_Color *clrs; /* colors array */
     double d;			/* Data value */
     projUV radar;		/* Radar location lon-lat or x-y */
     double cnrs_ll[8];		/* Corners of a gate, lon-lat */
@@ -1635,20 +1465,18 @@ static int img_cb(int argc, char *argv[])
 	Err_Append(".  ");
 	return 0;
     }
-    if ( (n_bnds = n_bounds[type_t]) == 0 || !bounds[type_t]) {
+    if ( !(bnds = DataType_GetBounds(abbrv, &n_bnds)) ) {
 	Err_Append("Cannot put gates into data intervals for ");
 	Err_Append(abbrv);
 	Err_Append(". Bounds not set");
 	return 0;
     }
-    bnds = bounds[type_t];
-    if ( !colors[type_t]) {
+    if ( !(clrs = DataType_GetColors(abbrv, &n_clrs)) ) {
 	Err_Append("Cannot put gates into data intervals for ");
 	Err_Append(abbrv);
 	Err_Append(". Colors not set");
 	return 0;
     }
-    clrs = colors[type_t];
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	Err_Append("Sweep index must be an integer.  ");
 	return 0;
@@ -1729,9 +1557,9 @@ static int img_cb(int argc, char *argv[])
     /* Find a color not in colors to use as transparent */
     for (n = 0; n < n_clrs; n++) {
 	iclrs[n]
-	    = (int)(colors[type_t][n].red   * 0xff)
-	    & (int)(colors[type_t][n].green * 0xff) << 8
-	    & (int)(colors[type_t][n].blue  * 0xff) << 16;
+	    = (int)(clrs[n].red   * 0xff)
+	    & (int)(clrs[n].green * 0xff) << 8
+	    & (int)(clrs[n].blue  * 0xff) << 16;
     }
     qsort(iclrs, n_clrs, sizeof(int), i_cmp);
     for (n = 0; n < n_clrs - 1; n++) {
@@ -1752,9 +1580,9 @@ static int img_cb(int argc, char *argv[])
     /* Allocate colors in gd */
     for (n = 0; n < n_clrs; n++) {
 	iclrs[n] = gdImageColorAllocateAlpha(im,
-		colors[type_t][n].red * 255,
-		colors[type_t][n].green * 255,
-		colors[type_t][n].blue * 255,
+		clrs[n].red * 255,
+		clrs[n].green * 255,
+		clrs[n].blue * 255,
 		127 * (1.0 - alpha));
 	if ( iclrs[n] == -1 ) {
 	    Err_Append("Could not set gd colors array. ");
@@ -1846,8 +1674,7 @@ static int stop_cb(int argc, char *argv[])
     }
     FREE(vols);
     for (y = 0; y < SIGMET_NTYPES; y++) {
-	FREE(bounds[y]);
-	FREE(colors[y]);
+	DataType_Rm(Sigmet_DataType_Abbrv(y));
     }
     if ( unlink(SIGMET_RAWD_IN) == -1 ) {
 	fprintf(stderr, "%s: could not delete input pipe.\n", time_stamp());
