@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.148 $ $Date: 2010/03/01 17:11:32 $
+ .	$Revision: 1.149 $ $Date: 2010/03/02 22:29:41 $
  */
 
 #include <stdlib.h>
@@ -28,7 +28,6 @@
 #include <gd.h>
 #endif
 #include "alloc.h"
-#include "str.h"
 #include "err_msg.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
