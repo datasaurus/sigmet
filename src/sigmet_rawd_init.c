@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.149 $ $Date: 2010/03/02 22:29:41 $
+ .	$Revision: 1.150 $ $Date: 2010/03/03 17:51:50 $
  */
 
 #include <stdlib.h>
@@ -887,13 +887,7 @@ static int release_cb(int argc, char *argv[])
     }
     vol_nm = argv[1];
     i = get_vol_i(vol_nm);
-    if ( i == -1 ) {
-	Err_Append(vol_nm);
-	Err_Append(" not loaded or was unloaded due to being truncated."
-		" Please (re)load with read command. ");
-	return 0;
-    }
-    if ( vols[i].users > 0 ) {
+    if ( i >= 0 && vols[i].users > 0 ) {
 	vols[i].users--;
     }
     return 1;
