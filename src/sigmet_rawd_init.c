@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.150 $ $Date: 2010/03/03 17:51:50 $
+ .	$Revision: 1.151 $ $Date: 2010/03/03 19:07:39 $
  */
 
 #include <stdlib.h>
@@ -82,7 +82,7 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 21
+#define NCMD 20
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -106,14 +106,14 @@ static callback stop_cb;
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread",
     "read", "release", "volume_headers", "vol_hdr", "ray_headers", "data",
-    "bin_outline", "bounds", "colors", "bintvls",
-    "proj", "img_config", "img", "stop"
+    "bin_outline", "colors", "bintvls", "proj", "img_config",
+    "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, release_cb, volume_headers_cb, vol_hdr_cb, ray_headers_cb, data_cb,
-    bin_outline_cb, DataType_SetBounds_CB, DataType_SetColors_CB, bintvls_cb,
-    proj_cb, img_config_cb, img_cb, stop_cb
+    bin_outline_cb, DataType_SetColors_CB, bintvls_cb, proj_cb, img_config_cb,
+    img_cb, stop_cb
 };
 
 /* Cartographic projection */
@@ -125,7 +125,7 @@ static projPJ pj;
 /* Configuration for output images */
 enum SIGMET_IMG_FMT {SIGMET_PNG, SIGMET_PS};
 static enum SIGMET_IMG_FMT img_fmt;	/* Image format */
-static double w_phys;		/* Width of physical area displayed in
+static double w_phys;			/* Width of physical area displayed in
 					   output image. Units depend on how
 					   image is made - could be degrees
 					   latitude, meters, kilometers ... */
@@ -1269,7 +1269,7 @@ static int bintvls_cb(int argc, char *argv[])
 	Err_Append(".  ");
 	return 0;
     }
-    if ( !(bnds = DataType_GetBounds(abbrv, &n_bnds)) ) {
+    if ( !DataType_GetColors(abbrv, &n_bnds, NULL, &bnds) ) {
 	Err_Append("Cannot put gates into data intervals for ");
 	Err_Append(abbrv);
 	Err_Append(". Bounds not set");
@@ -1414,9 +1414,10 @@ static int img_cb(int argc, char *argv[])
     double rght;		/* Map coordinate of right side */
     double btm;			/* Map coordinate of bottom */
     double top;			/* Map coordinate of top */
-    double *bnds;		/* bounds[type_t] */
-    int n_bnds;			/* n_bounds[type_t] */
     struct DataType_Color *clrs; /* colors array */
+    int n_clrs;			/* Number of colors = number of bounds - 1 */
+    double *bnds;		/* bounds for each color */
+    int n_bnds;			/* n_bounds */
     double d;			/* Data value */
     projUV radar;		/* Radar location lon-lat or x-y */
     double cnrs_ll[8];		/* Corners of a gate, lon-lat */
@@ -1437,7 +1438,6 @@ static int img_cb(int argc, char *argv[])
     gdImagePtr im;		/* Image for gdlib */
     FILE *of;			/* gdlib image file */
     int *iclrs;			/* Indeces for colors */
-    int n_clrs;			/* Number of colors = number of bounds - 1 */
     double px_per_m;		/* Display units per map unit */
     gdPoint points[4];		/* Corners of a gate in device coordinates */
 #endif
@@ -1458,18 +1458,13 @@ static int img_cb(int argc, char *argv[])
 	Err_Append(".  ");
 	return 0;
     }
-    if ( !(bnds = DataType_GetBounds(abbrv, &n_bnds)) ) {
+    if ( !DataType_GetColors(abbrv, &n_clrs, &clrs, &bnds) ) {
 	Err_Append("Cannot put gates into data intervals for ");
 	Err_Append(abbrv);
-	Err_Append(". Bounds not set");
+	Err_Append(". Colors and bounds not set");
 	return 0;
     }
-    if ( !(clrs = DataType_GetColors(abbrv, &n_clrs)) ) {
-	Err_Append("Cannot put gates into data intervals for ");
-	Err_Append(abbrv);
-	Err_Append(". Colors not set");
-	return 0;
-    }
+    n_bnds = n_clrs + 1;
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	Err_Append("Sweep index must be an integer.  ");
 	return 0;
@@ -1541,7 +1536,6 @@ static int img_cb(int argc, char *argv[])
     cairo_set_matrix(cr, &matrix);
 #elif defined GD
     im = gdImageCreateTrueColor(w_dpy, h_dpy);
-    n_clrs = n_bnds - 1;
     if ( !(iclrs = CALLOC(n_clrs, sizeof(int))) ) {
 	Err_Append("Could not allocate gd colors array. ");
 	return 0;
@@ -1550,9 +1544,9 @@ static int img_cb(int argc, char *argv[])
     /* Find a color not in colors to use as transparent */
     for (n = 0; n < n_clrs; n++) {
 	iclrs[n]
-	    = (int)(clrs[n].red   * 0xff)
-	    & (int)(clrs[n].green * 0xff) << 8
-	    & (int)(clrs[n].blue  * 0xff) << 16;
+	    = (clrs[n].red   * 0xff)
+	    & (clrs[n].green * 0xff) << 8
+	    & (clrs[n].blue  * 0xff) << 16;
     }
     qsort(iclrs, n_clrs, sizeof(int), i_cmp);
     for (n = 0; n < n_clrs - 1; n++) {
@@ -1572,11 +1566,8 @@ static int img_cb(int argc, char *argv[])
 
     /* Allocate colors in gd */
     for (n = 0; n < n_clrs; n++) {
-	iclrs[n] = gdImageColorAllocateAlpha(im,
-		clrs[n].red * 255,
-		clrs[n].green * 255,
-		clrs[n].blue * 255,
-		127 * (1.0 - alpha));
+	iclrs[n] = gdImageColorAllocateAlpha(im, clrs[n].red, clrs[n].green,
+		clrs[n].blue, 127 * (1.0 - alpha));
 	if ( iclrs[n] == -1 ) {
 	    Err_Append("Could not set gd colors array. ");
 	    FREE(iclrs);
@@ -1612,8 +1603,8 @@ static int img_cb(int argc, char *argv[])
 		    }
 
 #ifdef CAIRO
-		    cairo_set_source_rgba(cr,
-			    clrs[n].red, clrs[n].green, clrs[n].blue, alpha);
+		    cairo_set_source_rgba(cr, clrs[n].red / 255.0,
+			    clrs[n].green / 255.0, clrs[n].blue / 255.0, alpha);
 		    cairo_move_to(cr, cnrs_uv[0].u, cnrs_uv[0].v);
 		    cairo_line_to(cr, cnrs_uv[1].u, cnrs_uv[1].v);
 		    cairo_line_to(cr, cnrs_uv[2].u, cnrs_uv[2].v);
