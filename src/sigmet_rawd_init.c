@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.151 $ $Date: 2010/03/03 19:07:39 $
+ .	$Revision: 1.152 $ $Date: 2010/03/09 21:15:44 $
  */
 
 #include <stdlib.h>
@@ -122,12 +122,31 @@ static callback *cb1v[NCMD] = {
 static projPJ pj;
 #endif
 
+/* KML template for positioning result */
+static char kml_tmpl[] = 
+"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+"<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
+"  <GroundOverlay>\n"
+"    <name>%s sweep</name>\n"
+"    <description>"
+"      %s at %02d/%02d/%02d %02d:%02d:%02.0f. Field: %s. %04.1f degrees"
+"    </description>\n"
+"    <Icon>%s</Icon>\n"
+"    <LatLonBox>\n"
+"      <north>%f</north>\n"
+"      <south>%f</south>\n"
+"      <west>%f</west>\n"
+"      <east>%f</east>\n"
+"    </LatLonBox>\n"
+"  </GroundOverlay>\n"
+"</kml>\n";
+
 /* Configuration for output images */
 enum SIGMET_IMG_FMT {SIGMET_PNG, SIGMET_PS};
 static enum SIGMET_IMG_FMT img_fmt;	/* Image format */
-static double w_phys;			/* Width of physical area displayed in
-					   output image. Units depend on how
-					   image is made - could be degrees
+static double w_phys;			/* Width of physical (on the ground) area
+					   displayed in output image. Units depend
+					   on how image is made - could be degrees
 					   latitude, meters, kilometers ... */
 static int w_dpy;			/* Width of image in display units,
 					   pixels, points, cm */
@@ -197,7 +216,7 @@ int main(int argc, char *argv[])
 
     /* Initialize other variables */
     img_fmt = SIGMET_PNG;
-    w_phys = 100000.0;
+    w_phys = 100000.0;		/* 100,000 meters */
     w_dpy = h_dpy = 600;
     if ( !(pj = pj_init(2, dflt_proj)) ) {
 	fprintf(stderr, "Could not set default projection.\n");
@@ -1422,12 +1441,17 @@ static int img_cb(int argc, char *argv[])
     projUV radar;		/* Radar location lon-lat or x-y */
     double cnrs_ll[8];		/* Corners of a gate, lon-lat */
     double *ll;			/* Element from cnrs_ll */
+    double step;		/* Half width or height of display area. */
+    double west, east;		/* Display area longitude limits */
+    double south, north;	/* Display area latitude limits */
     projUV cnrs_uv[4];		/* Corners of a gate, lon-lat or x-y */
     projUV *uv;			/* Element from cnrs_uv */
     int n;			/* Loop index */
     int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
     double sec;			/* Sweep second */
-    char of_nm[LEN];		/* Output file */
+    char img_fl_nm[LEN];	/* Output file */
+    char kml_fl_nm[LEN];	/* Output file */
+    FILE *kml_fl;		/* KML file */
 
 #ifdef CAIRO
     cairo_surface_t *surface;	/* Where to draw */
@@ -1436,7 +1460,7 @@ static int img_cb(int argc, char *argv[])
     double xx, x0, yy, y0;	/* Parameters for cairo transformation matrix */
 #elif defined GD
     gdImagePtr im;		/* Image for gdlib */
-    FILE *of;			/* gdlib image file */
+    FILE *img_fl;		/* gdlib image file */
     int *iclrs;			/* Indeces for colors */
     double px_per_m;		/* Display units per map unit */
     gdPoint points[4];		/* Corners of a gate in device coordinates */
@@ -1499,9 +1523,26 @@ static int img_cb(int argc, char *argv[])
 	return 0;
     }
 
-    /* Define map/display area */
+    /*
+       Longitude, latitude limits of display area.
+       Assume w_phys in meters.
+       Step half of display width. Convert to radians by multiplying by:
+       1 nmi / 1852 meters * 1 deg / 60 nmi * 1 radian / 180 deg
+     */
     radar.u = Sigmet_Bin4Rad(vol.ih.ic.longitude);
     radar.v = Sigmet_Bin4Rad(vol.ih.ic.latitude);
+    step = w_phys / (2 * 1852.0 * 60.0 * 180.0);
+    GeogStep(radar.u, radar.v, 270.0, step, &west, &d);
+    GeogStep(radar.u, radar.v, 90.0, step, &east, &d);
+    step *= h_dpy / w_dpy;
+    GeogStep(radar.u, radar.v, 180.0, step, &d, &south);
+    GeogStep(radar.u, radar.v, 0.0, step, &d, &north);
+    west *= DEG_PER_RAD;
+    east *= DEG_PER_RAD;
+    south *= DEG_PER_RAD;
+    north *= DEG_PER_RAD;
+
+    /* Limits of display area in projection coordinates */
     radar = pj_fwd(radar, pj);
     if ( radar.u == HUGE_VAL || radar.v == HUGE_VAL ) {
 	Err_Append("Could not get map coordinates of radar. ");
@@ -1517,7 +1558,7 @@ static int img_cb(int argc, char *argv[])
 	Err_Append("Sweep time garbled. ");
 	return 0;
     }
-    if ( snprintf(of_nm, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f.png",
+    if ( snprintf(img_fl_nm, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f.png",
 		vol.ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
 		abbrv, vol.sweep_angle[s] * DEG_PER_RAD) > LEN ) {
 	Err_Append("Could not make image file name. ");
@@ -1631,20 +1672,37 @@ static int img_cb(int argc, char *argv[])
     /* Make output and clean up */
 #ifdef CAIRO
     cairo_destroy(cr);
-    cairo_surface_write_to_png(surface, of_nm);
+    cairo_surface_write_to_png(surface, img_fl_nm);
     cairo_surface_destroy(surface);
 #elif defined GD
-    if ( (of = fopen(of_nm, "w")) ) {
-	gdImagePng(im, of);
-	fclose(of);
+    if ( (img_fl = fopen(img_fl_nm, "w")) ) {
+	gdImagePng(im, img_fl);
+	fclose(img_fl);
     } else {
 	Err_Append("Could not open image file ");
-	Err_Append(of_nm);
+	Err_Append(img_fl_nm);
     }
     FREE(iclrs);
     gdImageDestroy(im);
 #endif
-    fprintf(rslt1, "%s\n", of_nm);
+
+    /* Make kml file and return */
+    strcpy(kml_fl_nm, img_fl_nm);
+    strcpy(strstr(kml_fl_nm, ".png"), ".kml");
+    if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
+	Err_Append("Could not open ");
+	Err_Append(kml_fl_nm);
+	Err_Append(" for output. ");
+	return 0;
+    }
+    fprintf(kml_fl, kml_tmpl,
+		vol.ih.ic.hw_site_name, vol.ih.ic.hw_site_name,
+		yr, mo, da, h, mi, sec,
+		abbrv, vol.sweep_angle[s] * DEG_PER_RAD,
+		img_fl_nm,
+		north, south, west, east);
+    fclose(kml_fl);
+    fprintf(rslt1, "%s\n", img_fl_nm);
     return 1;
 }
 
