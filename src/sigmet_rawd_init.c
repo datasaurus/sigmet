@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.153 $ $Date: 2010/03/09 22:42:40 $
+ .	$Revision: 1.154 $ $Date: 2010/03/10 15:01:15 $
  */
 
 #include <stdlib.h>
@@ -1532,11 +1532,11 @@ static int img_cb(int argc, char *argv[])
     radar.u = Sigmet_Bin4Rad(vol.ih.ic.longitude);
     radar.v = Sigmet_Bin4Rad(vol.ih.ic.latitude);
     step = w_phys / (2 * 1852.0 * 60.0 * 180.0);
-    GeogStep(radar.u, radar.v, 270.0, step, &west, &d);
-    GeogStep(radar.u, radar.v, 90.0, step, &east, &d);
+    GeogStep(radar.u, radar.v, 270.0 * RAD_PER_DEG, step, &west, &d);
+    GeogStep(radar.u, radar.v, 90.0 * RAD_PER_DEG, step, &east, &d);
     step *= h_dpy / w_dpy;
-    GeogStep(radar.u, radar.v, 180.0, step, &d, &south);
-    GeogStep(radar.u, radar.v, 0.0, step, &d, &north);
+    GeogStep(radar.u, radar.v, 180.0 * RAD_PER_DEG, step, &d, &south);
+    GeogStep(radar.u, radar.v, 0.0 * RAD_PER_DEG, step, &d, &north);
     west *= DEG_PER_RAD;
     east *= DEG_PER_RAD;
     south *= DEG_PER_RAD;
