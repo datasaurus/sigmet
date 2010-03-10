@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.152 $ $Date: 2010/03/09 21:15:44 $
+ .	$Revision: 1.153 $ $Date: 2010/03/09 22:42:40 $
  */
 
 #include <stdlib.h>
@@ -1576,7 +1576,7 @@ static int img_cb(int argc, char *argv[])
     cairo_matrix_init(&matrix, xx, 0.0, 0.0, yy, x0, y0);
     cairo_set_matrix(cr, &matrix);
 #elif defined GD
-    im = gdImageCreateTrueColor(w_dpy, h_dpy);
+    im = gdImageCreate(w_dpy, h_dpy);
     if ( !(iclrs = CALLOC(n_clrs, sizeof(int))) ) {
 	Err_Append("Could not allocate gd colors array. ");
 	return 0;
