@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.160 $ $Date: 2010/03/11 21:10:56 $
+ .	$Revision: 1.161 $ $Date: 2010/03/11 21:30:34 $
  */
 
 #include <stdlib.h>
@@ -1055,6 +1055,9 @@ static int vol_hdr_cb(int argc, char *argv[])
     int i;
     struct Sigmet_Vol vol;
     int y;
+    double wavlen, prf, vel_ua;
+    enum Sigmet_Multi_PRF mp;
+    char *mp_s;
 
     if ( argc != 2 ) {
 	Err_Append("Usage: ");
@@ -1072,9 +1075,9 @@ static int vol_hdr_cb(int argc, char *argv[])
     }
     vol = vols[i].vol;
     fprintf(rslt1, "site_name=\"%s\"\n", vol.ih.ic.su_site_name);
-    fprintf(rslt1, "radar_lon=%lf\n",
+    fprintf(rslt1, "radar_lon=%.4lf\n",
 	   GeogLonR(Sigmet_Bin4Rad(vol.ih.ic.longitude), 0.0) * DEG_PER_RAD);
-    fprintf(rslt1, "radar_lat=%lf\n",
+    fprintf(rslt1, "radar_lat=%.4lf\n",
 	    Sigmet_Bin4Rad(vol.ih.ic.latitude) * DEG_PER_RAD);
     fprintf(rslt1, "task_name=\"%s\"\n", vol.ph.pc.task_name);
     fprintf(rslt1, "types=\"");
@@ -1088,6 +1091,30 @@ static int vol_hdr_cb(int argc, char *argv[])
     fprintf(rslt1, "num_bins=%d\n", vol.ih.tc.tri.num_bins_out);
     fprintf(rslt1, "range_bin0=%d\n", vol.ih.tc.tri.rng_1st_bin);
     fprintf(rslt1, "bin_step=%d\n", vol.ih.tc.tri.step_out);
+    wavlen = 0.01 * 0.01 * vol.ih.tc.tmi.wave_len; 	/* convert -> cm > m */
+    prf = vol.ih.tc.tdi.prf;
+    mp = vol.ih.tc.tdi.m_prf_mode;
+    switch (mp) {
+	case ONE_ONE:
+	    mp_s = "1:1";
+	    vel_ua = 0.25 * wavlen * prf;
+	    break;
+	case TWO_THREE:
+	    mp_s = "2:3";
+	    vel_ua = 2 * 0.25 * wavlen * prf;
+	    break;
+	case THREE_FOUR:
+	    mp_s = "3:4";
+	    vel_ua = 3 * 0.25 * wavlen * prf;
+	    break;
+	case FOUR_FIVE:
+	    mp_s = "4:5";
+	    vel_ua = 3 * 0.25 * wavlen * prf;
+	    break;
+    }
+    fprintf(rslt1, "prf=%.2lf\n", prf);
+    fprintf(rslt1, "prf_mode=%s\n", mp_s);
+    fprintf(rslt1, "vel_ua=%.3lf\n", vel_ua);
     return 1;
 }
 
