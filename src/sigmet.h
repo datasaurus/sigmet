@@ -8,13 +8,15 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.23 $ $Date: 2010/01/14 20:06:18 $
+   .	$Revision: 1.24 $ $Date: 2010/01/14 20:16:46 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
 
 #ifndef SIGMET_H_
 #define SIGMET_H_
+
+#define SIGMET_VSN "1.0"
 
 #include <float.h>
 #include <stdio.h>
