@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.162 $ $Date: 2010/03/11 21:55:43 $
+ .	$Revision: 1.163 $ $Date: 2010/03/11 22:14:57 $
  */
 
 #include <stdlib.h>
@@ -85,7 +85,7 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 22
+#define NCMD 23
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -100,6 +100,7 @@ static callback release_cb;
 static callback unload_cb;
 static callback volume_headers_cb;
 static callback vol_hdr_cb;
+static callback near_sweep_cb;
 static callback ray_headers_cb;
 static callback data_cb;
 static callback bin_outline_cb;
@@ -111,14 +112,14 @@ static callback stop_cb;
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread",
     "read", "list", "release", "unload", "volume_headers", "vol_hdr",
-    "ray_headers", "data", "bin_outline", "colors", "bintvls",
-    "proj", "img_config", "img", "stop"
+    "near_sweep", "ray_headers", "data", "bin_outline", "colors",
+    "bintvls", "proj", "img_config", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, volume_headers_cb, vol_hdr_cb,
-    ray_headers_cb, data_cb, bin_outline_cb, DataType_SetColors_CB, bintvls_cb,
-    proj_cb, img_config_cb, img_cb, stop_cb
+    near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb, DataType_SetColors_CB,
+    bintvls_cb, proj_cb, img_config_cb, img_cb, stop_cb
 };
 
 /* Cartographic projection */
@@ -1120,6 +1121,54 @@ static int vol_hdr_cb(int argc, char *argv[])
     fprintf(rslt1, "prf=%.2lf\n", prf);
     fprintf(rslt1, "prf_mode=%s\n", mp_s);
     fprintf(rslt1, "vel_ua=%.3lf\n", vel_ua);
+    return 1;
+}
+
+static int near_sweep_cb(int argc, char *argv[])
+{
+    char *ang_s;	/* Sweep angle, degrees, as given on command line */
+    double ang, da;
+    char *vol_nm;
+    int i;
+    struct Sigmet_Vol vol;
+    int s, nrst;
+
+    if ( argc != 3 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" angle sigmet_volume");
+	return 0;
+    }
+    ang_s = argv[1];
+    vol_nm = argv[2];
+    if ( sscanf(ang_s, "%lf", &ang) != 1 ) {
+	Err_Append("Expected floating point value for sweep angle, got ");
+	Err_Append(ang_s);
+	Err_Append(". ");
+	return 0;
+    }
+    ang *= RAD_PER_DEG;
+    i = get_vol_i(vol_nm, NULL);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	return 0;
+    }
+    vol = vols[i].vol;
+    if ( !vol.sweep_angle ) {
+	Err_Append("Sweep angles not loaded for ");
+	Err_Append(vol_nm);
+	Err_Append(". Please load the entire volume");
+	return 0;
+    }
+    for (da = DBL_MAX, s = 0; s < vol.ih.tc.tni.num_sweeps; s++) {
+	if ( fabs(vol.sweep_angle[s] - ang) < da ) {
+	    da = fabs(vol.sweep_angle[s] - ang);
+	    nrst = s;
+	}
+    }
+    fprintf(rslt1, "%d\n", nrst);
     return 1;
 }
 
