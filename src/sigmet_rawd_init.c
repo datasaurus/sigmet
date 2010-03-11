@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.158 $ $Date: 2010/03/11 19:48:29 $
+ .	$Revision: 1.159 $ $Date: 2010/03/11 20:37:14 $
  */
 
 #include <stdlib.h>
@@ -52,6 +52,7 @@ static int use_deg = 0;
 struct sig_vol {
     int v;			/* If true, this struct contains a volume */
     struct Sigmet_Vol vol;	/* Sigmet volume */
+    char vol_nm[LEN];		/* A link to the file that provided the volume */
     dev_t st_dev;		/* Device that provided vol */
     ino_t st_ino;		/* I-number of file that provided vol */
     int users;			/* Number of client sessions using vol */
@@ -84,7 +85,7 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 20
+#define NCMD 21
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -94,6 +95,7 @@ static callback types_cb;
 static callback good_cb;
 static callback hread_cb;
 static callback read_cb;
+static callback list_cb;
 static callback release_cb;
 static callback volume_headers_cb;
 static callback vol_hdr_cb;
@@ -107,15 +109,15 @@ static callback img_cb;
 static callback stop_cb;
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread",
-    "read", "release", "volume_headers", "vol_hdr", "ray_headers", "data",
-    "bin_outline", "colors", "bintvls", "proj", "img_config",
-    "img", "stop"
+    "read", "list", "release", "volume_headers", "vol_hdr", "ray_headers",
+    "data", "bin_outline", "colors", "bintvls", "proj",
+    "img_config", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
-    read_cb, release_cb, volume_headers_cb, vol_hdr_cb, ray_headers_cb, data_cb,
-    bin_outline_cb, DataType_SetColors_CB, bintvls_cb, proj_cb, img_config_cb,
-    img_cb, stop_cb
+    read_cb, list_cb, release_cb, volume_headers_cb, vol_hdr_cb, ray_headers_cb,
+    data_cb, bin_outline_cb, DataType_SetColors_CB, bintvls_cb, proj_cb,
+    img_config_cb, img_cb, stop_cb
 };
 
 /* Cartographic projection */
@@ -775,7 +777,7 @@ static int hread_cb(int argc, char *argv[])
     if ( i == -1 ) {
 	/* Volume is not loaded. Try to find a slot in which to load it. */
 	for (i = 0; i < n_vols; i++) {
-	    if ( vols[i].users <= 0 ) {
+	    if ( vols[i].v == 0 || vols[i].users <= 0 ) {
 		Sigmet_FreeVol(&vols[i].vol);
 		vols[i].v = 0;
 		vols[i].st_dev = 0;
@@ -828,6 +830,7 @@ static int hread_cb(int argc, char *argv[])
 	kill(pid, SIGKILL);
     }
     vols[i].v = 1;
+    strncpy(vols[i].vol_nm, vol_nm, LEN);
     vols[i].st_dev = sbuf.st_dev;
     vols[i].st_ino = sbuf.st_ino;
     vols[i].users++;
@@ -857,7 +860,7 @@ static int read_cb(int argc, char *argv[])
     if ( i == -1 ) {
 	/* Volume is not loaded. Try to find a slot in which to load it. */
 	for (i = 0; i < n_vols; i++) {
-	    if ( vols[i].users <= 0 ) {
+	    if ( vols[i].v == 0 || vols[i].users <= 0 ) {
 		Sigmet_FreeVol(&vols[i].vol);
 		vols[i].v = 0;
 		vols[i].st_dev = 0;
@@ -915,11 +918,26 @@ static int read_cb(int argc, char *argv[])
 	kill(pid, SIGKILL);
     }
     vols[i].v = 1;
+    strncpy(vols[i].vol_nm, vol_nm, LEN);
     vols[i].st_dev = sbuf.st_dev;
     vols[i].st_ino = sbuf.st_ino;
     vols[i].users++;
     fprintf(rslt1, "%s loaded%s.\n",
 	    vol_nm, vols[i].vol.truncated ? " (truncated)" : "");
+    return 1;
+}
+
+static int list_cb(int argc, char *argv[])
+{
+    int i;
+
+    for (i = 0; i < n_vols; i++) {
+	if ( vols[i].v != 0 ) {
+	    fprintf(rslt1, "%s users=%d %s\n",
+		    vols[i].vol_nm, vols[i].users,
+		    vols[i].vol.truncated ? " truncated" : "complete");
+	}
+    }
     return 1;
 }
 
