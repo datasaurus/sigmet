@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.155 $ $Date: 2010/03/10 22:52:13 $
+ .	$Revision: 1.156 $ $Date: 2010/03/11 15:07:13 $
  */
 
 #include <stdlib.h>
@@ -142,8 +142,6 @@ static char kml_tmpl[] =
 "</kml>\n";
 
 /* Configuration for output images */
-enum SIGMET_IMG_FMT {SIGMET_PNG, SIGMET_PS};
-static enum SIGMET_IMG_FMT img_fmt;	/* Image format */
 static double w_phys;			/* Width of physical (on the ground) area
 					   displayed in output image in meters. */
 static int w_dpy;			/* Width of image in display units,
@@ -213,7 +211,6 @@ int main(int argc, char *argv[])
     }
 
     /* Initialize other variables */
-    img_fmt = SIGMET_PNG;
     w_phys = 100000.0;		/* 100,000 meters */
     w_dpy = h_dpy = 600;
     if ( !(pj = pj_init(2, dflt_proj)) ) {
@@ -1359,27 +1356,16 @@ static int proj_cb(int argc, char *argv[])
 /* Specify image configuration */
 static int img_config_cb(int argc, char *argv[])
 {
-    char *img_fmt_s, *w_phys_s, *w_dpy_s, *h_dpy_s, *alpha_s;
+    char *w_phys_s, *w_dpy_s, *h_dpy_s, *alpha_s;
 
-    if ( argc != 6 ) {
-	Err_Append("Usage: img_config format width_phys "
-		"width_dpy height_dpy alpha");
+    if ( argc != 5 ) {
+	Err_Append("Usage: img_config width_phys width_dpy height_dpy alpha");
 	return 0;
     }
-    img_fmt_s = argv[1];
-    w_phys_s = argv[2];
-    w_dpy_s = argv[3];
-    h_dpy_s = argv[4];
-    alpha_s = argv[5];
-    if (strcmp(img_fmt_s, "png") == 0) {
-	img_fmt = SIGMET_PNG;
-    } else if (strcmp(img_fmt_s, "ps") == 0) {
-	img_fmt = SIGMET_PS;
-    } else {
-	Err_Append("Unknown image format: ");
-	Err_Append(img_fmt_s);
-	return 0;
-    }
+    w_phys_s = argv[1];
+    w_dpy_s = argv[2];
+    h_dpy_s = argv[3];
+    alpha_s = argv[4];
     if ( sscanf(w_phys_s, "%lf", &w_phys) != 1 ) {
 	Err_Append("Expected float value for physical width, got ");
 	Err_Append(w_phys_s);
