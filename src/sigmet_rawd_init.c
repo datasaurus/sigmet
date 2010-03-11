@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.154 $ $Date: 2010/03/10 15:01:15 $
+ .	$Revision: 1.155 $ $Date: 2010/03/10 22:52:13 $
  */
 
 #include <stdlib.h>
@@ -145,9 +145,7 @@ static char kml_tmpl[] =
 enum SIGMET_IMG_FMT {SIGMET_PNG, SIGMET_PS};
 static enum SIGMET_IMG_FMT img_fmt;	/* Image format */
 static double w_phys;			/* Width of physical (on the ground) area
-					   displayed in output image. Units depend
-					   on how image is made - could be degrees
-					   latitude, meters, kilometers ... */
+					   displayed in output image in meters. */
 static int w_dpy;			/* Width of image in display units,
 					   pixels, points, cm */
 static int h_dpy;			/* Height of image in display units,
@@ -1536,7 +1534,7 @@ static int img_cb(int argc, char *argv[])
     GeogStep(radar.u, radar.v, 90.0 * RAD_PER_DEG, step, &east, &d);
     step *= h_dpy / w_dpy;
     GeogStep(radar.u, radar.v, 180.0 * RAD_PER_DEG, step, &d, &south);
-    GeogStep(radar.u, radar.v, 0.0 * RAD_PER_DEG, step, &d, &north);
+    GeogStep(radar.u, radar.v, 0.0, step, &d, &north);
     west *= DEG_PER_RAD;
     east *= DEG_PER_RAD;
     south *= DEG_PER_RAD;
