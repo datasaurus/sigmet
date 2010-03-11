@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.16 $ $Date: 2010/02/15 21:39:00 $
+ .	$Revision: 1.17 $ $Date: 2010/02/15 21:45:05 $
  */
 
 #include <stdlib.h>
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 	}
     }
     if ( b == b1 ) {
-	fprintf(stderr, "%s: command line to big (%ld characters max)\n",
+	fprintf(stderr, "%s: command line too big (%ld characters max)\n",
 		cmd, buf_l - sizeof(int) - 1);
 	exit(EXIT_FAILURE);
     }
