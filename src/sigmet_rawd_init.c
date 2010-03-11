@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.161 $ $Date: 2010/03/11 21:30:34 $
+ .	$Revision: 1.162 $ $Date: 2010/03/11 21:55:43 $
  */
 
 #include <stdlib.h>
@@ -182,6 +182,9 @@ int main(int argc, char *argv[])
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" };
 				/* Defalut projection */
 
+    printf("%s --\nVersion %s. Copyright (c) 2010 Gordon D. Carrie. "
+	    "All rights reserved.\n", cmd, SIGMET_VSN);
+
     /* Set up signal handling */
     if ( !handle_signals() ) {
 	fprintf(stderr, "Could not set up signal management.");
@@ -261,11 +264,13 @@ int main(int argc, char *argv[])
 
     tmout = 20;
     dchk = new_dchk();
-    fprintf(stderr, "Clients that block daemon for more than %d seconds will "
-	    "be killed.\n", tmout);
+    printf("Daemon starting. Process id = %d\nClients that block daemon "
+	    "for more than %d seconds will be killed.\n", getpid(), tmout);
     if (tmoadj && verbose) {
 	printf("Will assess timeout after %d iterations\n", dchk );
     }
+
+    fflush(stdout);
 
     /* Open command input stream. */
     if ( (i_cmd0 = open(SIGMET_RAWD_IN, O_RDONLY)) == -1 ) {
