@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.156 $ $Date: 2010/03/11 15:07:13 $
+ .	$Revision: 1.157 $ $Date: 2010/03/11 16:04:30 $
  */
 
 #include <stdlib.h>
@@ -445,10 +445,8 @@ int main(int argc, char *argv[])
 		    }
 		    if ( dtx < tmout / 2 ) {
 			tmout = tmout / 2 + 1;
-			if (verbose) {
 			    printf("%s: Setting timeout to %u sec.\n",
 				    time_stamp(), tmout);
-			}
 		    }
 		    dchk = new_dchk();
 		    if (verbose) {
