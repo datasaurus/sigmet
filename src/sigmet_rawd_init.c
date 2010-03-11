@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.159 $ $Date: 2010/03/11 20:37:14 $
+ .	$Revision: 1.160 $ $Date: 2010/03/11 21:10:56 $
  */
 
 #include <stdlib.h>
@@ -85,7 +85,7 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 21
+#define NCMD 22
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -97,6 +97,7 @@ static callback hread_cb;
 static callback read_cb;
 static callback list_cb;
 static callback release_cb;
+static callback unload_cb;
 static callback volume_headers_cb;
 static callback vol_hdr_cb;
 static callback ray_headers_cb;
@@ -109,15 +110,15 @@ static callback img_cb;
 static callback stop_cb;
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread",
-    "read", "list", "release", "volume_headers", "vol_hdr", "ray_headers",
-    "data", "bin_outline", "colors", "bintvls", "proj",
-    "img_config", "img", "stop"
+    "read", "list", "release", "unload", "volume_headers", "vol_hdr",
+    "ray_headers", "data", "bin_outline", "colors", "bintvls",
+    "proj", "img_config", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
-    read_cb, list_cb, release_cb, volume_headers_cb, vol_hdr_cb, ray_headers_cb,
-    data_cb, bin_outline_cb, DataType_SetColors_CB, bintvls_cb, proj_cb,
-    img_config_cb, img_cb, stop_cb
+    read_cb, list_cb, release_cb, unload_cb, volume_headers_cb, vol_hdr_cb,
+    ray_headers_cb, data_cb, bin_outline_cb, DataType_SetColors_CB, bintvls_cb,
+    proj_cb, img_config_cb, img_cb, stop_cb
 };
 
 /* Cartographic projection */
@@ -988,6 +989,39 @@ static int release_cb(int argc, char *argv[])
     i = get_vol_i(vol_nm, NULL);
     if ( i >= 0 && vols[i].users > 0 ) {
 	vols[i].users--;
+    }
+    return 1;
+}
+
+/*
+   Remove a volume and its entry. Noisily return error if volume in use. Quietly
+   do nothing if volume does not exist.
+ */
+static int unload_cb(int argc, char *argv[])
+{
+    char *vol_nm;
+    int i;
+
+    if ( argc != 2 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" sigmet_volume");
+	return 0;
+    }
+    vol_nm = argv[1];
+    i = get_vol_i(vol_nm, NULL);
+    if ( i >= 0 ) {
+	if ( vols[i].users <= 0 ) {
+	    Sigmet_FreeVol(&vols[i].vol);
+	    vols[i].v = 0;
+	    vols[i].st_dev = 0;
+	    vols[i].st_ino = 0;
+	    vols[i].users = 0;
+	} else {
+	    Err_Append(vol_nm);
+	    Err_Append(" in use.");
+	    return 0;
+	}
     }
     return 1;
 }
