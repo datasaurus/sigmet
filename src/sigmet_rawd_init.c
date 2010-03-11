@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.157 $ $Date: 2010/03/11 16:04:30 $
+ .	$Revision: 1.158 $ $Date: 2010/03/11 19:48:29 $
  */
 
 #include <stdlib.h>
@@ -58,7 +58,9 @@ struct sig_vol {
 };
 static struct sig_vol *vols;	/* Available volumes */
 static size_t n_vols = 12;	/* Number of volumes can be stored at vols */
-static int get_vol_i(char *);	/* Find member of vols given file name */
+
+/* Find member of vols given a file * name */
+static int get_vol_i(char *, struct stat *);
 
 /* Process streams and files */
 static int i_cmd0;		/* Where to get commands */
@@ -754,6 +756,83 @@ static int good_cb(int argc, char *argv[])
 
 static int hread_cb(int argc, char *argv[])
 {
+    struct stat sbuf;		/* Information about file to read */
+    int i;			/* Index into vols */
+    char *vol_nm;		/* Sigmet raw file */
+    FILE *in;			/* Stream from Sigmet raw file */
+    pid_t pid;			/* Decompressing child */
+
+    if ( argc == 2 ) {
+	vol_nm = argv[1];
+    } else {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" sigmet_volume");
+	return 0;
+    }
+
+    i = get_vol_i(vol_nm, &sbuf);
+    if ( i == -1 ) {
+	/* Volume is not loaded. Try to find a slot in which to load it. */
+	for (i = 0; i < n_vols; i++) {
+	    if ( vols[i].users <= 0 ) {
+		Sigmet_FreeVol(&vols[i].vol);
+		vols[i].v = 0;
+		vols[i].st_dev = 0;
+		vols[i].st_ino = 0;
+		vols[i].users = 0;
+		break;
+	    }
+	}
+	if ( i == n_vols ) {
+	    Err_Append("Could not find a slot while attempting to (re)load ");
+	    Err_Append(vol_nm);
+	    Err_Append(". ");
+	    return 0;
+	}
+    } else {
+	/* Volume is loaded and complete. Increment user count return. */
+	vols[i].users++;
+	fprintf(rslt1, "%s loaded%s.\n",
+		vol_nm, vols[i].vol.truncated ? " (truncated)" : "");
+	return 1;
+    }
+
+    /* Read headers */
+    pid = -1;
+    if ( !(in = vol_open(vol_nm, &pid)) ) {
+	Err_Append("Could not open ");
+	Err_Append(vol_nm);
+	Err_Append(" for input. ");
+	return 0;
+    }
+    /* Read volume */
+    if ( !Sigmet_ReadHdr(in, &vols[i].vol) ) {
+	Err_Append("Could not read volume from ");
+	Err_Append(vol_nm);
+	Err_Append(".\n");
+	fclose(in);
+	if (pid != -1) {
+	    kill(pid, SIGKILL);
+	}
+
+	/* Volume is broken. Deny it to clients. */
+	vols[i].v = 0;
+	vols[i].st_dev = 0;
+	vols[i].st_ino = 0;
+	vols[i].users = 0;
+	return 0;
+    }
+    fclose(in);
+    if (pid != -1) {
+	kill(pid, SIGKILL);
+    }
+    vols[i].v = 1;
+    vols[i].st_dev = sbuf.st_dev;
+    vols[i].st_ino = sbuf.st_ino;
+    vols[i].users++;
+    fprintf(rslt1, "%s loaded%s.\n",
+	    vol_nm, vols[i].vol.truncated ? " (truncated)" : "");
     return 1;
 }
 
@@ -774,22 +853,8 @@ static int read_cb(int argc, char *argv[])
 	return 0;
     }
 
-    /* Check if volume from this file already loaded */
-    if ( stat(vol_nm, &sbuf) == -1 ) {
-	Err_Append("Could not get information about volume file ");
-	Err_Append(vol_nm);
-	Err_Append("\n");
-	Err_Append(strerror(errno));
-	return 0;
-    }
-    for (i = 0; i < n_vols; i++) {
-	if ( vols[i].v
-		&& vols[i].st_dev == sbuf.st_dev
-		&& vols[i].st_ino == sbuf.st_ino) {
-	    break;
-	}
-    }
-    if ( i == n_vols ) {
+    i = get_vol_i(vol_nm, &sbuf);
+    if ( i == -1 ) {
 	/* Volume is not loaded. Try to find a slot in which to load it. */
 	for (i = 0; i < n_vols; i++) {
 	    if ( vols[i].users <= 0 ) {
@@ -861,10 +926,10 @@ static int read_cb(int argc, char *argv[])
 /*
    This function returns the index from vols of the volume obtained
    from Sigmet raw product file vol_nm, or -1 is the volume is not
-   loaded. Note: this function will return a non-negative offset to
-   a loaded truncated volume.
+   loaded. In any case, copy stat struct for vol_nm to sbuf_p.  Note: this
+   function will return a non-negative offset to a loaded truncated volume.
  */
-static int get_vol_i(char *vol_nm)
+static int get_vol_i(char *vol_nm, struct stat *sbuf_p)
 {
     struct stat sbuf;		/* Information about file to read */
     int i;			/* Index into vols */
@@ -875,6 +940,10 @@ static int get_vol_i(char *vol_nm)
 	Err_Append("\n");
 	Err_Append(strerror(errno));
 	return 0;
+    }
+    if ( sbuf_p ) {
+	sbuf_p->st_dev = sbuf.st_dev;
+	sbuf_p->st_ino = sbuf.st_ino;
     }
     for (i = 0; i < n_vols; i++) {
 	if ( vols[i].v
@@ -898,7 +967,7 @@ static int release_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[1];
-    i = get_vol_i(vol_nm);
+    i = get_vol_i(vol_nm, NULL);
     if ( i >= 0 && vols[i].users > 0 ) {
 	vols[i].users--;
     }
@@ -917,7 +986,7 @@ static int volume_headers_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[1];
-    i = get_vol_i(vol_nm);
+    i = get_vol_i(vol_nm, NULL);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -942,7 +1011,7 @@ static int vol_hdr_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[1];
-    i = get_vol_i(vol_nm);
+    i = get_vol_i(vol_nm, NULL);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -984,7 +1053,7 @@ static int ray_headers_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[1];
-    i = get_vol_i(vol_nm);
+    i = get_vol_i(vol_nm, NULL);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -1069,7 +1138,7 @@ static int data_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[argc - 1];
-    i = get_vol_i(vol_nm);
+    i = get_vol_i(vol_nm, NULL);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -1291,7 +1360,7 @@ static int bintvls_cb(int argc, char *argv[])
 	Err_Append("Sweep index must be an integer.  ");
 	return 0;
     }
-    i = get_vol_i(vol_nm);
+    i = get_vol_i(vol_nm, NULL);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -1475,7 +1544,7 @@ static int img_cb(int argc, char *argv[])
 	Err_Append("Sweep index must be an integer.  ");
 	return 0;
     }
-    i = get_vol_i(vol_nm);
+    i = get_vol_i(vol_nm, NULL);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
