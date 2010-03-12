@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.163 $ $Date: 2010/03/11 22:14:57 $
+ .	$Revision: 1.164 $ $Date: 2010/03/11 22:46:05 $
  */
 
 #include <stdlib.h>
@@ -85,7 +85,7 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 23
+#define NCMD 24
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -98,6 +98,7 @@ static callback read_cb;
 static callback list_cb;
 static callback release_cb;
 static callback unload_cb;
+static callback flush_cb;
 static callback volume_headers_cb;
 static callback vol_hdr_cb;
 static callback near_sweep_cb;
@@ -111,15 +112,15 @@ static callback img_cb;
 static callback stop_cb;
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread",
-    "read", "list", "release", "unload", "volume_headers", "vol_hdr",
-    "near_sweep", "ray_headers", "data", "bin_outline", "colors",
-    "bintvls", "proj", "img_config", "img", "stop"
+    "read", "list", "release", "unload", "flush", "volume_headers",
+    "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
+    "colors", "bintvls", "proj", "img_config", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
-    read_cb, list_cb, release_cb, unload_cb, volume_headers_cb, vol_hdr_cb,
-    near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb, DataType_SetColors_CB,
-    bintvls_cb, proj_cb, img_config_cb, img_cb, stop_cb
+    read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
+    vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
+    DataType_SetColors_CB, bintvls_cb, proj_cb, img_config_cb, img_cb, stop_cb
 };
 
 /* Cartographic projection */
@@ -1028,6 +1029,26 @@ static int unload_cb(int argc, char *argv[])
 	    Err_Append(" in use.");
 	    return 0;
 	}
+    }
+    return 1;
+}
+
+/* Remove all volumes, whether in use or not */
+static int flush_cb(int argc, char *argv[])
+{
+    int i;
+
+    if ( argc != 1 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	return 0;
+    }
+    for (i = 0; i < n_vols; i++) {
+	Sigmet_FreeVol(&vols[i].vol);
+	vols[i].v = 0;
+	vols[i].st_dev = 0;
+	vols[i].st_ino = 0;
+	vols[i].users = 0;
     }
     return 1;
 }
