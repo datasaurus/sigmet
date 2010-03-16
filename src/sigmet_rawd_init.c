@@ -9,10 +9,11 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.164 $ $Date: 2010/03/11 22:46:05 $
+ .	$Revision: 1.165 $ $Date: 2010/03/12 19:17:33 $
  */
 
 #include <stdlib.h>
+#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
@@ -50,18 +51,21 @@ static int use_deg = 0;
 
 /* Sigmet volumes */
 struct sig_vol {
-    int v;			/* If true, this struct contains a volume */
+    int oqpd;			/* Occupied. True => struct contains a volume */
     struct Sigmet_Vol vol;	/* Sigmet volume */
     char vol_nm[LEN];		/* A link to the file that provided the volume */
     dev_t st_dev;		/* Device that provided vol */
     ino_t st_ino;		/* I-number of file that provided vol */
     int users;			/* Number of client sessions using vol */
 };
-static struct sig_vol *vols;	/* Available volumes */
-static size_t n_vols = 12;	/* Number of volumes can be stored at vols */
+
+#define N_VOLS 256
+static struct sig_vol vols[N_VOLS];	/* Available volumes */
 
 /* Find member of vols given a file * name */
-static int get_vol_i(char *, struct stat *);
+static int hash(char *, struct stat *);
+static int get_vol_i(char *);
+static int new_vol_i(char *, struct stat *);
 
 /* Process streams and files */
 static int i_cmd0;		/* Where to get commands */
@@ -194,30 +198,18 @@ int main(int argc, char *argv[])
     }
 
     /* Usage: sigmet_rawd [-n integer] */
-    if ( argc == 3 ) {
-	if (strcmp(argv[1], "-n") == 0) {
-	} else {
-	    fprintf(stderr, "Unknown option \"%s\"\n", argv[1]);
-	    exit(EXIT_FAILURE);
-	}
-	if ( sscanf(argv[2], "%lu", &n_vols) != 1 ) {
-	    fprintf(stderr, "Expected integer for volume count, got %s\n",
-		    argv[2]);
-	    exit(EXIT_FAILURE);
-	}
-    }
-
-    /* Create vols array */
-    if ( !(vols = CALLOC(n_vols, sizeof(struct sig_vol))) ) {
-	fprintf(stderr, "Could not allocate storage for volumes.\n");
+    if ( argc != 1 ) {
+	fprintf(stderr, "Usage: %s\n", cmd);
 	exit(EXIT_FAILURE);
     }
-    for (sv_p = vols; sv_p < vols + n_vols; sv_p++) {
-	sv_p->v = 0;
+
+    /* Initialize vols array */
+    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
+	sv_p->oqpd = 0;
 	Sigmet_InitVol(&sv_p->vol);
+	sv_p->users = 0;
 	sv_p->st_dev = 0;
 	sv_p->st_ino = 0;
-	sv_p->users = 0;
     }
 
     /* Initialize other variables */
@@ -480,13 +472,12 @@ int main(int argc, char *argv[])
     if ( unlink(SIGMET_RAWD_IN) == -1 ) {
 	fprintf(stderr, "%s: could not delete input pipe.\n", time_stamp());
     }
-    for (sv_p = vols; sv_p < vols + n_vols; sv_p++) {
+    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
 	Sigmet_FreeVol(&sv_p->vol);
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	DataType_Rm(Sigmet_DataType_Abbrv(y));
     }
-    FREE(vols);
 
     return 0;
 }
@@ -766,8 +757,8 @@ static int good_cb(int argc, char *argv[])
 
 static int hread_cb(int argc, char *argv[])
 {
-    struct stat sbuf;		/* Information about file to read */
     int i;			/* Index into vols */
+    struct stat sbuf;   	/* Information about file to read */
     char *vol_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t pid;			/* Decompressing child */
@@ -781,31 +772,20 @@ static int hread_cb(int argc, char *argv[])
 	return 0;
     }
 
-    i = get_vol_i(vol_nm, &sbuf);
-    if ( i == -1 ) {
-	/* Volume is not loaded. Try to find a slot in which to load it. */
-	for (i = 0; i < n_vols; i++) {
-	    if ( vols[i].v == 0 || vols[i].users <= 0 ) {
-		Sigmet_FreeVol(&vols[i].vol);
-		vols[i].v = 0;
-		vols[i].st_dev = 0;
-		vols[i].st_ino = 0;
-		vols[i].users = 0;
-		break;
-	    }
-	}
-	if ( i == n_vols ) {
-	    Err_Append("Could not find a slot while attempting to (re)load ");
-	    Err_Append(vol_nm);
-	    Err_Append(". ");
-	    return 0;
-	}
-    } else {
-	/* Volume is loaded and complete. Increment user count return. */
+    /* If volume is already loaded, increment user count return. */
+    if ( (i = get_vol_i(vol_nm)) >= 0 ) {
 	vols[i].users++;
 	fprintf(rslt1, "%s loaded%s.\n",
 		vol_nm, vols[i].vol.truncated ? " (truncated)" : "");
 	return 1;
+    }
+
+    /* Volume is not loaded. Try to find a slot in which to load it. */
+    if ( (i = new_vol_i(vol_nm, &sbuf)) == -1 ) {
+	Err_Append("Could not find a slot while attempting to (re)load ");
+	Err_Append(vol_nm);
+	Err_Append(". ");
+	return 0;
     }
 
     /* Read headers */
@@ -816,31 +796,30 @@ static int hread_cb(int argc, char *argv[])
 	Err_Append(" for input. ");
 	return 0;
     }
-    /* Read volume */
     if ( !Sigmet_ReadHdr(in, &vols[i].vol) ) {
-	Err_Append("Could not read volume from ");
-	Err_Append(vol_nm);
-	Err_Append(".\n");
+	/* Read failed. Disable this slot and return failure. */
 	fclose(in);
 	if (pid != -1) {
 	    kill(pid, SIGKILL);
 	}
-
-	/* Volume is broken. Deny it to clients. */
-	vols[i].v = 0;
+	vols[i].oqpd = 0;
+	vols[i].users = 0;
 	vols[i].st_dev = 0;
 	vols[i].st_ino = 0;
-	vols[i].users = 0;
+	Err_Append("Could not read volume from ");
+	Err_Append(vol_nm);
+	Err_Append(".\n");
 	return 0;
     }
     fclose(in);
     if (pid != -1) {
 	kill(pid, SIGKILL);
     }
-    vols[i].v = 1;
-    strncpy(vols[i].vol_nm, vol_nm, LEN);
+    vols[i].oqpd = 1;
+    stat(vol_nm, &sbuf);
     vols[i].st_dev = sbuf.st_dev;
     vols[i].st_ino = sbuf.st_ino;
+    strncpy(vols[i].vol_nm, vol_nm, LEN);
     vols[i].users++;
     fprintf(rslt1, "%s loaded%s.\n",
 	    vol_nm, vols[i].vol.truncated ? " (truncated)" : "");
@@ -849,7 +828,7 @@ static int hread_cb(int argc, char *argv[])
 
 static int read_cb(int argc, char *argv[])
 {
-    struct stat sbuf;		/* Information about file to read */
+    struct stat sbuf;   	/* Information about file to read */
     int i;			/* Index into vols */
     char *vol_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
@@ -864,39 +843,29 @@ static int read_cb(int argc, char *argv[])
 	return 0;
     }
 
-    i = get_vol_i(vol_nm, &sbuf);
+    /*
+       If volume is not loaded, seek an unused slot in vols and attempt load.
+       If volume loaded but truncated, free it and attempt reload.
+       If volume is loaded and complete, increment user count return.
+     */
+
+    i = get_vol_i(vol_nm);
     if ( i == -1 ) {
-	/* Volume is not loaded. Try to find a slot in which to load it. */
-	for (i = 0; i < n_vols; i++) {
-	    if ( vols[i].v == 0 || vols[i].users <= 0 ) {
-		Sigmet_FreeVol(&vols[i].vol);
-		vols[i].v = 0;
-		vols[i].st_dev = 0;
-		vols[i].st_ino = 0;
-		vols[i].users = 0;
-		break;
-	    }
-	}
-	if ( i == n_vols ) {
+	if ( (i = new_vol_i(vol_nm, &sbuf)) == -1 ) {
 	    Err_Append("Could not find a slot while attempting to (re)load ");
 	    Err_Append(vol_nm);
 	    Err_Append(". ");
 	    return 0;
 	}
     } else if ( i >= 0 && vols[i].vol.truncated ) {
-	/*
-	   Volume truncated. Free volume and attempt reload, but preserve the
-	   entry at vols[i].
-	 */
 	Sigmet_FreeVol(&vols[i].vol);
     } else {
-	/* Volume is loaded and complete. Increment user count return. */
 	vols[i].users++;
 	fprintf(rslt1, "%s loaded.\n", vol_nm);
 	return 1;
     }
 
-    /* Read volume */
+    /* Volume was not loaded, or was freed because truncated. Read volume */
     pid = -1;
     if ( !(in = vol_open(vol_nm, &pid)) ) {
 	Err_Append("Could not open ");
@@ -906,26 +875,25 @@ static int read_cb(int argc, char *argv[])
     }
     /* Read volume */
     if ( !Sigmet_ReadVol(in, &vols[i].vol) ) {
-	Err_Append("Could not read volume from ");
-	Err_Append(vol_nm);
-	Err_Append(".\n");
+	/* Disable this slot and return failure. */
 	fclose(in);
 	if (pid != -1) {
 	    kill(pid, SIGKILL);
 	}
-
-	/* Volume is broken. Deny it to clients. */
-	vols[i].v = 0;
+	vols[i].oqpd = 0;
+	vols[i].users = 0;
 	vols[i].st_dev = 0;
 	vols[i].st_ino = 0;
-	vols[i].users = 0;
+	Err_Append("Could not read volume from ");
+	Err_Append(vol_nm);
+	Err_Append(".\n");
 	return 0;
     }
     fclose(in);
     if (pid != -1) {
 	kill(pid, SIGKILL);
     }
-    vols[i].v = 1;
+    vols[i].oqpd = 1;
     strncpy(vols[i].vol_nm, vol_nm, LEN);
     vols[i].st_dev = sbuf.st_dev;
     vols[i].st_ino = sbuf.st_ino;
@@ -939,8 +907,8 @@ static int list_cb(int argc, char *argv[])
 {
     int i;
 
-    for (i = 0; i < n_vols; i++) {
-	if ( vols[i].v != 0 ) {
+    for (i = 0; i < N_VOLS; i++) {
+	if ( vols[i].oqpd != 0 ) {
 	    fprintf(rslt1, "%s users=%d %s\n",
 		    vols[i].vol_nm, vols[i].users,
 		    vols[i].vol.truncated ? " truncated" : "complete");
@@ -950,31 +918,87 @@ static int list_cb(int argc, char *argv[])
 }
 
 /*
-   This function returns the index from vols of the volume obtained
-   from Sigmet raw product file vol_nm, or -1 is the volume is not
-   loaded. In any case, copy stat struct for vol_nm to sbuf_p.  Note: this
-   function will return a non-negative offset to a loaded truncated volume.
+   Create a hash index for a volume file name, or -1 if vol_nm is not a file.
+   As a side effect, stat information for the file is copied to sbuf_p.
  */
-static int get_vol_i(char *vol_nm, struct stat *sbuf_p)
+static int hash(char *vol_nm, struct stat *sbuf_p)
 {
-    struct stat sbuf;		/* Information about file to read */
-    int i;			/* Index into vols */
+    struct stat sbuf;		/* Information about file */
 
+    assert(N_VOLS == 256);
     if ( stat(vol_nm, &sbuf) == -1 ) {
 	Err_Append("Could not get information about volume file ");
 	Err_Append(vol_nm);
 	Err_Append("\n");
 	Err_Append(strerror(errno));
-	return 0;
+	return -1;
     }
-    if ( sbuf_p ) {
-	sbuf_p->st_dev = sbuf.st_dev;
-	sbuf_p->st_ino = sbuf.st_ino;
+    sbuf_p->st_dev = sbuf.st_dev;
+    sbuf_p->st_ino = sbuf.st_ino;
+
+    /*
+       Hash index is the last four bits from the device identifier next to the
+       last four bits from the inumber
+     */
+    return ((sbuf.st_dev & 0x0f) << 4) | (sbuf.st_ino & 0x0f);
+}
+
+/*
+   This function returns the index from vols of the volume obtained
+   from Sigmet raw product file vol_nm, or -1 is the volume is not
+   loaded. 
+ */
+static int get_vol_i(char *vol_nm)
+{
+    struct stat sbuf;		/* Information about file to read */
+    int h, i;			/* Index into vols */
+
+    if ( (h = hash(vol_nm, &sbuf)) == -1 ) {
+	return -1;
     }
-    for (i = 0; i < n_vols; i++) {
-	if ( vols[i].v
+
+    /*
+       Hash is not necessarily the index for the volume in vols array.
+       Walk the array until we actually reach the volume from vol_nm.
+     */
+
+    for (i = h; i + 1 != h; i = ++i % N_VOLS) {
+	if ( vols[i].oqpd
 		&& vols[i].st_dev == sbuf.st_dev
 		&& vols[i].st_ino == sbuf.st_ino) {
+	    return i;
+	}
+    }
+    return -1;
+}
+
+/*
+   This function obtains the index at which a volume from vol_nm should
+   be stored.  IT ASSUMES THE VOLUME HAS NOT ALREADY BEEN LOADED. Index
+   returned will be the first empty slot after the index returned
+   by hash. Any unused volumes found while searching will be purged.
+   As a side effect, stat information for the volume is copied to sbuf_p.
+   Functions that read volumes need it to create an identify for the volume.
+   If there are no available slots, this function returns -1.
+ */
+static int new_vol_i(char *vol_nm, struct stat *sbuf_p)
+{
+    int h, i;			/* Index into vols */
+
+    if ( (h = hash(vol_nm, sbuf_p)) == -1 ) {
+	return -1;
+    }
+
+    /* Search vols array for an empty slot */
+    for (i = h; i + 1 != h; i = ++i % N_VOLS) {
+	if ( !vols[i].oqpd ) {
+	    return i;
+	} else if ( vols[i].users <= 0 ) {
+	    Sigmet_FreeVol(&vols[i].vol);
+	    vols[i].oqpd = 0;
+	    vols[i].users = 0;
+	    vols[i].st_dev = 0;
+	    vols[i].st_ino = 0;
 	    return i;
 	}
     }
@@ -993,7 +1017,7 @@ static int release_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[1];
-    i = get_vol_i(vol_nm, NULL);
+    i = get_vol_i(vol_nm);
     if ( i >= 0 && vols[i].users > 0 ) {
 	vols[i].users--;
     }
@@ -1016,14 +1040,14 @@ static int unload_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[1];
-    i = get_vol_i(vol_nm, NULL);
+    i = get_vol_i(vol_nm);
     if ( i >= 0 ) {
 	if ( vols[i].users <= 0 ) {
 	    Sigmet_FreeVol(&vols[i].vol);
-	    vols[i].v = 0;
+	    vols[i].oqpd = 0;
+	    vols[i].users = 0;
 	    vols[i].st_dev = 0;
 	    vols[i].st_ino = 0;
-	    vols[i].users = 0;
 	} else {
 	    Err_Append(vol_nm);
 	    Err_Append(" in use.");
@@ -1033,22 +1057,42 @@ static int unload_cb(int argc, char *argv[])
     return 1;
 }
 
-/* Remove all volumes, whether in use or not */
+/* Remove some unused volumes, if possible. */
 static int flush_cb(int argc, char *argv[])
 {
-    int i;
+    char *c_s;
+    int i, c;
 
-    if ( argc != 1 ) {
+    if ( argc != 2 ) {
 	Err_Append("Usage: ");
 	Err_Append(cmd1);
+	Err_Append(" count");
 	return 0;
     }
-    for (i = 0; i < n_vols; i++) {
-	Sigmet_FreeVol(&vols[i].vol);
-	vols[i].v = 0;
-	vols[i].st_dev = 0;
-	vols[i].st_ino = 0;
-	vols[i].users = 0;
+    c_s = argv[1];
+    if (sscanf(c_s, "%d", &c) != 1) {
+	Err_Append("Expected an integer for count, got ");
+	Err_Append(c_s);
+	Err_Append(". ");
+	return 0;
+    }
+
+    for (i = 0; i < N_VOLS && c > 0; i++) {
+	if ( vols[i].oqpd && vols[i].users <= 0 ) {
+	    Sigmet_FreeVol(&vols[i].vol);
+	    vols[i].oqpd = 0;
+	    vols[i].users = 0;
+	    vols[i].st_dev = 0;
+	    vols[i].st_ino = 0;
+	    if ( --c == 0 ) {
+		break;
+	    }
+	}
+    }
+    if ( c > 0 ) {
+	Err_Append("Unable to free ");
+	Err_Append(c_s);
+	Err_Append("volumes. ");
     }
     return 1;
 }
@@ -1065,7 +1109,7 @@ static int volume_headers_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[1];
-    i = get_vol_i(vol_nm, NULL);
+    i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -1093,7 +1137,7 @@ static int vol_hdr_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[1];
-    i = get_vol_i(vol_nm, NULL);
+    i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -1169,7 +1213,7 @@ static int near_sweep_cb(int argc, char *argv[])
 	return 0;
     }
     ang *= RAD_PER_DEG;
-    i = get_vol_i(vol_nm, NULL);
+    i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -1207,7 +1251,7 @@ static int ray_headers_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[1];
-    i = get_vol_i(vol_nm, NULL);
+    i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -1292,7 +1336,7 @@ static int data_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[argc - 1];
-    i = get_vol_i(vol_nm, NULL);
+    i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -1514,7 +1558,7 @@ static int bintvls_cb(int argc, char *argv[])
 	Err_Append("Sweep index must be an integer.  ");
 	return 0;
     }
-    i = get_vol_i(vol_nm, NULL);
+    i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -1698,7 +1742,7 @@ static int img_cb(int argc, char *argv[])
 	Err_Append("Sweep index must be an integer.  ");
 	return 0;
     }
-    i = get_vol_i(vol_nm, NULL);
+    i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	Err_Append(vol_nm);
 	Err_Append(" not loaded or was unloaded due to being truncated."
@@ -1828,8 +1872,7 @@ static int img_cb(int argc, char *argv[])
 	if ( vol.ray_ok[s][r] ) {
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
-		if ( Sigmet_IsData(d)
-			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
+		if ( Sigmet_IsData(d) && (n = BISearch(d, bnds, n_bnds)) != -1 ) {
 		    int undef = 0;
 
 		    if ( !Sigmet_BinOutl(&vol, s, r, b, cnrs_ll) ) {
@@ -1916,10 +1959,9 @@ static int stop_cb(int argc, char *argv[])
     struct sig_vol *sv_p;
     int y;
 
-    for (sv_p = vols; sv_p < vols + n_vols; sv_p++) {
+    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
 	Sigmet_FreeVol(&sv_p->vol);
     }
-    FREE(vols);
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	DataType_Rm(Sigmet_DataType_Abbrv(y));
     }
