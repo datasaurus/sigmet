@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.165 $ $Date: 2010/03/12 19:17:33 $
+ .	$Revision: 1.166 $ $Date: 2010/03/16 18:49:52 $
  */
 
 #include <stdlib.h>
@@ -23,9 +23,7 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <time.h>
-#ifdef CAIRO
-#include <cairo.h>
-#elif defined GD
+#ifdef GD
 #include <gd.h>
 #endif
 #include "alloc.h"
@@ -1702,12 +1700,7 @@ static int img_cb(int argc, char *argv[])
     char kml_fl_nm[LEN];	/* Output file */
     FILE *kml_fl;		/* KML file */
 
-#ifdef CAIRO
-    cairo_surface_t *surface;	/* Where to draw */
-    cairo_t *cr;		/* Drawing context */
-    cairo_matrix_t matrix;	/* Set map coordinates to display */
-    double xx, x0, yy, y0;	/* Parameters for cairo transformation matrix */
-#elif defined GD
+#ifdef GD
     gdImagePtr im;		/* Image for gdlib */
     FILE *img_fl;		/* gdlib image file */
     int *iclrs;			/* Indeces for colors */
@@ -1815,16 +1808,7 @@ static int img_cb(int argc, char *argv[])
     }
 
     /* Initialize graphics library */
-#ifdef CAIRO
-    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w_dpy, h_dpy);
-    cr = cairo_create(surface);
-    xx = w_dpy / (rght - left);
-    x0 = -w_dpy * left / (rght - left);
-    yy = -h_dpy / (top - btm);
-    y0 = h_dpy * top / (top - btm);
-    cairo_matrix_init(&matrix, xx, 0.0, 0.0, yy, x0, y0);
-    cairo_set_matrix(cr, &matrix);
-#elif defined GD
+#ifdef GD
     im = gdImageCreate(w_dpy, h_dpy);
     if ( !(iclrs = CALLOC(n_clrs, sizeof(int))) ) {
 	Err_Append("Could not allocate gd colors array. ");
@@ -1891,16 +1875,7 @@ static int img_cb(int argc, char *argv[])
 			continue;
 		    }
 
-#ifdef CAIRO
-		    cairo_set_source_rgba(cr, clrs[n].red / 255.0,
-			    clrs[n].green / 255.0, clrs[n].blue / 255.0, alpha);
-		    cairo_move_to(cr, cnrs_uv[0].u, cnrs_uv[0].v);
-		    cairo_line_to(cr, cnrs_uv[1].u, cnrs_uv[1].v);
-		    cairo_line_to(cr, cnrs_uv[2].u, cnrs_uv[2].v);
-		    cairo_line_to(cr, cnrs_uv[3].u, cnrs_uv[3].v);
-		    cairo_close_path(cr);
-		    cairo_fill(cr);
-#elif defined GD
+#ifdef GD
 		    points[0].x = (cnrs_uv[0].u - left) * px_per_m;
 		    points[0].y = (top - cnrs_uv[0].v) * px_per_m;
 		    points[1].x = (cnrs_uv[1].u - left) * px_per_m;
@@ -1918,11 +1893,7 @@ static int img_cb(int argc, char *argv[])
     }
 
     /* Make output and clean up */
-#ifdef CAIRO
-    cairo_destroy(cr);
-    cairo_surface_write_to_png(surface, img_fl_nm);
-    cairo_surface_destroy(surface);
-#elif defined GD
+#ifdef GD
     if ( (img_fl = fopen(img_fl_nm, "w")) ) {
 	gdImagePng(im, img_fl);
 	fclose(img_fl);
