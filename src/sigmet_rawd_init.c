@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.166 $ $Date: 2010/03/16 18:49:52 $
+ .	$Revision: 1.167 $ $Date: 2010/03/16 19:30:19 $
  */
 
 #include <stdlib.h>
@@ -1526,7 +1526,7 @@ static int bintvls_cb(int argc, char *argv[])
     int i;			/* Volume index. */
     int y, s, r, b;		/* Indeces: data type, sweep, ray, bin */
     double *bnds;		/* bounds[type_t] */
-    int n_bnds;			/* n_bounds[type_t] */
+    unsigned char n_bnds;	/* n_bounds[type_t] */
     int n;			/* Index from bnds */
     double d;			/* Data value */
 
@@ -1656,17 +1656,6 @@ static int img_config_cb(int argc, char *argv[])
     return 1;
 }
 
-#ifdef GD
-/* This function compares two integers. It is needed to find unused colors. */
-static int i_cmp(const void *, const void *);
-static int i_cmp(const void *p1, const void *p2)
-{
-    int i1 = *(int *)p1;
-    int i2 = *(int *)p2;
-    return (i1 < i2) ? -1 : (i1 == i2) ? 0 : 1;
-}
-#endif
-
 static int img_cb(int argc, char *argv[])
 {
     char *vol_nm;		/* Sigmet raw file */
@@ -1681,9 +1670,9 @@ static int img_cb(int argc, char *argv[])
     double btm;			/* Map coordinate of bottom */
     double top;			/* Map coordinate of top */
     struct DataType_Color *clrs; /* colors array */
-    int n_clrs;			/* Number of colors = number of bounds - 1 */
+    unsigned char n_clrs;	/* Number of colors = number of bounds - 1 */
     double *bnds;		/* bounds for each color */
-    int n_bnds;			/* n_bounds */
+    unsigned char n_bnds;	/* n_bounds */
     double d;			/* Data value */
     projUV radar;		/* Radar location lon-lat or x-y */
     double cnrs_ll[8];		/* Corners of a gate, lon-lat */
@@ -1697,12 +1686,11 @@ static int img_cb(int argc, char *argv[])
     int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
     double sec;			/* Sweep second */
     char img_fl_nm[LEN];	/* Output file */
+    size_t img_fl_nm_l;		/* strlen(img_fl_nm) */
     char kml_fl_nm[LEN];	/* Output file */
     FILE *kml_fl;		/* KML file */
 
 #ifdef GD
-    gdImagePtr im;		/* Image for gdlib */
-    FILE *img_fl;		/* gdlib image file */
     int *iclrs;			/* Indeces for colors */
     double px_per_m;		/* Display units per map unit */
     gdPoint points[4];		/* Corners of a gate in device coordinates */
@@ -1809,46 +1797,17 @@ static int img_cb(int argc, char *argv[])
 
     /* Initialize graphics library */
 #ifdef GD
-    im = gdImageCreate(w_dpy, h_dpy);
-    if ( !(iclrs = CALLOC(n_clrs, sizeof(int))) ) {
-	Err_Append("Could not allocate gd colors array. ");
-	return 0;
-    }
-
-    /* Find a color not in colors to use as transparent */
+    fwrite(&w_dpy, 1, sizeof(int), rslt1);
+    fwrite(&h_dpy, 1, sizeof(int), rslt1);
+    img_fl_nm_l = strlen(img_fl_nm);
+    fwrite(&img_fl_nm_l, img_fl_nm_l, 1, rslt1);
+    fwrite(&alpha, sizeof(double), 1, rslt1);
+    fwrite(&n_clrs, 1, sizeof(unsigned char), rslt1);
     for (n = 0; n < n_clrs; n++) {
-	iclrs[n]
-	    = (clrs[n].red   * 0xff)
-	    & (clrs[n].green * 0xff) << 8
-	    & (clrs[n].blue  * 0xff) << 16;
+	fwrite(&clrs[n].red, sizeof(unsigned char), 1, rslt1);
+	fwrite(&clrs[n].green, sizeof(unsigned char), 1, rslt1);
+	fwrite(&clrs[n].blue, sizeof(unsigned char), 1, rslt1);
     }
-    qsort(iclrs, n_clrs, sizeof(int), i_cmp);
-    for (n = 0; n < n_clrs - 1; n++) {
-	int txp, r, g, b;	/* The transparent color */
-
-	if ( iclrs[n] + 1 != iclrs[n + 1] ) {
-	    txp = iclrs[n] + 1;
-	    r = txp & 0xff;
-	    g = (txp & 0xff00) >> 8;
-	    b = (txp & 0xff0000) >> 16;
-	    txp = gdImageColorAllocate (im, r, g, b);
-	    gdImageFilledRectangle (im, 0, 0, w_dpy, h_dpy, txp);
-	    gdImageColorTransparent (im, txp);
-	    break;
-	}
-    }
-
-    /* Allocate colors in gd */
-    for (n = 0; n < n_clrs; n++) {
-	iclrs[n] = gdImageColorAllocateAlpha(im, clrs[n].red, clrs[n].green,
-		clrs[n].blue, 127 * (1.0 - alpha));
-	if ( iclrs[n] == -1 ) {
-	    Err_Append("Could not set gd colors array. ");
-	    FREE(iclrs);
-	    return 0;
-	}
-    }
-    px_per_m = w_dpy / w_phys;
 #endif
 
     /* Determine which interval from bounds each bin value is in. */
@@ -1857,7 +1816,9 @@ static int img_cb(int argc, char *argv[])
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
 		if ( Sigmet_IsData(d) && (n = BISearch(d, bnds, n_bnds)) != -1 ) {
-		    int undef = 0;
+		    int undef = 0;	/* If true, gate is outside map */
+		    size_t npts = 4;	/* Number of vertices */
+		    gdPoint *pt_p;
 
 		    if ( !Sigmet_BinOutl(&vol, s, r, b, cnrs_ll) ) {
 			continue;
@@ -1884,8 +1845,18 @@ static int img_cb(int argc, char *argv[])
 		    points[2].y = (top - cnrs_uv[2].v) * px_per_m;
 		    points[3].x = (cnrs_uv[3].u - left) * px_per_m;
 		    points[3].y = (top - cnrs_uv[3].v) * px_per_m;
-		    gdImageSetAntiAliased(im, iclrs[n]);
-		    gdImageFilledPolygon(im, points, 4, gdAntiAliased);
+		    fwrite(iclrs + n, sizeof(unsigned char), 1, rslt1);
+		    fwrite(&npts, sizeof(size_t), 1, rslt1);
+		    fwrite(&npts, sizeof(size_t), 1, rslt1);
+		    for (pt_p = points; pt_p < points + npts; pt_p++) {
+			if ( fwrite(&pt_p->x, sizeof(double), 1, stdin)
+				!= 1
+				|| fwrite(&pt_p->y, sizeof(double), 1, stdin)
+				!= 1 ) {
+			    Err_Append("failed to write bin corner coordinates. ");
+			    return 0;
+			}
+		    }
 #endif
 		}
 	    }
@@ -1894,15 +1865,7 @@ static int img_cb(int argc, char *argv[])
 
     /* Make output and clean up */
 #ifdef GD
-    if ( (img_fl = fopen(img_fl_nm, "w")) ) {
-	gdImagePng(im, img_fl);
-	fclose(img_fl);
-    } else {
-	Err_Append("Could not open image file ");
-	Err_Append(img_fl_nm);
-    }
     FREE(iclrs);
-    gdImageDestroy(im);
 #endif
 
     /* Make kml file and return */
