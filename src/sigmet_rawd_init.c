@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.168 $ $Date: 2010/03/16 22:18:47 $
+ .	$Revision: 1.169 $ $Date: 2010/03/22 16:01:08 $
  */
 
 #include <stdlib.h>
@@ -158,6 +158,7 @@ static int w_dpy;			/* Width of image in display units,
 static int h_dpy;			/* Height of image in display units,
 					   pixels, points, cm */
 static double alpha = 1.0;		/* alpha channel. 1.0 => translucent */
+static char draw_app[LEN];		/* External application to draw sweeps */
 
 /* Convenience functions */
 static char *time_stamp(void);
@@ -1619,16 +1620,19 @@ static int proj_cb(int argc, char *argv[])
 /* Specify image configuration */
 static int img_config_cb(int argc, char *argv[])
 {
-    char *w_phys_s, *w_dpy_s, *h_dpy_s, *alpha_s;
+    char *w_phys_s, *w_dpy_s, *h_dpy_s, *alpha_s, *draw_app_s;
+    struct stat sbuf;
 
-    if ( argc != 5 ) {
-	Err_Append("Usage: img_config width_phys width_dpy height_dpy alpha");
+    if ( argc != 6 ) {
+	Err_Append("Usage: img_config width_phys width_dpy height_dpy "
+		"alpha draw_app");
 	return 0;
     }
     w_phys_s = argv[1];
     w_dpy_s = argv[2];
     h_dpy_s = argv[3];
     alpha_s = argv[4];
+    draw_app_s = argv[5];
     if ( sscanf(w_phys_s, "%lf", &w_phys) != 1 ) {
 	Err_Append("Expected float value for physical width, got ");
 	Err_Append(w_phys_s);
@@ -1651,6 +1655,24 @@ static int img_config_cb(int argc, char *argv[])
 	Err_Append("Expected float value for alpha, got ");
 	Err_Append(alpha_s);
 	Err_Append(". ");
+	return 0;
+    }
+    if ( stat(draw_app_s, &sbuf) == -1 ) {
+	Err_Append("Could not get information about ");
+	Err_Append(draw_app_s);
+	Err_Append(strerror(errno));
+	Err_Append(". ");
+	return 0;
+    }
+    if ( (sbuf.st_mode & S_IFREG) != S_IFREG
+	    || (sbuf.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))
+	    != (S_IXUSR | S_IXGRP | S_IXOTH) ) {
+	Err_Append(draw_app_s);
+	Err_Append(" is not an executable file. ");
+	return 0;
+    }
+    if (snprintf(draw_app, LEN, "%s", draw_app_s) > LEN) {
+	Err_Append("Could not store name of drawing application. ");
 	return 0;
     }
     return 1;
@@ -1691,9 +1713,17 @@ static int img_cb(int argc, char *argv[])
     FILE *kml_fl;		/* KML file */
 
 #ifdef GD
+    FILE *out;			/* Return value */
+    pid_t pid = 0;		/* Process identifier, for fork */
+    int pfd[2];			/* Pipe for data */
     double px_per_m;		/* Display units per map unit */
     gdPoint points[4];		/* Corners of a gate in device coordinates */
 #endif
+
+    if ( !draw_app ) {
+	Err_Append("Sweep drawing application not set");
+	return 0;
+    }
 
     /* Parse command line */
     if ( argc != 4 ) {
@@ -1795,19 +1825,70 @@ static int img_cb(int argc, char *argv[])
 	return 0;
     }
 
-    /* Initialize graphics library */
+    /* Launch the external drawing application and create a pipe to it. */
+    if ( pipe(pfd) == -1 ) {
+	Err_Append(strerror(errno));
+	Err_Append("\nCould not create pipe for sweep drawing application.  ");
+	return 0;
+    }
+    pid = fork();
+    switch (pid) {
+	case -1:
+	    Err_Append(strerror(errno));
+	    Err_Append("\nCould not spawn sweep drawing application.  ");
+	    return 0;
+	case 0:
+	    /* Child process.  Read polygon from stdin. */
+	    if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
+		    || fclose(rslt1) == EOF) {
+		fprintf(stderr, "%s: %s child could not close"
+			" server streams", draw_app, time_stamp());
+		_exit(EXIT_FAILURE);
+	    }
+	    if ( dup2(pfd[0], STDIN_FILENO) == -1 || close(pfd[1]) == -1 ) {
+		fprintf(stderr, "%s: could not set up %s process",
+			draw_app, time_stamp());
+		_exit(EXIT_FAILURE);
+	    }
+	    execl(draw_app, draw_app, (char *)NULL);
+	    _exit(EXIT_FAILURE);
+	default:
+	    /* This process.  Send polygon to out. */
+	    if ( close(pfd[0]) == -1 || !(out = fdopen(pfd[1], "w"))) {
+		Err_Append(strerror(errno));
+		Err_Append("\nCould not write to drawing application.  ");
+		return 0;
+	    }
+    }
+
+    /* Send global information about the image to drawing process */
 #ifdef GD
-    fwrite(&w_dpy, 1, sizeof(w_dpy), rslt1);
-    fwrite(&h_dpy, 1, sizeof(h_dpy), rslt1);
+    if ( fwrite(&w_dpy, sizeof(w_dpy), 1, out) != 1
+	    ||fwrite(&h_dpy, sizeof(h_dpy), 1, out) != 1 ) {
+	Err_Append("Could not write image dimensions. ");
+	return 0;
+    }
     img_fl_nm_l = strlen(img_fl_nm);
-    fwrite(&img_fl_nm_l, sizeof(img_fl_nm_l), 1, rslt1);
-    fwrite(img_fl_nm, img_fl_nm_l, 1, rslt1);
-    fwrite(&alpha, sizeof(alpha), 1, rslt1);
-    fwrite(&n_clrs, 1, sizeof(n_clrs), rslt1);
+    if ( fwrite(&img_fl_nm_l, sizeof(img_fl_nm_l), 1, out) != 1
+	    || fwrite(img_fl_nm, 1, img_fl_nm_l, out) != img_fl_nm_l ) {
+	Err_Append("Could not write image file name. ");
+	return 0;
+    }
+    if ( fwrite(&alpha, sizeof(alpha), 1, out) != 1 ) {
+	Err_Append("Could not write alpha value. ");
+	return 0;
+    }
+    if ( fwrite(&n_clrs, 1, sizeof(n_clrs), out) != 1 ) {
+	Err_Append("Could not write number of colors. ");
+	return 0;
+    }
     for (n = 0; n < n_clrs; n++) {
-	fwrite(&clrs[n].red, sizeof(unsigned char), 1, rslt1);
-	fwrite(&clrs[n].green, sizeof(unsigned char), 1, rslt1);
-	fwrite(&clrs[n].blue, sizeof(unsigned char), 1, rslt1);
+	if ( fwrite(&clrs[n].red, sizeof(unsigned char), 1, out) != 1
+		|| fwrite(&clrs[n].green, sizeof(unsigned char), 1, out) != 1
+		|| fwrite(&clrs[n].blue, sizeof(unsigned char), 1, out) != 1 ) {
+	    Err_Append("Could not write colors. ");
+	    return 0;
+	}
     }
 #endif
 
@@ -1846,11 +1927,17 @@ static int img_cb(int argc, char *argv[])
 		    points[2].y = (top - cnrs_uv[2].v) * px_per_m;
 		    points[3].x = (cnrs_uv[3].u - left) * px_per_m;
 		    points[3].y = (top - cnrs_uv[3].v) * px_per_m;
-		    fwrite(&n, sizeof(int), 1, rslt1);
-		    fwrite(&npts, sizeof(size_t), 1, rslt1);
+		    if ( fwrite(&n, sizeof(int), 1, out) != 1 ) {
+			Err_Append("Could not write polygon color index. ");
+			return 0;
+		    }
+		    if ( fwrite(&npts, sizeof(size_t), 1, out) != 1 ) {
+			Err_Append("Could not write polygon point count. ");
+			return 0;
+		    }
 		    for (pt_p = points; pt_p < points + npts; pt_p++) {
-			if ( fwrite(&pt_p->x, sizeof(int), 1, rslt1) != 1
-				|| fwrite(&pt_p->y, sizeof(int), 1, rslt1) != 1 ) {
+			if ( fwrite(&pt_p->x, sizeof(int), 1, out) != 1
+				|| fwrite(&pt_p->y, sizeof(int), 1, out) != 1 ) {
 			    Err_Append("failed to write bin corner coordinates. ");
 			    return 0;
 			}
@@ -1859,6 +1946,10 @@ static int img_cb(int argc, char *argv[])
 		}
 	    }
 	}
+    }
+    if ( fclose(out) == EOF ) {
+	Err_Append("Could not close pipe to drawing application.  ");
+	Err_Append(strerror(errno));
     }
 
     /* Make kml file and return */
@@ -1877,9 +1968,8 @@ static int img_cb(int argc, char *argv[])
 		img_fl_nm,
 		north, south, west, east);
     fclose(kml_fl);
-    /*
+
     fprintf(rslt1, "%s\n", img_fl_nm);
-       */
     return 1;
 }
 
