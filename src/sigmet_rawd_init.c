@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.167 $ $Date: 2010/03/16 19:30:19 $
+ .	$Revision: 1.168 $ $Date: 2010/03/16 22:18:47 $
  */
 
 #include <stdlib.h>
@@ -1672,7 +1672,7 @@ static int img_cb(int argc, char *argv[])
     struct DataType_Color *clrs; /* colors array */
     unsigned char n_clrs;	/* Number of colors = number of bounds - 1 */
     double *bnds;		/* bounds for each color */
-    unsigned char n_bnds;	/* n_bounds */
+    unsigned char n_bnds;	/* number of bounds = n_clrs + 1 */
     double d;			/* Data value */
     projUV radar;		/* Radar location lon-lat or x-y */
     double cnrs_ll[8];		/* Corners of a gate, lon-lat */
@@ -1691,7 +1691,6 @@ static int img_cb(int argc, char *argv[])
     FILE *kml_fl;		/* KML file */
 
 #ifdef GD
-    int *iclrs;			/* Indeces for colors */
     double px_per_m;		/* Display units per map unit */
     gdPoint points[4];		/* Corners of a gate in device coordinates */
 #endif
@@ -1782,6 +1781,7 @@ static int img_cb(int argc, char *argv[])
     rght = radar.u + 0.5 * w_phys;
     top = radar.v + 0.5 * (h_dpy / w_dpy) * w_phys;
     btm = radar.v - 0.5 * (h_dpy / w_dpy) * w_phys;
+    px_per_m = w_dpy / w_phys;
 
     /* Make name of output file */
     if ( !Tm_JulToCal(vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
@@ -1797,12 +1797,13 @@ static int img_cb(int argc, char *argv[])
 
     /* Initialize graphics library */
 #ifdef GD
-    fwrite(&w_dpy, 1, sizeof(int), rslt1);
-    fwrite(&h_dpy, 1, sizeof(int), rslt1);
+    fwrite(&w_dpy, 1, sizeof(w_dpy), rslt1);
+    fwrite(&h_dpy, 1, sizeof(h_dpy), rslt1);
     img_fl_nm_l = strlen(img_fl_nm);
-    fwrite(&img_fl_nm_l, img_fl_nm_l, 1, rslt1);
-    fwrite(&alpha, sizeof(double), 1, rslt1);
-    fwrite(&n_clrs, 1, sizeof(unsigned char), rslt1);
+    fwrite(&img_fl_nm_l, sizeof(img_fl_nm_l), 1, rslt1);
+    fwrite(img_fl_nm, img_fl_nm_l, 1, rslt1);
+    fwrite(&alpha, sizeof(alpha), 1, rslt1);
+    fwrite(&n_clrs, 1, sizeof(n_clrs), rslt1);
     for (n = 0; n < n_clrs; n++) {
 	fwrite(&clrs[n].red, sizeof(unsigned char), 1, rslt1);
 	fwrite(&clrs[n].green, sizeof(unsigned char), 1, rslt1);
@@ -1845,14 +1846,11 @@ static int img_cb(int argc, char *argv[])
 		    points[2].y = (top - cnrs_uv[2].v) * px_per_m;
 		    points[3].x = (cnrs_uv[3].u - left) * px_per_m;
 		    points[3].y = (top - cnrs_uv[3].v) * px_per_m;
-		    fwrite(iclrs + n, sizeof(unsigned char), 1, rslt1);
-		    fwrite(&npts, sizeof(size_t), 1, rslt1);
+		    fwrite(&n, sizeof(int), 1, rslt1);
 		    fwrite(&npts, sizeof(size_t), 1, rslt1);
 		    for (pt_p = points; pt_p < points + npts; pt_p++) {
-			if ( fwrite(&pt_p->x, sizeof(double), 1, stdin)
-				!= 1
-				|| fwrite(&pt_p->y, sizeof(double), 1, stdin)
-				!= 1 ) {
+			if ( fwrite(&pt_p->x, sizeof(int), 1, rslt1) != 1
+				|| fwrite(&pt_p->y, sizeof(int), 1, rslt1) != 1 ) {
 			    Err_Append("failed to write bin corner coordinates. ");
 			    return 0;
 			}
@@ -1862,11 +1860,6 @@ static int img_cb(int argc, char *argv[])
 	    }
 	}
     }
-
-    /* Make output and clean up */
-#ifdef GD
-    FREE(iclrs);
-#endif
 
     /* Make kml file and return */
     strcpy(kml_fl_nm, img_fl_nm);
@@ -1884,7 +1877,9 @@ static int img_cb(int argc, char *argv[])
 		img_fl_nm,
 		north, south, west, east);
     fclose(kml_fl);
+    /*
     fprintf(rslt1, "%s\n", img_fl_nm);
+       */
     return 1;
 }
 
