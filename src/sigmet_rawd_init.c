@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.172 $ $Date: 2010/03/23 20:08:52 $
+ .	$Revision: 1.173 $ $Date: 2010/03/23 21:22:36 $
  */
 
 #include <stdlib.h>
@@ -87,7 +87,7 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 24
+#define NCMD 25
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -110,19 +110,22 @@ static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback proj_cb;
 static callback img_config_cb;
+static callback alpha_cb;
 static callback img_cb;
 static callback stop_cb;
 static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread",
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
-    "colors", "bintvls", "proj", "img_config", "img", "stop"
+    "colors", "bintvls", "proj", "img_config", "alpha",
+    "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
-    DataType_SetColors_CB, bintvls_cb, proj_cb, img_config_cb, img_cb, stop_cb
+    DataType_SetColors_CB, bintvls_cb, proj_cb, img_config_cb, alpha_cb,
+    img_cb, stop_cb
 };
 
 /* Cartographic projection */
@@ -1672,19 +1675,17 @@ static int proj_cb(int argc, char *argv[])
 /* Specify image configuration */
 static int img_config_cb(int argc, char *argv[])
 {
-    char *w_phys_s, *w_dpy_s, *h_dpy_s, *alpha_s, *draw_app_s;
+    char *w_phys_s, *w_dpy_s, *h_dpy_s, *draw_app_s;
     struct stat sbuf;
 
-    if ( argc != 6 ) {
-	Err_Append("Usage: img_config width_phys width_dpy height_dpy "
-		"alpha draw_app");
+    if ( argc != 5 ) {
+	Err_Append("Usage: img_config width_phys width_dpy height_dpy draw_app");
 	return 0;
     }
     w_phys_s = argv[1];
     w_dpy_s = argv[2];
     h_dpy_s = argv[3];
-    alpha_s = argv[4];
-    draw_app_s = argv[5];
+    draw_app_s = argv[4];
     if ( sscanf(w_phys_s, "%lf", &w_phys) != 1 ) {
 	Err_Append("Expected float value for physical width, got ");
 	Err_Append(w_phys_s);
@@ -1700,12 +1701,6 @@ static int img_config_cb(int argc, char *argv[])
     if ( sscanf(h_dpy_s, "%d", &h_dpy) != 1 ) {
 	Err_Append("Expected integer value for display height, got ");
 	Err_Append(h_dpy_s);
-	Err_Append(". ");
-	return 0;
-    }
-    if ( sscanf(alpha_s, "%lf", &alpha) != 1 ) {
-	Err_Append("Expected float value for alpha, got ");
-	Err_Append(alpha_s);
 	Err_Append(". ");
 	return 0;
     }
@@ -1725,6 +1720,25 @@ static int img_config_cb(int argc, char *argv[])
     }
     if (snprintf(draw_app, LEN, "%s", draw_app_s) > LEN) {
 	Err_Append("Could not store name of drawing application. ");
+	return 0;
+    }
+    return 1;
+}
+
+/* Specify image alpha channel */
+static int alpha_cb(int argc, char *argv[])
+{
+    char *alpha_s;
+
+    if ( argc != 2 ) {
+	Err_Append("Usage: alpha alpha");
+	return 0;
+    }
+    alpha_s = argv[1];
+    if ( sscanf(alpha_s, "%lf", &alpha) != 1 ) {
+	Err_Append("Expected float value for alpha, got ");
+	Err_Append(alpha_s);
+	Err_Append(". ");
 	return 0;
     }
     return 1;
