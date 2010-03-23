@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.24 $ $Date: 2010/01/14 20:16:46 $
+   .	$Revision: 1.25 $ $Date: 2010/03/11 22:52:24 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -464,13 +464,16 @@ float Sigmet_DataType_ItoF(enum Sigmet_DataType, struct Sigmet_Vol, unsigned);
 double Sigmet_Bin4Rad(unsigned long);
 double Sigmet_Bin2Rad(unsigned short);
 
+/* Return codes from Sigmet_ReadHdr and Sigmet_ReadVol */
+enum Sigmet_ReadStatus {READ_OK, INPUT_FAIL, BAD_VOL, MEM_FAIL};
+
 void Sigmet_InitVol(struct Sigmet_Vol *);
 void Sigmet_FreeVol(struct Sigmet_Vol *);
-int Sigmet_RawCmd(const char *);
 int Sigmet_GoodVol(FILE *);
-int Sigmet_ReadHdr(FILE *, struct Sigmet_Vol *);
+int Sigmet_RawCmd(const char *);
+enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_PrintHdr(FILE *, struct Sigmet_Vol);
-int Sigmet_ReadVol(FILE *, struct Sigmet_Vol *);
+enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *, struct Sigmet_Vol *);
 int Sigmet_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 

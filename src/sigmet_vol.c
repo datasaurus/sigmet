@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.40 $ $Date: 2010/02/22 21:44:10 $
+   .	$Revision: 1.41 $ $Date: 2010/02/26 16:16:24 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -171,9 +171,10 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
     Sigmet_InitVol(vol_p);
 }
 
-int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
+enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
+    enum Sigmet_ReadStatus status;
 
     /*
        num_types_fl will receive the number of types in the f.
@@ -207,6 +208,7 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     /* record 1, <product_header> */
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 	Err_Append("Could not read record 1 of Sigmet volume.  ");
+	status = INPUT_FAIL;
 	goto error;
     }
 
@@ -218,7 +220,8 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	Toggle_Swap();
 	if (get_sint16(rec) != 27) {
 	    Err_Append( "Bad magic number (should be 27).  ");
-	    return 0;
+	    status = BAD_VOL;
+	    goto error;
 	}
     }
 
@@ -227,6 +230,7 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     /* record 2, <ingest_header> */
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 	Err_Append("Could not read record 2 of Sigmet volume.  ");
+	status = INPUT_FAIL;
 	goto error;
     }
     vol_p->ih = get_ingest_header(rec);
@@ -250,11 +254,11 @@ int Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     }
     vol_p->num_types = num_types;
 
-    return 1;
+    return READ_OK;
 
 error:
     Sigmet_FreeVol(vol_p);
-    return 0;
+    return status;
 }
 
 void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
@@ -509,9 +513,10 @@ int Sigmet_GoodVol(FILE *f)
     return 1;
 }
 
-int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
+enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
+    enum Sigmet_ReadStatus status;
 
 
     U16BIT *recP;			/* Pointer into rec */
@@ -550,7 +555,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     yf = y = 0;
 
     /* Read headers. */
-    if ( !Sigmet_ReadHdr(f, vol_p) ) {
+    if ( (status = Sigmet_ReadHdr(f, vol_p)) != READ_OK ) {
 	Err_Append("Could not read volume headers.\n");
 	goto error;
     }
@@ -565,66 +570,77 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->sweep_ok = (int *)CALLOC(num_sweeps, sizeof(int));
     if ( !vol_p->sweep_ok ) {
 	Err_Append("Could not allocate sweep status array.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
     vol_p->sweep_time = (double *)CALLOC(num_sweeps, sizeof(double));
     if ( !vol_p->sweep_time ) {
 	Err_Append("Could not allocate sweep time array.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
     vol_p->sweep_angle = (double *)CALLOC(num_sweeps, sizeof(double));
     if ( !vol_p->sweep_angle ) {
 	Err_Append("Could not allocate sweep angle array.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
     vol_p->ray_ok = calloc2i(num_sweeps, num_rays);
     if ( !vol_p->ray_ok ) {
 	Err_Append("Could not allocate array of ray status array.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
     vol_p->ray_time = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_time ) {
 	Err_Append("Could not allocate ray time array.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
     vol_p->ray_num_bins = calloc2i(num_sweeps, num_rays);
     if ( !vol_p->ray_num_bins ) {
 	Err_Append("Could not allocate array of ray bin counts.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
     vol_p->ray_tilt0 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_tilt0 ) {
 	Err_Append("Could not allocate array of ray initial tilts.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
     vol_p->ray_tilt1 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_tilt1 ) {
 	Err_Append("Could not allocate array of ray final tilts.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
     vol_p->ray_az0 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_az0 ) {
 	Err_Append("Could not allocate array of ray initial azimuths.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
     vol_p->ray_az1 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_az1 ) {
 	Err_Append("Could not allocate array of ray final azimuths.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
     vol_p->dat = calloc4i(num_types, num_sweeps, num_rays, num_bins);
     if ( !vol_p->dat ) {
 	Err_Append("Could not allocate data array.  ");
+	status = MEM_FAIL;
 	goto error;
     }
 
@@ -637,6 +653,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     ray = (U16BIT *)MALLOC(raySz);
     if ( !ray ) {
 	Err_Append("Could not allocate input ray buffer.  ");
+	status = MEM_FAIL;
 	goto error;
     }
     rayd = (unsigned char *)ray + SZ_RAY_HDR;
@@ -654,6 +671,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	if (i != rec_idx + 1) {
 	    Err_Append(
 		    "Sigmet raw product file records out of sequence.  ");
+	    status = BAD_VOL;
 	    goto error;
 	}
 	rec_idx = i;
@@ -664,6 +682,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
 		Err_Append("Volume has excess sweeps.  ");
+		status = BAD_VOL;
 		goto error;
 	    }
 	    s = sweep_num - 1;
@@ -687,6 +706,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    day = get_sint16(rec + 34);
 	    if (year == 0 || month == 0 || day == 0) {
 		Err_Append("Sweep date is 0000/00/00.  ");
+		status = BAD_VOL;
 		goto error;
 	    }
 
@@ -739,12 +759,13 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    /* Get next record. */
 		    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 			vol_p->truncated = 1;
-			return 1;
+			break;
 		    }
 		    i = get_sint16(rec);
 		    if (i != rec_idx + 1) {
 			Err_Append("Sigmet raw product file records "
 				" out of sequence.  ");
+			status = BAD_VOL;
 			goto error;
 		    }
 		    rec_idx = i;
@@ -772,10 +793,12 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		/* End of ray */
 		if (s > num_sweeps) {
 		    Err_Append("Volume has more sweeps than reported in header. ");
+		    status = BAD_VOL;
 		    goto error;
 		}
 		if (r > num_rays) {
 		    Err_Append("Volume has more rays than reported in header. ");
+		    status = BAD_VOL;
 		    goto error;
 		}
 		vol_p->ray_ok[s][r] = 1;
@@ -837,6 +860,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			break;
 		    case DB_ERROR:
 			Err_Append("Volume has unknown data type.  ");
+			status = BAD_VOL;
 			goto error;
 			break;
 		}
@@ -855,6 +879,7 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		if ( numWds > rayEnd - rayP ) {
 		    Err_Append("Corrupt volume.  "
 			    "Run of zeros tried to go past end of ray.  ");
+		    status = BAD_VOL;
 		    goto error;
 		}
 		rayP += numWds;
@@ -864,12 +889,12 @@ int Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     }
     vol_p->truncated = (r + 1 < num_rays || s + 1 < num_sweeps) ? 1 : 0;
     FREE(ray);
-    return 1;
+    return READ_OK;
 
 error:
     FREE(ray);
     Sigmet_FreeVol(vol_p);
-    return 0;
+    return status;
 }
 
 int Sigmet_BadRay(struct Sigmet_Vol *vol_p, int s, int r)

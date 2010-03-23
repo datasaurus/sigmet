@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.169 $ $Date: 2010/03/22 16:01:08 $
+ .	$Revision: 1.170 $ $Date: 2010/03/22 22:10:25 $
  */
 
 #include <stdlib.h>
@@ -795,7 +795,7 @@ static int hread_cb(int argc, char *argv[])
 	Err_Append(" for input. ");
 	return 0;
     }
-    if ( !Sigmet_ReadHdr(in, &vols[i].vol) ) {
+    if ( Sigmet_ReadHdr(in, &vols[i].vol) != READ_OK ) {
 	/* Read failed. Disable this slot and return failure. */
 	fclose(in);
 	if (pid != -1) {
@@ -873,7 +873,7 @@ static int read_cb(int argc, char *argv[])
 	return 0;
     }
     /* Read volume */
-    if ( !Sigmet_ReadVol(in, &vols[i].vol) ) {
+    if ( Sigmet_ReadVol(in, &vols[i].vol) != READ_OK ) {
 	/* Disable this slot and return failure. */
 	fclose(in);
 	if (pid != -1) {
