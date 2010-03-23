@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.41 $ $Date: 2010/02/26 16:16:24 $
+   .	$Revision: 1.42 $ $Date: 2010/03/23 16:33:01 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -903,7 +903,7 @@ int Sigmet_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 }
 
 /* Return lon-lat's at corners of a bin */
-int Sigmet_BinOutl(struct Sigmet_Vol *sigPtr, int s, int r, int b, double *ll)
+int Sigmet_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b, double *ll)
 {
     double re;			/* Earth radius */
     double lon_r, lat_r;	/* Radar longitude latitude */
@@ -914,34 +914,34 @@ int Sigmet_BinOutl(struct Sigmet_Vol *sigPtr, int s, int r, int b, double *ll)
 
     /* Distances in meters */
 
-    if (s >= sigPtr->ih.ic.num_sweeps) {
+    if (s >= vol_p->ih.ic.num_sweeps) {
 	Err_Append("Sweep index out of bounds.  ");
 	return 0;
     }
-    if (r >= sigPtr->ih.ic.num_rays) {
+    if (r >= vol_p->ih.ic.num_rays) {
 	Err_Append("Ray index out of bounds.  ");
 	return 0;
     }
-    if (b >= sigPtr->ray_num_bins[s][r]) {
+    if (b >= vol_p->ray_num_bins[s][r]) {
 	Err_Append("Bin index out of bounds.  ");
 	return 0;
     }
 
     re = GeogREarth(NULL);
-    lon_r = Sigmet_Bin4Rad(sigPtr->ih.ic.longitude);
-    lat_r = Sigmet_Bin4Rad(sigPtr->ih.ic.latitude);
-    r00 = sigPtr->ih.tc.tri.rng_1st_bin;
-    dr = sigPtr->ih.tc.tri.step_out;
+    lon_r = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
+    lat_r = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
+    r00 = vol_p->ih.tc.tri.rng_1st_bin;
+    dr = vol_p->ih.tc.tri.step_out;
     r0 = 0.01 * (r00 + b * dr);
     r1 = 0.01 * (r00 + (b + 1) * dr);
-    az0 = sigPtr->ray_az0[s][r];
-    az1 = sigPtr->ray_az1[s][r];
+    az0 = vol_p->ray_az0[s][r];
+    az1 = vol_p->ray_az1[s][r];
     if (az1 < az0) {
 	double t = az1;
 	az1 = az0;
 	az0 = t;
     }
-    tilt = 0.5 * (sigPtr->ray_tilt0[s][r] + sigPtr->ray_tilt1[s][r]);
+    tilt = 0.5 * (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
 
     /* Distance along ground to point under the bin */
     r0 = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
