@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.173 $ $Date: 2010/03/23 21:22:36 $
+ .	$Revision: 1.174 $ $Date: 2010/03/23 21:32:37 $
  */
 
 #include <stdlib.h>
@@ -87,7 +87,7 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 25
+#define NCMD 26
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -109,7 +109,8 @@ static callback data_cb;
 static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback proj_cb;
-static callback img_config_cb;
+static callback img_app_cb;
+static callback geom_cb;
 static callback alpha_cb;
 static callback img_cb;
 static callback stop_cb;
@@ -117,14 +118,14 @@ static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread",
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
-    "colors", "bintvls", "proj", "img_config", "alpha",
+    "colors", "bintvls", "proj", "img_app", "geom", "alpha",
     "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
-    DataType_SetColors_CB, bintvls_cb, proj_cb, img_config_cb, alpha_cb,
+    DataType_SetColors_CB, bintvls_cb, proj_cb, img_app_cb, geom_cb, alpha_cb,
     img_cb, stop_cb
 };
 
@@ -161,7 +162,7 @@ static int w_dpy;			/* Width of image in display units,
 static int h_dpy;			/* Height of image in display units,
 					   pixels, points, cm */
 static double alpha = 1.0;		/* alpha channel. 1.0 => translucent */
-static char draw_app[LEN];		/* External application to draw sweeps */
+static char img_app[LEN];		/* External application to draw sweeps */
 
 /* Convenience functions */
 static char *time_stamp(void);
@@ -1672,20 +1673,18 @@ static int proj_cb(int argc, char *argv[])
 }
 #endif
 
-/* Specify image configuration */
-static int img_config_cb(int argc, char *argv[])
+/* Specify image geometry */
+static int geom_cb(int argc, char *argv[])
 {
-    char *w_phys_s, *w_dpy_s, *h_dpy_s, *draw_app_s;
-    struct stat sbuf;
+    char *w_phys_s, *w_dpy_s, *h_dpy_s;
 
-    if ( argc != 5 ) {
-	Err_Append("Usage: img_config width_phys width_dpy height_dpy draw_app");
+    if ( argc != 4 ) {
+	Err_Append("Usage: geom width_phys width_dpy height_dpy");
 	return 0;
     }
     w_phys_s = argv[1];
     w_dpy_s = argv[2];
     h_dpy_s = argv[3];
-    draw_app_s = argv[4];
     if ( sscanf(w_phys_s, "%lf", &w_phys) != 1 ) {
 	Err_Append("Expected float value for physical width, got ");
 	Err_Append(w_phys_s);
@@ -1704,22 +1703,35 @@ static int img_config_cb(int argc, char *argv[])
 	Err_Append(". ");
 	return 0;
     }
-    if ( stat(draw_app_s, &sbuf) == -1 ) {
+    return 1;
+}
+
+/* Identify image generator */
+static int img_app_cb(int argc, char *argv[])
+{
+    char *img_app_s;
+    struct stat sbuf;
+    mode_t m = S_IXUSR | S_IXGRP | S_IXOTH;	/* Executable mode */
+
+    if ( argc != 2 ) {
+	Err_Append("Usage: img_app");
+	return 0;
+    }
+    img_app_s = argv[1];
+    if ( stat(img_app_s, &sbuf) == -1 ) {
 	Err_Append("Could not get information about ");
-	Err_Append(draw_app_s);
+	Err_Append(img_app_s);
 	Err_Append(strerror(errno));
 	Err_Append(". ");
 	return 0;
     }
-    if ( (sbuf.st_mode & S_IFREG) != S_IFREG
-	    || (sbuf.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))
-	    != (S_IXUSR | S_IXGRP | S_IXOTH) ) {
-	Err_Append(draw_app_s);
+    if ( ((sbuf.st_mode & S_IFREG) != S_IFREG) || ((sbuf.st_mode & m) != m) ) {
+	Err_Append(img_app_s);
 	Err_Append(" is not an executable file. ");
 	return 0;
     }
-    if (snprintf(draw_app, LEN, "%s", draw_app_s) > LEN) {
-	Err_Append("Could not store name of drawing application. ");
+    if (snprintf(img_app, LEN, "%s", img_app_s) > LEN) {
+	Err_Append("Could not store name of image application. ");
 	return 0;
     }
     return 1;
@@ -1786,7 +1798,7 @@ static int img_cb(int argc, char *argv[])
     gdPoint points[4];		/* Corners of a gate in device coordinates */
 #endif
 
-    if ( !draw_app ) {
+    if ( !img_app ) {
 	Err_Append("Sweep drawing application not set");
 	return 0;
     }
@@ -1908,15 +1920,15 @@ static int img_cb(int argc, char *argv[])
 	    if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
 		    || fclose(rslt1) == EOF) {
 		fprintf(stderr, "%s: %s child could not close"
-			" server streams", draw_app, time_stamp());
+			" server streams", img_app, time_stamp());
 		_exit(EXIT_FAILURE);
 	    }
 	    if ( dup2(pfd[0], STDIN_FILENO) == -1 || close(pfd[1]) == -1 ) {
 		fprintf(stderr, "%s: could not set up %s process",
-			draw_app, time_stamp());
+			img_app, time_stamp());
 		_exit(EXIT_FAILURE);
 	    }
-	    execl(draw_app, draw_app, (char *)NULL);
+	    execl(img_app, img_app, (char *)NULL);
 	    _exit(EXIT_FAILURE);
 	default:
 	    /* This process.  Send polygon to out. */
