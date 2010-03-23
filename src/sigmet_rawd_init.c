@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.174 $ $Date: 2010/03/23 21:32:37 $
+ .	$Revision: 1.175 $ $Date: 2010/03/23 21:44:04 $
  */
 
 #include <stdlib.h>
@@ -23,9 +23,6 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <time.h>
-#ifdef GD
-#include <gd.h>
-#endif
 #include "alloc.h"
 #include "err_msg.h"
 #include "tm_calc_lib.h"
@@ -163,6 +160,11 @@ static int h_dpy;			/* Height of image in display units,
 					   pixels, points, cm */
 static double alpha = 1.0;		/* alpha channel. 1.0 => translucent */
 static char img_app[LEN];		/* External application to draw sweeps */
+
+/* Point in device coordinates (pixels) */
+struct dvpoint {
+    int x, y;
+};
 
 /* Convenience functions */
 static char *time_stamp(void);
@@ -1789,14 +1791,11 @@ static int img_cb(int argc, char *argv[])
     size_t img_fl_nm_l;		/* strlen(img_fl_nm) */
     char kml_fl_nm[LEN];	/* Output file */
     FILE *kml_fl;		/* KML file */
-
-#ifdef GD
-    FILE *out;			/* Return value */
+    FILE *out;			/* Where to send outlines to draw */
     pid_t pid = 0;		/* Process identifier, for fork */
     int pfd[2];			/* Pipe for data */
     double px_per_m;		/* Display units per map unit */
-    gdPoint points[4];		/* Corners of a gate in device coordinates */
-#endif
+    struct dvpoint points[4];	/* Corners of a gate in device coordinates */
 
     if ( !img_app ) {
 	Err_Append("Sweep drawing application not set");
@@ -1940,7 +1939,6 @@ static int img_cb(int argc, char *argv[])
     }
 
     /* Send global information about the image to drawing process */
-#ifdef GD
     if ( fwrite(&w_dpy, sizeof(w_dpy), 1, out) != 1
 	    ||fwrite(&h_dpy, sizeof(h_dpy), 1, out) != 1 ) {
 	Err_Append("Could not write image dimensions. ");
@@ -1968,7 +1966,6 @@ static int img_cb(int argc, char *argv[])
 	    return 0;
 	}
     }
-#endif
 
     /* Determine which interval from bounds each bin value is in. */
     for (r = 0; r < vol.ih.ic.num_rays; r++) {
@@ -1978,7 +1975,7 @@ static int img_cb(int argc, char *argv[])
 		if ( Sigmet_IsData(d) && (n = BISearch(d, bnds, n_bnds)) != -1 ) {
 		    int undef = 0;	/* If true, gate is outside map */
 		    size_t npts = 4;	/* Number of vertices */
-		    gdPoint *pt_p;
+		    struct dvpoint *pt_p;
 
 		    if ( !Sigmet_BinOutl(&vol, s, r, b, cnrs_ll) ) {
 			continue;
@@ -1996,7 +1993,6 @@ static int img_cb(int argc, char *argv[])
 			continue;
 		    }
 
-#ifdef GD
 		    points[0].x = (cnrs_uv[0].u - left) * px_per_m;
 		    points[0].y = (top - cnrs_uv[0].v) * px_per_m;
 		    points[1].x = (cnrs_uv[1].u - left) * px_per_m;
@@ -2020,7 +2016,6 @@ static int img_cb(int argc, char *argv[])
 			    return 0;
 			}
 		    }
-#endif
 		}
 	    }
 	}
