@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.170 $ $Date: 2010/03/22 22:10:25 $
+ .	$Revision: 1.171 $ $Date: 2010/03/23 16:33:01 $
  */
 
 #include <stdlib.h>
@@ -164,6 +164,7 @@ static char draw_app[LEN];		/* External application to draw sweeps */
 static char *time_stamp(void);
 static FILE *vol_open(const char *, pid_t *);
 static unsigned new_dchk(void);
+static int flush(int c);
 
 /* Signal handling functions */
 static int handle_signals(void);
@@ -761,6 +762,7 @@ static int hread_cb(int argc, char *argv[])
     char *vol_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t pid;			/* Decompressing child */
+    int n, ntries;		/* Attempt to read volume ntries times */
 
     if ( argc == 2 ) {
 	vol_nm = argv[1];
@@ -795,20 +797,37 @@ static int hread_cb(int argc, char *argv[])
 	Err_Append(" for input. ");
 	return 0;
     }
-    if ( Sigmet_ReadHdr(in, &vols[i].vol) != READ_OK ) {
-	/* Read failed. Disable this slot and return failure. */
-	fclose(in);
-	if (pid != -1) {
-	    kill(pid, SIGKILL);
+    for (n = 0, ntries = 4; n < ntries; n++) {
+	switch (Sigmet_ReadHdr(in, &vols[i].vol)) {
+	    case READ_OK:
+		/* Success. Break out. */
+		n = ntries;
+		break;
+	    case MEM_FAIL:
+		/* Try to free some memory and try again */
+		if ( flush(1) ) {
+		    continue;
+		} else {
+		    n = ntries;
+		}
+		break;
+	    case INPUT_FAIL:
+	    case BAD_VOL:
+		/* Read failed. Disable this slot and return failure. */
+		fclose(in);
+		if (pid != -1) {
+		    kill(pid, SIGKILL);
+		}
+		vols[i].oqpd = 0;
+		vols[i].users = 0;
+		vols[i].st_dev = 0;
+		vols[i].st_ino = 0;
+		Err_Append("Could not read volume from ");
+		Err_Append(vol_nm);
+		Err_Append(".\n");
+		return 0;
+		break;
 	}
-	vols[i].oqpd = 0;
-	vols[i].users = 0;
-	vols[i].st_dev = 0;
-	vols[i].st_ino = 0;
-	Err_Append("Could not read volume from ");
-	Err_Append(vol_nm);
-	Err_Append(".\n");
-	return 0;
     }
     fclose(in);
     if (pid != -1) {
@@ -832,6 +851,7 @@ static int read_cb(int argc, char *argv[])
     char *vol_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t pid;			/* Decompressing child */
+    int n, ntries;		/* Attempt to read volume ntries times */
 
     if ( argc == 2 ) {
 	vol_nm = argv[1];
@@ -873,20 +893,37 @@ static int read_cb(int argc, char *argv[])
 	return 0;
     }
     /* Read volume */
-    if ( Sigmet_ReadVol(in, &vols[i].vol) != READ_OK ) {
-	/* Disable this slot and return failure. */
-	fclose(in);
-	if (pid != -1) {
-	    kill(pid, SIGKILL);
+    for (n = 0, ntries = 4; n < ntries; n++) {
+	switch (Sigmet_ReadVol(in, &vols[i].vol)) {
+	    case READ_OK:
+		/* Success. Break out. */
+		n = ntries;
+		break;
+	    case MEM_FAIL:
+		/* Try to free some memory and try again */
+		if ( flush(1) ) {
+		    continue;
+		} else {
+		    n = ntries;
+		}
+		break;
+	    case INPUT_FAIL:
+	    case BAD_VOL:
+		/* Read failed. Disable this slot and return failure. */
+		fclose(in);
+		if (pid != -1) {
+		    kill(pid, SIGKILL);
+		}
+		vols[i].oqpd = 0;
+		vols[i].users = 0;
+		vols[i].st_dev = 0;
+		vols[i].st_ino = 0;
+		Err_Append("Could not read volume from ");
+		Err_Append(vol_nm);
+		Err_Append(".\n");
+		return 0;
+		break;
 	}
-	vols[i].oqpd = 0;
-	vols[i].users = 0;
-	vols[i].st_dev = 0;
-	vols[i].st_ino = 0;
-	Err_Append("Could not read volume from ");
-	Err_Append(vol_nm);
-	Err_Append(".\n");
-	return 0;
     }
     fclose(in);
     if (pid != -1) {
@@ -1056,25 +1093,10 @@ static int unload_cb(int argc, char *argv[])
     return 1;
 }
 
-/* Remove some unused volumes, if possible. */
-static int flush_cb(int argc, char *argv[])
+/* Remove c unused volumes, if possible. */
+static int flush(int c)
 {
-    char *c_s;
-    int i, c;
-
-    if ( argc != 2 ) {
-	Err_Append("Usage: ");
-	Err_Append(cmd1);
-	Err_Append(" count");
-	return 0;
-    }
-    c_s = argv[1];
-    if (sscanf(c_s, "%d", &c) != 1) {
-	Err_Append("Expected an integer for count, got ");
-	Err_Append(c_s);
-	Err_Append(". ");
-	return 0;
-    }
+    int i;
 
     for (i = 0; i < N_VOLS && c > 0; i++) {
 	if ( vols[i].oqpd && vols[i].users <= 0 ) {
@@ -1089,11 +1111,38 @@ static int flush_cb(int argc, char *argv[])
 	}
     }
     if ( c > 0 ) {
-	Err_Append("Unable to free ");
-	Err_Append(c_s);
-	Err_Append("volumes. ");
+	return 0;
     }
     return 1;
+}
+
+/* This command removes some unused volumes, if possible. */
+static int flush_cb(int argc, char *argv[])
+{
+    char *c_s;
+    int c;
+
+    if ( argc != 2 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" count");
+	return 0;
+    }
+    c_s = argv[1];
+    if (sscanf(c_s, "%d", &c) != 1) {
+	Err_Append("Expected an integer for count, got ");
+	Err_Append(c_s);
+	Err_Append(". ");
+	return 0;
+    }
+    if ( !flush(c) ) {
+	Err_Append("Unable to free ");
+	Err_Append(c_s);
+	Err_Append(" volumes. ");
+	return 0;
+    } else {
+	return 1;
+    }
 }
 
 static int volume_headers_cb(int argc, char *argv[])
