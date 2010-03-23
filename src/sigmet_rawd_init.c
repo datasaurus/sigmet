@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.171 $ $Date: 2010/03/23 16:33:01 $
+ .	$Revision: 1.172 $ $Date: 2010/03/23 20:08:52 $
  */
 
 #include <stdlib.h>
@@ -1655,13 +1655,16 @@ static int bintvls_cb(int argc, char *argv[])
 #ifdef PROJ4
 static int proj_cb(int argc, char *argv[])
 {
-    if ( pj ) {
-	pj_free(pj);
-    }
-    if ( !(pj = pj_init(argc - 1, argv + 1)) ) {
+    projPJ t_pj;
+
+    if ( !(t_pj = pj_init(argc - 1, argv + 1)) ) {
 	Err_Append("Unknown projection.");
 	return 0;
     }
+    if ( pj ) {
+	pj_free(pj);
+    }
+    pj = t_pj;
     return 1;
 }
 #endif
