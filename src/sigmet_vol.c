@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.42 $ $Date: 2010/03/23 16:33:01 $
+   .	$Revision: 1.43 $ $Date: 2010/03/23 22:00:48 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -261,26 +261,26 @@ error:
     return status;
 }
 
-void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol vol)
+void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
 {
     int y;
     char elem_nm[STR_LEN];
 
-    print_product_hdr(out, "<product_hdr>.", vol.ph);
-    print_ingest_header(out, "<ingest_header>.", vol.ih);
+    print_product_hdr(out, "<product_hdr>.", vol_p->ph);
+    print_ingest_header(out, "<ingest_header>.", vol_p->ih);
     fprintf(out, "%d " FS " %s " FS " %s\n",
-	    vol.xhdr, "xhdr", "If true, volume uses extended headers");
+	    vol_p->xhdr, "xhdr", "If true, volume uses extended headers");
     fprintf(out, "%d " FS " %s " FS " %s\n",
-	    vol.num_types, "num_types", "Number of Sigmet data types");
-    for (y = 0; y < vol.num_types; y++) {
+	    vol_p->num_types, "num_types", "Number of Sigmet data types");
+    for (y = 0; y < vol_p->num_types; y++) {
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
 	fprintf(out, "%s " FS " %s " FS " %s\n",
-		Sigmet_DataType_Abbrv(vol.types[y]),
+		Sigmet_DataType_Abbrv(vol_p->types[y]),
 		elem_nm,
-		Sigmet_DataType_Descr(vol.types[y]));
+		Sigmet_DataType_Descr(vol_p->types[y]));
     }
     fprintf(out, "%d " FS " %s " FS " %s\n",
-	    vol.truncated, "truncated", "If true, volume is truncated");
+	    vol_p->truncated, "truncated", "If true, volume is truncated");
 }
 
 int Sigmet_GoodVol(FILE *f)

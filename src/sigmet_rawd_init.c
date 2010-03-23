@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.175 $ $Date: 2010/03/23 21:44:04 $
+ .	$Revision: 1.176 $ $Date: 2010/03/23 21:50:50 $
  */
 
 #include <stdlib.h>
@@ -1170,7 +1170,7 @@ static int volume_headers_cb(int argc, char *argv[])
 		" Please (re)load with read command. ");
 	return 0;
     }
-    Sigmet_PrintHdr(rslt1, vols[i].vol);
+    Sigmet_PrintHdr(rslt1, &vols[i].vol);
     return 1;
 }
 
