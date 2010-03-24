@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.179 $ $Date: 2010/03/24 14:22:21 $
+ .	$Revision: 1.180 $ $Date: 2010/03/24 15:19:01 $
  */
 
 #include <stdlib.h>
@@ -84,7 +84,7 @@ static char *cmd;
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 26
+#define NCMD 27
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -109,6 +109,7 @@ static callback proj_cb;
 static callback img_app_cb;
 static callback geom_cb;
 static callback alpha_cb;
+static callback img_name_cb;
 static callback img_cb;
 static callback stop_cb;
 static char *cmd1v[NCMD] = {
@@ -116,14 +117,14 @@ static char *cmd1v[NCMD] = {
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
     "colors", "bintvls", "proj", "img_app", "geom", "alpha",
-    "img", "stop"
+    "img_name", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
     DataType_SetColors_CB, bintvls_cb, proj_cb, img_app_cb, geom_cb, alpha_cb,
-    img_cb, stop_cb
+    img_name_cb, img_cb, stop_cb
 };
 
 /* Cartographic projection */
@@ -1762,6 +1763,81 @@ static int alpha_cb(int argc, char *argv[])
 	Err_Append(". ");
 	return 0;
     }
+    return 1;
+}
+
+/* Print the name of the image that img would create */
+static int img_name_cb(int argc, char *argv[])
+{
+    char *vol_nm;		/* Sigmet raw file */
+    struct Sigmet_Vol vol;	/* Volume from global vols array */
+    char *s_s;			/* Sweep index, as a string */
+    char *abbrv;		/* Data type abbreviation */
+    enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
+    int i;
+    int y, s;			/* Indeces: data type, sweep */
+    int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
+    double sec;			/* Sweep second */
+
+    /* Parse command line */
+    if ( argc != 4 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" type sweep volume");
+	return 0;
+    }
+    abbrv = argv[1];
+    s_s = argv[2];
+    vol_nm = argv[3];
+    if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
+	Err_Append("No data type named ");
+	Err_Append(abbrv);
+	Err_Append(".  ");
+	return 0;
+    }
+    if ( sscanf(s_s, "%d", &s) != 1 ) {
+	Err_Append("Sweep index must be an integer.  ");
+	return 0;
+    }
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	return 0;
+    }
+
+    /* Make sure volume, type, and sweep are valid */
+    vol = vols[i].vol;
+    for (y = 0; y < vol.num_types; y++) {
+	if (type_t == vol.types[y]) {
+	    break;
+	}
+    }
+    if (y == vol.num_types) {
+	Err_Append("Data type ");
+	Err_Append(abbrv);
+	Err_Append(" not in volume.\n");
+	return 0;
+    }
+    if (s >= vol.ih.ic.num_sweeps) {
+	Err_Append("Sweep index greater than number of sweeps.  ");
+	return 0;
+    }
+    if ( !vol.sweep_ok[s] ) {
+	Err_Append("Sweep not valid in this volume.  ");
+	return 0;
+    }
+
+    /* Print name of output file */
+    if ( !Tm_JulToCal(vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
+	Err_Append("Sweep time garbled. ");
+	return 0;
+    }
+    fprintf(rslt1, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f.png\n",
+		vol.ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
+		abbrv, vol.sweep_angle[s] * DEG_PER_RAD);
+
     return 1;
 }
 
