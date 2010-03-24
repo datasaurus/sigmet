@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.178 $ $Date: 2010/03/24 14:21:35 $
+ .	$Revision: 1.179 $ $Date: 2010/03/24 14:22:21 $
  */
 
 #include <stdlib.h>
@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
     }
 
     /* Read commands from i_cmd0 into buf and execute them.  */
-    while ( read(i_cmd0, &l, sizeof(size_t)) != -1 ) {
+    while ( (r = read(i_cmd0, &l, sizeof(size_t))) ) {
 	int argc1;		/* Number of arguments in received command line */
 	char *argv1[ARGCX];	/* Arguments from received command line */
 	int a;			/* Index into argv1 */
@@ -296,6 +296,12 @@ int main(int argc, char *argv[])
 	int i;			/* Loop index */
 	int tmx = 0;		/* If true, time this session */
 
+	/* Tolerate interrupt in read. Otherwise, bail out */
+	if ( r == -1 && errno != EINTR ) {
+	    break;
+	}
+
+	/* Fetch the command */
 	if ( l > BUF_L ) {
 	    fprintf(stderr, "%s: Command with %lu bytes to large for buffer.\n",
 		    time_stamp(), l);
