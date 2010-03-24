@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.176 $ $Date: 2010/03/23 21:50:50 $
+ .	$Revision: 1.177 $ $Date: 2010/03/23 22:10:36 $
  */
 
 #include <stdlib.h>
@@ -1915,9 +1915,9 @@ static int img_cb(int argc, char *argv[])
 	    Err_Append("\nCould not spawn sweep drawing application.  ");
 	    return 0;
 	case 0:
-	    /* Child process.  Read polygon from stdin. */
+	    /* Child.  Close stdout. Keep stderr. Read polygons from stdin. */
 	    if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
-		    || fclose(rslt1) == EOF) {
+		    || close(STDOUT_FILENO) == -1 || fclose(rslt1) == EOF) {
 		fprintf(stderr, "%s: %s child could not close"
 			" server streams", img_app, time_stamp());
 		_exit(EXIT_FAILURE);
