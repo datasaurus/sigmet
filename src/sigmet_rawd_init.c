@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.177 $ $Date: 2010/03/23 22:10:36 $
+ .	$Revision: 1.178 $ $Date: 2010/03/24 14:21:35 $
  */
 
 #include <stdlib.h>
@@ -232,6 +232,7 @@ int main(int argc, char *argv[])
 	    exit(EXIT_FAILURE);
 	}
     }
+    *img_app = '\0';
 
     /* Check for angle unit */
     if ((ang_u = getenv("ANGLE_UNIT")) != NULL) {
@@ -1797,7 +1798,7 @@ static int img_cb(int argc, char *argv[])
     double px_per_m;		/* Display units per map unit */
     struct dvpoint points[4];	/* Corners of a gate in device coordinates */
 
-    if ( !img_app ) {
+    if ( strlen(img_app) == 0 ) {
 	Err_Append("Sweep drawing application not set");
 	return 0;
     }
