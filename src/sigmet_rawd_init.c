@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.180 $ $Date: 2010/03/24 15:19:01 $
+ .	$Revision: 1.181 $ $Date: 2010/03/24 16:56:33 $
  */
 
 #include <stdlib.h>
@@ -18,11 +18,12 @@
 #include <stdio.h>
 #include <math.h>
 #include <errno.h>
+#include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <signal.h>
-#include <time.h>
+#include <sys/wait.h>
 #include "alloc.h"
 #include "err_msg.h"
 #include "tm_calc_lib.h"
@@ -171,7 +172,8 @@ struct dvpoint {
 static char *time_stamp(void);
 static FILE *vol_open(const char *, pid_t *);
 static unsigned new_dchk(void);
-static int flush(int c);
+static int flush(int);
+static void unload(int);
 
 /* Signal handling functions */
 static int handle_signals(void);
@@ -832,10 +834,7 @@ static int hread_cb(int argc, char *argv[])
 		if (pid != -1) {
 		    kill(pid, SIGKILL);
 		}
-		vols[i].oqpd = 0;
-		vols[i].users = 0;
-		vols[i].st_dev = 0;
-		vols[i].st_ino = 0;
+		unload(i);
 		Err_Append("Could not read volume from ");
 		Err_Append(vol_nm);
 		Err_Append(".\n");
@@ -891,7 +890,7 @@ static int read_cb(int argc, char *argv[])
 	    return 0;
 	}
     } else if ( i >= 0 && vols[i].vol.truncated ) {
-	Sigmet_FreeVol(&vols[i].vol);
+	unload(i);
     } else {
 	vols[i].users++;
 	fprintf(rslt1, "%s loaded.\n", vol_nm);
@@ -928,10 +927,7 @@ static int read_cb(int argc, char *argv[])
 		if (pid != -1) {
 		    kill(pid, SIGKILL);
 		}
-		vols[i].oqpd = 0;
-		vols[i].users = 0;
-		vols[i].st_dev = 0;
-		vols[i].st_ino = 0;
+		unload(i);
 		Err_Append("Could not read volume from ");
 		Err_Append(vol_nm);
 		Err_Append(".\n");
@@ -1044,11 +1040,7 @@ static int new_vol_i(char *vol_nm, struct stat *sbuf_p)
 	if ( !vols[i].oqpd ) {
 	    return i;
 	} else if ( vols[i].users <= 0 ) {
-	    Sigmet_FreeVol(&vols[i].vol);
-	    vols[i].oqpd = 0;
-	    vols[i].users = 0;
-	    vols[i].st_dev = 0;
-	    vols[i].st_ino = 0;
+	    unload(i);
 	    return i;
 	}
     }
@@ -1093,11 +1085,7 @@ static int unload_cb(int argc, char *argv[])
     i = get_vol_i(vol_nm);
     if ( i >= 0 ) {
 	if ( vols[i].users <= 0 ) {
-	    Sigmet_FreeVol(&vols[i].vol);
-	    vols[i].oqpd = 0;
-	    vols[i].users = 0;
-	    vols[i].st_dev = 0;
-	    vols[i].st_ino = 0;
+	    unload(i);
 	} else {
 	    Err_Append(vol_nm);
 	    Err_Append(" in use.");
@@ -1107,6 +1095,19 @@ static int unload_cb(int argc, char *argv[])
     return 1;
 }
 
+/* Unload a volume */
+static void unload(int i)
+{
+    if ( i < 0 || i >= N_VOLS ) {
+	return;
+    }
+    Sigmet_FreeVol(&vols[i].vol);
+    vols[i].oqpd = 0;
+    vols[i].users = 0;
+    vols[i].st_dev = 0;
+    vols[i].st_ino = 0;
+}
+
 /* Remove c unused volumes, if possible. */
 static int flush(int c)
 {
@@ -1114,11 +1115,7 @@ static int flush(int c)
 
     for (i = 0; i < N_VOLS && c > 0; i++) {
 	if ( vols[i].oqpd && vols[i].users <= 0 ) {
-	    Sigmet_FreeVol(&vols[i].vol);
-	    vols[i].oqpd = 0;
-	    vols[i].users = 0;
-	    vols[i].st_dev = 0;
-	    vols[i].st_ino = 0;
+	    unload(i);
 	    if ( --c == 0 ) {
 		break;
 	    }
@@ -1874,9 +1871,13 @@ static int img_cb(int argc, char *argv[])
     size_t img_fl_nm_l;		/* strlen(img_fl_nm) */
     char kml_fl_nm[LEN];	/* Output file */
     FILE *kml_fl;		/* KML file */
-    FILE *out;			/* Where to send outlines to draw */
+    FILE *out = NULL;		/* Where to send outlines to draw */
     pid_t pid = 0;		/* Process identifier, for fork */
     int pfd[2];			/* Pipe for data */
+    int errp[2];		/* Pipe for error messages */
+    FILE *err = NULL;		/* Output from image process */
+    char err_buf[LEN];		/* Store image process output */
+    char *e, *e1 = err_buf + LEN; /* Point into err_buf */
     double px_per_m;		/* Display units per map unit */
     struct dvpoint points[4];	/* Corners of a gate in device coordinates */
 
@@ -1986,9 +1987,9 @@ static int img_cb(int argc, char *argv[])
     }
 
     /* Launch the external drawing application and create a pipe to it. */
-    if ( pipe(pfd) == -1 ) {
+    if ( pipe(pfd) == -1 || pipe(errp) == -1 ) {
 	Err_Append(strerror(errno));
-	Err_Append("\nCould not create pipe for sweep drawing application.  ");
+	Err_Append("\nCould not create pipes for sweep drawing application.  ");
 	return 0;
     }
     pid = fork();
@@ -1998,9 +1999,13 @@ static int img_cb(int argc, char *argv[])
 	    Err_Append("\nCould not spawn sweep drawing application.  ");
 	    return 0;
 	case 0:
-	    /* Child.  Close stdout. Keep stderr. Read polygons from stdin. */
+	    /*
+	       Child.  Close stdout.
+	       Write stderr to write side of error pipe.
+	       Read polygons from stdin (read side of data pipe).
+	     */
 	    if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
-		    || close(STDOUT_FILENO) == -1 || fclose(rslt1) == EOF) {
+		    || fclose(rslt1) == EOF) {
 		fprintf(stderr, "%s: %s child could not close"
 			" server streams", img_app, time_stamp());
 		_exit(EXIT_FAILURE);
@@ -2010,11 +2015,22 @@ static int img_cb(int argc, char *argv[])
 			img_app, time_stamp());
 		_exit(EXIT_FAILURE);
 	    }
+	    if ( dup2(errp[1], STDERR_FILENO) == -1 || close(errp[0]) == -1 ) {
+		fprintf(stderr, "%s: could not set up %s process",
+			img_app, time_stamp());
+		_exit(EXIT_FAILURE);
+	    }
 	    execl(img_app, img_app, (char *)NULL);
 	    _exit(EXIT_FAILURE);
 	default:
-	    /* This process.  Send polygon to out. */
+	    /* This process.  Send polygon to out. Read errors from err */
 	    if ( close(pfd[0]) == -1 || !(out = fdopen(pfd[1], "w"))) {
+		Err_Append(strerror(errno));
+		Err_Append("\nCould not write to drawing application.  ");
+		return 0;
+	    }
+	    if ( close(errp[1]) == -1 || !(err = fdopen(errp[0], "r"))) {
+		fclose(out);
 		Err_Append(strerror(errno));
 		Err_Append("\nCould not write to drawing application.  ");
 		return 0;
@@ -2022,31 +2038,31 @@ static int img_cb(int argc, char *argv[])
     }
 
     /* Send global information about the image to drawing process */
-    if ( fwrite(&w_dpy, sizeof(w_dpy), 1, out) != 1
-	    ||fwrite(&h_dpy, sizeof(h_dpy), 1, out) != 1 ) {
-	Err_Append("Could not write image dimensions. ");
-	return 0;
-    }
     img_fl_nm_l = strlen(img_fl_nm);
     if ( fwrite(&img_fl_nm_l, sizeof(img_fl_nm_l), 1, out) != 1
 	    || fwrite(img_fl_nm, 1, img_fl_nm_l, out) != img_fl_nm_l ) {
 	Err_Append("Could not write image file name. ");
-	return 0;
+	goto error;
+    }
+    if ( fwrite(&w_dpy, sizeof(w_dpy), 1, out) != 1
+	    ||fwrite(&h_dpy, sizeof(h_dpy), 1, out) != 1 ) {
+	Err_Append("Could not write image dimensions. ");
+	goto error;
     }
     if ( fwrite(&alpha, sizeof(alpha), 1, out) != 1 ) {
 	Err_Append("Could not write alpha value. ");
-	return 0;
+	goto error;
     }
     if ( fwrite(&n_clrs, 1, sizeof(n_clrs), out) != 1 ) {
 	Err_Append("Could not write number of colors. ");
-	return 0;
+	goto error;
     }
     for (n = 0; n < n_clrs; n++) {
 	if ( fwrite(&clrs[n].red, sizeof(unsigned char), 1, out) != 1
 		|| fwrite(&clrs[n].green, sizeof(unsigned char), 1, out) != 1
 		|| fwrite(&clrs[n].blue, sizeof(unsigned char), 1, out) != 1 ) {
 	    Err_Append("Could not write colors. ");
-	    return 0;
+	    goto error;
 	}
     }
 
@@ -2086,26 +2102,39 @@ static int img_cb(int argc, char *argv[])
 		    points[3].y = (top - cnrs_uv[3].v) * px_per_m;
 		    if ( fwrite(&n, sizeof(int), 1, out) != 1 ) {
 			Err_Append("Could not write polygon color index. ");
-			return 0;
+			goto error;
 		    }
 		    if ( fwrite(&npts, sizeof(size_t), 1, out) != 1 ) {
 			Err_Append("Could not write polygon point count. ");
-			return 0;
+			goto error;
 		    }
 		    for (pt_p = points; pt_p < points + npts; pt_p++) {
 			if ( fwrite(&pt_p->x, sizeof(int), 1, out) != 1
 				|| fwrite(&pt_p->y, sizeof(int), 1, out) != 1 ) {
 			    Err_Append("failed to write bin corner coordinates. ");
-			    return 0;
+			    goto error;
 			}
 		    }
 		}
 	    }
 	}
     }
-    if ( fclose(out) == EOF ) {
-	Err_Append("Could not close pipe to drawing application.  ");
-	Err_Append(strerror(errno));
+    fclose(out);
+
+    /* Get output from image process stderr. 1st character is status */
+    memset(err_buf, 0, LEN);
+    *err_buf = fgetc(err);
+    for (e = err_buf + 1; e < e1; e++) {
+	    *e = fgetc(err);
+	    if ( *e == EOF ) {
+		break;
+	    }
+    }
+    fclose(err);
+    if ( *err_buf == EXIT_FAILURE ) {
+	Err_Append("Image process failed. ");
+	Err_Append(err_buf + 1);
+	return 0;
     }
 
     /* Make kml file and return */
@@ -2127,6 +2156,14 @@ static int img_cb(int argc, char *argv[])
 
     fprintf(rslt1, "%s\n", img_fl_nm);
     return 1;
+error:
+    if (err) {
+	fclose(err);
+    }
+    if (out) {
+	fclose(out);
+    }
+    return 0;
 }
 
 static int stop_cb(int argc, char *argv[])
