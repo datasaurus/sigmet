@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.181 $ $Date: 2010/03/24 16:56:33 $
+ .	$Revision: 1.182 $ $Date: 2010/03/25 21:05:57 $
  */
 
 #include <stdlib.h>
@@ -753,19 +753,32 @@ static FILE *vol_open(const char *vol_nm, pid_t *pidp)
 
 static int good_cb(int argc, char *argv[])
 {
+    char *vol_nm;
     FILE *in;
     int rslt;
     pid_t pid = -1;
 
     if ( argc != 2 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" sigmet_volume");
 	return 0;
     }
-    if ( !(in = vol_open(argv[1], &pid)) ) {
+    vol_nm = argv[1];
+    if ( !(in = vol_open(vol_nm, &pid)) ) {
+	Err_Append("Could not open ");
+	Err_Append(vol_nm);
+	Err_Append(". ");
 	return 0;
     }
     rslt = Sigmet_GoodVol(in);
     if ( pid != -1 ) {
 	kill(pid, SIGKILL);
+    }
+    if ( !rslt ) {
+	Err_Append("Could not navigate ");
+	Err_Append(vol_nm);
+	Err_Append(". ");
     }
     fclose(in);
     return rslt;
