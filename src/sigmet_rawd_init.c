@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.183 $ $Date: 2010/03/26 16:12:13 $
+ .	$Revision: 1.184 $ $Date: 2010/03/28 03:07:22 $
  */
 
 #include <stdlib.h>
@@ -2115,16 +2115,19 @@ static int img_cb(int argc, char *argv[])
 		    points[3].y = (top - cnrs_uv[3].v) * px_per_m;
 		    if ( fwrite(&n, sizeof(int), 1, out) != 1 ) {
 			Err_Append("Could not write polygon color index. ");
+			Err_Append(strerror(errno));
 			goto error;
 		    }
 		    if ( fwrite(&npts, sizeof(size_t), 1, out) != 1 ) {
 			Err_Append("Could not write polygon point count. ");
+			Err_Append(strerror(errno));
 			goto error;
 		    }
 		    for (pt_p = points; pt_p < points + npts; pt_p++) {
 			if ( fwrite(&pt_p->x, sizeof(int), 1, out) != 1
 				|| fwrite(&pt_p->y, sizeof(int), 1, out) != 1 ) {
 			    Err_Append("failed to write bin corner coordinates. ");
+			    Err_Append(strerror(errno));
 			    goto error;
 			}
 		    }
