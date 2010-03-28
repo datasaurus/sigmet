@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.182 $ $Date: 2010/03/25 21:05:57 $
+ .	$Revision: 1.183 $ $Date: 2010/03/26 16:12:13 $
  */
 
 #include <stdlib.h>
@@ -1021,7 +1021,7 @@ static int get_vol_i(char *vol_nm)
        Walk the array until we actually reach the volume from vol_nm.
      */
 
-    for (i = h; i + 1 != h; i = ++i % N_VOLS) {
+    for (i = h; i + 1 != h; i = (i + 1) % N_VOLS) {
 	if ( vols[i].oqpd
 		&& vols[i].st_dev == sbuf.st_dev
 		&& vols[i].st_ino == sbuf.st_ino) {
@@ -1049,7 +1049,7 @@ static int new_vol_i(char *vol_nm, struct stat *sbuf_p)
     }
 
     /* Search vols array for an empty slot */
-    for (i = h; i + 1 != h; i = ++i % N_VOLS) {
+    for (i = h; i + 1 != h; i = (i + 1) % N_VOLS) {
 	if ( !vols[i].oqpd ) {
 	    return i;
 	} else if ( vols[i].users <= 0 ) {
