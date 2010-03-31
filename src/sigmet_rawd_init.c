@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.184 $ $Date: 2010/03/28 03:07:22 $
+ .	$Revision: 1.185 $ $Date: 2010/03/28 04:42:47 $
  */
 
 #include <stdlib.h>
@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <setjmp.h>
 #include <errno.h>
 #include <time.h>
 #include <unistd.h>
@@ -32,6 +33,7 @@
 #include "data_types.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
+#include "numxfer.h"
 
 /* Size for various strings */
 #define LEN 1024
@@ -1885,6 +1887,8 @@ static int img_cb(int argc, char *argv[])
     char kml_fl_nm[LEN];	/* Output file */
     FILE *kml_fl;		/* KML file */
     FILE *out = NULL;		/* Where to send outlines to draw */
+    jmp_buf err_jmp;		/* Handle output errors with setjmp, longjmp */
+    char *item;			/* Item being written. Needed for error message. */
     pid_t pid = 0;		/* Process identifier, for fork */
     int pfd[2];			/* Pipe for data */
     int errp[2];		/* Pipe for error messages */
@@ -2050,33 +2054,39 @@ static int img_cb(int argc, char *argv[])
 	    }
     }
 
-    /* Send global information about the image to drawing process */
-    img_fl_nm_l = strlen(img_fl_nm);
-    if ( fwrite(&img_fl_nm_l, sizeof(img_fl_nm_l), 1, out) != 1
-	    || fwrite(img_fl_nm, 1, img_fl_nm_l, out) != img_fl_nm_l ) {
-	Err_Append("Could not write image file name. ");
-	goto error;
-    }
-    if ( fwrite(&w_dpy, sizeof(w_dpy), 1, out) != 1
-	    ||fwrite(&h_dpy, sizeof(h_dpy), 1, out) != 1 ) {
-	Err_Append("Could not write image dimensions. ");
-	goto error;
-    }
-    if ( fwrite(&alpha, sizeof(alpha), 1, out) != 1 ) {
-	Err_Append("Could not write alpha value. ");
-	goto error;
-    }
-    if ( fwrite(&n_clrs, 1, sizeof(n_clrs), out) != 1 ) {
-	Err_Append("Could not write number of colors. ");
-	goto error;
-    }
-    for (n = 0; n < n_clrs; n++) {
-	if ( fwrite(&clrs[n].red, sizeof(unsigned char), 1, out) != 1
-		|| fwrite(&clrs[n].green, sizeof(unsigned char), 1, out) != 1
-		|| fwrite(&clrs[n].blue, sizeof(unsigned char), 1, out) != 1 ) {
-	    Err_Append("Could not write colors. ");
+    /* Come back here if write to image generator fails */
+    switch (setjmp(err_jmp)) {
+	case NUMXFER_OK:
+	    /* Initializing */
+	    break;
+	case NUMXFER_ERR:
+	    /* Fail */
+	    Err_Append("Could not write ");
+	    Err_Append(item);
+	    Err_Append("Could not write image data. ");
 	    goto error;
-	}
+	    break;
+	case NUMXFER_EOF:
+	    /* Not used */
+	    break;
+    }
+
+    /* Send global information about the image to drawing process */
+    img_fl_nm_l = strlen(img_fl_nm) + 1;
+    item = " image file name. ";
+    numxfer_put_uint16(img_fl_nm_l, out, err_jmp);
+    numxfer_put_chars(img_fl_nm_l, img_fl_nm, out, err_jmp);
+    item = " image dimensions. ";
+    numxfer_put_uint32(w_dpy, out, err_jmp);
+    numxfer_put_uint32(h_dpy, out, err_jmp);
+    item = " alpha channel value. ";
+    numxfer_put_float(alpha, out, err_jmp);
+    item = " colors. ";
+    numxfer_put_uint32(n_clrs, out, err_jmp);
+    for (n = 0; n < n_clrs; n++) {
+	numxfer_put_uint16(clrs[n].red, out, err_jmp);
+	numxfer_put_uint16(clrs[n].green, out, err_jmp);
+	numxfer_put_uint16(clrs[n].blue, out, err_jmp);
     }
 
     /* Determine which interval from bounds each bin value is in. */
@@ -2113,23 +2123,14 @@ static int img_cb(int argc, char *argv[])
 		    points[2].y = (top - cnrs_uv[2].v) * px_per_m;
 		    points[3].x = (cnrs_uv[3].u - left) * px_per_m;
 		    points[3].y = (top - cnrs_uv[3].v) * px_per_m;
-		    if ( fwrite(&n, sizeof(int), 1, out) != 1 ) {
-			Err_Append("Could not write polygon color index. ");
-			Err_Append(strerror(errno));
-			goto error;
-		    }
-		    if ( fwrite(&npts, sizeof(size_t), 1, out) != 1 ) {
-			Err_Append("Could not write polygon point count. ");
-			Err_Append(strerror(errno));
-			goto error;
-		    }
+		    item = " polygon color index. ";
+		    numxfer_put_uint32(n, out, err_jmp);
+		    item = " polygon point count. ";
+		    numxfer_put_uint32(npts, out, err_jmp);
+		    item = " bin corner coordinates. ";
 		    for (pt_p = points; pt_p < points + npts; pt_p++) {
-			if ( fwrite(&pt_p->x, sizeof(int), 1, out) != 1
-				|| fwrite(&pt_p->y, sizeof(int), 1, out) != 1 ) {
-			    Err_Append("failed to write bin corner coordinates. ");
-			    Err_Append(strerror(errno));
-			    goto error;
-			}
+			numxfer_put_float(pt_p->x, out, err_jmp);
+			numxfer_put_float(pt_p->y, out, err_jmp);
 		    }
 		}
 	    }
