@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.5 $ $Date: 2009/12/09 17:36:25 $
+.\" $Revision: 1.6 $ $Date: 2010/02/19 23:15:34 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
 Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_InitVol, Sigmet_FreeVol, Sigmet_GoodVol, Sigmet_ReadHdr, Sigmet_PrintHdr, Sigmet_ReadVol, Sigmet_BadRay, Sigmet_BinOutl \- read Sigmet raw data
@@ -27,7 +27,7 @@ Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_NoData, Si
 \fBvoid Sigmet_FreeVol(struct Sigmet_Vol\fP *\fIsigPtr\fP\fB);\fP
 \fBint Sigmet_GoodVol(FILE\fP *\fIf\fP\fB);\fP
 \fBint Sigmet_ReadHdr(FILE\fP *\fIf, \fBstruct Sigmet_Vol\fP *\fIsigPtr\fP\fB);\fP
-\fBvoid Sigmet_PrintHdr(FILE *, struct Sigmet_Vol);
+\fBvoid Sigmet_PrintHdr(FILE *, struct Sigmet_Vol *);
 \fBint Sigmet_ReadVol(FILE\fP *\fIf\fP, \fBstruct Sigmet_Vol\fP *\fIsigPtr\fP\fB);\fP
 \fBint Sigmet_BadRay(struct Sigmet_Vol\fP *\fIsigPtr\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP\fB);\fP
 \fBint Sigmet_BinOutl(struct Sigmet_Vol\fP *\fIsigPtr\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP, \fBint\fP \fIb\fP, \fBdouble\fP *\fIll\fP\fB);\fP
@@ -123,7 +123,8 @@ file from stream \fIf\fP into the volume structure at \fIsigPtr\fP.
 should have already been initialized with a call to \fBSigmet_InitVol\fP.
 \fBSigmet_ReadVol\fP returns true if it succeeds. If something goes
 wrong it returns false, leaving an error message which can be
-retrieved with \fBerr_get\fP.  Memory allocated during read
+retrieved with \fBerr_get\fP, and re-initializing the structure at \fIsigPtr\fP
+with a call to \fBSigmet_InitVol\fP.  Memory allocated during a successful read
 should eventually be freed with a call to \fISigmet_FreeVol\fP.
 .PP
 \fBSigmet_BadRay\fP returns true if the ray in \fIsigPtr\fP at index
