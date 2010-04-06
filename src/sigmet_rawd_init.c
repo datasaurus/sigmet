@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.185 $ $Date: 2010/03/28 04:42:47 $
+ .	$Revision: 1.186 $ $Date: 2010/03/31 16:33:20 $
  */
 
 #include <stdlib.h>
@@ -31,9 +31,9 @@
 #include "geog_lib.h"
 #include "bisearch_lib.h"
 #include "data_types.h"
+#include "xdrx.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
-#include "numxfer.h"
 
 /* Size for various strings */
 #define LEN 1024
@@ -164,11 +164,6 @@ static int h_dpy;			/* Height of image in display units,
 					   pixels, points, cm */
 static double alpha = 1.0;		/* alpha channel. 1.0 => translucent */
 static char img_app[LEN];		/* External application to draw sweeps */
-
-/* Point in device coordinates (pixels) */
-struct dvpoint {
-    int x, y;
-};
 
 /* Convenience functions */
 static char *time_stamp(void);
@@ -1887,6 +1882,7 @@ static int img_cb(int argc, char *argv[])
     char kml_fl_nm[LEN];	/* Output file */
     FILE *kml_fl;		/* KML file */
     FILE *out = NULL;		/* Where to send outlines to draw */
+    struct XDRX_Stream xout;	/* XDR stream for out */
     jmp_buf err_jmp;		/* Handle output errors with setjmp, longjmp */
     char *item;			/* Item being written. Needed for error message. */
     pid_t pid = 0;		/* Process identifier, for fork */
@@ -1896,7 +1892,6 @@ static int img_cb(int argc, char *argv[])
     char err_buf[LEN];		/* Store image process output */
     char *e, *e1 = err_buf + LEN; /* Point into err_buf */
     double px_per_m;		/* Display units per map unit */
-    struct dvpoint points[4];	/* Corners of a gate in device coordinates */
 
     if ( strlen(img_app) == 0 ) {
 	Err_Append("Sweep drawing application not set");
@@ -2053,20 +2048,21 @@ static int img_cb(int argc, char *argv[])
 		return 0;
 	    }
     }
+    XDRX_StdIO_Create(&xout, out, XDR_ENCODE);
 
     /* Come back here if write to image generator fails */
     switch (setjmp(err_jmp)) {
-	case NUMXFER_OK:
+	case XDRX_OK:
 	    /* Initializing */
 	    break;
-	case NUMXFER_ERR:
+	case XDRX_ERR:
 	    /* Fail */
 	    Err_Append("Could not write ");
 	    Err_Append(item);
 	    Err_Append("Could not write image data. ");
 	    goto error;
 	    break;
-	case NUMXFER_EOF:
+	case XDRX_EOF:
 	    /* Not used */
 	    break;
     }
@@ -2074,19 +2070,24 @@ static int img_cb(int argc, char *argv[])
     /* Send global information about the image to drawing process */
     img_fl_nm_l = strlen(img_fl_nm) + 1;
     item = " image file name. ";
-    numxfer_put_uint16(img_fl_nm_l, out, err_jmp);
-    numxfer_put_chars(img_fl_nm_l, img_fl_nm, out, err_jmp);
+    XDRX_Put_UInt(img_fl_nm_l, &xout, err_jmp);
+    XDRX_Put_String(img_fl_nm, img_fl_nm_l, &xout, err_jmp);
     item = " image dimensions. ";
-    numxfer_put_uint32(w_dpy, out, err_jmp);
-    numxfer_put_uint32(h_dpy, out, err_jmp);
+    XDRX_Put_UInt(w_dpy, &xout, err_jmp);
+    XDRX_Put_UInt(h_dpy, &xout, err_jmp);
+    item = " image real bounds. ";
+    XDRX_Put_Double(left, &xout, err_jmp);
+    XDRX_Put_Double(rght, &xout, err_jmp);
+    XDRX_Put_Double(top, &xout, err_jmp);
+    XDRX_Put_Double(btm, &xout, err_jmp);
     item = " alpha channel value. ";
-    numxfer_put_float(alpha, out, err_jmp);
+    XDRX_Put_Float(alpha, &xout, err_jmp);
     item = " colors. ";
-    numxfer_put_uint32(n_clrs, out, err_jmp);
+    XDRX_Put_UInt(n_clrs, &xout, err_jmp);
     for (n = 0; n < n_clrs; n++) {
-	numxfer_put_uint16(clrs[n].red, out, err_jmp);
-	numxfer_put_uint16(clrs[n].green, out, err_jmp);
-	numxfer_put_uint16(clrs[n].blue, out, err_jmp);
+	XDRX_Put_UInt(clrs[n].red, &xout, err_jmp);
+	XDRX_Put_UInt(clrs[n].green, &xout, err_jmp);
+	XDRX_Put_UInt(clrs[n].blue, &xout, err_jmp);
     }
 
     /* Determine which interval from bounds each bin value is in. */
@@ -2097,7 +2098,6 @@ static int img_cb(int argc, char *argv[])
 		if ( Sigmet_IsData(d) && (n = BISearch(d, bnds, n_bnds)) != -1 ) {
 		    int undef = 0;	/* If true, gate is outside map */
 		    size_t npts = 4;	/* Number of vertices */
-		    struct dvpoint *pt_p;
 
 		    if ( !Sigmet_BinOutl(&vol, s, r, b, cnrs_ll) ) {
 			continue;
@@ -2115,27 +2115,24 @@ static int img_cb(int argc, char *argv[])
 			continue;
 		    }
 
-		    points[0].x = (cnrs_uv[0].u - left) * px_per_m;
-		    points[0].y = (top - cnrs_uv[0].v) * px_per_m;
-		    points[1].x = (cnrs_uv[1].u - left) * px_per_m;
-		    points[1].y = (top - cnrs_uv[1].v) * px_per_m;
-		    points[2].x = (cnrs_uv[2].u - left) * px_per_m;
-		    points[2].y = (top - cnrs_uv[2].v) * px_per_m;
-		    points[3].x = (cnrs_uv[3].u - left) * px_per_m;
-		    points[3].y = (top - cnrs_uv[3].v) * px_per_m;
 		    item = " polygon color index. ";
-		    numxfer_put_uint32(n, out, err_jmp);
+		    XDRX_Put_UInt(n, &xout, err_jmp);
 		    item = " polygon point count. ";
-		    numxfer_put_uint32(npts, out, err_jmp);
+		    XDRX_Put_UInt(npts, &xout, err_jmp);
 		    item = " bin corner coordinates. ";
-		    for (pt_p = points; pt_p < points + npts; pt_p++) {
-			numxfer_put_float(pt_p->x, out, err_jmp);
-			numxfer_put_float(pt_p->y, out, err_jmp);
-		    }
+		    XDRX_Put_Double(cnrs_uv[0].u, &xout, err_jmp);
+		    XDRX_Put_Double(cnrs_uv[0].v, &xout, err_jmp);
+		    XDRX_Put_Double(cnrs_uv[1].u, &xout, err_jmp);
+		    XDRX_Put_Double(cnrs_uv[1].v, &xout, err_jmp);
+		    XDRX_Put_Double(cnrs_uv[2].u, &xout, err_jmp);
+		    XDRX_Put_Double(cnrs_uv[2].v, &xout, err_jmp);
+		    XDRX_Put_Double(cnrs_uv[3].u, &xout, err_jmp);
+		    XDRX_Put_Double(cnrs_uv[3].v, &xout, err_jmp);
 		}
 	    }
 	}
     }
+    XDRX_Destroy(&xout);
     fclose(out);
 
     /* Get output from image process stderr. 1st character is status */
