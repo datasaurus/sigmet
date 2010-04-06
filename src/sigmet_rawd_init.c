@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.186 $ $Date: 2010/03/31 16:33:20 $
+ .	$Revision: 1.187 $ $Date: 2010/04/06 15:47:24 $
  */
 
 #include <stdlib.h>
@@ -2134,6 +2134,7 @@ static int img_cb(int argc, char *argv[])
     }
     XDRX_Destroy(&xout);
     fclose(out);
+    out = NULL;
 
     /* Get output from image process stderr. 1st character is status */
     memset(err_buf, 0, LEN);
@@ -2261,19 +2262,7 @@ static int handle_signals(void)
 	perror(NULL);
 	return 0;
     }
-    if ( sigaction(SIGBUS, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
     if ( sigaction(SIGFPE, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
-    if ( sigaction(SIGILL, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
-    if ( sigaction(SIGSEGV, &act, NULL) == -1 ) {
 	perror(NULL);
 	return 0;
     }
