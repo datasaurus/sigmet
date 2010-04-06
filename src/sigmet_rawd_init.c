@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.188 $ $Date: 2010/04/06 18:33:56 $
+ .	$Revision: 1.189 $ $Date: 2010/04/06 19:53:27 $
  */
 
 #include <stdlib.h>
@@ -783,12 +783,13 @@ static int good_cb(int argc, char *argv[])
 
 static int hread_cb(int argc, char *argv[])
 {
+    int loaded;			/* If true, volume is loaded */
+    int trying;			/* If true, still attempting to read volume */
     int i;			/* Index into vols */
     struct stat sbuf;   	/* Information about file to read */
     char *vol_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t pid;			/* Decompressing child */
-    int n, ntries;		/* Attempt to read volume ntries times */
 
     if ( argc == 2 ) {
 	vol_nm = argv[1];
@@ -816,45 +817,42 @@ static int hread_cb(int argc, char *argv[])
     }
 
     /* Read headers */
-    pid = -1;
-    if ( !(in = vol_open(vol_nm, &pid)) ) {
-	Err_Append("Could not open ");
-	Err_Append(vol_nm);
-	Err_Append(" for input. ");
-	return 0;
-    }
-    for (n = 0, ntries = 4; n < ntries; n++) {
+    for (trying = 1, loaded = 0; trying && !loaded; ) {
+	pid = -1;
+	if ( !(in = vol_open(vol_nm, &pid)) ) {
+	    Err_Append("Could not open ");
+	    Err_Append(vol_nm);
+	    Err_Append(" for input. ");
+	    return 0;
+	}
 	switch (Sigmet_ReadHdr(in, &vols[i].vol)) {
 	    case READ_OK:
 		/* Success. Break out. */
-		n = ntries;
+		loaded = 1;
+		trying = 0;
 		break;
 	    case MEM_FAIL:
 		/* Try to free some memory and try again */
-		if ( flush(1) ) {
-		    continue;
-		} else {
-		    n = ntries;
+		if ( !flush(1) ) {
+		    trying = 0;
 		}
 		break;
 	    case INPUT_FAIL:
 	    case BAD_VOL:
 		/* Read failed. Disable this slot and return failure. */
-		fclose(in);
-		if (pid != -1) {
-		    kill(pid, SIGKILL);
-		}
 		unload(i);
-		Err_Append("Could not read volume from ");
-		Err_Append(vol_nm);
-		Err_Append(".\n");
-		return 0;
+		trying = 0;
 		break;
 	}
+	fclose(in);
+	if (pid != -1) {
+	    kill(pid, SIGKILL);
+	}
     }
-    fclose(in);
-    if (pid != -1) {
-	kill(pid, SIGKILL);
+    if ( !loaded ) {
+	Err_Append("Could not read headers from ");
+	Err_Append(vol_nm);
+	Err_Append(".\n");
     }
     vols[i].oqpd = 1;
     stat(vol_nm, &sbuf);
@@ -869,12 +867,13 @@ static int hread_cb(int argc, char *argv[])
 
 static int read_cb(int argc, char *argv[])
 {
+    int loaded;			/* If true, volume is loaded */
+    int trying;			/* If true, still attempting to read volume */
     struct stat sbuf;   	/* Information about file to read */
     int i;			/* Index into vols */
     char *vol_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t pid;			/* Decompressing child */
-    int n, ntries;		/* Attempt to read volume ntries times */
 
     if ( argc == 2 ) {
 	vol_nm = argv[1];
@@ -908,46 +907,42 @@ static int read_cb(int argc, char *argv[])
     }
 
     /* Volume was not loaded, or was freed because truncated. Read volume */
-    pid = -1;
-    if ( !(in = vol_open(vol_nm, &pid)) ) {
-	Err_Append("Could not open ");
-	Err_Append(vol_nm);
-	Err_Append(" for input. ");
-	return 0;
-    }
-    /* Read volume */
-    for (n = 0, ntries = 4; n < ntries; n++) {
+    for (trying = 1, loaded = 0; trying && !loaded; ) {
+	pid = -1;
+	if ( !(in = vol_open(vol_nm, &pid)) ) {
+	    Err_Append("Could not open ");
+	    Err_Append(vol_nm);
+	    Err_Append(" for input. ");
+	    return 0;
+	}
 	switch (Sigmet_ReadVol(in, &vols[i].vol)) {
 	    case READ_OK:
 		/* Success. Break out. */
-		n = ntries;
+		loaded = 1;
+		trying = 0;
 		break;
 	    case MEM_FAIL:
-		/* Try to free some memory and try again */
-		if ( flush(1) ) {
-		    continue;
-		} else {
-		    n = ntries;
+		/* Try to free some memory. If unable to free memory, fail. */
+		if ( !flush(1) ) {
+		    trying = 0;
 		}
 		break;
 	    case INPUT_FAIL:
 	    case BAD_VOL:
-		/* Read failed. Disable this slot and return failure. */
-		fclose(in);
-		if (pid != -1) {
-		    kill(pid, SIGKILL);
-		}
+		/* Read failed. Disable this slot and fail. */
 		unload(i);
-		Err_Append("Could not read volume from ");
-		Err_Append(vol_nm);
-		Err_Append(".\n");
-		return 0;
+		trying = 0;
 		break;
 	}
+	fclose(in);
+	if (pid != -1) {
+	    kill(pid, SIGKILL);
+	}
     }
-    fclose(in);
-    if (pid != -1) {
-	kill(pid, SIGKILL);
+    if ( !loaded ) {
+	Err_Append("Could not read volume from ");
+	Err_Append(vol_nm);
+	Err_Append(".\n");
     }
     vols[i].oqpd = 1;
     strncpy(vols[i].vol_nm, vol_nm, LEN);
@@ -2081,7 +2076,7 @@ static int img_cb(int argc, char *argv[])
     XDRX_Put_Double(top, &xout, err_jmp);
     XDRX_Put_Double(btm, &xout, err_jmp);
     item = " alpha channel value. ";
-    XDRX_Put_Float(alpha, &xout, err_jmp);
+    XDRX_Put_Double(alpha, &xout, err_jmp);
     item = " colors. ";
     XDRX_Put_UInt(n_clrs, &xout, err_jmp);
     for (n = 0; n < n_clrs; n++) {
