@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.189 $ $Date: 2010/04/06 19:53:27 $
+ .	$Revision: 1.190 $ $Date: 2010/04/06 21:57:07 $
  */
 
 #include <stdlib.h>
@@ -181,6 +181,10 @@ int main(int argc, char *argv[])
 {
     cmd = argv[0];
     char *ddir;			/* Working directory for server */
+    int bg = 1;			/* If true, run in foreground (do not fork) */
+    pid_t pid;			/* Return from fork */
+    int flags;			/* Flags for log files */
+    mode_t mode;		/* Mode for log files */
     struct sig_vol *sv_p;	/* Member of vols */
     char *ang_u;		/* Angle unit */
     char *b;			/* Point into buf */
@@ -192,20 +196,23 @@ int main(int argc, char *argv[])
     double dtx = -1.0;		/* Time taken by slowest client in a set */
     int y;			/* Loop index */
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" };
-				/* Defalut projection */
-
-    printf("%s --\nVersion %s. Copyright (c) 2010 Gordon D. Carrie. "
-	    "All rights reserved.\n", cmd, SIGMET_VSN);
+    /* Default projection */
+    int i;
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
-	fprintf(stderr, "Could not set up signal management.");
+	fprintf(stderr, "%s: could not set up signal management.", cmd);
 	exit(EXIT_FAILURE);
     }
 
-    /* Usage: sigmet_rawd [-n integer] */
-    if ( argc != 1 ) {
-	fprintf(stderr, "Usage: %s\n", cmd);
+    /* Usage: sigmet_rawd [-f] */
+    if ( argc == 1 ) {
+	printf("%s --\nVersion %s. Copyright (c) 2010 Gordon D. Carrie. "
+		"All rights reserved.\n", cmd, SIGMET_VSN);
+    } else if ( argc == 2 && strcmp(argv[1], "-f") == 0 ) {
+	bg = 0;
+    } else {
+	fprintf(stderr, "Usage: %s [-f]\n", cmd);
 	exit(EXIT_FAILURE);
     }
 
@@ -222,13 +229,13 @@ int main(int argc, char *argv[])
     w_phys = 100000.0;		/* 100,000 meters */
     w_dpy = h_dpy = 600;
     if ( !(pj = pj_init(2, dflt_proj)) ) {
-	fprintf(stderr, "Could not set default projection.\n");
+	fprintf(stderr, "%s: could not set default projection.\n", cmd);
 	exit(EXIT_FAILURE);
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	if ( !DataType_Add(Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y)) ) {
-	    fprintf(stderr, "Could not register data type %s\n",
-		    Sigmet_DataType_Abbrv(y));
+	    fprintf(stderr, "%s: could not register data type %s\n",
+		    cmd, Sigmet_DataType_Abbrv(y));
 	    exit(EXIT_FAILURE);
 	}
     }
@@ -241,15 +248,16 @@ int main(int argc, char *argv[])
 	} else if (strcmp(ang_u, "RADIAN") == 0) {
 	    use_deg = 0;
 	} else {
-	    fprintf(stderr, "Unknown angle unit %s.\n", ang_u);
+	    fprintf(stderr, "%s: unknown angle unit %s.\n", cmd, ang_u);
 	    exit(EXIT_FAILURE);
 	}
     }
 
-    /* Create working directory */
+    /* Identify and go to working directory */
     if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	fprintf(stderr, "Could not identify daemon directory. Please specify "
-		"daemon directory with SIGMET_RAWD_DIR environment variable.\n");
+	fprintf(stderr, "%s: could not identify daemon directory. "
+		"Please specify daemon directory with SIGMET_RAWD_DIR "
+		"environment variable.\n", cmd);
 	exit(EXIT_FAILURE);
     }
     if ( chdir(ddir) == -1 ) {
@@ -257,9 +265,48 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
+    if ( bg ) {
+	/* Put server in background */
+	switch (pid = fork()) {
+	    case -1:
+		fprintf(stderr, "%s: could not fork.\n%s\n", cmd, strerror(errno));
+		exit(EXIT_FAILURE);
+	    case 0:
+		/* Child = daemon process. */
+
+		if ( !handle_signals() ) {
+		    fprintf(stderr, "%s: could not set up signal management "
+			    "in daemon.", cmd);
+		    exit(EXIT_FAILURE);
+		}
+
+		/* Set up output. */
+		flags = O_CREAT | O_TRUNC | O_WRONLY;
+		mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+		if ( (i = open("sigmet.log", flags, mode)) == -1
+			|| dup2(i, STDOUT_FILENO) == -1 || close(i) == -1 ) {
+		    fprintf(stderr, "%s: could not open log file.", cmd);
+		    _exit(EXIT_FAILURE);
+		}
+		if ( (i = open("sigmet.err", flags, mode)) == -1
+			|| dup2(i, STDERR_FILENO) == -1 || close(i) == -1 ) {
+		    fprintf(stderr, "%s: could not open error file.", cmd);
+		    _exit(EXIT_FAILURE);
+		}
+		fclose(stdin);
+		break;
+	    default:
+		/* Parent. Print information and exit. */
+		printf("Starting sigmet_rawd. Process id = %d.\n"
+			"Daemon working directory = %s\n", pid, ddir);
+		exit(EXIT_SUCCESS);
+	}
+    }
+
     /* Create named pipe for command input */
     if ( (mkfifo(SIGMET_RAWD_IN, S_IRUSR | S_IWUSR) == -1) ) {
-	fprintf(stderr, "Could not create input pipe.\n%s\n", strerror(errno));
+	fprintf(stderr, "%s: could not create input pipe.\n%s\n",
+		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
@@ -275,13 +322,13 @@ int main(int argc, char *argv[])
 
     /* Open command input stream. */
     if ( (i_cmd0 = open(SIGMET_RAWD_IN, O_RDONLY)) == -1 ) {
-	fprintf(stderr, "Could not open %s for input.\n%s\n",
-		SIGMET_RAWD_IN, strerror(errno));
+	fprintf(stderr, "%s: could not open %s for input.\n%s\n",
+		cmd, SIGMET_RAWD_IN, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     if ( (i_cmd1 = open(SIGMET_RAWD_IN, O_WRONLY)) == -1 ) {
-	fprintf(stderr, "Could not open %s for output.\n%s\n",
-		SIGMET_RAWD_IN, strerror(errno));
+	fprintf(stderr, "%s: could not open %s for output.\n%s\n",
+		cmd, SIGMET_RAWD_IN, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
@@ -303,12 +350,12 @@ int main(int argc, char *argv[])
 
 	/* Fetch the command */
 	if ( l > BUF_L ) {
-	    fprintf(stderr, "%s: Command with %lu bytes to large for buffer.\n",
+	    fprintf(stderr, "%s: command with %lu bytes to large for buffer.\n",
 		    time_stamp(), l);
 	    continue;
 	}
 	if ( (r = read(i_cmd0, buf, l)) != l ) {
-	    fprintf(stderr, "%s: Failed to read command of %ld bytes. ",
+	    fprintf(stderr, "%s: failed to read command of %ld bytes. ",
 		    time_stamp(), l);
 	    if ( r == -1 ) {
 		fprintf(stderr, "%s\n", strerror(errno));
@@ -338,7 +385,7 @@ int main(int argc, char *argv[])
 	argc1 = *(int *)b;
 	b += sizeof(argc1);
 	if (argc1 > ARGCX) {
-	    fprintf(stderr, "%s: Unable to parse command with %d arguments. "
+	    fprintf(stderr, "%s: unable to parse command with %d arguments. "
 		    "Limit is %d\n", time_stamp(), argc1, ARGCX);
 	    continue;
 	}
@@ -348,7 +395,7 @@ int main(int argc, char *argv[])
 	    }
 	}
 	if ( b == buf_e ) {
-	    fprintf(stderr, "%s: Command line gives no destination.\n",
+	    fprintf(stderr, "%s: command line gives no destination.\n",
 		    time_stamp());
 	    continue;
 	}
@@ -356,12 +403,12 @@ int main(int argc, char *argv[])
 	/* Open "standard output" file */
 	rslt1 = NULL;
 	if (snprintf(rslt1_nm, LEN, "%d.1", client_pid) > LEN) {
-	    fprintf(stderr, "%s: Could not create file name for client %d.\n",
+	    fprintf(stderr, "%s: could not create file name for client %d.\n",
 		    time_stamp(), client_pid);
 	    continue;
 	}
 	if ( !(rslt1 = fopen(rslt1_nm, "w")) ) {
-	    fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
+	    fprintf(stderr, "%s: could not open %s for output.\n%s\n",
 		    time_stamp(), rslt1_nm, strerror(errno));
 	    continue;
 	}
@@ -369,12 +416,12 @@ int main(int argc, char *argv[])
 	/* Open error file */
 	rslt2 = NULL;
 	if (snprintf(rslt2_nm, LEN, "%d.2", client_pid) > LEN) {
-	    fprintf(stderr, "%s: Could not create file name for client %d.\n",
+	    fprintf(stderr, "%s: could not create file name for client %d.\n",
 		    time_stamp(), client_pid);
 	    continue;
 	}
 	if ( !(rslt2 = fopen(rslt2_nm, "w")) ) {
-	    fprintf(stderr, "%s: Could not open %s for output.\n%s\n",
+	    fprintf(stderr, "%s: could not open %s for output.\n%s\n",
 		    time_stamp(), rslt2_nm, strerror(errno));
 	    continue;
 	}
@@ -390,11 +437,11 @@ int main(int argc, char *argv[])
 	    }
 	    fprintf(rslt2, "\n");
 	    if ( (fclose(rslt1) == EOF) ) {
-		fprintf(stderr, "%s: Could not close %s.\n%s\n",
+		fprintf(stderr, "%s: could not close %s.\n%s\n",
 			time_stamp(), rslt1_nm, strerror(errno));
 	    }
 	    if ( (fclose(rslt2) == EOF) ) {
-		fprintf(stderr, "%s: Could not close %s.\n%s\n",
+		fprintf(stderr, "%s: could not close %s.\n%s\n",
 			time_stamp(), rslt2_nm, strerror(errno));
 	    }
 	    continue;
@@ -403,27 +450,27 @@ int main(int argc, char *argv[])
 	/* Run command. Callback will send "standard output" to rslt1. */
 	success = (cb1v[i])(argc1, argv1);
 	if ( (fclose(rslt1) == EOF) ) {
-	    fprintf(stderr, "%s: Could not close %s.\n%s\n",
+	    fprintf(stderr, "%s: could not close %s.\n%s\n",
 		    time_stamp(), rslt1_nm, strerror(errno));
 	}
 
 	/* Send status and error messages, if any */
 	if ( success ) {
 	    if ( fputc(EXIT_SUCCESS, rslt2) == EOF ) {
-		fprintf(stderr, "%s: Could not send return code for %s.\n"
+		fprintf(stderr, "%s: could not send return code for %s.\n"
 			"%s\n", time_stamp(), cmd1, strerror(errno) );
 	    }
 	} else {
 	    if ( fputc(EXIT_FAILURE, rslt2) == EOF
 		    || fprintf(rslt2, "%s failed.\n%s\n",
 			cmd1, Err_Get()) == -1 ) {
-		fprintf(stderr, "%s: Could not send return code or error "
+		fprintf(stderr, "%s: could not send return code or error "
 			"output for %s.\n%s\n",
 			time_stamp(), cmd1, strerror(errno) );
 	    }
 	}
 	if ( (fclose(rslt2) == EOF) ) {
-	    fprintf(stderr, "%s: Could not close %s.\n%s\n",
+	    fprintf(stderr, "%s: could not close %s.\n%s\n",
 		    time_stamp(), rslt2_nm, strerror(errno));
 	}
 
@@ -437,7 +484,7 @@ int main(int argc, char *argv[])
 		end = time(NULL);
 		dt = difftime(end, start);
 		if (verbose) {
-		    printf("%s: Session %d took ", time_stamp(), dchk);
+		    printf("%s: session %d took ", time_stamp(), dchk);
 		    if ( dt == 0.0 ) {
 			printf("< 1.0 sec.\n");
 		    } else {
@@ -447,7 +494,7 @@ int main(int argc, char *argv[])
 		if (dt > dtx) {
 		    dtx = dt;
 		    if (verbose) {
-			printf("%s: Slowest client in this set so "
+			printf("%s: slowest client in this set so "
 				"far took ", time_stamp());
 			if ( dtx == 0.0 ) {
 			    printf("< 1.0 sec.\n");
@@ -462,12 +509,12 @@ int main(int argc, char *argv[])
 		    }
 		    if ( dtx < tmout / 2 ) {
 			tmout = tmout / 2 + 1;
-			    printf("%s: Setting timeout to %u sec.\n",
+			    printf("%s: setting timeout to %u sec.\n",
 				    time_stamp(), tmout);
 		    }
 		    dchk = new_dchk();
 		    if (verbose) {
-			printf("%s: Will assess timeout after %d "
+			printf("%s: will assess timeout after %d "
 				"iterations\n", time_stamp(), dchk);
 		    }
 		    dtx = -1.0;
@@ -2190,7 +2237,7 @@ static int stop_cb(int argc, char *argv[])
     if ( unlink(SIGMET_RAWD_IN) == -1 ) {
 	fprintf(stderr, "%s: could not delete input pipe.\n", time_stamp());
     }
-    fprintf(stderr, "%s: received stop command, exiting.\n", time_stamp());
+    printf("%s: received stop command, exiting.\n", time_stamp());
     exit(EXIT_SUCCESS);
     return 0;
 }
