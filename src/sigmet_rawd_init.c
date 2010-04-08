@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.190 $ $Date: 2010/04/06 21:57:07 $
+ .	$Revision: 1.191 $ $Date: 2010/04/07 15:15:17 $
  */
 
 #include <stdlib.h>
@@ -110,7 +110,7 @@ static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback proj_cb;
 static callback img_app_cb;
-static callback geom_cb;
+static callback img_sz_cb;
 static callback alpha_cb;
 static callback img_name_cb;
 static callback img_cb;
@@ -119,14 +119,14 @@ static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread",
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
-    "colors", "bintvls", "proj", "img_app", "geom", "alpha",
+    "colors", "bintvls", "proj", "img_app", "img_sz", "alpha",
     "img_name", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
-    DataType_SetColors_CB, bintvls_cb, proj_cb, img_app_cb, geom_cb, alpha_cb,
+    DataType_SetColors_CB, bintvls_cb, proj_cb, img_app_cb, img_sz_cb, alpha_cb,
     img_name_cb, img_cb, stop_cb
 };
 
@@ -156,11 +156,9 @@ static char kml_tmpl[] =
 "</kml>\n";
 
 /* Configuration for output images */
-static double w_phys;			/* Width of physical (on the ground) area
-					   displayed in output image in meters. */
-static int w_dpy;			/* Width of image in display units,
+static int w_pxl;			/* Width of image in display units,
 					   pixels, points, cm */
-static int h_dpy;			/* Height of image in display units,
+static int h_pxl;			/* Height of image in display units,
 					   pixels, points, cm */
 static double alpha = 1.0;		/* alpha channel. 1.0 => translucent */
 static char img_app[LEN];		/* External application to draw sweeps */
@@ -226,8 +224,7 @@ int main(int argc, char *argv[])
     }
 
     /* Initialize other variables */
-    w_phys = 100000.0;		/* 100,000 meters */
-    w_dpy = h_dpy = 600;
+    w_pxl = h_pxl = 600;
     if ( !(pj = pj_init(2, dflt_proj)) ) {
 	fprintf(stderr, "%s: could not set default projection.\n", cmd);
 	exit(EXIT_FAILURE);
@@ -1732,37 +1729,28 @@ static int proj_cb(int argc, char *argv[])
 }
 #endif
 
-/* Specify image geometry */
-static int geom_cb(int argc, char *argv[])
+/* Specify image width in pixels */
+static int img_sz_cb(int argc, char *argv[])
 {
-    char *w_phys_s, *w_dpy_s, *h_dpy_s;
+    char *w_pxl_s;
 
-    if ( argc != 4 ) {
-	Err_Append("Usage: geom width_phys width_dpy height_dpy");
+    if ( argc == 1 ) {
+	fprintf(rslt1, "%d\n", w_pxl);
+	return 1;
+    } else if ( argc == 2 ) {
+	w_pxl_s = argv[1];
+	if ( sscanf(w_pxl_s, "%d", &w_pxl) != 1 ) {
+	    Err_Append("Expected integer value for display width, got ");
+	    Err_Append(w_pxl_s);
+	    Err_Append(". ");
+	    return 0;
+	}
+	h_pxl = w_pxl;
+	return 1;
+    } else {
+	Err_Append("Usage: img_sz width_pxl");
 	return 0;
     }
-    w_phys_s = argv[1];
-    w_dpy_s = argv[2];
-    h_dpy_s = argv[3];
-    if ( sscanf(w_phys_s, "%lf", &w_phys) != 1 ) {
-	Err_Append("Expected float value for physical width, got ");
-	Err_Append(w_phys_s);
-	Err_Append(". ");
-	return 0;
-    }
-    if ( sscanf(w_dpy_s, "%d", &w_dpy) != 1 ) {
-	Err_Append("Expected integer value for display width, got ");
-	Err_Append(w_dpy_s);
-	Err_Append(". ");
-	return 0;
-    }
-    if ( sscanf(h_dpy_s, "%d", &h_dpy) != 1 ) {
-	Err_Append("Expected integer value for display height, got ");
-	Err_Append(h_dpy_s);
-	Err_Append(". ");
-	return 0;
-    }
-    return 1;
 }
 
 /* Identify image generator */
@@ -1909,9 +1897,11 @@ static int img_cb(int argc, char *argv[])
     unsigned char n_bnds;	/* number of bounds = n_clrs + 1 */
     double d;			/* Data value */
     projUV radar;		/* Radar location lon-lat or x-y */
+    projUV edge;		/* Point on the edge of the display area, needed
+				   to compute display bounds */
     double cnrs_ll[8];		/* Corners of a gate, lon-lat */
     double *ll;			/* Element from cnrs_ll */
-    double step;		/* Half width or height of display area. */
+    double ray_len;		/* Ray length, meters or great circle radians */
     double west, east;		/* Display area longitude limits */
     double south, north;	/* Display area latitude limits */
     projUV cnrs_uv[4];		/* Corners of a gate, lon-lat or x-y */
@@ -1998,35 +1988,70 @@ static int img_cb(int argc, char *argv[])
     }
 
     /*
-       Longitude, latitude limits of display area.
-       Assume w_phys in meters.
-       Step half of display width. Convert to radians by multiplying by:
-       1 nmi / 1852 meters * 1 deg / 60 nmi * 1 radian / 180 deg
+       To obtain longitude, latitude limits of display area, put radar
+       at center, and step ray length to the north, south, west, and east.
+       GeogStep expects step of great circle radians, not meters.  Convert
+       meters to radians by multiplying by:
+       pi radian / 180 deg * 1 deg / 60 nmi * 1 nmi / 1852 meters 
+       This conversion is based on the International Standard Nautical Mile,
+       which is 1852 meters.
      */
+
     radar.u = Sigmet_Bin4Rad(vol.ih.ic.longitude);
     radar.v = Sigmet_Bin4Rad(vol.ih.ic.latitude);
-    step = w_phys / (2 * 1852.0 * 60.0 * 180.0);
-    GeogStep(radar.u, radar.v, 270.0 * RAD_PER_DEG, step, &west, &d);
-    GeogStep(radar.u, radar.v, 90.0 * RAD_PER_DEG, step, &east, &d);
-    step *= h_dpy / w_dpy;
-    GeogStep(radar.u, radar.v, 180.0 * RAD_PER_DEG, step, &d, &south);
-    GeogStep(radar.u, radar.v, 0.0, step, &d, &north);
+    ray_len = 0.01 * (vol.ih.tc.tri.rng_1st_bin
+	    + (vol.ih.tc.tri.num_bins_out + 1) * vol.ih.tc.tri.step_out);
+    ray_len = ray_len * M_PI / (180.0 * 60.0 * 1852.0);
+
+    /* Left (west) side */
+    GeogStep(radar.u, radar.v, 270.0 * RAD_PER_DEG, ray_len, &west, &d);
+    edge.u = west;
+    edge.v = d;
+    edge = pj_fwd(edge, pj);
+    if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
+	Err_Append("West edge of map undefined in this projection. ");
+	return 0;
+    }
+    left = edge.u;
+
+    /* Right (east) side */
+    GeogStep(radar.u, radar.v, 90.0 * RAD_PER_DEG, ray_len, &east, &d);
+    edge.u = east;
+    edge.v = d;
+    edge = pj_fwd(edge, pj);
+    if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
+	Err_Append("East edge of map undefined in this projection. ");
+	return 0;
+    }
+    rght = edge.u;
+
+    /* Bottom (south) side */
+    GeogStep(radar.u, radar.v, 180.0 * RAD_PER_DEG, ray_len, &d, &south);
+    edge.u = d;
+    edge.v = south;
+    edge = pj_fwd(edge, pj);
+    if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
+	Err_Append("West edge of map undefined in this projection. ");
+	return 0;
+    }
+    btm = edge.v;
+
+    /* Top (north) side */
+    GeogStep(radar.u, radar.v, 0.0, ray_len, &d, &north);
+    edge.u = d;
+    edge.v = north;
+    edge = pj_fwd(edge, pj);
+    if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
+	Err_Append("West edge of map undefined in this projection. ");
+	return 0;
+    }
+    top = edge.v;
+
     west *= DEG_PER_RAD;
     east *= DEG_PER_RAD;
     south *= DEG_PER_RAD;
     north *= DEG_PER_RAD;
-
-    /* Limits of display area in projection coordinates */
-    radar = pj_fwd(radar, pj);
-    if ( radar.u == HUGE_VAL || radar.v == HUGE_VAL ) {
-	Err_Append("Could not get map coordinates of radar. ");
-	return 0;
-    }
-    left = radar.u - 0.5 * w_phys;
-    rght = radar.u + 0.5 * w_phys;
-    top = radar.v + 0.5 * (h_dpy / w_dpy) * w_phys;
-    btm = radar.v - 0.5 * (h_dpy / w_dpy) * w_phys;
-    px_per_m = w_dpy / w_phys;
+    px_per_m = w_pxl / (rght - left);
 
     /* Make name of output file */
     if ( !Tm_JulToCal(vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
@@ -2115,8 +2140,8 @@ static int img_cb(int argc, char *argv[])
     XDRX_Put_UInt(img_fl_nm_l, &xout, err_jmp);
     XDRX_Put_String(img_fl_nm, img_fl_nm_l, &xout, err_jmp);
     item = " image dimensions. ";
-    XDRX_Put_UInt(w_dpy, &xout, err_jmp);
-    XDRX_Put_UInt(h_dpy, &xout, err_jmp);
+    XDRX_Put_UInt(w_pxl, &xout, err_jmp);
+    XDRX_Put_UInt(h_pxl, &xout, err_jmp);
     item = " image real bounds. ";
     XDRX_Put_Double(left, &xout, err_jmp);
     XDRX_Put_Double(rght, &xout, err_jmp);
