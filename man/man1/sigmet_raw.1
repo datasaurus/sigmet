@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.14 $ $Date: 2010/02/24 17:23:46 $
+.\" $Revision: 1.15 $ $Date: 2010/02/26 17:20:27 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -12,24 +12,35 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 .SH SYNOPSIS
 .nf
 \fBexport\fP \fBSIGMET_RAWD_DIR=\fP\fIdirectory\fP 
-\fBsigmet_rawd\fP > \fIoutput\fP 2> \fIerror\fP &
-\fBsigmet_raw\fP [\fIcommand\fP] [\fIoptions\fP]
+\fBsigmet_rawd\fP [\fB-f\fP]
+\fBsigmet_raw\fP \fBcmd_len\fP
+\fBsigmet_raw\fP \fBverbose\fP \fBtrue\fP|\fBfalse\fP
+\fBsigmet_raw\fP \fBpid\fP
 \fBsigmet_raw\fP \fBtimeout\fP
+\fBsigmet_raw\fP \fBtimeout\fP \fBnone\fP
+\fBsigmet_raw\fP \fBtimeout\fP \fIinteger\fP [\fBadjustable\fP|\fBfixed\fP]
 \fBsigmet_raw\fP \fBtypes\fP
+\fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBhread\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBread\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBlist\fP
 \fBsigmet_raw\fP \fBrelease\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBunload\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBflush\fP \fIcount\fP
 \fBsigmet_raw\fP \fBvolume_headers\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBvol_hdr\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBnear_sweep\fP
 \fBsigmet_raw\fP \fBray_headers\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP] \fIvolume_file\fP
 \fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
-\fBsigmet_raw\fP \fBbounds\fP \fIdata_type\fP \fInum_bounds\fP \fIbounds_file\fP
 \fBsigmet_raw\fP \fBcolors\fP \fIdata_type\fP \fIcolors_file\fP
 \fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIvolume_file\fP
-\fB#ifdef PROJ4\fP
 \fBsigmet_raw\fP \fBproj\fP \fIargs ...\fP
-\fB#endif\fP
-\fBsigmet_raw\fP \fBimg_config\fP \fIformat\fP \fIwidth_phys\fP \fIwidth_dpy\fP \fIheight_dpy\fP
+\fBsigmet_raw\fP \fBimg_app\fP \fIpath\fP
+\fBsigmet_raw\fP \fBimg_sz\fP \fIn\fP
+\fBsigmet_raw\fP \fBalpha\fP \fIa\fP
+\fBsigmet_raw\fP \fBimg_name\fP [\fItype\fP] [\fIs\fP] \fIvolume_file\fP
+\fBsigmet_raw\fP \fBimg\fP
 \fBsigmet_raw\fP \fBstop\fP
 .fi
 .SH DESCRIPTION
@@ -55,17 +66,23 @@ time, the daemon kills it. This prevents frozen clients from freezing the daemon
 Users who want to interact with a personal daemon can override this potentially
 obnoxious behavior with the \fBtimeout\fP subcommand.
 .PP
+\fBsigmet_rawd\fP goes to the background upon startup. The \fB-f\fP option
+overrides this behavior. Log messages go to \fB$SIGMET_RAWD_DIR/sigmet.log\fP.
+Error messages go to \fB$SIGMET_RAWD_DIR/sigmet.err\fP.
+.PP
 Once \fBsigmet_rawd\fP is running, the commands listed below are recognized.
 Note that file names should be given as absolute paths, since the daemon
 is probably not using the same current working directory as the client.
 .TP
-\fBsigmet_raw\fB \fBtypes\fP
-Prints a list of Sigmet data types.  Output lines have form:
-.sp 1
-.ti +4
-\fIDB_XXX\fP \fB|\fP \fIDescription\fP
-.sp 1
-See the IRIS Programmer's Manual for information about Sigmet data types.
+\fBsigmet_raw\fP \fBcmd_len\fP
+Prints the length of the longest command accepted by \fBsigmet_raw\fP.
+.TP
+\fBsigmet_raw\fP \fBverbose\fP \fBtrue\fP|\fBfalse\fP
+If argument is \fBtrue\fP, the daemon will print more frequent messages to its
+log file. If \fBfalse\fP, the daemon will print normal log messages.
+.TP
+\fBsigmet_raw\fP \fBpid\fP
+Prints the daemons proccess id.
 .TP
 \fBsigmet_raw\fP \fBtimeout\fP
 Prints the time limit for clients - the maximum time a client can block the daemon
@@ -90,15 +107,32 @@ possibly slow network connections or user interaction. Scripts that access
 impatient daemons should probably make several connection attempts to improve
 chances of reaching a potentially overloaded daemon.
 .TP
-\fBsigmet_raw\fP \fBstop\fP
-Stops the daemon. Working directory continues to exist. Subsequent calls to
-\fBsigmet_raw\fP will fail.
+\fBsigmet_raw\fP \fBtypes\fP
+Prints a list of Sigmet data types.  Output lines have form:
+.sp 1
+.ti +4
+\fIDB_XXX\fP \fB|\fP \fIDescription\fP
+.sp 1
+See the IRIS Programmer's Manual for information about Sigmet data types.
 .TP
 \fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
 Returns success if \fIvolume_file\fP contains a valid Sigmet raw product
 volume. Otherwise, \fBsigmet_raw\fP returns failure. No output is printed,
 and nothing from the volume is stored. The daemon only tries the read the
 headers and navigate the data section of the file.
+.TP
+\fBsigmet_raw\fP \fBhread\fP \fIvolume_file\fP
+Tells the daemon to read headers from \fIvolume_file\fP, which must be the path
+of a Sigmet raw product file.  Headers, but no data, will be stored in memory for
+subsequent calls to \fBsigmet_raw\fP.  Calls that use the volume will identify it
+by the file that provided it. Paths given later do not have to perfectly match
+\fIvolume_file\fP, they just have to identify the same file.
+(Links and relative paths are handled correctly.)
+Each call to \fBhread\fP increments a user count associated with the volume.
+The daemon will not delete a volume with a positive user count.  The user
+count should eventually be decreased with a call to \fBrelease\fP.
+If a volume is already in storage, the daemon will not normally read it again.
+It will only increment the user count. 
 .TP
 \fBsigmet_raw\fP \fBread\fP \fIvolume_file\fP
 Tells the daemon to read \fIvolume_file\fP, which must be the path of a Sigmet raw
@@ -119,12 +153,25 @@ operator issued a "stop now" command before the Sigmet task completed.  The
 \fBsigmet_raw\fP\ \fBvolume_headers\fP indicates whether a loaded volume is
 truncated.
 .TP
+\fBsigmet_raw\fP \fBlist\fP
+Prints a list of currently loaded volumes, their user counts, and whether they
+are complete or truncated.
+.TP
 \fBsigmet_raw\fP \fBrelease\fP \fIvolume_file\fP
 Decrements the user count associated with the Sigmet volume obtained from
 \fIvolume_file\fP. When user count reaches \fB0\fP, storage associated with
 the volume becomes available for new volumes.  Every call to
 \fBsigmet_raw\fP\ \fBread\fP should have a corresponding call to
 \fBsigmet_raw\fP\ \fBrelease\fP
+.TP
+\fBsigmet_raw\fP \fBunload\fP \fIvolume_file\fP
+If the user count for \fIvolume_file\fP, this command removes it from memory.
+It fails if the volume is in use.
+.TP
+\fBsigmet_raw\fP \fBflush\fP \fIcount\fP
+Attempts to remove \fIcount\fP unused volumes from memory. If there are fewer than
+\fIcount\fP unused volumes, the command frees as many as it can, and returns a
+failure code.
 .TP
 \fBsigmet_raw\fP \fBvolume_headers\fP \fIvolume_file\fP
 Prints volume headers for
@@ -148,17 +195,24 @@ hierarchies.  See the IRIS Programmer's Manual for details.
 \fBsigmet_raw\fP \fBvol_hdr\fP \fIvolume_file\fP
 Prints a short list of commonly used volume headers.  Output will look like:
 .nf
-\fBsite_name\fP="\fIsite_name_from_setup\fP"
-\fBradar_lon\fP=\fIlongitude_degrees\fP
-\fBradar_lat\fP=\fIlatitude_degrees\fP
-\fBtask_name\fP="\fItask_name\fP"
-\fBtypes\fP="\fItype_name\fP \fItype_name\fP ..."
-\fBnum_sweeps\fP=\fIinteger\fP
-\fBnum_rays\fP=\fIinteger\fP
-\fBnum_bins\fP=\fIinteger\fP
-\fBrange_bin0\fP=\fIinteger_cm\fP
-\fBbin_step\fP=\fIinteger_cm\fP
+
+    \fBsite_name\fP="\fIsite_name_from_setup\fP"
+    \fBradar_lon\fP=\fIlongitude_degrees\fP
+    \fBradar_lat\fP=\fIlatitude_degrees\fP
+    \fBtask_name\fP="\fItask_name\fP"
+    \fBtypes\fP="\fItype_name\fP \fItype_name\fP ..."
+    \fBnum_sweeps\fP=\fIinteger\fP
+    \fBnum_rays\fP=\fIinteger\fP
+    \fBnum_bins\fP=\fIinteger\fP
+    \fBrange_bin0\fP=\fIinteger_cm\fP
+    \fBbin_step\fP=\fIinteger_cm\fP
+
 .fi
+.TP
+\fBsigmet_raw\fP \fBnear_sweep\fP \fIangle\fP \fIvolume_file\fP
+Prints the index of the sweep whose fixed angle is nearest \fIangle\fP degrees
+in the volume from \fIvolume_file\fP, which should have been loaded with a
+call to \fBsigmet_raw\fP\ \fBread\fP.
 .TP
 \fBsigmet_raw\fP \fBray_headers\fP \fIvolume_file\fP
 Prints ray times, azimuths, and tilts for
@@ -200,19 +254,25 @@ call to \fBsigmet_raw\fP\ \fBread\fP.
 The corners will be printed as
 "\fIlon1\ lat1 lon2\ lat2 lon3\ lat3 lon4\ lat4\fP".
 .TP
-\fBsigmet_raw\fP \fBbounds\fP \fIdata_type\fP \fInum_bounds\fP \fIbounds_file\fP
-Obtains the bounds for data intervals to be displayed with given colors, for
-Sigmet data type \fIdata_type\fP. The command will read \fInum_bounds\fP
-values from \fIbounds_file\fP, which should contain a monotonic sequence of
-float values, separated by whitespace.  Display and manipulation commands
-will use these bounds to bin data values into discrete intervals.
-.TP
 \fBsigmet_raw\fP \fBcolors\fP \fIdata_type\fP \fIcolors_file\fP
-Sets display colors for Sigmet data type \fIdata_type\fP. Bounds for the data
-intervals should have already been set with a call to \fBbounds\fP. This command
-will read \fInum_bounds\fP\fB-1\fP color values from \fIcolors_file\fP. Each
-color value must consist of three whitespace separated floating point values in 
-range \fB[0,1]\fP, giving red, green, and blue values for the data interval.
+Sets display colors for Sigmet data type \fIdata_type\fP.  \fIcolors_file\fP
+must give an array of data boundaries, \fIbounds\fP, and an array of corresponding
+colors, \fIcolors\fP, in the following format:
+.nf
+
+    \fBraster\fP \fInum_colors\fP
+    \fIbounds[0]\fP \fIcolors[0]\fP
+    \fIbounds[1]\fP \fIcolors[1]\fP
+    ...
+    \fIbounds[num_colors-1]\fP \fIcolors[num_colors-1]\fP
+    \fIbounds[num_colors]\fP
+
+.fi
+Sequences of spaces, tabs, and newlines are treated as single whitespace characters.
+Members of \fIbounds\fP must be float values. The \fIbounds\fP array must be
+monotonic.  Members of the \fIcolors\fP array must have the form
+\fB#\fP\fIrrggbb\fP, where \fIrr\fP, \fIgg\fP, \fIgg\fP are hexadecimal red, green,
+and blue values.
 In subsequent displays, a bin (gate) whose value satisfies
 bounds[i]\ <=\ value\ <\ bounds[i+1] will be displayed with colors[i].
 .TP
@@ -234,27 +294,70 @@ where \fIi\fP specifies an index from the sequence of data bounds, and \fIr\fP a
 Sets the cartographic projection. \fIargs ...\fP should define a cartographic
 projection known to the Unix \fBproj\fP command.
 .TP
-\fBsigmet_raw\fP \fBimg_config\fP \fIformat\fP \fIwidth_phys\fP \fIwidth_dpy\fP \fIheight_dpy\fP
-Specifies a configuration for output images.
-\fIformat\fP indicates image type, currently
-\fBpng\fP for Portable Network Graphics files, or
-\fBps\fP for postscript.
-\fIwidth_phys\fP indicates the physical width of the area presented in the image.
-It should be something commensurate with the real size of a radar sweep. Units
-depend on what is displayed (e.g. PPI or RHI) and how it is transformed.  They
-will probably be meters, degrees of latitude or the like.
-\fIwidth_dpy\fP and \fIheight_dpy\fP specify the image size in display units,
-pixels for \fBpng\fP or points for \fBps\fP.
+\fBsigmet_raw\fP \fBimg_app\fP \fIpath\fP
+Identifies the external application that the \fBimg\fP subcommand will use
+to generate images. \fBpath\fP should give the name of an executable that reads
+image information from standard input and generates an image file. The daemon will
+send information to the image generating process as a stream of \fBxdr\fP encoded
+values.  Daemon output/image process input will have the following values in the
+order given:
+.nf
+
+    unsigned int     - number of chars in image file name, excluding \fBnul\fP.
+    string           - image file name
+    unsigned int     - image width, pixels
+    unsigned int     - image height, pixels
+    double           - real (map) coordinate of left edge of image
+    double           - real (map) coordinate of rigth edge of image
+    double           - real (map) coordinate of top edge of image
+    double           - real (map) coordinate of bottom edge of image
+    double           - image alpha channel, in range [0.0,1.0]
+    unsigned int     - number of colors
+    For each color:
+        unsigned int - red value for color, in range [0,256)
+        unsigned int - green value for color, in range [0,256)
+        unsigned int - blue value for color, in range [0,256)
+    For each polygon (gate):
+        unsigned int - color index
+        unsigned int - number of points (always 4)
+        For each point:
+            double   - real (map) coordinate of vertex abscissa
+            double   - real (map) coordinate of vertex ordinate
+
+.fi
+The image generating process should stop reading at end of file. If it succeeds,
+it should print a binary \fBEXIT_SUCCESS\fP to its \fBstderr\fP.
+If it fails, it should print a binary \fBEXIT_FAILURE\fP to its \fBstderr\fP,
+followed by an optional error message. \fBsigmet_raw\fP will print any given
+error message and return the given status code.
+.TP
+\fBsigmet_raw\fP \fBimg_sz\fP \fIn\fP
+Sets the size of images created with the \fBimg\fP subcommand to \fIn\fP pixels.
+.TP
+\fBsigmet_raw\fP \fBalpha\fP \fIa\fP
+Sets the alpha value of images created with the \fBimg\fP subcommand to \fIa\fP.
+Alpha value can range from \fB0.0\fP (transparent) to \fB1.0\fP (opaque).
+.TP
+\fBsigmet_raw\fP \fBimg_name\fP \fItype\fP \fIs\fP \fIvolume_file\fP
+Prints the name of the file which the \fBimg\fP subcommand will create for data
+type \fItype\fP, sweep \fIs\fP in the volume obtained from \fIvolume_file\fP,
+which should have been loaded with a call to \fBsigmet_raw\fP\ \fBread\fP.
+.TP
+\fBsigmet_raw\fP \fBimg\fP
+Makes an image for data type \fItype\fP, sweep \fIs\fP in the volume obtained
+from \fIvolume_file\fP, which should have been loaded with a call to
+\fBsigmet_raw\fP\ \fBread\fP. The daemon will write the image file in the
+\fB$SIGMET_RAWD_DIR\fP working directory.
+.TP
+\fBsigmet_raw\fP \fBstop\fP
+Stops the daemon. Working directory continues to exist. Subsequent calls to
+\fBsigmet_raw\fP will fail.
 .SH SEE ALSO
-sigmet (3)
+sigmet (3), IRIS Programmer's Manual (http://sigmet.com)
 .br
-proj (1)
+proj (1), pj_init (3), Cartographic Projection Procedures for the UNIX
+Environment --A User's Manual, (Evenden, 1990, Open-file report 90-284).
 .br
-pj_init (3)
-.br
-Cartographic Projection Procedures for the  UNIX  Environment--A  User's  Manual,
-(Evenden, 1990, Open-file report 90-284).
-.br
-IRIS Programmer's Manual (http://sigmet.com)
+xdr (3), RFC4506
 .SH AUTHOR
 Gordon Carrie (dev0@trekix.net)
