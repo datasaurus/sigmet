@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.191 $ $Date: 2010/04/07 15:15:17 $
+ .	$Revision: 1.192 $ $Date: 2010/04/08 21:06:42 $
  */
 
 #include <stdlib.h>
@@ -2135,7 +2135,7 @@ static int img_cb(int argc, char *argv[])
     }
 
     /* Send global information about the image to drawing process */
-    img_fl_nm_l = strlen(img_fl_nm) + 1;
+    img_fl_nm_l = strlen(img_fl_nm);
     item = " image file name. ";
     XDRX_Put_UInt(img_fl_nm_l, &xout, err_jmp);
     XDRX_Put_String(img_fl_nm, img_fl_nm_l, &xout, err_jmp);
