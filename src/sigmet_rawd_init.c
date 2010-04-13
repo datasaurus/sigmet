@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.192 $ $Date: 2010/04/08 21:06:42 $
+ .	$Revision: 1.193 $ $Date: 2010/04/09 19:43:55 $
  */
 
 #include <stdlib.h>
@@ -70,7 +70,8 @@ static int i_cmd0;		/* Where to get commands */
 static int i_cmd1;		/* Unused outptut (see explanation below). */
 static FILE *rslt1;		/* Where to send standard output */
 static FILE *rslt2;		/* Where to send standard error */
-pid_t client_pid;		/* Process id of client */
+pid_t client_pid = -1;		/* Client sending commands to daemon */
+pid_t vol_pid = -1;		/* Process providing a raw volume */
 
 /* These variables determine whether and when a slow client will be killed. */
 static int tmgout = 1;		/* If true, time out blocking clients. */
@@ -165,7 +166,7 @@ static char img_app[LEN];		/* External application to draw sweeps */
 
 /* Convenience functions */
 static char *time_stamp(void);
-static FILE *vol_open(const char *, pid_t *);
+static FILE *vol_open(const char *);
 static unsigned new_dchk(void);
 static int flush(int);
 static void unload(int);
@@ -470,6 +471,7 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "%s: could not close %s.\n%s\n",
 		    time_stamp(), rslt2_nm, strerror(errno));
 	}
+	client_pid = -1;
 
 	/*
 	   If imposing timeouts, clear alarm.
@@ -691,13 +693,12 @@ static int types_cb(int argc, char *argv[])
 /*
    Open volume file vol_nm, possibly via a pipe.
    Return file handle, or NULL if failure.
-   If file is actually a process, pidp gets the child's process id.
-   Otherwise, pidp is left alone.
+   If file is actually a process, global variable vol_pid gets the
+   child's process id.
  */
-static FILE *vol_open(const char *vol_nm, pid_t *pidp)
+static FILE *vol_open(const char *vol_nm)
 {
     FILE *in;		/* Return value */
-    pid_t pid = 0;	/* Process identifier, for fork */
     char *sfx;		/* Filename suffix */
     int pfd[2];		/* Pipe for data */
 
@@ -709,8 +710,8 @@ static FILE *vol_open(const char *vol_nm, pid_t *pidp)
 	    Err_Append("\nCould not create pipe for gzip.  ");
 	    return NULL;
 	}
-	pid = fork();
-	switch (pid) {
+	vol_pid = fork();
+	switch (vol_pid) {
 	    case -1:
 		Err_Append(strerror(errno));
 		Err_Append("\nCould not spawn gzip process.  ");
@@ -738,7 +739,6 @@ static FILE *vol_open(const char *vol_nm, pid_t *pidp)
 		    Err_Append("\nCould not read gzip process.  ");
 		    return NULL;
 		} else {
-		    *pidp = pid;
 		    return in;
 		}
 	}
@@ -749,8 +749,8 @@ static FILE *vol_open(const char *vol_nm, pid_t *pidp)
 	    Err_Append("\nCould not create pipe for gzip.  ");
 	    return NULL;
 	}
-	pid = fork();
-	switch (pid) {
+	vol_pid = fork();
+	switch (vol_pid) {
 	    case -1:
 		Err_Append(strerror(errno));
 		Err_Append("\nCould not spawn gzip process.  ");
@@ -778,7 +778,6 @@ static FILE *vol_open(const char *vol_nm, pid_t *pidp)
 		    Err_Append("\nCould not read gzip process.  ");
 		    return NULL;
 		} else {
-		    *pidp = pid;
 		    return in;
 		}
 	}
@@ -797,7 +796,6 @@ static int good_cb(int argc, char *argv[])
     char *vol_nm;
     FILE *in;
     int rslt;
-    pid_t pid = -1;
 
     if ( argc != 2 ) {
 	Err_Append("Usage: ");
@@ -806,15 +804,16 @@ static int good_cb(int argc, char *argv[])
 	return 0;
     }
     vol_nm = argv[1];
-    if ( !(in = vol_open(vol_nm, &pid)) ) {
+    if ( !(in = vol_open(vol_nm)) ) {
 	Err_Append("Could not open ");
 	Err_Append(vol_nm);
 	Err_Append(". ");
 	return 0;
     }
     rslt = Sigmet_GoodVol(in);
-    if ( pid != -1 ) {
-	kill(pid, SIGKILL);
+    if ( vol_pid != -1 ) {
+	kill(vol_pid, SIGKILL);
+	vol_pid = -1;
     }
     if ( !rslt ) {
 	Err_Append("Could not navigate ");
@@ -833,7 +832,6 @@ static int hread_cb(int argc, char *argv[])
     struct stat sbuf;   	/* Information about file to read */
     char *vol_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
-    pid_t pid;			/* Decompressing child */
 
     if ( argc == 2 ) {
 	vol_nm = argv[1];
@@ -862,8 +860,8 @@ static int hread_cb(int argc, char *argv[])
 
     /* Read headers */
     for (trying = 1, loaded = 0; trying && !loaded; ) {
-	pid = -1;
-	if ( !(in = vol_open(vol_nm, &pid)) ) {
+	vol_pid = -1;
+	if ( !(in = vol_open(vol_nm)) ) {
 	    Err_Append("Could not open ");
 	    Err_Append(vol_nm);
 	    Err_Append(" for input. ");
@@ -889,8 +887,9 @@ static int hread_cb(int argc, char *argv[])
 		break;
 	}
 	fclose(in);
-	if (pid != -1) {
-	    kill(pid, SIGKILL);
+	if (vol_pid != -1) {
+	    kill(vol_pid, SIGKILL);
+	    vol_pid = -1;
 	}
     }
     if ( !loaded ) {
@@ -917,7 +916,6 @@ static int read_cb(int argc, char *argv[])
     int i;			/* Index into vols */
     char *vol_nm;		/* Sigmet raw file */
     FILE *in;			/* Stream from Sigmet raw file */
-    pid_t pid;			/* Decompressing child */
 
     if ( argc == 2 ) {
 	vol_nm = argv[1];
@@ -952,8 +950,8 @@ static int read_cb(int argc, char *argv[])
 
     /* Volume was not loaded, or was freed because truncated. Read volume */
     for (trying = 1, loaded = 0; trying && !loaded; ) {
-	pid = -1;
-	if ( !(in = vol_open(vol_nm, &pid)) ) {
+	vol_pid = -1;
+	if ( !(in = vol_open(vol_nm)) ) {
 	    Err_Append("Could not open ");
 	    Err_Append(vol_nm);
 	    Err_Append(" for input. ");
@@ -979,8 +977,9 @@ static int read_cb(int argc, char *argv[])
 		break;
 	}
 	fclose(in);
-	if (pid != -1) {
-	    kill(pid, SIGKILL);
+	if (vol_pid != -1) {
+	    kill(vol_pid, SIGKILL);
+	    vol_pid = -1;
 	}
     }
     if ( !loaded ) {
@@ -1917,7 +1916,7 @@ static int img_cb(int argc, char *argv[])
     struct XDRX_Stream xout;	/* XDR stream for out */
     jmp_buf err_jmp;		/* Handle output errors with setjmp, longjmp */
     char *item;			/* Item being written. Needed for error message. */
-    pid_t pid = 0;		/* Process identifier, for fork */
+    pid_t img_pid = 0;		/* Process identifier, for fork */
     int pfd[2];			/* Pipe for data */
     int errp[2];		/* Pipe for error messages */
     FILE *err = NULL;		/* Output from image process */
@@ -2071,8 +2070,8 @@ static int img_cb(int argc, char *argv[])
 	Err_Append("\nCould not create pipes for sweep drawing application.  ");
 	return 0;
     }
-    pid = fork();
-    switch (pid) {
+    img_pid = fork();
+    switch (img_pid) {
 	case -1:
 	    Err_Append(strerror(errno));
 	    Err_Append("\nCould not spawn sweep drawing application.  ");
@@ -2365,7 +2364,14 @@ static int handle_signals(void)
 static void alarm_handler(int signum)
 {
     write(STDERR_FILENO, "Client timed out\n", 17);
-    kill(client_pid, SIGTERM);
+    if ( client_pid != -1 ) {
+	kill(client_pid, SIGTERM);
+	client_pid = -1;
+    }
+    if ( vol_pid != -1 ) {
+	kill(vol_pid, SIGTERM);
+	vol_pid = -1;
+    }
     tmout *= 2;
 }
 
