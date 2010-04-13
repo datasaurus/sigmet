@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.194 $ $Date: 2010/04/13 14:26:10 $
+ .	$Revision: 1.195 $ $Date: 2010/04/13 14:37:49 $
  */
 
 #include <stdlib.h>
@@ -34,6 +34,10 @@
 #include "xdrx.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
+
+/* Where to put output and error messages */
+#define SIGMET_RAWD_LOG "sigmet.log"
+#define SIGMET_RAWD_ERR "sigmet.err"
 
 /* Size for various strings */
 #define LEN 1024
@@ -72,6 +76,7 @@ static FILE *rslt1;		/* Where to send standard output */
 static FILE *rslt2;		/* Where to send standard error */
 pid_t client_pid = -1;		/* Client sending commands to daemon */
 pid_t vol_pid = -1;		/* Process providing a raw volume */
+pid_t img_pid = -1;		/* Process identifier for image generator */
 
 /* These variables determine whether and when a slow client will be killed. */
 static int tmgout = 1;		/* If true, time out blocking clients. */
@@ -282,12 +287,12 @@ int main(int argc, char *argv[])
 		/* Set up output. */
 		flags = O_CREAT | O_TRUNC | O_WRONLY;
 		mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-		if ( (i = open("sigmet.log", flags, mode)) == -1
+		if ( (i = open(SIGMET_RAWD_LOG, flags, mode)) == -1
 			|| dup2(i, STDOUT_FILENO) == -1 || close(i) == -1 ) {
 		    fprintf(stderr, "%s: could not open log file.", cmd);
 		    _exit(EXIT_FAILURE);
 		}
-		if ( (i = open("sigmet.err", flags, mode)) == -1
+		if ( (i = open(SIGMET_RAWD_ERR, flags, mode)) == -1
 			|| dup2(i, STDERR_FILENO) == -1 || close(i) == -1 ) {
 		    fprintf(stderr, "%s: could not open error file.", cmd);
 		    _exit(EXIT_FAILURE);
@@ -738,6 +743,7 @@ static FILE *vol_open(const char *vol_nm)
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
 		    Err_Append(strerror(errno));
 		    Err_Append("\nCould not read gzip process.  ");
+		    vol_pid = -1;
 		    return NULL;
 		} else {
 		    return in;
@@ -777,6 +783,7 @@ static FILE *vol_open(const char *vol_nm)
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
 		    Err_Append(strerror(errno));
 		    Err_Append("\nCould not read gzip process.  ");
+		    vol_pid = -1;
 		    return NULL;
 		} else {
 		    return in;
@@ -813,7 +820,7 @@ static int good_cb(int argc, char *argv[])
     }
     rslt = Sigmet_GoodVol(in);
     if ( vol_pid != -1 ) {
-	kill(vol_pid, SIGKILL);
+	waitpid(vol_pid, NULL, 0);
 	vol_pid = -1;
     }
     if ( !rslt ) {
@@ -889,7 +896,7 @@ static int hread_cb(int argc, char *argv[])
 	}
 	fclose(in);
 	if (vol_pid != -1) {
-	    kill(vol_pid, SIGKILL);
+	    waitpid(vol_pid, NULL, 0);
 	    vol_pid = -1;
 	}
     }
@@ -979,7 +986,7 @@ static int read_cb(int argc, char *argv[])
 	}
 	fclose(in);
 	if (vol_pid != -1) {
-	    kill(vol_pid, SIGKILL);
+	    waitpid(vol_pid, NULL, 0);
 	    vol_pid = -1;
 	}
     }
@@ -1768,8 +1775,8 @@ static int img_app_cb(int argc, char *argv[])
     if ( stat(img_app_s, &sbuf) == -1 ) {
 	Err_Append("Could not get information about ");
 	Err_Append(img_app_s);
-	Err_Append(strerror(errno));
 	Err_Append(". ");
+	Err_Append(strerror(errno));
 	return 0;
     }
     if ( ((sbuf.st_mode & S_IFREG) != S_IFREG) || ((sbuf.st_mode & m) != m) ) {
@@ -1917,12 +1924,10 @@ static int img_cb(int argc, char *argv[])
     struct XDRX_Stream xout;	/* XDR stream for out */
     jmp_buf err_jmp;		/* Handle output errors with setjmp, longjmp */
     char *item;			/* Item being written. Needed for error message. */
-    pid_t img_pid = 0;		/* Process identifier, for fork */
+    pid_t p;			/* Return from waitpid */
+    int status;			/* Exit status of image generator */
     int pfd[2];			/* Pipe for data */
-    int errp[2];		/* Pipe for error messages */
-    FILE *err = NULL;		/* Output from image process */
     char err_buf[LEN];		/* Store image process output */
-    char *e, *e1 = err_buf + LEN; /* Point into err_buf */
     double px_per_m;		/* Display units per map unit */
 
     if ( strlen(img_app) == 0 ) {
@@ -2066,7 +2071,7 @@ static int img_cb(int argc, char *argv[])
     }
 
     /* Launch the external drawing application and create a pipe to it. */
-    if ( pipe(pfd) == -1 || pipe(errp) == -1 ) {
+    if ( pipe(pfd) == -1 ) {
 	Err_Append(strerror(errno));
 	Err_Append("\nCould not create pipes for sweep drawing application.  ");
 	return 0;
@@ -2080,7 +2085,6 @@ static int img_cb(int argc, char *argv[])
 	case 0:
 	    /*
 	       Child.  Close stdout.
-	       Write stderr to write side of error pipe.
 	       Read polygons from stdin (read side of data pipe).
 	     */
 	    if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
@@ -2094,24 +2098,14 @@ static int img_cb(int argc, char *argv[])
 			img_app, time_stamp());
 		_exit(EXIT_FAILURE);
 	    }
-	    if ( dup2(errp[1], STDERR_FILENO) == -1 || close(errp[0]) == -1 ) {
-		fprintf(stderr, "%s: could not set up %s process",
-			img_app, time_stamp());
-		_exit(EXIT_FAILURE);
-	    }
 	    execl(img_app, img_app, (char *)NULL);
 	    _exit(EXIT_FAILURE);
 	default:
-	    /* This process.  Send polygon to out. Read errors from err */
+	    /* This process.  Send polygon to write side of pipe, a.k.a. out. */
 	    if ( close(pfd[0]) == -1 || !(out = fdopen(pfd[1], "w"))) {
 		Err_Append(strerror(errno));
 		Err_Append("\nCould not write to drawing application.  ");
-		return 0;
-	    }
-	    if ( close(errp[1]) == -1 || !(err = fdopen(errp[0], "r"))) {
-		fclose(out);
-		Err_Append(strerror(errno));
-		Err_Append("\nCould not write to drawing application.  ");
+		img_pid = -1;
 		return 0;
 	    }
     }
@@ -2202,22 +2196,31 @@ static int img_cb(int argc, char *argv[])
     XDRX_Destroy(&xout);
     fclose(out);
     out = NULL;
-
-    /* Get output from image process stderr. 1st character is status */
-    memset(err_buf, 0, LEN);
-    *err_buf = fgetc(err);
-    for (e = err_buf + 1; e < e1; e++) {
-	    *e = fgetc(err);
-	    if ( *e == EOF ) {
-		break;
+    p = waitpid(img_pid, &status, 0);
+    if ( p == img_pid ) {
+	if ( WIFEXITED(status) && WEXITSTATUS(status) == EXIT_FAILURE ) {
+	    Err_Append("Image process failed for ");
+	    Err_Append(img_fl_nm);
+	    Err_Append("See ");
+	    Err_Append(SIGMET_RAWD_ERR);
+	    Err_Append(" for possible error messages. ");
+	    goto error;
+	} else if ( WIFSIGNALED(status) ) {
+	    if ( snprintf(err_buf, LEN, "Image process exited on signal %d. ",
+			WTERMSIG(status)) <= LEN ) {
+		Err_Append(err_buf);
+	    } else {
+		Err_Append("Image process exited on signal. ");
 	    }
+	}
+    } else {
+	fprintf(stderr, "%s: could not get exit status for image generator "
+		"while processing %s. %s. Continuing anyway.\n",
+		time_stamp(), img_fl_nm,
+		(p == -1) ? strerror(errno) : "Unknown error.");
     }
-    fclose(err);
-    if ( *err_buf == EXIT_FAILURE ) {
-	Err_Append("Image process failed. ");
-	Err_Append(err_buf + 1);
-	return 0;
-    }
+
+    /* Using wait with intermittent signal handling. */
 
     /* Make kml file and return */
     strcpy(kml_fl_nm, img_fl_nm);
@@ -2229,21 +2232,22 @@ static int img_cb(int argc, char *argv[])
 	return 0;
     }
     fprintf(kml_fl, kml_tmpl,
-		vol.ih.ic.hw_site_name, vol.ih.ic.hw_site_name,
-		yr, mo, da, h, mi, sec,
-		abbrv, vol.sweep_angle[s] * DEG_PER_RAD,
-		img_fl_nm,
-		north, south, west, east);
+	    vol.ih.ic.hw_site_name, vol.ih.ic.hw_site_name,
+	    yr, mo, da, h, mi, sec,
+	    abbrv, vol.sweep_angle[s] * DEG_PER_RAD,
+	    img_fl_nm,
+	    north, south, west, east);
     fclose(kml_fl);
 
     fprintf(rslt1, "%s\n", img_fl_nm);
     return 1;
 error:
-    if (err) {
-	fclose(err);
-    }
     if (out) {
 	fclose(out);
+    }
+    if ( img_pid != -1 ) {
+	kill(img_pid, SIGTERM);
+	img_pid = -1;
     }
     return 0;
 }
@@ -2304,10 +2308,6 @@ static int handle_signals(void)
 	return 0;
     }
     if ( sigaction(SIGQUIT, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
-    if ( sigaction(SIGCHLD, &act, NULL) == -1 ) {
 	perror(NULL);
 	return 0;
     }
@@ -2372,6 +2372,10 @@ static void alarm_handler(int signum)
     if ( vol_pid != -1 ) {
 	kill(vol_pid, SIGTERM);
 	vol_pid = -1;
+    }
+    if ( img_pid != -1 ) {
+	kill(img_pid, SIGTERM);
+	img_pid = -1;
     }
     tmout *= 2;
     if ( tmout > max_tmout ) {
