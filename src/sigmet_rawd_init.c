@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.193 $ $Date: 2010/04/09 19:43:55 $
+ .	$Revision: 1.194 $ $Date: 2010/04/13 14:26:10 $
  */
 
 #include <stdlib.h>
@@ -76,7 +76,8 @@ pid_t vol_pid = -1;		/* Process providing a raw volume */
 /* These variables determine whether and when a slow client will be killed. */
 static int tmgout = 1;		/* If true, time out blocking clients. */
 static int tmoadj = 1;		/* If true, adjust timeout periodically. */
-static unsigned tmout = 60;	/* Max seconds client can block daemon */
+static unsigned tmout;		/* Max seconds client can block daemon */
+static unsigned max_tmout = 20;	/* Limit on timeout */
 
 /* Input line - has commands for the daemon */
 #define BUF_L 512
@@ -2373,6 +2374,9 @@ static void alarm_handler(int signum)
 	vol_pid = -1;
     }
     tmout *= 2;
+    if ( tmout > max_tmout ) {
+	tmout = max_tmout;
+    }
 }
 
 /* For exit signals, print an error message if possible */
