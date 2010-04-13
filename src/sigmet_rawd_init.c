@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.195 $ $Date: 2010/04/13 14:37:49 $
+ .	$Revision: 1.196 $ $Date: 2010/04/13 19:39:00 $
  */
 
 #include <stdlib.h>
@@ -74,9 +74,9 @@ static int i_cmd0;		/* Where to get commands */
 static int i_cmd1;		/* Unused outptut (see explanation below). */
 static FILE *rslt1;		/* Where to send standard output */
 static FILE *rslt2;		/* Where to send standard error */
-pid_t client_pid = -1;		/* Client sending commands to daemon */
-pid_t vol_pid = -1;		/* Process providing a raw volume */
-pid_t img_pid = -1;		/* Process identifier for image generator */
+static pid_t client_pid = -1;	/* Client sending commands to daemon */
+static pid_t vol_pid = -1;	/* Process providing a raw volume */
+static pid_t img_pid = -1;	/* Process identifier for image generator */
 
 /* These variables determine whether and when a slow client will be killed. */
 static int tmgout = 1;		/* If true, time out blocking clients. */
@@ -91,6 +91,7 @@ static char *buf_e = buf + BUF_L;
 
 /* Application and subcommand name */
 static char *cmd;
+static size_t cmd_len;		/* strlen(cmd) */
 static char *cmd1;
 
 /* Subcommands */
@@ -184,7 +185,6 @@ static void handler(int);
 
 int main(int argc, char *argv[])
 {
-    cmd = argv[0];
     char *ddir;			/* Working directory for server */
     int bg = 1;			/* If true, run in foreground (do not fork) */
     pid_t pid;			/* Return from fork */
@@ -203,6 +203,9 @@ int main(int argc, char *argv[])
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" };
     /* Default projection */
     int i;
+
+    cmd = argv[0];
+    cmd_len = strlen(cmd);
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
@@ -819,6 +822,7 @@ static int good_cb(int argc, char *argv[])
 	return 0;
     }
     rslt = Sigmet_GoodVol(in);
+    fclose(in);
     if ( vol_pid != -1 ) {
 	waitpid(vol_pid, NULL, 0);
 	vol_pid = -1;
@@ -894,9 +898,16 @@ static int hread_cb(int argc, char *argv[])
 		trying = 0;
 		break;
 	}
+	while (fgetc(in) != EOF) {
+	    continue;
+	}
 	fclose(in);
 	if (vol_pid != -1) {
-	    waitpid(vol_pid, NULL, 0);
+	    if ( waitpid(vol_pid, NULL, 0) == -1 ) {
+		fprintf(stderr, "%s: could not clean up afer input process for "
+			"%s. %s. Continuing anyway.\n",
+			time_stamp(), vol_nm, strerror(errno));
+	    }
 	    vol_pid = -1;
 	}
     }
@@ -973,6 +984,10 @@ static int read_cb(int argc, char *argv[])
 		break;
 	    case MEM_FAIL:
 		/* Try to free some memory. If unable to free memory, fail. */
+		if ( verbose ) {
+		    printf("%s: freeing memory while reading %s\n",
+			    time_stamp(), vol_nm);
+		}
 		if ( !flush(1) ) {
 		    trying = 0;
 		}
@@ -984,9 +999,16 @@ static int read_cb(int argc, char *argv[])
 		trying = 0;
 		break;
 	}
+	while (fgetc(in) != EOF) {
+	    continue;
+	}
 	fclose(in);
 	if (vol_pid != -1) {
-	    waitpid(vol_pid, NULL, 0);
+	    if ( waitpid(vol_pid, NULL, 0) == -1 ) {
+		fprintf(stderr, "%s: could not clean up afer input process for "
+			"%s. %s. Continuing anyway.\n",
+			time_stamp(), vol_nm, strerror(errno));
+	    }
 	    vol_pid = -1;
 	}
     }
@@ -2366,15 +2388,15 @@ static void alarm_handler(int signum)
 {
     write(STDERR_FILENO, "Client timed out\n", 17);
     if ( client_pid != -1 ) {
-	kill(client_pid, SIGTERM);
+	kill(client_pid, SIGKILL);
 	client_pid = -1;
     }
     if ( vol_pid != -1 ) {
-	kill(vol_pid, SIGTERM);
+	kill(vol_pid, SIGKILL);
 	vol_pid = -1;
     }
     if ( img_pid != -1 ) {
-	kill(img_pid, SIGTERM);
+	kill(img_pid, SIGKILL);
 	img_pid = -1;
     }
     tmout *= 2;
@@ -2388,28 +2410,36 @@ static void handler(int signum)
 {
     switch (signum) {
 	case SIGTERM:
-	    write(STDERR_FILENO, "Exiting on termination signal    \n", 34);
+	    write(STDERR_FILENO, cmd, cmd_len);
+	    write(STDERR_FILENO, " exiting on termination signal    \n", 35);
 	    break;
 	case SIGBUS:
-	    write(STDERR_FILENO, "Exiting on bus error             \n", 34);
+	    write(STDERR_FILENO, cmd, cmd_len);
+	    write(STDERR_FILENO, " exiting on bus error             \n", 35);
 	    break;
 	case SIGFPE:
-	    write(STDERR_FILENO, "Exiting arithmetic exception     \n", 34);
+	    write(STDERR_FILENO, cmd, cmd_len);
+	    write(STDERR_FILENO, " exiting arithmetic exception     \n", 35);
 	    break;
 	case SIGILL:
-	    write(STDERR_FILENO, "Exiting illegal instruction      \n", 34);
+	    write(STDERR_FILENO, cmd, cmd_len);
+	    write(STDERR_FILENO, " exiting illegal instruction      \n", 35);
 	    break;
 	case SIGSEGV:
-	    write(STDERR_FILENO, "Exiting invalid memory reference \n", 34);
+	    write(STDERR_FILENO, cmd, cmd_len);
+	    write(STDERR_FILENO, " exiting invalid memory reference \n", 35);
 	    break;
 	case SIGSYS:
-	    write(STDERR_FILENO, "Exiting on bad system call       \n", 34);
+	    write(STDERR_FILENO, cmd, cmd_len);
+	    write(STDERR_FILENO, " exiting on bad system call       \n", 35);
 	    break;
 	case SIGXCPU:
-	    write(STDERR_FILENO, "Exiting: CPU time limit exceeded \n", 34);
+	    write(STDERR_FILENO, cmd, cmd_len);
+	    write(STDERR_FILENO, " exiting: CPU time limit exceeded \n", 35);
 	    break;
 	case SIGXFSZ:
-	    write(STDERR_FILENO, "Exiting: file size limit exceeded\n", 34);
+	    write(STDERR_FILENO, cmd, cmd_len);
+	    write(STDERR_FILENO, " exiting: file size limit exceeded\n", 35);
 	    break;
     }
     _exit(EXIT_FAILURE);
