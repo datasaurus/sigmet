@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.15 $ $Date: 2010/02/26 17:20:27 $
+.\" $Revision: 1.16 $ $Date: 2010/04/09 19:42:53 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -325,11 +325,6 @@ order given:
             double   - real (map) coordinate of vertex ordinate
 
 .fi
-The image generating process should stop reading at end of file. If it succeeds,
-it should print a binary \fBEXIT_SUCCESS\fP to its \fBstderr\fP.
-If it fails, it should print a binary \fBEXIT_FAILURE\fP to its \fBstderr\fP,
-followed by an optional error message. \fBsigmet_raw\fP will print any given
-error message and return the given status code.
 .TP
 \fBsigmet_raw\fP \fBimg_sz\fP \fIn\fP
 Sets the size of images created with the \fBimg\fP subcommand to \fIn\fP pixels.
