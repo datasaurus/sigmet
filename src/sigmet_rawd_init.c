@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.197 $ $Date: 2010/04/13 22:16:03 $
+ .	$Revision: 1.199 $ $Date: 2010/04/14 18:17:10 $
  */
 
 #include <stdlib.h>
@@ -177,6 +177,7 @@ static FILE *vol_open(const char *);
 static unsigned new_dchk(void);
 static int flush(int);
 static void unload(int);
+static int img_name(struct Sigmet_Vol *, char *, int, char *buf);
 
 /* Signal handling functions */
 static int handle_signals(void);
@@ -1832,6 +1833,31 @@ static int alpha_cb(int argc, char *argv[])
     return 1;
 }
 
+/*
+   Print name of the image that img_cb would create for volume vol,
+   type abbrv, sweep s to buf, which must have space for LEN characters,
+   including nul.  If something goes wrong, fill buf with nul's and return
+   0.
+ */
+static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf)
+{
+    int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
+    double sec;			/* Sweep second */
+
+    memset(buf, 0, LEN);
+    if ( s >= vol_p->ih.ic.num_sweeps || !vol_p->sweep_ok[s]
+	    || !Tm_JulToCal(vol_p->sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
+	return 0;
+    }
+    if ( snprintf(buf, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f",
+		vol_p->ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
+		abbrv, vol_p->sweep_angle[s] * DEG_PER_RAD) > LEN ) {
+	memset(buf, 0, LEN);
+	return 0;
+    }
+    return 1;
+}
+
 /* Print the name of the image that img would create */
 static int img_name_cb(int argc, char *argv[])
 {
@@ -1842,8 +1868,7 @@ static int img_name_cb(int argc, char *argv[])
     enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
     int i;
     int y, s;			/* Indeces: data type, sweep */
-    int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
-    double sec;			/* Sweep second */
+    char img_fl_nm[LEN];	/* Name of image file */
 
     /* Parse command line */
     if ( argc != 4 ) {
@@ -1896,13 +1921,11 @@ static int img_name_cb(int argc, char *argv[])
     }
 
     /* Print name of output file */
-    if ( !Tm_JulToCal(vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
-	Err_Append("Sweep time garbled. ");
+    if ( !img_name(&vol, abbrv, s, img_fl_nm) ) {
+	Err_Append("Could not make image file name. ");
 	return 0;
     }
-    fprintf(rslt1, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f.png\n",
-		vol.ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
-		abbrv, vol.sweep_angle[s] * DEG_PER_RAD);
+    fprintf(rslt1, "%s.png\n", img_fl_nm);
 
     return 1;
 }
@@ -1938,9 +1961,10 @@ static int img_cb(int argc, char *argv[])
     int n;			/* Loop index */
     int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
     double sec;			/* Sweep second */
-    char img_fl_nm[LEN];	/* Output file */
+    char base_nm[LEN]; 		/* Output file name */
+    char img_fl_nm[LEN]; 	/* Image output file name */
     size_t img_fl_nm_l;		/* strlen(img_fl_nm) */
-    char kml_fl_nm[LEN];	/* Output file */
+    char kml_fl_nm[LEN];	/* KML output file name */
     FILE *kml_fl;		/* KML file */
     FILE *out = NULL;		/* Where to send outlines to draw */
     struct XDRX_Stream xout;	/* XDR stream for out */
@@ -2081,13 +2105,8 @@ static int img_cb(int argc, char *argv[])
     px_per_m = w_pxl / (rght - left);
 
     /* Make name of output file */
-    if ( !Tm_JulToCal(vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
-	Err_Append("Sweep time garbled. ");
-	return 0;
-    }
-    if ( snprintf(img_fl_nm, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f.png",
-		vol.ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
-		abbrv, vol.sweep_angle[s] * DEG_PER_RAD) > LEN ) {
+    if ( !img_name(&vol, abbrv, s, base_nm) 
+	    || snprintf(img_fl_nm, LEN, "%s.png", base_nm) > LEN ) {
 	Err_Append("Could not make image file name. ");
 	return 0;
     }
@@ -2242,11 +2261,11 @@ static int img_cb(int argc, char *argv[])
 		(p == -1) ? strerror(errno) : "Unknown error.");
     }
 
-    /* Using wait with intermittent signal handling. */
-
     /* Make kml file and return */
-    strcpy(kml_fl_nm, img_fl_nm);
-    strcpy(strstr(kml_fl_nm, ".png"), ".kml");
+    if ( snprintf(kml_fl_nm, LEN, "%s.kml", base_nm) > LEN ) {
+	Err_Append("Could not make kml file name. ");
+	return 0;
+    }
     if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
 	Err_Append("Could not open ");
 	Err_Append(kml_fl_nm);
