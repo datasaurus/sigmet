@@ -69,21 +69,14 @@ static int hash(char *, struct stat *);
 static int get_vol_i(char *);
 static int new_vol_i(char *, struct stat *);
 
-/* Command process streams and files */
+/* Process streams and files */
 static int i_cmd0;		/* Where to get commands */
 static int i_cmd1;		/* Unused outptut (see explanation below). */
 static FILE *rslt1;		/* Where to send standard output */
 static FILE *rslt2;		/* Where to send standard error */
 static pid_t client_pid = -1;	/* Client sending commands to daemon */
-
-/* Volume input streams and files */
 static pid_t vol_pid = -1;	/* Process providing a raw volume */
-static struct sigaction prev_act; /* Save signal action for SIGCHLD while reading
-				 * a volume */
-static struct sigaction *prev_act_p;
-
-/* Image generator - an external process */
-static pid_t img_pid = -1;	/* Process generating image */
+static pid_t img_pid = -1;	/* Process identifier for image generator */
 
 /* These variables determine whether and when a slow client will be killed. */
 static int tmgout = 1;		/* If true, time out blocking clients. */
@@ -181,7 +174,6 @@ static char img_app[LEN];		/* External application to draw sweeps */
 /* Convenience functions */
 static char *time_stamp(void);
 static FILE *vol_open(const char *);
-static void vol_close(FILE *);
 static unsigned new_dchk(void);
 static int flush(int);
 static void unload(int);
@@ -715,13 +707,9 @@ static int types_cb(int argc, char *argv[])
  */
 static FILE *vol_open(const char *vol_nm)
 {
-    FILE *in;			/* Return value */
-    char *sfx;			/* Filename suffix */
-    int pfd[2];			/* Pipe for data */
-    struct sigaction act;	/* Signal action for SIGCHLD */
-
-    pfd[0] = pfd[1] = -1;
-    in = NULL;
+    FILE *in;		/* Return value */
+    char *sfx;		/* Filename suffix */
+    int pfd[2];		/* Pipe for data */
 
     sfx = strrchr(vol_nm , '.');
     if ( sfx && strcmp(sfx, ".gz") == 0 ) {
@@ -729,26 +717,14 @@ static FILE *vol_open(const char *vol_nm)
 	if ( pipe(pfd) == -1 ) {
 	    Err_Append(strerror(errno));
 	    Err_Append("\nCould not create pipe for gzip.  ");
-	    goto error;
+	    return NULL;
 	}
-
-	/* Ignore SIGCHLD signal so gzip child will not become a zombie. */
-	act.sa_handler = SIG_IGN;
-	prev_act_p = &prev_act;
-	memset(&act, 0, sizeof(struct sigaction));
-	if ( sigfillset(&act.sa_mask) == -1
-		|| sigaction(SIGCHLD, &act, prev_act_p) == -1 ) {
-	    Err_Append(strerror(errno));
-	    Err_Append("\nCould not set signals for gzip pipe.  ");
-	    goto error;
-	}
-
 	vol_pid = fork();
 	switch (vol_pid) {
 	    case -1:
 		Err_Append(strerror(errno));
 		Err_Append("\nCould not spawn gzip process.  ");
-		goto error;
+		return NULL;
 	    case 0:
 		/* Child process - gzip.  Send child stdout to pipe. */
 		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
@@ -766,62 +742,55 @@ static FILE *vol_open(const char *vol_nm)
 		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	    default:
-		/* Daemon process. Read volume from stdin */
+		/* This process.  Read output from gzip. */
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
 		    Err_Append(strerror(errno));
 		    Err_Append("\nCould not read gzip process.  ");
-		    goto error;
+		    vol_pid = -1;
+		    return NULL;
+		} else {
+		    return in;
 		}
-		return in;
 	}
     } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
 	/* If filename ends with ".bz2", read from bunzip2 pipe */
 	if ( pipe(pfd) == -1 ) {
 	    Err_Append(strerror(errno));
-	    Err_Append("\nCould not create pipe for bunzip2.  ");
-	    goto error;
+	    Err_Append("\nCould not create pipe for gzip.  ");
+	    return NULL;
 	}
-
-	/* Ignore SIGCHLD signal so bunzip2 child will not become a zombie. */
-	act.sa_handler = SIG_IGN;
-	prev_act_p = &prev_act;
-	memset(&act, 0, sizeof(struct sigaction));
-	if ( sigfillset(&act.sa_mask) == -1
-		|| sigaction(SIGCHLD, &act, prev_act_p) == -1 ) {
-	    Err_Append(strerror(errno));
-	    Err_Append("\nCould not set signals for bunzip2 pipe.  ");
-	    goto error;
-	}
-
 	vol_pid = fork();
 	switch (vol_pid) {
 	    case -1:
 		Err_Append(strerror(errno));
-		Err_Append("\nCould not spawn bunzip2 process.  ");
-		goto error;
+		Err_Append("\nCould not spawn gzip process.  ");
+		return NULL;
 	    case 0:
-		/* Child process - bunzip2.  Send child stdout to pipe. */
+		/* Child process - gzip.  Send child stdout to pipe. */
 		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
 			|| fclose(rslt1) == EOF) {
-		    fprintf(stderr, "%s: bunzip2 child could not close"
+		    fprintf(stderr, "%s: gzip child could not close"
 			    " server streams", time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
-		    fprintf(stderr, "%s: could not set up bunzip2 process",
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1
+			|| close(pfd[1]) == -1 ) {
+		    fprintf(stderr, "%s: could not set up gzip process",
 			    time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
 		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	    default:
-		/* Daemon process. Read volume from stdin */
+		/* This process.  Read output from gzip. */
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
 		    Err_Append(strerror(errno));
-		    Err_Append("\nCould not read bunzip2 process.  ");
-		    goto error;
+		    Err_Append("\nCould not read gzip process.  ");
+		    vol_pid = -1;
+		    return NULL;
+		} else {
+		    return in;
 		}
-		return in;
 	}
     } else if ( !(in = fopen(vol_nm, "r")) ) {
 	/* Uncompressed file */
@@ -831,41 +800,6 @@ static FILE *vol_open(const char *vol_nm)
 	return NULL;
     }
     return in;
-
-error:
-    if ( pfd[0] != -1 ) {
-	close(pfd[0]);
-    }
-    if ( in ) {
-	fclose(in);
-    }
-    if ( prev_act_p ) {
-	if ( sigaction(SIGCHLD, prev_act_p, NULL) == -1 ) {
-	    Err_Append(strerror(errno));
-	    Err_Append("Lost signal management while creating input pipe. ");
-	}
-    }
-    vol_pid = -1;
-    prev_act_p = NULL;
-    return NULL;
-}
-
-/* Close the stream opened by vol_open */
-static void vol_close(FILE *in)
-{
-    if ( prev_act_p && sigaction(SIGCHLD, prev_act_p, NULL) == -1 ) {
-	Err_Append(strerror(errno));
-	fprintf(stderr, "%s: could not reset signals after reading volume "
-		"from pipe.\n%s\n", time_stamp(), strerror(errno));
-    }
-    if ( vol_pid == -1 ) {
-	while (fgetc(in) != EOF) {
-	    continue;
-	}
-	fclose(in);
-    }
-    prev_act_p = NULL;
-    vol_pid = -1;
 }
 
 static int good_cb(int argc, char *argv[])
@@ -888,7 +822,11 @@ static int good_cb(int argc, char *argv[])
 	return 0;
     }
     rslt = Sigmet_GoodVol(in);
-    vol_close(in);
+    fclose(in);
+    if ( vol_pid != -1 ) {
+	waitpid(vol_pid, NULL, 0);
+	vol_pid = -1;
+    }
     if ( !rslt ) {
 	Err_Append("Could not navigate ");
 	Err_Append(vol_nm);
@@ -960,13 +898,23 @@ static int hread_cb(int argc, char *argv[])
 		trying = 0;
 		break;
 	}
-	vol_close(in);
+	while (fgetc(in) != EOF) {
+	    continue;
+	}
+	fclose(in);
+	if (vol_pid != -1) {
+	    if ( waitpid(vol_pid, NULL, 0) == -1 ) {
+		fprintf(stderr, "%s: could not clean up afer input process for "
+			"%s. %s. Continuing anyway.\n",
+			time_stamp(), vol_nm, strerror(errno));
+	    }
+	    vol_pid = -1;
+	}
     }
     if ( !loaded ) {
 	Err_Append("Could not read headers from ");
 	Err_Append(vol_nm);
 	Err_Append(".\n");
-	return 0;
     }
     vols[i].oqpd = 1;
     stat(vol_nm, &sbuf);
@@ -1051,13 +999,23 @@ static int read_cb(int argc, char *argv[])
 		trying = 0;
 		break;
 	}
-	vol_close(in);
+	while (fgetc(in) != EOF) {
+	    continue;
+	}
+	fclose(in);
+	if (vol_pid != -1) {
+	    if ( waitpid(vol_pid, NULL, 0) == -1 ) {
+		fprintf(stderr, "%s: could not clean up afer input process for "
+			"%s. %s. Continuing anyway.\n",
+			time_stamp(), vol_nm, strerror(errno));
+	    }
+	    vol_pid = -1;
+	}
     }
     if ( !loaded ) {
 	Err_Append("Could not read volume from ");
 	Err_Append(vol_nm);
 	Err_Append(".\n");
-	return 0;
     }
     vols[i].oqpd = 1;
     strncpy(vols[i].vol_nm, vol_nm, LEN);
