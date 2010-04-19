@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.199 $ $Date: 2010/04/14 18:17:10 $
+ .	$Revision: 1.200 $ $Date: 2010/04/14 21:37:55 $
  */
 
 #include <stdlib.h>
@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <pthread.h>
 #include "alloc.h"
 #include "err_msg.h"
 #include "tm_calc_lib.h"
@@ -53,12 +54,12 @@ static int use_deg = 0;
 
 /* Sigmet volumes */
 struct sig_vol {
-    int oqpd;			/* Occupied. True => struct contains a volume */
-    struct Sigmet_Vol vol;	/* Sigmet volume */
-    char vol_nm[LEN];		/* A link to the file that provided the volume */
-    dev_t st_dev;		/* Device that provided vol */
-    ino_t st_ino;		/* I-number of file that provided vol */
-    int users;			/* Number of client sessions using vol */
+    int oqpd;				/* True => struct contains a volume */
+    struct Sigmet_Vol vol;		/* Sigmet volume */
+    char vol_nm[LEN];			/* file that provided the volume */
+    dev_t st_dev;			/* Device that provided vol */
+    ino_t st_ino;			/* I-number of file that provided vol */
+    int users;				/* Number of client sessions using vol */
 };
 
 #define N_VOLS 256
@@ -70,19 +71,33 @@ static int get_vol_i(char *);
 static int new_vol_i(char *, struct stat *);
 
 /* Process streams and files */
-static int i_cmd0;		/* Where to get commands */
-static int i_cmd1;		/* Unused outptut (see explanation below). */
-static FILE *rslt1;		/* Where to send standard output */
-static FILE *rslt2;		/* Where to send standard error */
-static pid_t client_pid = -1;	/* Client sending commands to daemon */
-static pid_t vol_pid = -1;	/* Process providing a raw volume */
-static pid_t img_pid = -1;	/* Process identifier for image generator */
+static int i_cmd0;			/* Where to get commands */
+static int i_cmd1;			/* Unused outptut (see below). */
+static FILE *rslt1;			/* Where to send standard output */
+static FILE *rslt2;			/* Where to send standard error */
+static pid_t client_pid = -1;		/* Client sending commands to daemon */
+
+/* Limit on client_tmout */
+static unsigned tmout_max = 20;
 
 /* These variables determine whether and when a slow client will be killed. */
-static int tmgout = 1;		/* If true, time out blocking clients. */
-static int tmoadj = 1;		/* If true, adjust timeout periodically. */
-static unsigned tmout;		/* Max seconds client can block daemon */
-static unsigned max_tmout = 20;	/* Limit on timeout */
+static int tmgout = 1;			/* If true, time out blocking clients. */
+static int tmoadj = 1;			/* If true, adjust timeout periodically. */
+static unsigned client_tmout;		/* Max seconds client can block daemon */
+static void *client_timeout(void *);	/* Timeout function, kills client after
+					 * client_tmout seconds */
+
+/* Volume reading process */
+static pid_t vol_pid = -1;		/* Process providing a raw volume */
+static unsigned vol_tmout;		/* Max seconds child can block daemon */
+static void *vol_timeout(void *);	/* Timeout function, kills child after
+					 * vol_tmout seconds */
+
+/* Image generating process */
+static pid_t img_pid = -1;		/* Process id for image generator */
+static unsigned img_tmout;		/* Max seconds child can block daemon */
+static void *img_timeout(void *);	/* Timeout function, kills child after 
+					 * img_tmout seconds */
 
 /* Input line - has commands for the daemon */
 #define BUF_L 512
@@ -91,7 +106,7 @@ static char *buf_e = buf + BUF_L;
 
 /* Application and subcommand name */
 static char *cmd;
-static size_t cmd_len;		/* strlen(cmd) */
+static size_t cmd_len;			/* strlen(cmd) */
 static char *cmd1;
 
 /* Subcommands */
@@ -181,7 +196,6 @@ static int img_name(struct Sigmet_Vol *, char *, int, char *buf);
 
 /* Signal handling functions */
 static int handle_signals(void);
-static void alarm_handler(int);
 static void handler(int);
 
 int main(int argc, char *argv[])
@@ -196,7 +210,7 @@ int main(int argc, char *argv[])
     char *b;			/* Point into buf */
     ssize_t r;			/* Return value from read */
     size_t l;			/* Number of bytes to read from command buffer */
-    unsigned dchk;		/* After dchk clients, time some, adjust tmout */
+    unsigned dchk;		/* After dchk clients, time some, adjust timeout */
     time_t start = 0, end = 1;	/* When a client session starts, ends */
     double dt;			/* Time taken by a client */
     double dtx = -1.0;		/* Time taken by slowest client in a set */
@@ -318,10 +332,10 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    tmout = 20;
+    client_tmout = vol_tmout = img_tmout = tmout_max;
     dchk = new_dchk();
     printf("Daemon starting. Process id = %d\nClients that block daemon "
-	    "for more than %d seconds will be killed.\n", getpid(), tmout);
+	    "for more than %d seconds will be killed.\n", getpid(), client_tmout);
     if (tmoadj && verbose) {
 	printf("Will assess timeout after %d iterations\n", dchk );
     }
@@ -350,6 +364,7 @@ int main(int argc, char *argv[])
 	int success;		/* Result of callback */
 	int i;			/* Loop index */
 	int tmx = 0;		/* If true, time this session */
+	pthread_t tid;		/* Identifier for timeout thread */
 
 	/* Tolerate interrupt in read. Otherwise, bail out */
 	if ( r == -1 && errno != EINTR ) {
@@ -369,21 +384,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s\n", strerror(errno));
 	    }
 	    continue;
-	}
-
-	/*
-	   If imposing timeouts (tmgout is set), set alarm.
-	   If adjusting timeouts store start time for this session.
-	 */
-
-	if ( tmgout ) {
-	    alarm(tmout);
-	    if ( tmoadj && --dchk < 8 ) {
-		tmx = 1;
-		start = time(NULL);
-	    } else {
-		tmx = 0;
-	    }
 	}
 
 	/* Break command line into arguments */
@@ -408,16 +408,44 @@ int main(int argc, char *argv[])
 	    continue;
 	}
 
+	/*
+	   If imposing timeouts (tmgout is set), start timeout thread.
+	   If adjusting timeouts store start time for this session.
+
+	   BUG- This assumes client_pid identifies a blocking client, and not
+	   an unrelated process that replaced the (possibly long dead) client.
+	 */
+
+	if ( tmgout ) {
+	    fprintf(stderr, "Starting timer for %d: ", client_pid);
+	    for (a = 0; a < argc1; a++) {
+		fprintf(stderr, "%s ", argv1[a]);
+	    }
+	    fprintf(stderr, "\n");
+	    if ( pthread_create(&tid, NULL, client_timeout, NULL) != 0 ) {
+		fprintf(stderr, "Could not spawn client timeout thread. ");
+		continue;
+	    }
+	    if ( tmoadj && --dchk < 8 ) {
+		tmx = 1;
+		start = time(NULL);
+	    } else {
+		tmx = 0;
+	    }
+	}
+
 	/* Open "standard output" file */
 	rslt1 = NULL;
 	if (snprintf(rslt1_nm, LEN, "%d.1", client_pid) > LEN) {
 	    fprintf(stderr, "%s: could not create file name for client %d.\n",
 		    time_stamp(), client_pid);
+	    kill(client_pid, SIGTERM);
 	    continue;
 	}
 	if ( !(rslt1 = fopen(rslt1_nm, "w")) ) {
 	    fprintf(stderr, "%s: could not open %s for output.\n%s\n",
 		    time_stamp(), rslt1_nm, strerror(errno));
+	    kill(client_pid, SIGTERM);
 	    continue;
 	}
 
@@ -426,11 +454,15 @@ int main(int argc, char *argv[])
 	if (snprintf(rslt2_nm, LEN, "%d.2", client_pid) > LEN) {
 	    fprintf(stderr, "%s: could not create file name for client %d.\n",
 		    time_stamp(), client_pid);
+	    kill(client_pid, SIGTERM);
+	    fclose(rslt1);
 	    continue;
 	}
 	if ( !(rslt2 = fopen(rslt2_nm, "w")) ) {
 	    fprintf(stderr, "%s: could not open %s for output.\n%s\n",
 		    time_stamp(), rslt2_nm, strerror(errno));
+	    kill(client_pid, SIGTERM);
+	    fclose(rslt1);
 	    continue;
 	}
 
@@ -452,15 +484,15 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s: could not close %s.\n%s\n",
 			time_stamp(), rslt2_nm, strerror(errno));
 	    }
+	    kill(client_pid, SIGTERM);
+	    fclose(rslt1);
+	    fclose(rslt2);
 	    continue;
 	}
 
 	/* Run command. Callback will send "standard output" to rslt1. */
 	success = (cb1v[i])(argc1, argv1);
-	if ( (fclose(rslt1) == EOF) ) {
-	    fprintf(stderr, "%s: could not close %s.\n%s\n",
-		    time_stamp(), rslt1_nm, strerror(errno));
-	}
+	fclose(rslt1);
 
 	/* Send status and error messages, if any */
 	if ( success ) {
@@ -477,19 +509,11 @@ int main(int argc, char *argv[])
 			time_stamp(), cmd1, strerror(errno) );
 	    }
 	}
-	if ( (fclose(rslt2) == EOF) ) {
-	    fprintf(stderr, "%s: could not close %s.\n%s\n",
-		    time_stamp(), rslt2_nm, strerror(errno));
-	}
+	fclose(rslt2);
 	client_pid = -1;
 
-	/*
-	   If imposing timeouts, clear alarm.
-	   Adjust timeout if desired and necessary.
-	 */
-	if ( tmgout ) {
-	    alarm(0);
-	    if ( tmx ) {
+	/* If imposing timeouts, adjust timeout if desired and necessary. */
+	if ( tmgout && tmx ) {
 		end = time(NULL);
 		dt = difftime(end, start);
 		if (verbose) {
@@ -516,10 +540,10 @@ int main(int argc, char *argv[])
 		    if ( dtx == 0.0 ) {
 			dtx = 1.0;
 		    }
-		    if ( dtx < tmout / 2 ) {
-			tmout = tmout / 2 + 1;
+		    if ( dtx < client_tmout / 2 ) {
+			client_tmout = client_tmout / 2 + 1;
 			    printf("%s: setting timeout to %u sec.\n",
-				    time_stamp(), tmout);
+				    time_stamp(), client_tmout);
 		    }
 		    dchk = new_dchk();
 		    if (verbose) {
@@ -529,7 +553,6 @@ int main(int argc, char *argv[])
 		    dtx = -1.0;
 		}
 	    }
-	}
     }
 
     /* Should not end up here. Process should exit with "stop" command. */
@@ -628,18 +651,17 @@ static int timeout_cb(int argc, char *argv[])
     if (argc == 1) {
 	if (tmgout) {
 	    fprintf(rslt1, "timeout = %d sec %s\n",
-		    tmout, tmoadj ? "adjustable" : "fixed");
+		    client_tmout, tmoadj ? "adjustable" : "fixed");
 	} else {
 	    fprintf(rslt1, "none\n");
 	}
 	return 1;
     } else if (argc == 2) {
-	alarm(0);
 	a = argv[1];
 	if (strcmp(a, "none") == 0) {
 	    tmgout = 0;
 	    return 1;
-	} else if (sscanf(a, "%d", &tmout) == 1) {
+	} else if (sscanf(a, "%d", &client_tmout) == 1) {
 	    tmgout = 1;
 	    return 1;
 	} else {
@@ -650,7 +672,6 @@ static int timeout_cb(int argc, char *argv[])
 	    return 0;
 	}
     } else if (argc == 3) {
-	alarm(0);
 	a = argv[1];
 	m = argv[2];
 	if (sscanf(a, "%d", &to) != 1) {
@@ -672,7 +693,7 @@ static int timeout_cb(int argc, char *argv[])
 	    return 0;
 	}
 	tmgout = 1;
-	tmout = to;
+	client_tmout = to;
 	return 1;
     } else {
 	Err_Append("Usage: ");
@@ -711,6 +732,10 @@ static FILE *vol_open(const char *vol_nm)
     FILE *in;		/* Return value */
     char *sfx;		/* Filename suffix */
     int pfd[2];		/* Pipe for data */
+    pthread_t tid;	/* Identifier for timeout thread */
+
+    pfd[0] = pfd[1] = -1;
+    in = NULL;
 
     sfx = strrchr(vol_nm , '.');
     if ( sfx && strcmp(sfx, ".gz") == 0 ) {
@@ -718,14 +743,14 @@ static FILE *vol_open(const char *vol_nm)
 	if ( pipe(pfd) == -1 ) {
 	    Err_Append(strerror(errno));
 	    Err_Append("\nCould not create pipe for gzip.  ");
-	    return NULL;
+	    goto error;
 	}
 	vol_pid = fork();
 	switch (vol_pid) {
 	    case -1:
 		Err_Append(strerror(errno));
 		Err_Append("\nCould not spawn gzip process.  ");
-		return NULL;
+		goto error;
 	    case 0:
 		/* Child process - gzip.  Send child stdout to pipe. */
 		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
@@ -734,10 +759,9 @@ static FILE *vol_open(const char *vol_nm)
 			    " server streams", time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1
-			|| close(pfd[1]) == -1 ) {
-		    fprintf(stderr, "%s: could not set up gzip process",
-			    time_stamp());
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
+		    fprintf(stderr, "%s: gzip process failed\n%s\n",
+			    time_stamp(), strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
 		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
@@ -748,50 +772,57 @@ static FILE *vol_open(const char *vol_nm)
 		    Err_Append(strerror(errno));
 		    Err_Append("\nCould not read gzip process.  ");
 		    vol_pid = -1;
-		    return NULL;
+		    goto error;
 		} else {
 		    return in;
 		}
+	}
+	if ( pthread_create(&tid, NULL, vol_timeout, NULL) != 0 ) {
+	    fprintf(stderr, "Could not spawn child timeout thread. ");
+	    goto error;
 	}
     } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
 	/* If filename ends with ".bz2", read from bunzip2 pipe */
 	if ( pipe(pfd) == -1 ) {
 	    Err_Append(strerror(errno));
-	    Err_Append("\nCould not create pipe for gzip.  ");
-	    return NULL;
+	    Err_Append("\nCould not create pipe for bzip2.  ");
+	    goto error;
 	}
 	vol_pid = fork();
 	switch (vol_pid) {
 	    case -1:
 		Err_Append(strerror(errno));
-		Err_Append("\nCould not spawn gzip process.  ");
-		return NULL;
+		Err_Append("\nCould not spawn bzip2 process.  ");
+		goto error;
 	    case 0:
-		/* Child process - gzip.  Send child stdout to pipe. */
+		/* Child process - bzip2.  Send child stdout to pipe. */
 		if ( close(i_cmd0) == -1 || close(i_cmd1) == -1
 			|| fclose(rslt1) == EOF) {
-		    fprintf(stderr, "%s: gzip child could not close"
+		    fprintf(stderr, "%s: bzip2 child could not close"
 			    " server streams", time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1
-			|| close(pfd[1]) == -1 ) {
-		    fprintf(stderr, "%s: could not set up gzip process",
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
+		    fprintf(stderr, "%s: could not set up bzip2 process",
 			    time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
 		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	    default:
-		/* This process.  Read output from gzip. */
+		/* This process.  Read output from bzip2. */
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
 		    Err_Append(strerror(errno));
-		    Err_Append("\nCould not read gzip process.  ");
+		    Err_Append("\nCould not read bzip2 process.  ");
 		    vol_pid = -1;
-		    return NULL;
+		    goto error;
 		} else {
 		    return in;
 		}
+	}
+	if ( pthread_create(&tid, NULL, vol_timeout, NULL) != 0 ) {
+	    fprintf(stderr, "Could not spawn child timeout thread. ");
+	    goto error;
 	}
     } else if ( !(in = fopen(vol_nm, "r")) ) {
 	/* Uncompressed file */
@@ -801,6 +832,23 @@ static FILE *vol_open(const char *vol_nm)
 	return NULL;
     }
     return in;
+
+error:
+	if ( vol_pid != -1 ) {
+	    kill(vol_pid, SIGTERM);
+	    vol_pid = -1;
+	}
+	if ( in ) {
+	    fclose(in);
+	    pfd[0] = -1;
+	}
+	if ( pfd[0] != -1 ) {
+	    close(pfd[0]);
+	}
+	if ( pfd[1] != -1 ) {
+	    close(pfd[1]);
+	}
+	return NULL;
 }
 
 static int good_cb(int argc, char *argv[])
@@ -888,6 +936,7 @@ static int hread_cb(int argc, char *argv[])
 		break;
 	    case MEM_FAIL:
 		/* Try to free some memory and try again */
+		fprintf(stderr, "Allocation failure. Flushing.\n");
 		if ( !flush(1) ) {
 		    trying = 0;
 		}
@@ -1973,6 +2022,7 @@ static int img_cb(int argc, char *argv[])
     pid_t p;			/* Return from waitpid */
     int status;			/* Exit status of image generator */
     int pfd[2];			/* Pipe for data */
+    pthread_t tid;		/* Identifier for timeout thread */
     char err_buf[LEN];		/* Store image process output */
     double px_per_m;		/* Display units per map unit */
 
@@ -2150,6 +2200,10 @@ static int img_cb(int argc, char *argv[])
 		return 0;
 	    }
     }
+    if ( pthread_create(&tid, NULL, img_timeout, NULL) != 0 ) {
+	fprintf(stderr, "Could not spawn image generator timeout thread. ");
+	return 0;
+    }
     XDRX_StdIO_Create(&xout, out, XDR_ENCODE);
 
     /* Come back here if write to image generator fails */
@@ -2264,13 +2318,13 @@ static int img_cb(int argc, char *argv[])
     /* Make kml file and return */
     if ( snprintf(kml_fl_nm, LEN, "%s.kml", base_nm) > LEN ) {
 	Err_Append("Could not make kml file name. ");
-	return 0;
+	goto error;
     }
     if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
 	Err_Append("Could not open ");
 	Err_Append(kml_fl_nm);
 	Err_Append(" for output. ");
-	return 0;
+	goto error;
     }
     fprintf(kml_fl, kml_tmpl,
 	    vol.ih.ic.hw_site_name, vol.ih.ic.hw_site_name,
@@ -2357,13 +2411,6 @@ static int handle_signals(void)
 	return 0;
     }
 
-    /* Call special handler for alarm signals */
-    act.sa_handler = alarm_handler;
-    if ( sigaction(SIGALRM, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
-
     /* Generic action for termination signals */
     act.sa_handler = handler;
     if ( sigaction(SIGTERM, &act, NULL) == -1 ) {
@@ -2398,30 +2445,65 @@ static int handle_signals(void)
     return 1;
 }
 
-/*
-   Assume alarm signals are due to a blocking client. Attempt to kill client.
-   POSSIBLE BUG. This assumes client_pid identifies a blocking client, and not
-   an unrelated process that replaced the (possibly long dead) client.
- */
-static void alarm_handler(int signum)
+/* Kill a client (sigmet_raw) process if it takes longer than client_tmout */
+static void *client_timeout(void *v)
 {
-    write(STDERR_FILENO, "Client timed out\n", 17);
+    sleep(client_tmout);
     if ( client_pid != -1 ) {
-	kill(client_pid, SIGKILL);
+	fprintf(stderr, "%s: timeout: terminating %d\n", time_stamp(), client_pid);
+	if ( kill(client_pid, SIGTERM) == -1 ) {
+	    fprintf(stderr, "%s: could not kill %d.\n%s\n",
+		    time_stamp() ,client_pid, strerror(errno));
+	}
+	fclose(rslt1);
+	fclose(rslt2);
 	client_pid = -1;
+	client_tmout *= 2;
+	if ( client_tmout > tmout_max ) {
+	    client_tmout = tmout_max;
+	}
     }
+    return (void *)1;
+}
+
+/* Kill volume reading process if it takes longer than vol_tmout seconds */
+static void *vol_timeout(void *v)
+{
+    sleep(vol_tmout);
     if ( vol_pid != -1 ) {
-	kill(vol_pid, SIGKILL);
+	fprintf(stderr, "%s: timeout: terminating %d\n", time_stamp(), vol_pid);
+	if ( kill(vol_pid, SIGTERM) == -1 ) {
+	    fprintf(stderr, "%s: could not kill %d.\n%s\n",
+		    time_stamp(), vol_pid, strerror(errno));
+	}
+	waitpid(vol_pid, NULL, 0);
+	vol_tmout *= 2;
+	if ( vol_tmout > tmout_max ) {
+	    vol_tmout = tmout_max;
+	}
 	vol_pid = -1;
     }
+    return (void *)1;
+}
+
+/* Kill image generating process if it takes longer than img_tmout seconds */
+static void *img_timeout(void *v)
+{
+    sleep(img_tmout);
     if ( img_pid != -1 ) {
-	kill(img_pid, SIGKILL);
+	fprintf(stderr, "%s: timeout: terminating %d\n", time_stamp(), img_pid);
+	if ( kill(img_pid, SIGTERM) == -1 ) {
+	    fprintf(stderr, "%s: could not kill %d.\n%s\n",
+		    time_stamp(), img_pid, strerror(errno));
+	}
+	waitpid(img_pid, NULL, 0);
+	img_tmout *= 2;
+	if ( img_tmout > tmout_max ) {
+	    img_tmout = tmout_max;
+	}
 	img_pid = -1;
     }
-    tmout *= 2;
-    if ( tmout > max_tmout ) {
-	tmout = max_tmout;
-    }
+    return (void *)1;
 }
 
 /* For exit signals, print an error message if possible */
