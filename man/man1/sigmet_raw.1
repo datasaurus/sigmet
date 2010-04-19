@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.16 $ $Date: 2010/04/09 19:42:53 $
+.\" $Revision: 1.17 $ $Date: 2010/04/13 22:18:51 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -16,9 +16,6 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_raw\fP \fBcmd_len\fP
 \fBsigmet_raw\fP \fBverbose\fP \fBtrue\fP|\fBfalse\fP
 \fBsigmet_raw\fP \fBpid\fP
-\fBsigmet_raw\fP \fBtimeout\fP
-\fBsigmet_raw\fP \fBtimeout\fP \fBnone\fP
-\fBsigmet_raw\fP \fBtimeout\fP \fIinteger\fP [\fBadjustable\fP|\fBfixed\fP]
 \fBsigmet_raw\fP \fBtypes\fP
 \fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBhread\fP \fIvolume_file\fP
@@ -60,12 +57,6 @@ access the stored volumes.  Subcommands and options to \fBsigmet_raw\fP, describ
 below, tell the daemon to read, manipulate, provide information from, and release
 volumes in the daemon's internal array
 .PP
-When a \fBsigmet_raw\fP instance connects to the daemon, other clients are
-blocked.  If a client does not detach from the server in a reasonable amount of
-time, the daemon kills it. This prevents frozen clients from freezing the daemon.
-Users who want to interact with a personal daemon can override this potentially
-obnoxious behavior with the \fBtimeout\fP subcommand.
-.PP
 \fBsigmet_rawd\fP goes to the background upon startup. The \fB-f\fP option
 overrides this behavior. Log messages go to \fB$SIGMET_RAWD_DIR/sigmet.log\fP.
 Error messages go to \fB$SIGMET_RAWD_DIR/sigmet.err\fP.
@@ -83,29 +74,6 @@ log file. If \fBfalse\fP, the daemon will print normal log messages.
 .TP
 \fBsigmet_raw\fP \fBpid\fP
 Prints the daemons proccess id.
-.TP
-\fBsigmet_raw\fP \fBtimeout\fP
-Prints the time limit for clients - the maximum time a client can block the daemon
-before the daemon kills it.  It also reports whether the timeout is \fBfixed\fP,
-meaning the daemon will never adjust the timeout, or \fBadjustable\fP, meaning
-the daemon will periodically adjust the timeout based on how long sampled
-clients are taking.
-.TP
-\fBsigmet_raw\fP \fBtimeout\fP \fBnone\fP
-Disables client timeout. Any client will have the daemon's input and output
-channels until the client exits. All other clients will be blocked. Human
-users who want to interact with output, e.g. send it through pagers, should
-probably disable the timeout.
-.TP
-\fBsigmet_raw\fP \fBtimeout\fP \fIinteger\fP [\fBadjustable\fP|\fBfixed\fP]
-Sets client timeout to \fIinteger\fP seconds.  If present, optional suffix
-adjusts the timeout behavior as described above. Daemons that provide output to
-multitudes of anonymous users should be allowed to adjust their timeout to boost
-performance.  Timeout will decrease if clients run quickly, meaning frozen clients
-will be quickly killed.  Timeout will increase if clients get killed, allowing for
-possibly slow network connections or user interaction. Scripts that access
-impatient daemons should probably make several connection attempts to improve
-chances of reaching a potentially overloaded daemon.
 .TP
 \fBsigmet_raw\fP \fBtypes\fP
 Prints a list of Sigmet data types.  Output lines have form:

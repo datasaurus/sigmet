@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.200 $ $Date: 2010/04/14 21:37:55 $
+ .	$Revision: 1.201 $ $Date: 2010/04/19 21:41:40 $
  */
 
 #include <stdlib.h>
@@ -76,28 +76,8 @@ static int i_cmd1;			/* Unused outptut (see below). */
 static FILE *rslt1;			/* Where to send standard output */
 static FILE *rslt2;			/* Where to send standard error */
 static pid_t client_pid = -1;		/* Client sending commands to daemon */
-
-/* Limit on client_tmout */
-static unsigned tmout_max = 20;
-
-/* These variables determine whether and when a slow client will be killed. */
-static int tmgout = 1;			/* If true, time out blocking clients. */
-static int tmoadj = 1;			/* If true, adjust timeout periodically. */
-static unsigned client_tmout;		/* Max seconds client can block daemon */
-static void *client_timeout(void *);	/* Timeout function, kills client after
-					 * client_tmout seconds */
-
-/* Volume reading process */
 static pid_t vol_pid = -1;		/* Process providing a raw volume */
-static unsigned vol_tmout;		/* Max seconds child can block daemon */
-static void *vol_timeout(void *);	/* Timeout function, kills child after
-					 * vol_tmout seconds */
-
-/* Image generating process */
 static pid_t img_pid = -1;		/* Process id for image generator */
-static unsigned img_tmout;		/* Max seconds child can block daemon */
-static void *img_timeout(void *);	/* Timeout function, kills child after 
-					 * img_tmout seconds */
 
 /* Input line - has commands for the daemon */
 #define BUF_L 512
@@ -110,12 +90,11 @@ static size_t cmd_len;			/* strlen(cmd) */
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 27
+#define NCMD 26
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
 static callback pid_cb;
-static callback timeout_cb;
 static callback types_cb;
 static callback good_cb;
 static callback hread_cb;
@@ -139,14 +118,14 @@ static callback img_name_cb;
 static callback img_cb;
 static callback stop_cb;
 static char *cmd1v[NCMD] = {
-    "cmd_len", "verbose", "pid", "timeout", "types", "good", "hread",
+    "cmd_len", "verbose", "pid", "types", "good", "hread",
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
     "colors", "bintvls", "proj", "img_app", "img_sz", "alpha",
     "img_name", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
-    cmd_len_cb, verbose_cb, pid_cb, timeout_cb, types_cb, good_cb, hread_cb,
+    cmd_len_cb, verbose_cb, pid_cb, types_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
     DataType_SetColors_CB, bintvls_cb, proj_cb, img_app_cb, img_sz_cb, alpha_cb,
@@ -211,9 +190,6 @@ int main(int argc, char *argv[])
     ssize_t r;			/* Return value from read */
     size_t l;			/* Number of bytes to read from command buffer */
     unsigned dchk;		/* After dchk clients, time some, adjust timeout */
-    time_t start = 0, end = 1;	/* When a client session starts, ends */
-    double dt;			/* Time taken by a client */
-    double dtx = -1.0;		/* Time taken by slowest client in a set */
     int y;			/* Loop index */
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" };
     /* Default projection */
@@ -332,13 +308,8 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    client_tmout = vol_tmout = img_tmout = tmout_max;
     dchk = new_dchk();
-    printf("Daemon starting. Process id = %d\nClients that block daemon "
-	    "for more than %d seconds will be killed.\n", getpid(), client_tmout);
-    if (tmoadj && verbose) {
-	printf("Will assess timeout after %d iterations\n", dchk );
-    }
+    printf("Daemon starting. Process id = %d\n", getpid());
 
     fflush(stdout);
 
@@ -363,8 +334,6 @@ int main(int argc, char *argv[])
 	char rslt2_nm[LEN];	/* Name of file for error output */
 	int success;		/* Result of callback */
 	int i;			/* Loop index */
-	int tmx = 0;		/* If true, time this session */
-	pthread_t tid;		/* Identifier for timeout thread */
 
 	/* Tolerate interrupt in read. Otherwise, bail out */
 	if ( r == -1 && errno != EINTR ) {
@@ -406,32 +375,6 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "%s: command line gives no destination.\n",
 		    time_stamp());
 	    continue;
-	}
-
-	/*
-	   If imposing timeouts (tmgout is set), start timeout thread.
-	   If adjusting timeouts store start time for this session.
-
-	   BUG- This assumes client_pid identifies a blocking client, and not
-	   an unrelated process that replaced the (possibly long dead) client.
-	 */
-
-	if ( tmgout ) {
-	    fprintf(stderr, "Starting timer for %d: ", client_pid);
-	    for (a = 0; a < argc1; a++) {
-		fprintf(stderr, "%s ", argv1[a]);
-	    }
-	    fprintf(stderr, "\n");
-	    if ( pthread_create(&tid, NULL, client_timeout, NULL) != 0 ) {
-		fprintf(stderr, "Could not spawn client timeout thread. ");
-		continue;
-	    }
-	    if ( tmoadj && --dchk < 8 ) {
-		tmx = 1;
-		start = time(NULL);
-	    } else {
-		tmx = 0;
-	    }
 	}
 
 	/* Open "standard output" file */
@@ -511,48 +454,6 @@ int main(int argc, char *argv[])
 	}
 	fclose(rslt2);
 	client_pid = -1;
-
-	/* If imposing timeouts, adjust timeout if desired and necessary. */
-	if ( tmgout && tmx ) {
-		end = time(NULL);
-		dt = difftime(end, start);
-		if (verbose) {
-		    printf("%s: session %d took ", time_stamp(), dchk);
-		    if ( dt == 0.0 ) {
-			printf("< 1.0 sec.\n");
-		    } else {
-			printf("%lf sec.\n", dt);
-		    }
-		}
-		if (dt > dtx) {
-		    dtx = dt;
-		    if (verbose) {
-			printf("%s: slowest client in this set so "
-				"far took ", time_stamp());
-			if ( dtx == 0.0 ) {
-			    printf("< 1.0 sec.\n");
-			} else {
-			    printf("%lf sec.\n", dtx);
-			}
-		    }
-		}
-		if ( dchk == 0 ) {
-		    if ( dtx == 0.0 ) {
-			dtx = 1.0;
-		    }
-		    if ( dtx < client_tmout / 2 ) {
-			client_tmout = client_tmout / 2 + 1;
-			    printf("%s: setting timeout to %u sec.\n",
-				    time_stamp(), client_tmout);
-		    }
-		    dchk = new_dchk();
-		    if (verbose) {
-			printf("%s: will assess timeout after %d "
-				"iterations\n", time_stamp(), dchk);
-		    }
-		    dtx = -1.0;
-		}
-	    }
     }
 
     /* Should not end up here. Process should exit with "stop" command. */
@@ -643,68 +544,6 @@ static int pid_cb(int argc, char *argv[])
     return 1;
 }
 
-static int timeout_cb(int argc, char *argv[])
-{
-    char *a, *m;
-    unsigned to;
-
-    if (argc == 1) {
-	if (tmgout) {
-	    fprintf(rslt1, "timeout = %d sec %s\n",
-		    client_tmout, tmoadj ? "adjustable" : "fixed");
-	} else {
-	    fprintf(rslt1, "none\n");
-	}
-	return 1;
-    } else if (argc == 2) {
-	a = argv[1];
-	if (strcmp(a, "none") == 0) {
-	    tmgout = 0;
-	    return 1;
-	} else if (sscanf(a, "%d", &client_tmout) == 1) {
-	    tmgout = 1;
-	    return 1;
-	} else {
-	    Err_Append(cmd1);
-	    Err_Append(" expected integer or \"none\" for timeout, got ");
-	    Err_Append(a);
-	    Err_Append(".  ");
-	    return 0;
-	}
-    } else if (argc == 3) {
-	a = argv[1];
-	m = argv[2];
-	if (sscanf(a, "%d", &to) != 1) {
-	    Err_Append(cmd1);
-	    Err_Append(" expected integer or \"none\" for timeout, got ");
-	    Err_Append(a);
-	    Err_Append(".  ");
-	    return 0;
-	}
-	if (strcmp(m, "adjustable") == 0) {
-	    tmoadj = 1;
-	} else if (strcmp(m, "fixed") == 0) {
-	    tmoadj = 0;
-	} else {
-	    Err_Append(cmd1);
-	    Err_Append(" expected \"adjustable\" or \"fixed\" for modifier, got ");
-	    Err_Append(m);
-	    Err_Append(".  ");
-	    return 0;
-	}
-	tmgout = 1;
-	client_tmout = to;
-	return 1;
-    } else {
-	Err_Append("Usage: ");
-	Err_Append(cmd1);
-	Err_Append(" \"none\"|integer \"adjustable\"|\"fixed\"");
-	return 0;
-    }
-
-    return 1;
-}
-
 static int types_cb(int argc, char *argv[])
 {
     int y;
@@ -732,7 +571,6 @@ static FILE *vol_open(const char *vol_nm)
     FILE *in;		/* Return value */
     char *sfx;		/* Filename suffix */
     int pfd[2];		/* Pipe for data */
-    pthread_t tid;	/* Identifier for timeout thread */
 
     pfd[0] = pfd[1] = -1;
     in = NULL;
@@ -777,10 +615,6 @@ static FILE *vol_open(const char *vol_nm)
 		    return in;
 		}
 	}
-	if ( pthread_create(&tid, NULL, vol_timeout, NULL) != 0 ) {
-	    fprintf(stderr, "Could not spawn child timeout thread. ");
-	    goto error;
-	}
     } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
 	/* If filename ends with ".bz2", read from bunzip2 pipe */
 	if ( pipe(pfd) == -1 ) {
@@ -819,10 +653,6 @@ static FILE *vol_open(const char *vol_nm)
 		} else {
 		    return in;
 		}
-	}
-	if ( pthread_create(&tid, NULL, vol_timeout, NULL) != 0 ) {
-	    fprintf(stderr, "Could not spawn child timeout thread. ");
-	    goto error;
 	}
     } else if ( !(in = fopen(vol_nm, "r")) ) {
 	/* Uncompressed file */
@@ -2022,7 +1852,6 @@ static int img_cb(int argc, char *argv[])
     pid_t p;			/* Return from waitpid */
     int status;			/* Exit status of image generator */
     int pfd[2];			/* Pipe for data */
-    pthread_t tid;		/* Identifier for timeout thread */
     char err_buf[LEN];		/* Store image process output */
     double px_per_m;		/* Display units per map unit */
 
@@ -2199,10 +2028,6 @@ static int img_cb(int argc, char *argv[])
 		img_pid = -1;
 		return 0;
 	    }
-    }
-    if ( pthread_create(&tid, NULL, img_timeout, NULL) != 0 ) {
-	fprintf(stderr, "Could not spawn image generator timeout thread. ");
-	return 0;
     }
     XDRX_StdIO_Create(&xout, out, XDR_ENCODE);
 
@@ -2443,67 +2268,6 @@ static int handle_signals(void)
     }
 
     return 1;
-}
-
-/* Kill a client (sigmet_raw) process if it takes longer than client_tmout */
-static void *client_timeout(void *v)
-{
-    sleep(client_tmout);
-    if ( client_pid != -1 ) {
-	fprintf(stderr, "%s: timeout: terminating %d\n", time_stamp(), client_pid);
-	if ( kill(client_pid, SIGTERM) == -1 ) {
-	    fprintf(stderr, "%s: could not kill %d.\n%s\n",
-		    time_stamp() ,client_pid, strerror(errno));
-	}
-	fclose(rslt1);
-	fclose(rslt2);
-	client_pid = -1;
-	client_tmout *= 2;
-	if ( client_tmout > tmout_max ) {
-	    client_tmout = tmout_max;
-	}
-    }
-    return (void *)1;
-}
-
-/* Kill volume reading process if it takes longer than vol_tmout seconds */
-static void *vol_timeout(void *v)
-{
-    sleep(vol_tmout);
-    if ( vol_pid != -1 ) {
-	fprintf(stderr, "%s: timeout: terminating %d\n", time_stamp(), vol_pid);
-	if ( kill(vol_pid, SIGTERM) == -1 ) {
-	    fprintf(stderr, "%s: could not kill %d.\n%s\n",
-		    time_stamp(), vol_pid, strerror(errno));
-	}
-	waitpid(vol_pid, NULL, 0);
-	vol_tmout *= 2;
-	if ( vol_tmout > tmout_max ) {
-	    vol_tmout = tmout_max;
-	}
-	vol_pid = -1;
-    }
-    return (void *)1;
-}
-
-/* Kill image generating process if it takes longer than img_tmout seconds */
-static void *img_timeout(void *v)
-{
-    sleep(img_tmout);
-    if ( img_pid != -1 ) {
-	fprintf(stderr, "%s: timeout: terminating %d\n", time_stamp(), img_pid);
-	if ( kill(img_pid, SIGTERM) == -1 ) {
-	    fprintf(stderr, "%s: could not kill %d.\n%s\n",
-		    time_stamp(), img_pid, strerror(errno));
-	}
-	waitpid(img_pid, NULL, 0);
-	img_tmout *= 2;
-	if ( img_tmout > tmout_max ) {
-	    img_tmout = tmout_max;
-	}
-	img_pid = -1;
-    }
-    return (void *)1;
 }
 
 /* For exit signals, print an error message if possible */
