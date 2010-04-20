@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.201 $ $Date: 2010/04/19 21:41:40 $
+ .	$Revision: 1.202 $ $Date: 2010/04/19 21:51:57 $
  */
 
 #include <stdlib.h>
@@ -25,7 +25,6 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <sys/wait.h>
-#include <pthread.h>
 #include "alloc.h"
 #include "err_msg.h"
 #include "tm_calc_lib.h"
