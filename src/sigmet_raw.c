@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.18 $ $Date: 2010/03/11 16:02:38 $
+ .	$Revision: 1.19 $ $Date: 2010/03/11 16:25:40 $
  */
 
 #include <stdlib.h>
@@ -22,9 +22,9 @@
 #include "alloc.h"
 #include "sigmet_raw.h"
 
-int handle_signals(void);
-void handler(int signum);
-void pipe_handler(int signum);
+static int handle_signals(void);
+static void handler(int signum);
+static void alarm_handler(int signum);
 
 /* Array size */
 #define LEN 1024
@@ -36,6 +36,9 @@ char rslt2_nm[LEN];		/* Name of file for error results */
 int main(int argc, char *argv[])
 {
     char *cmd = argv[0];
+    char *tmout_s;		/* Process time limit, string */
+    unsigned tmout;		/* Process time limit */
+    int tmout_inf = 0;		/* If true, no time limit */
     pid_t pid = getpid();
     char *ddir;			/* Name of daemon working directory */
     int i_cmd1;			/* Where to send commands */
@@ -56,11 +59,25 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
+    /* Determine process time limit */
+    tmout = 8;
+    if ( (tmout_s = getenv("SIGMET_RAWD_TIMEOUT")) ) {
+	if (strcmp(tmout_s, "none") == 0) {
+	    tmout_inf = 1;
+	} else if (sscanf(tmout_s, "%u", &tmout) != 1) {
+	    fprintf(stderr, "%s: timeout must be integer or \"none\".\n", cmd);
+	    exit(EXIT_FAILURE);
+	}
+    }
+
     /* Set up signal handling */
     if ( !handle_signals() ) {
-	fprintf(stderr, "%s: could not set up signal management.", argv[0]);
+	fprintf(stderr, "%s: could not set up signal management.", cmd);
 	exit(EXIT_FAILURE);
     }
+
+    /* To avoid haning server, exit if take too long */
+    alarm(tmout);
 
     /* Specify where to put the command and get the results */
     if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
@@ -239,6 +256,13 @@ int handle_signals(void)
 	return 0;
     }
 
+    /* Call special handler for alarm signals */
+    act.sa_handler = alarm_handler;
+    if ( sigaction(SIGALRM, &act, NULL) == -1 ) {
+        perror(NULL);
+        return 0;
+    }
+
     /* Generic action for termination signals */
     act.sa_handler = handler;
     if ( sigaction(SIGTERM, &act, NULL) == -1 ) {
@@ -324,4 +348,11 @@ void handler(int signum)
 	write(STDERR_FILENO, "Could not remove result pipe\n", 29);
     }
     _exit(EXIT_FAILURE);
+}
+
+/* Exit on alarm */
+static void alarm_handler(int signum)
+{
+    write(STDERR_FILENO, "sigmet_raw timed out\n", 21);
+    exit(EXIT_FAILURE);
 }
