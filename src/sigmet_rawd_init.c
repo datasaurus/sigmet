@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.203 $ $Date: 2010/04/20 18:52:31 $
+ .	$Revision: 1.204 $ $Date: 2010/05/23 05:01:43 $
  */
 
 #include <stdlib.h>
@@ -1917,7 +1917,7 @@ static int img_cb(int argc, char *argv[])
     FILE *out = NULL;		/* Where to send outlines to draw */
     struct XDRX_Stream xout;	/* XDR stream for out */
     jmp_buf err_jmp;		/* Handle output errors with setjmp, longjmp */
-    char *item;			/* Item being written. Needed for error message. */
+    char *item = NULL;		/* Item being written. Needed for error message. */
     pid_t p;			/* Return from waitpid */
     int status;			/* Exit status of image generator */
     int pfd[2];			/* Pipe for data */
@@ -2218,6 +2218,10 @@ static int img_cb(int argc, char *argv[])
 	Err_Append("Could not open ");
 	Err_Append(kml_fl_nm);
 	Err_Append(" for output. ");
+	goto error;
+    }
+    if ( s >= vol.ih.ic.num_sweeps || !vol.sweep_ok[s]
+	    || !Tm_JulToCal(vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
 	goto error;
     }
     fprintf(kml_fl, kml_tmpl,
