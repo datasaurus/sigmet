@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.19 $ $Date: 2010/03/11 16:25:40 $
+ .	$Revision: 1.20 $ $Date: 2010/04/20 18:51:34 $
  */
 
 #include <stdlib.h>
@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
     }
 
     /* Determine process time limit */
-    tmout = 8;
+    tmout = 30;
     if ( (tmout_s = getenv("SIGMET_RAWD_TIMEOUT")) ) {
 	if (strcmp(tmout_s, "none") == 0) {
 	    tmout_inf = 1;
@@ -141,8 +141,8 @@ int main(int argc, char *argv[])
 	}
     }
     if ( b >= b1 ) {
-	fprintf(stderr, "%s: command line too big (%ld characters max)\n",
-		cmd, buf_l - sizeof(int) - 1);
+	fprintf(stderr, "%s: command line too big (%lu characters max)\n",
+		cmd, (unsigned long)(buf_l - sizeof(int) - 1));
 	exit(EXIT_FAILURE);
     }
     l = b - buf;
