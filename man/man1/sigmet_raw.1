@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.17 $ $Date: 2010/04/13 22:18:51 $
+.\" $Revision: 1.18 $ $Date: 2010/04/19 21:56:03 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -32,6 +32,8 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBcolors\fP \fIdata_type\fP \fIcolors_file\fP
 \fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBradar_lon\fP \fIlon\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBradar_lat\fP \fIlat\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBproj\fP \fIargs ...\fP
 \fBsigmet_raw\fP \fBimg_app\fP \fIpath\fP
 \fBsigmet_raw\fP \fBimg_sz\fP \fIn\fP
@@ -257,6 +259,12 @@ i: r b
 .fi
 where \fIi\fP specifies an index from the sequence of data bounds, and \fIr\fP and
 \fIb\fP specify a bin whose value satisfies bounds[i]\ <=\ value\ <\ bounds[i+1].
+.TP
+\fBsigmet_raw\fP \fBradar_lon\fP \fIlon\fP \fIvolume_file\fP
+Sets radar longitude to \fIlon\fP degrees.
+.TP
+\fBsigmet_raw\fP \fBradar_lat\fP \fIlat\fP \fIvolume_file\fP
+Sets radar latitude to \fIlat\fP degrees.
 .TP
 \fBsigmet_raw\fP \fBproj\fP \fIargs ...\fP
 Sets the cartographic projection. \fIargs ...\fP should define a cartographic

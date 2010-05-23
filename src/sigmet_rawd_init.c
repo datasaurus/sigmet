@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.202 $ $Date: 2010/04/19 21:51:57 $
+ .	$Revision: 1.203 $ $Date: 2010/04/20 18:52:31 $
  */
 
 #include <stdlib.h>
@@ -89,7 +89,7 @@ static size_t cmd_len;			/* strlen(cmd) */
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 26
+#define NCMD 28
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -109,6 +109,8 @@ static callback ray_headers_cb;
 static callback data_cb;
 static callback bin_outline_cb;
 static callback bintvls_cb;
+static callback radar_lon_cb;
+static callback radar_lat_cb;
 static callback proj_cb;
 static callback img_app_cb;
 static callback img_sz_cb;
@@ -120,15 +122,15 @@ static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "types", "good", "hread",
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
-    "colors", "bintvls", "proj", "img_app", "img_sz", "alpha",
-    "img_name", "img", "stop"
+    "colors", "bintvls", "radar_lon", "radar_lat", "proj",
+    "img_app", "img_sz", "alpha", "img_name", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, types_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
-    DataType_SetColors_CB, bintvls_cb, proj_cb, img_app_cb, img_sz_cb, alpha_cb,
-    img_name_cb, img_cb, stop_cb
+    DataType_SetColors_CB, bintvls_cb, radar_lon_cb, radar_lat_cb, proj_cb,
+    img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, stop_cb
 };
 
 /* Cartographic projection */
@@ -342,12 +344,12 @@ int main(int argc, char *argv[])
 	/* Fetch the command */
 	if ( l > BUF_L ) {
 	    fprintf(stderr, "%s: command with %lu bytes to large for buffer.\n",
-		    time_stamp(), l);
+		    time_stamp(), (unsigned long)l);
 	    continue;
 	}
 	if ( (r = read(i_cmd0, buf, l)) != l ) {
-	    fprintf(stderr, "%s: failed to read command of %ld bytes. ",
-		    time_stamp(), l);
+	    fprintf(stderr, "%s: failed to read command of %lu bytes. ",
+		    time_stamp(), (unsigned long)l);
 	    if ( r == -1 ) {
 		fprintf(stderr, "%s\n", strerror(errno));
 	    }
@@ -427,8 +429,6 @@ int main(int argc, char *argv[])
 			time_stamp(), rslt2_nm, strerror(errno));
 	    }
 	    kill(client_pid, SIGTERM);
-	    fclose(rslt1);
-	    fclose(rslt2);
 	    continue;
 	}
 
@@ -1165,7 +1165,7 @@ static int vol_hdr_cb(int argc, char *argv[])
     fprintf(rslt1, "radar_lon=%.4lf\n",
 	   GeogLonR(Sigmet_Bin4Rad(vol.ih.ic.longitude), 0.0) * DEG_PER_RAD);
     fprintf(rslt1, "radar_lat=%.4lf\n",
-	    Sigmet_Bin4Rad(vol.ih.ic.latitude) * DEG_PER_RAD);
+	   GeogLonR(Sigmet_Bin4Rad(vol.ih.ic.latitude), 0.0) * DEG_PER_RAD);
     fprintf(rslt1, "task_name=\"%s\"\n", vol.ph.pc.task_name);
     fprintf(rslt1, "types=\"");
     fprintf(rslt1, "%s", Sigmet_DataType_Abbrv(vol.types[0]));
@@ -1616,6 +1616,76 @@ static int bintvls_cb(int argc, char *argv[])
 	    }
 	}
     }
+
+    return 1;
+}
+
+/* Change radar longitude to given value, which must be given in degrees */
+static int radar_lon_cb(int argc, char *argv[])
+{
+    char *vol_nm;		/* Sigmet raw file */
+    int i;			/* Volume index. */
+    char *lon_s;		/* New longitude, radians, in argv */
+    double lon;			/* New longitude, radians */
+
+    /* Parse command line */
+    if ( argc != 3 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" new_lon volume");
+	return 0;
+    }
+    lon_s = argv[1];
+    vol_nm = argv[2];
+    if ( sscanf(lon_s, "%lf", &lon) != 1 ) {
+	Err_Append("Expected float value for new longitude, got ");
+	Err_Append(lon_s);
+	Err_Append(". ");
+    }
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	return 0;
+    }
+    lon = GeogLonR(lon * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
+    vols[i].vol.ih.ic.longitude = Sigmet_RadBin4(lon);
+
+    return 1;
+}
+
+/* Change radar latitude to given value, which must be given in degrees */
+static int radar_lat_cb(int argc, char *argv[])
+{
+    char *vol_nm;		/* Sigmet raw file */
+    int i;			/* Volume index. */
+    char *lat_s;		/* New latitude, radians, in argv */
+    double lat;			/* New latitude, radians */
+
+    /* Parse command line */
+    if ( argc != 3 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" new_lat volume");
+	return 0;
+    }
+    lat_s = argv[1];
+    vol_nm = argv[2];
+    if ( sscanf(lat_s, "%lf", &lat) != 1 ) {
+	Err_Append("Expected float value for new latitude, got ");
+	Err_Append(lat_s);
+	Err_Append(". ");
+    }
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	return 0;
+    }
+    lat = GeogLonR(lat * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
+    vols[i].vol.ih.ic.latitude = Sigmet_RadBin4(lat);
 
     return 1;
 }
