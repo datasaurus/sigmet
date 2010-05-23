@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.10 $ $Date: 2009/12/22 18:08:35 $
+   .	$Revision: 1.11 $ $Date: 2010/02/26 16:21:44 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -101,16 +101,24 @@ static itof_proc (itof)[SIGMET_NTYPES] = {
     itof_LDRH2,	itof_LDRV,	itof_LDRV2
 };
 
-/* Return decimal degrees corresponding to a 16 bit binary angle.  */
 double Sigmet_Bin4Rad(unsigned long a)
 {
     return (double)a / (unsigned)0xFFFFFFFF * 2 * PI;
 }
 
-/* Return decimal degrees corresponding to a 32 bit binary angle.  */
 double Sigmet_Bin2Rad(unsigned short a)
 {
     return (double)a / (unsigned)0xFFFF * 2 * PI;
+}
+
+unsigned long Sigmet_RadBin4(double a)
+{
+    return (unsigned)0xFFFFFFFF * a / (2 * PI);
+}
+
+unsigned long Sigmet_RadBin2(double a)
+{
+    return (unsigned)0xFFFF * a / (2 * PI);
 }
 
 /* Fetch the short name of a Sigmet data type */

@@ -4,10 +4,10 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.6 $ $Date: 2010/02/19 23:15:34 $
+.\" $Revision: 1.7 $ $Date: 2010/04/01 21:56:55 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
-Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_InitVol, Sigmet_FreeVol, Sigmet_GoodVol, Sigmet_ReadHdr, Sigmet_PrintHdr, Sigmet_ReadVol, Sigmet_BadRay, Sigmet_BinOutl \- read Sigmet raw data
+Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_InitVol, Sigmet_FreeVol, Sigmet_GoodVol, Sigmet_ReadHdr, Sigmet_PrintHdr, Sigmet_ReadVol, Sigmet_BadRay, Sigmet_BinOutl \- read Sigmet raw data
 .SH VERSION
 1
 .SH SYNOPSIS
@@ -23,6 +23,8 @@ Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_NoData, Si
 	\fBunsigned\fP \fIi\fP\fB);\fP
 \fBdouble Sigmet_Bin4Rad(unsigned long\fP \fIb\fP\fB);\fP
 \fBdouble Sigmet_Bin2Rad(unsigned short\fP \fIb\fP\fB);\fP
+\fBunsigned long Sigmet_RadBin4(double\fP \fIa\fP\fB);\fP
+\fBunsigned long Sigmet_RadBin2(double\fP \fIa\fP\fB);\fP
 \fBvoid Sigmet_InitVol(struct Sigmet_Vol\fP *\fIsigPtr\fP\fB);\fP
 \fBvoid Sigmet_FreeVol(struct Sigmet_Vol\fP *\fIsigPtr\fP\fB);\fP
 \fBint Sigmet_GoodVol(FILE\fP *\fIf\fP\fB);\fP
@@ -76,6 +78,12 @@ byte binary angle \fIb\fP.
 .PP
 \fBSigmet_Bin2Rad\fP returns the angle in radians corresponding to Sigmet two
 byte binary angle \fIb\fP.
+.PP
+\fBSigmet_RadBin4\fP returns the Sigmet four byte binary angle
+\fIa\fP corresponding to angle in radians.
+.PP
+\fBSigmet_RadBin2\fP returns the Sigmet two byte binary angle
+\fIa\fP corresponding to angle in radians.
 .SH SIGMET RAW VOLUMES
 Data from Sigmet raw product volumes are stored in structures of
 type \fBstruct\ Sigmet_Vol\fP, which is declared in \fBsigmet.h\fP.
