@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.204 $ $Date: 2010/05/23 05:01:43 $
+ .	$Revision: 1.205 $ $Date: 2010/05/23 15:50:44 $
  */
 
 #include <stdlib.h>
@@ -89,7 +89,7 @@ static size_t cmd_len;			/* strlen(cmd) */
 static char *cmd1;
 
 /* Subcommands */
-#define NCMD 28
+#define NCMD 29
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
 static callback verbose_cb;
@@ -111,6 +111,7 @@ static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback radar_lon_cb;
 static callback radar_lat_cb;
+static callback shift_az_cb;
 static callback proj_cb;
 static callback img_app_cb;
 static callback img_sz_cb;
@@ -122,15 +123,15 @@ static char *cmd1v[NCMD] = {
     "cmd_len", "verbose", "pid", "types", "good", "hread",
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
-    "colors", "bintvls", "radar_lon", "radar_lat", "proj",
-    "img_app", "img_sz", "alpha", "img_name", "img", "stop"
+    "colors", "bintvls", "radar_lon", "radar_lat", "shift_az",
+    "proj", "img_app", "img_sz", "alpha", "img_name", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
     cmd_len_cb, verbose_cb, pid_cb, types_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
-    DataType_SetColors_CB, bintvls_cb, radar_lon_cb, radar_lat_cb, proj_cb,
-    img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, stop_cb
+    DataType_SetColors_CB, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
+    proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, stop_cb
 };
 
 /* Cartographic projection */
@@ -1625,8 +1626,8 @@ static int radar_lon_cb(int argc, char *argv[])
 {
     char *vol_nm;		/* Sigmet raw file */
     int i;			/* Volume index. */
-    char *lon_s;		/* New longitude, radians, in argv */
-    double lon;			/* New longitude, radians */
+    char *lon_s;		/* New longitude, degrees, in argv */
+    double lon;			/* New longitude, degrees */
 
     /* Parse command line */
     if ( argc != 3 ) {
@@ -1660,8 +1661,8 @@ static int radar_lat_cb(int argc, char *argv[])
 {
     char *vol_nm;		/* Sigmet raw file */
     int i;			/* Volume index. */
-    char *lat_s;		/* New latitude, radians, in argv */
-    double lat;			/* New latitude, radians */
+    char *lat_s;		/* New latitude, degrees, in argv */
+    double lat;			/* New latitude, degrees */
 
     /* Parse command line */
     if ( argc != 3 ) {
@@ -1687,6 +1688,68 @@ static int radar_lat_cb(int argc, char *argv[])
     lat = GeogLonR(lat * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
     vols[i].vol.ih.ic.latitude = Sigmet_RadBin4(lat);
 
+    return 1;
+}
+
+/* Change ray azimuths to given value, which must be given in degrees */
+static int shift_az_cb(int argc, char *argv[])
+{
+    char *vol_nm;		/* Sigmet raw file */
+    int i;			/* Volume index. */
+    char *daz_s;		/* Amount to add to each azimuth, deg, in argv */
+    double daz;			/* Amount to add to each azimuth, radians */
+    double idaz;		/* Amount to add to each azimuth, binary angle */
+    int s, r;			/* Loop indeces */
+
+    /* Parse command line */
+    if ( argc != 3 ) {
+	Err_Append("Usage: ");
+	Err_Append(cmd1);
+	Err_Append(" dz volume");
+	return 0;
+    }
+    daz_s = argv[1];
+    vol_nm = argv[2];
+    if ( sscanf(daz_s, "%lf", &daz) != 1 ) {
+	Err_Append("Expected float value for azimuth shift, got ");
+	Err_Append(daz_s);
+	Err_Append(". ");
+    }
+    i = get_vol_i(vol_nm);
+    if ( i == -1 ) {
+	Err_Append(vol_nm);
+	Err_Append(" not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command. ");
+	return 0;
+    }
+    daz = GeogLonR(daz * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
+    idaz = Sigmet_RadBin4(daz);
+    switch (vols[i].vol.ih.tc.tni.scan_mode) {
+	case RHI:
+	    for (s = 0; s < vols[i].vol.ih.ic.num_sweeps; s++) {
+		vols[i].vol.ih.tc.tni.scan_info.rhi_info.az[s] += idaz;
+	    }
+	    break;
+	case PPI_S:
+	case PPI_C:
+	    for (s = 0; s < vols[i].vol.ih.ic.num_sweeps; s++) {
+		vols[i].vol.ih.tc.tni.scan_info.ppi_info.left_az += idaz;
+		vols[i].vol.ih.tc.tni.scan_info.ppi_info.right_az += idaz;
+	    }
+	    break;
+	case FILE_SCAN:
+	    vols[i].vol.ih.tc.tni.scan_info.file_info.az0 += idaz;
+	case MAN_SCAN:
+	    break;
+    }
+    for (s = 0; s < vols[i].vol.ih.tc.tni.num_sweeps; s++) {
+	for (r = 0; r < (int)vols[i].vol.ih.ic.num_rays; r++) {
+	    vols[i].vol.ray_az0[s][r]
+		= GeogLonR(vols[i].vol.ray_az0[s][r] + daz, 180.0 * RAD_PER_DEG);
+	    vols[i].vol.ray_az1[s][r]
+		= GeogLonR(vols[i].vol.ray_az1[s][r] + daz, 180.0 * RAD_PER_DEG);
+	}
+    }
     return 1;
 }
 
