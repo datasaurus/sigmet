@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.20 $ $Date: 2010/04/20 18:51:34 $
+ .	$Revision: 1.21 $ $Date: 2010/05/23 05:00:50 $
  */
 
 #include <stdlib.h>
@@ -17,6 +17,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/stat.h>
 #include <signal.h>
 #include "alloc.h"
@@ -38,36 +40,39 @@ int main(int argc, char *argv[])
     char *cmd = argv[0];
     char *tmout_s;		/* Process time limit, string */
     unsigned tmout;		/* Process time limit */
-    int tmout_inf = 0;		/* If true, no time limit */
-    pid_t pid = getpid();
     char *ddir;			/* Name of daemon working directory */
-    int i_cmd1;			/* Where to send commands */
-    char *buf;			/* Output buffer */
-    size_t buf_l;		/* Allocation at buf */
+    struct sockaddr_un io_sa;	/* Socket to communicate with client */
+    struct sockaddr *sa_p;	/* &io_sa, needed for call to bind */
+    int io_fd;			/* File descriptor of connection to daemon */
+    FILE *io;			/* Connection to daemon as stream */
+    pid_t pid = getpid();
+    char buf[SIGMET_RAWD_ARGVX];/* Output buffer */
     char *b;			/* Point into buf */
     char *b1;			/* End of buf */
     size_t l;			/* Length of command buffer as used */
     char **aa, *a;		/* Loop parameters */
     ssize_t w;			/* Return from write */
-    FILE *rslt1;		/* File for standard results */
-    FILE *rslt2;		/* File for error results */
     int c;			/* Character from daemon */
     int status;			/* Return from this process */
+
+    b1 = buf + SIGMET_RAWD_ARGVX;
+    status = EXIT_SUCCESS;
 
     if ( argc < 2 ) {
 	fprintf(stderr, "Usage: %s command\n", cmd);
 	exit(EXIT_FAILURE);
     }
 
-    /* Determine process time limit */
-    tmout = 30;
+    /* To avoid haning server, exit if take too long */
     if ( (tmout_s = getenv("SIGMET_RAWD_TIMEOUT")) ) {
-	if (strcmp(tmout_s, "none") == 0) {
-	    tmout_inf = 1;
-	} else if (sscanf(tmout_s, "%u", &tmout) != 1) {
+	if (strcmp(tmout_s, "none") != 0 && sscanf(tmout_s, "%u", &tmout) == 1) {
+	    alarm(tmout);
+	} else {
 	    fprintf(stderr, "%s: timeout must be integer or \"none\".\n", cmd);
 	    exit(EXIT_FAILURE);
 	}
+    } else {
+	alarm(30);
     }
 
     /* Set up signal handling */
@@ -76,10 +81,7 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* To avoid haning server, exit if take too long */
-    alarm(tmout);
-
-    /* Specify where to put the command and get the results */
+    /* Connect to daemon */
     if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
 	fprintf(stderr, "%s: SIGMET_RAWD_DIR not set.  Is the daemon running?\n",
 		cmd);
@@ -89,45 +91,22 @@ int main(int argc, char *argv[])
 	perror("Could not change to daemon working directory.");
 	exit(EXIT_FAILURE);
     }
-    if ( snprintf(rslt1_nm, LEN, "%d.1", pid) > LEN ) {
-	fprintf(stderr, "%s: could not create name for result pipe.\n", cmd);
+    if ( (io_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
+	perror("Could not connect to sigmet_raw daemon.");
 	exit(EXIT_FAILURE);
     }
-    if ( snprintf(rslt2_nm, LEN, "%d.2", pid) > LEN ) {
-	fprintf(stderr, "%s: could not create name for result pipe.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-
-    /* Open command pipe */
-    if ( !(i_cmd1 = open(SIGMET_RAWD_IN, O_WRONLY)) ) {
-	perror("could not open command pipe");
-	exit(EXIT_FAILURE);
-    }
-
-    /* Allocate command buffer */
-    if ( (buf_l = fpathconf(i_cmd1, _PC_PIPE_BUF)) == -1 ) {
-	fprintf(stderr, "%s: Could not get pipe buffer size.\n%s\n",
-		cmd, strerror(errno));
-	exit(EXIT_FAILURE);
-    }
-    if ( !(buf = CALLOC(buf_l, 1)) ) {
-	fprintf(stderr, "%s: Could not allocate command line.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    b1 = buf + buf_l;
-
-    /* Create fifo to receive results from daemon */
-    if ( mkfifo(rslt1_nm, 0600) == -1 ) {
-	perror("could not create file for standard results");
-	exit(EXIT_FAILURE);
-    }
-    if ( mkfifo(rslt2_nm, 0600) == -1 ) {
-	perror("could not create file for standard results");
+    memset(&io_sa, '\0', sizeof(struct sockaddr_un));
+    io_sa.sun_family = AF_UNIX;
+    strncpy(io_sa.sun_path, SIGMET_RAWD_IN, sizeof(io_sa.sun_path) - 1);
+    sa_p = (struct sockaddr *)&io_sa;
+    connect(io_fd, sa_p, sizeof(struct sockaddr_un));
+    if ( !(io = fdopen(io_fd, "r+")) ) {
+	perror("Could not connect to sigmet_raw daemon.");
 	exit(EXIT_FAILURE);
     }
 
     /* Fill buf and send to daemon. */
-    memset(buf, 0, buf_l);
+    memset(buf, 0, SIGMET_RAWD_ARGVX);
     b = buf + sizeof(size_t);
     *(pid_t *)b = pid;
     b += sizeof(pid);
@@ -142,72 +121,27 @@ int main(int argc, char *argv[])
     }
     if ( b >= b1 ) {
 	fprintf(stderr, "%s: command line too big (%lu characters max)\n",
-		cmd, (unsigned long)(buf_l - sizeof(int) - 1));
+		cmd, (unsigned long)(SIGMET_RAWD_ARGVX - sizeof(int) - 1));
 	exit(EXIT_FAILURE);
     }
     l = b - buf;
     *(size_t *)buf = l - sizeof(size_t);
-    if ( (w = write(i_cmd1, buf, l)) != l ) {
+    if ( (w = write(io_fd, buf, l)) != l ) {
 	if ( w == -1 ) {
 	    perror("could not write command to sigmet daemon");
 	} else {
 	    fprintf(stderr, "%s: Incomplete write to daemon.\n", cmd);
 	}
-	if ( close(i_cmd1) == -1 ) {
-	    perror("could not close command pipe");
-	}
-	FREE(buf);
-	exit(EXIT_FAILURE);
-    }
-    if ( close(i_cmd1) == -1 ) {
-	perror("could not close command pipe");
-    }
-
-    /* Open files from which to read standard output and error */
-    if ( !(rslt1 = fopen(rslt1_nm, "r")) ) {
-	perror("could not open result pipe");
-	if ( unlink(rslt1_nm) == -1 ) {
-	    perror("could not remove result pipe");
-	}
-	exit(EXIT_FAILURE);
-    }
-    if ( !(rslt2 = fopen(rslt2_nm, "r")) ) {
-	perror("could not open result pipe");
-	if ( unlink(rslt2_nm) == -1 ) {
-	    perror("could not remove result pipe");
-	}
+	fclose(io);
 	exit(EXIT_FAILURE);
     }
 
     /* Get standard output result from daemon and send to stdout */
-    while ( (c = fgetc(rslt1)) != EOF ) {
+    while ( (c = fgetc(io)) != EOF ) {
 	putchar(c);
     }
-    if ( fclose(rslt1) == EOF ) {
-	perror("could not close result pipe");
-	if ( unlink(rslt1_nm) == -1 ) {
-	    perror("could not remove result pipe");
-	}
-    }
-    if ( access(rslt1_nm, F_OK) == 0 && unlink(rslt1_nm) == -1 ) {
-	perror("could not remove result pipe");
-    }
 
-    /* Get error output from daemon and send to stderr */
-    status = fgetc(rslt2);
-    while ( (c = fgetc(rslt2)) != EOF ) {
-	fputc(c, stderr);
-    }
-    if ( fclose(rslt2) == EOF ) {
-	perror("could not close result pipe");
-	if ( unlink(rslt2_nm) == -1 ) {
-	    perror("could not remove result pipe");
-	}
-    }
-    if ( access(rslt2_nm, F_OK) == 0 && unlink(rslt2_nm) == -1 ) {
-	perror("could not remove result pipe");
-    }
-
+    fclose(io);
     return status;
 }
 
