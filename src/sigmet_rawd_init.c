@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.205 $ $Date: 2010/05/23 15:50:44 $
+ .	$Revision: 1.206 $ $Date: 2010/07/01 18:32:54 $
  */
 
 #include <stdlib.h>
@@ -1969,7 +1969,7 @@ static int img_cb(int argc, char *argv[])
     double south, north;	/* Display area latitude limits */
     projUV cnrs_uv[4];		/* Corners of a gate, lon-lat or x-y */
     projUV *uv;			/* Element from cnrs_uv */
-    int n;			/* Loop index */
+    int n, n_c;			/* Loop indeces */
     int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
     double sec;			/* Sweep second */
     char base_nm[LEN]; 		/* Output file name */
@@ -1980,7 +1980,8 @@ static int img_cb(int argc, char *argv[])
     FILE *out = NULL;		/* Where to send outlines to draw */
     struct XDRX_Stream xout;	/* XDR stream for out */
     jmp_buf err_jmp;		/* Handle output errors with setjmp, longjmp */
-    char *item = NULL;		/* Item being written. Needed for error message. */
+    char *item = NULL;		/* String describing item being sent to an xdr
+				   stream, used in error messages */
     pid_t p;			/* Return from waitpid */
     int status;			/* Exit status of image generator */
     int pfd[2];			/* Pipe for data */
@@ -2188,11 +2189,6 @@ static int img_cb(int argc, char *argv[])
     item = " image dimensions. ";
     XDRX_Put_UInt(w_pxl, &xout, err_jmp);
     XDRX_Put_UInt(h_pxl, &xout, err_jmp);
-    item = " image real bounds. ";
-    XDRX_Put_Double(left, &xout, err_jmp);
-    XDRX_Put_Double(rght, &xout, err_jmp);
-    XDRX_Put_Double(top, &xout, err_jmp);
-    XDRX_Put_Double(btm, &xout, err_jmp);
     item = " alpha channel value. ";
     XDRX_Put_Double(alpha, &xout, err_jmp);
     item = " colors. ";
@@ -2233,14 +2229,14 @@ static int img_cb(int argc, char *argv[])
 		    item = " polygon point count. ";
 		    XDRX_Put_UInt(npts, &xout, err_jmp);
 		    item = " bin corner coordinates. ";
-		    XDRX_Put_Double(cnrs_uv[0].u, &xout, err_jmp);
-		    XDRX_Put_Double(cnrs_uv[0].v, &xout, err_jmp);
-		    XDRX_Put_Double(cnrs_uv[1].u, &xout, err_jmp);
-		    XDRX_Put_Double(cnrs_uv[1].v, &xout, err_jmp);
-		    XDRX_Put_Double(cnrs_uv[2].u, &xout, err_jmp);
-		    XDRX_Put_Double(cnrs_uv[2].v, &xout, err_jmp);
-		    XDRX_Put_Double(cnrs_uv[3].u, &xout, err_jmp);
-		    XDRX_Put_Double(cnrs_uv[3].v, &xout, err_jmp);
+		    for (n_c = 0; n_c < 4; n_c++) {
+			int x, y;
+
+			x = (cnrs_uv[n_c].u - left) * px_per_m;
+			y = (top - cnrs_uv[n_c].v) * px_per_m;
+			XDRX_Put_Int(x, &xout, err_jmp);
+			XDRX_Put_Int(y, &xout, err_jmp);
+		    }
 		}
 	    }
 	}
