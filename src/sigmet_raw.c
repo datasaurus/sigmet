@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.21 $ $Date: 2010/05/23 05:00:50 $
+ .	$Revision: 1.22 $ $Date: 2010/07/02 22:15:47 $
  */
 
 #include <stdlib.h>
@@ -41,10 +41,13 @@ int main(int argc, char *argv[])
     char *tmout_s;		/* Process time limit, string */
     unsigned tmout;		/* Process time limit */
     char *ddir;			/* Name of daemon working directory */
-    struct sockaddr_un io_sa;	/* Socket to communicate with client */
+    struct sockaddr_un io_sa;	/* Socket for "stdio" */
     struct sockaddr *sa_p;	/* &io_sa, needed for call to bind */
-    int io_fd;			/* File descriptor of connection to daemon */
-    FILE *io;			/* Connection to daemon as stream */
+    int io_fd;			/* File descriptor for "stdio" */
+    FILE *io;			/* "stdio" */
+    struct sockaddr_un err_sa;	/* Socket for "stderr" */
+    int err_fd;			/* File descriptor for "stderr" */
+    FILE *err;			/* "stderr" */
     pid_t pid = getpid();
     char buf[SIGMET_RAWD_ARGVX];/* Output buffer */
     char *b;			/* Point into buf */
@@ -140,8 +143,39 @@ int main(int argc, char *argv[])
     while ( (c = fgetc(io)) != EOF ) {
 	putchar(c);
     }
-
     fclose(io);
+
+    /* Get exit status and error messages from daemon */
+    if ( (err_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
+	perror("Could not connect to sigmet_raw daemon.");
+	exit(EXIT_FAILURE);
+    }
+    memset(&err_sa, '\0', sizeof(struct sockaddr_un));
+    err_sa.sun_family = AF_UNIX;
+    if (snprintf(err_sa.sun_path, sizeof(err_sa.sun_path), "%d.err", pid)
+	    > sizeof(err_sa.sun_path)) {
+	perror("Could not create error stream");
+	exit(EXIT_FAILURE);
+    }
+    sa_p = (struct sockaddr *)&err_sa;
+    while (connect(err_fd, sa_p, sizeof(struct sockaddr_un)) == -1) {
+	if ( errno == ENOENT ) {
+	    sleep(1);
+	    continue;
+	} else {
+	    perror("Could not connect to error stream");
+	    exit(EXIT_FAILURE);
+	}
+    }
+    if ( !(err = fdopen(err_fd, "r")) ) {
+	perror("Could not connect to error stream");
+	exit(EXIT_FAILURE);
+    }
+    while ( (c = fgetc(err)) != EOF ) {
+	fputc(c, stderr);
+    }
+    fclose(err);
+
     return status;
 }
 

@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.208 $ $Date: 2010/07/02 14:37:15 $
+ .	$Revision: 1.209 $ $Date: 2010/07/02 22:15:47 $
  */
 
 #include <stdlib.h>
@@ -69,8 +69,10 @@ static int get_vol_i(char *);
 static int new_vol_i(char *, struct stat *);
 
 /* Process streams and files */
-int cl_fd;				/* File descriptor for client */
-FILE *cl_f;				/* File stream for client */
+int cl_io_fd;				/* File descriptor for client "stdio" */
+FILE *cl_io;				/* File stream for client "stdio" */
+int cl_err_fd;				/* File descriptor for client "stderr" */
+FILE *cl_err;				/* File stream for client "stderr" */
 static pid_t vol_pid = -1;		/* Process providing a raw volume */
 static pid_t img_pid = -1;		/* Process id for image generator */
 
@@ -180,11 +182,12 @@ int main(int argc, char *argv[])
     pid_t pid;			/* Return from fork */
     int flags;			/* Flags for log files */
     mode_t mode;		/* Mode for log files */
-    struct sockaddr_un io_sa;	/* Socket to communicate with client */
-    struct sockaddr *sa_p;	/* &io_sa, needed for call to bind */
-    int skt_fd;			/* File descriptor for socket */
+    struct sockaddr_un io_sa;	/* Socket for "stdio" */
+    struct sockaddr_un err_sa;	/* Socket to for "stderr" */
+    struct sockaddr *sa_p;	/* &io_sa or &err_sa, needed for call to bind */
+    int io_fd, err_fd;		/* File descriptors for "stdout" and "stderr" */
     struct sig_vol *sv_p;	/* Member of vols */
-    pid_t client_pid = -1;	/* Client sending commands to daemon */
+    pid_t client_pid = -1;	/* Client */
     char *ang_u;		/* Angle unit */
     char *b;			/* Point into buf */
     int y;			/* Loop index */
@@ -303,9 +306,9 @@ int main(int argc, char *argv[])
     io_sa.sun_family = AF_UNIX;
     strncpy(io_sa.sun_path, SIGMET_RAWD_IN, sizeof(io_sa.sun_path) - 1);
     sa_p = (struct sockaddr *)&io_sa;
-    if ((skt_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
-	    || bind(skt_fd, sa_p, sizeof(struct sockaddr_un)) == -1
-	    || listen(skt_fd, SOMAXCONN) == -1) {
+    if ((io_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
+	    || bind(io_fd, sa_p, sizeof(struct sockaddr_un)) == -1
+	    || listen(io_fd, SOMAXCONN) == -1) {
 	fprintf(stderr, "%s: could not create io socket.\n%s\n",
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
@@ -316,7 +319,7 @@ int main(int argc, char *argv[])
     fflush(stdout);
 
     /* Wait for clients */
-    while ( (cl_fd = accept(skt_fd, NULL, 0)) != -1) {
+    while ( (cl_io_fd = accept(io_fd, NULL, 0)) != -1) {
 	size_t l;		/* Number of bytes to read from command buffer */
 	int argc1;		/* Number of arguments in received command line */
 	char *argv1[SIGMET_RAWD_ARGCX]; /* Arguments from client command line */
@@ -332,15 +335,15 @@ int main(int argc, char *argv[])
 	   arguments	- strings
 	 */
 
-	if ( !(cl_f = fdopen(cl_fd, "r+")) ) {
+	if ( !(cl_io = fdopen(cl_io_fd, "r+")) ) {
 	    fprintf(stderr, "%s: failed to connect to client.\n", time_stamp());
-	    close(cl_fd);
+	    close(cl_io_fd);
 	    continue;
 	}
-	if ( read(cl_fd, &l, sizeof(size_t)) != sizeof(size_t) ) {
+	if ( read(cl_io_fd, &l, sizeof(size_t)) != sizeof(size_t) ) {
 	    fprintf(stderr, "%s: failed to read command length.\n",
 		    time_stamp());
-	    close(cl_fd);
+	    close(cl_io_fd);
 	    continue;
 	}
 	if ( l > SIGMET_RAWD_ARGVX ) {
@@ -348,10 +351,10 @@ int main(int argc, char *argv[])
 		    time_stamp(), (unsigned long)l);
 	    continue;
 	}
-	if ( read(cl_fd, buf, l) != l ) {
+	if ( read(cl_io_fd, buf, l) != l ) {
 	    fprintf(stderr, "%s: failed to read command of %lu bytes. ",
 		    time_stamp(), (unsigned long)l);
-	    close(cl_fd);
+	    close(cl_io_fd);
 	    continue;
 	}
 
@@ -364,7 +367,7 @@ int main(int argc, char *argv[])
 	if ( argc1 > SIGMET_RAWD_ARGCX ) {
 	    fprintf(stderr, "%s: unable to parse command with %d arguments. "
 		    "Limit is %d\n", time_stamp(), argc1, SIGMET_RAWD_ARGCX );
-	    close(cl_fd);
+	    close(cl_io_fd);
 	    continue;
 	}
 	for (a = 0, argv1[a] = b; b < buf_e && a < argc1; b++) {
@@ -381,37 +384,58 @@ int main(int argc, char *argv[])
 	/* Identify command */
 	cmd1 = argv1[0];
 	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
-	    fputc(EXIT_FAILURE, stderr);
-	    fprintf(stderr, "No option or subcommand named \"%s\"\n", cmd1);
-	    fprintf(stderr, "Subcommand must be one of: ");
+	    success = 0;
+	    Err_Append("No option or subcommand named");
+	    Err_Append(cmd1);
+	    Err_Append("\n");
+	    Err_Append("Subcommand must be one of: ");
 	    for (i = 0; i < NCMD; i++) {
-		fprintf(stderr, "%s ", cmd1v[i]);
+		Err_Append(cmd1v[i]);
+		Err_Append(" ");
 	    }
-	    fprintf(stderr, "\n");
-	    fclose(cl_f);
-	    kill(client_pid, SIGTERM);
-	    continue;
+	    Err_Append("\n");
+	    fclose(cl_io);
+	} else {
+	    /* Run command. Callback will send "standard output" to cl_io. */
+	    success = (cb1v[i])(argc1, argv1);
+	    fclose(cl_io);
 	}
 
-	/* Run command. Callback will send "standard output" to cl_f. */
-	success = (cb1v[i])(argc1, argv1);
-	fclose(cl_f);
-
 	/* Send status and error messages, if any */
+	memset(&err_sa, '\0', sizeof(struct sockaddr_un));
+	sa_p = (struct sockaddr *)&err_sa;
+	err_sa.sun_family = AF_UNIX;
+	if (snprintf(err_sa.sun_path, sizeof(err_sa.sun_path), "%d.err",
+		    client_pid) > sizeof(err_sa.sun_path)
+		|| (err_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
+		|| bind(err_fd, sa_p, sizeof(struct sockaddr_un)) == -1
+		|| listen(err_fd, SOMAXCONN) == -1) {
+	    fprintf(stderr, "%s: could not create error socket for process %d.\n"
+		    "%s\n", cmd, client_pid, strerror(errno));
+	    continue;
+	}
+	if ( (cl_err_fd = accept(err_fd, NULL, 0)) == -1
+		|| !(cl_err = fdopen(cl_err_fd, "w")) ) {
+	    fprintf(stderr, "%s: could not create error stream for process %d\n"
+		    "%s\n", cmd, client_pid, strerror(errno));
+	    continue;
+	}
 	if ( success ) {
-	    if ( fputc(EXIT_SUCCESS, stderr) == EOF ) {
-		fprintf(stderr, "%s: could not send return code for %s.\n"
+	    if ( fputc(EXIT_SUCCESS, cl_err) == EOF ) {
+		fprintf(cl_err, "%s: could not send return code for %s.\n"
 			"%s\n", time_stamp(), cmd1, strerror(errno) );
 	    }
 	} else {
-	    if ( fputc(EXIT_FAILURE, stderr) == EOF
-		    || fprintf(stderr, "%s failed.\n%s\n",
+	    if ( fputc(EXIT_FAILURE, cl_err) == EOF
+		    || fprintf(cl_err, "%s failed.\n%s\n",
 			cmd1, Err_Get()) == -1 ) {
 		fprintf(stderr, "%s: could not send return code or error "
 			"output for %s.\n%s\n",
 			time_stamp(), cmd1, strerror(errno) );
 	    }
 	}
+	fclose(cl_err);
+	unlink(err_sa.sun_path);
 	client_pid = -1;
     }
 
@@ -449,7 +473,7 @@ static int cmd_len_cb(int argc, char *argv[])
 	Err_Append(cmd1);
 	return 0;
     }
-    fprintf(cl_f, "%d\n", SIGMET_RAWD_ARGVX);
+    fprintf(cl_io, "%d\n", SIGMET_RAWD_ARGVX);
     return 1;
 }
 
@@ -484,7 +508,7 @@ static int pid_cb(int argc, char *argv[])
 	Err_Append(cmd1);
 	return 0;
     }
-    fprintf(cl_f, "%d\n", getpid());
+    fprintf(cl_io, "%d\n", getpid());
     return 1;
 }
 
@@ -498,7 +522,7 @@ static int types_cb(int argc, char *argv[])
 	return 0;
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
-	fprintf(cl_f, "%s | %s\n",
+	fprintf(cl_io, "%s | %s\n",
 		Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
     }
     return 1;
@@ -535,7 +559,7 @@ static FILE *vol_open(const char *vol_nm)
 		goto error;
 	    case 0:
 		/* Child process - gzip.  Send child stdout to pipe. */
-		if ( close(cl_fd) == -1 ) {
+		if ( close(cl_io_fd) == -1 ) {
 		    fprintf(stderr, "%s: gzip child could not close"
 			    " server streams", time_stamp());
 		    _exit(EXIT_FAILURE);
@@ -573,7 +597,7 @@ static FILE *vol_open(const char *vol_nm)
 		goto error;
 	    case 0:
 		/* Child process - bzip2.  Send child stdout to pipe. */
-		if ( close(cl_fd) == -1 ) {
+		if ( close(cl_io_fd) == -1 ) {
 		    fprintf(stderr, "%s: bzip2 child could not close"
 			    " server streams", time_stamp());
 		    _exit(EXIT_FAILURE);
@@ -678,7 +702,7 @@ static int hread_cb(int argc, char *argv[])
     /* If volume is already loaded, increment user count return. */
     if ( (i = get_vol_i(vol_nm)) >= 0 ) {
 	vols[i].users++;
-	fprintf(cl_f, "%s loaded%s.\n",
+	fprintf(cl_io, "%s loaded%s.\n",
 		vol_nm, vols[i].vol.truncated ? " (truncated)" : "");
 	return 1;
     }
@@ -744,7 +768,7 @@ static int hread_cb(int argc, char *argv[])
     vols[i].st_ino = sbuf.st_ino;
     strncpy(vols[i].vol_nm, vol_nm, LEN);
     vols[i].users++;
-    fprintf(cl_f, "%s loaded%s.\n",
+    fprintf(cl_io, "%s loaded%s.\n",
 	    vol_nm, vols[i].vol.truncated ? " (truncated)" : "");
     return 1;
 }
@@ -785,7 +809,7 @@ static int read_cb(int argc, char *argv[])
 	unload(i);
     } else {
 	vols[i].users++;
-	fprintf(cl_f, "%s loaded.\n", vol_nm);
+	fprintf(cl_io, "%s loaded.\n", vol_nm);
 	return 1;
     }
 
@@ -844,7 +868,7 @@ static int read_cb(int argc, char *argv[])
     vols[i].st_dev = sbuf.st_dev;
     vols[i].st_ino = sbuf.st_ino;
     vols[i].users++;
-    fprintf(cl_f, "%s loaded%s.\n",
+    fprintf(cl_io, "%s loaded%s.\n",
 	    vol_nm, vols[i].vol.truncated ? " (truncated)" : "");
     return 1;
 }
@@ -855,7 +879,7 @@ static int list_cb(int argc, char *argv[])
 
     for (i = 0; i < N_VOLS; i++) {
 	if ( vols[i].oqpd != 0 ) {
-	    fprintf(cl_f, "%s users=%d %s\n",
+	    fprintf(cl_io, "%s users=%d %s\n",
 		    vols[i].vol_nm, vols[i].users,
 		    vols[i].vol.truncated ? " truncated" : "complete");
 	}
@@ -1075,7 +1099,7 @@ static int volume_headers_cb(int argc, char *argv[])
 		" Please (re)load with read command. ");
 	return 0;
     }
-    Sigmet_PrintHdr(cl_f, &vols[i].vol);
+    Sigmet_PrintHdr(cl_io, &vols[i].vol);
     return 1;
 }
 
@@ -1104,23 +1128,23 @@ static int vol_hdr_cb(int argc, char *argv[])
 	return 0;
     }
     vol = vols[i].vol;
-    fprintf(cl_f, "site_name=\"%s\"\n", vol.ih.ic.su_site_name);
-    fprintf(cl_f, "radar_lon=%.4lf\n",
+    fprintf(cl_io, "site_name=\"%s\"\n", vol.ih.ic.su_site_name);
+    fprintf(cl_io, "radar_lon=%.4lf\n",
 	   GeogLonR(Sigmet_Bin4Rad(vol.ih.ic.longitude), 0.0) * DEG_PER_RAD);
-    fprintf(cl_f, "radar_lat=%.4lf\n",
+    fprintf(cl_io, "radar_lat=%.4lf\n",
 	   GeogLonR(Sigmet_Bin4Rad(vol.ih.ic.latitude), 0.0) * DEG_PER_RAD);
-    fprintf(cl_f, "task_name=\"%s\"\n", vol.ph.pc.task_name);
-    fprintf(cl_f, "types=\"");
-    fprintf(cl_f, "%s", Sigmet_DataType_Abbrv(vol.types[0]));
+    fprintf(cl_io, "task_name=\"%s\"\n", vol.ph.pc.task_name);
+    fprintf(cl_io, "types=\"");
+    fprintf(cl_io, "%s", Sigmet_DataType_Abbrv(vol.types[0]));
     for (y = 1; y < vol.num_types; y++) {
-	fprintf(cl_f, " %s", Sigmet_DataType_Abbrv(vol.types[y]));
+	fprintf(cl_io, " %s", Sigmet_DataType_Abbrv(vol.types[y]));
     }
-    fprintf(cl_f, "\"\n");
-    fprintf(cl_f, "num_sweeps=%d\n", vol.ih.ic.num_sweeps);
-    fprintf(cl_f, "num_rays=%d\n", vol.ih.ic.num_rays);
-    fprintf(cl_f, "num_bins=%d\n", vol.ih.tc.tri.num_bins_out);
-    fprintf(cl_f, "range_bin0=%d\n", vol.ih.tc.tri.rng_1st_bin);
-    fprintf(cl_f, "bin_step=%d\n", vol.ih.tc.tri.step_out);
+    fprintf(cl_io, "\"\n");
+    fprintf(cl_io, "num_sweeps=%d\n", vol.ih.ic.num_sweeps);
+    fprintf(cl_io, "num_rays=%d\n", vol.ih.ic.num_rays);
+    fprintf(cl_io, "num_bins=%d\n", vol.ih.tc.tri.num_bins_out);
+    fprintf(cl_io, "range_bin0=%d\n", vol.ih.tc.tri.rng_1st_bin);
+    fprintf(cl_io, "bin_step=%d\n", vol.ih.tc.tri.step_out);
     wavlen = 0.01 * 0.01 * vol.ih.tc.tmi.wave_len; 	/* convert -> cm > m */
     prf = vol.ih.tc.tdi.prf;
     mp = vol.ih.tc.tdi.m_prf_mode;
@@ -1142,9 +1166,9 @@ static int vol_hdr_cb(int argc, char *argv[])
 	    vel_ua = 3 * 0.25 * wavlen * prf;
 	    break;
     }
-    fprintf(cl_f, "prf=%.2lf\n", prf);
-    fprintf(cl_f, "prf_mode=%s\n", mp_s);
-    fprintf(cl_f, "vel_ua=%.3lf\n", vel_ua);
+    fprintf(cl_io, "prf=%.2lf\n", prf);
+    fprintf(cl_io, "prf_mode=%s\n", mp_s);
+    fprintf(cl_io, "vel_ua=%.3lf\n", vel_ua);
     return 1;
 }
 
@@ -1192,7 +1216,7 @@ static int near_sweep_cb(int argc, char *argv[])
 	    nrst = s;
 	}
     }
-    fprintf(cl_f, "%d\n", nrst);
+    fprintf(cl_io, "%d\n", nrst);
     return 1;
 }
 
@@ -1226,18 +1250,18 @@ static int ray_headers_cb(int argc, char *argv[])
 	    if ( !vol.ray_ok[s][r] ) {
 		continue;
 	    }
-	    fprintf(cl_f, "sweep %3d ray %4d | ", s, r);
+	    fprintf(cl_io, "sweep %3d ray %4d | ", s, r);
 	    if ( !Tm_JulToCal(vol.ray_time[s][r],
 			&yr, &mon, &da, &hr, &min, &sec) ) {
 		Err_Append("Bad ray time.  ");
 		return 0;
 	    }
-	    fprintf(cl_f, "%04d/%02d/%02d %02d:%02d:%04.1f | ",
+	    fprintf(cl_io, "%04d/%02d/%02d %02d:%02d:%04.1f | ",
 		    yr, mon, da, hr, min, sec);
-	    fprintf(cl_f, "az %7.3f %7.3f | ",
+	    fprintf(cl_io, "az %7.3f %7.3f | ",
 		    vol.ray_az0[s][r] * DEG_PER_RAD,
 		    vol.ray_az1[s][r] * DEG_PER_RAD);
-	    fprintf(cl_f, "tilt %6.3f %6.3f\n",
+	    fprintf(cl_io, "tilt %6.3f %6.3f\n",
 		    vol.ray_tilt0[s][r] * DEG_PER_RAD,
 		    vol.ray_tilt1[s][r] * DEG_PER_RAD);
 	}
@@ -1341,83 +1365,83 @@ static int data_cb(int argc, char *argv[])
 	    type = vol.types[y];
 	    abbrv = Sigmet_DataType_Abbrv(type);
 	    for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
-		fprintf(cl_f, "%s. sweep %d\n", abbrv, s);
+		fprintf(cl_io, "%s. sweep %d\n", abbrv, s);
 		for (r = 0; r < (int)vol.ih.ic.num_rays; r++) {
 		    if ( !vol.ray_ok[s][r] ) {
 			continue;
 		    }
-		    fprintf(cl_f, "ray %d: ", r);
+		    fprintf(cl_io, "ray %d: ", r);
 		    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 			d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 			if (Sigmet_IsData(d)) {
-			    fprintf(cl_f, "%f ", d);
+			    fprintf(cl_io, "%f ", d);
 			} else {
-			    fprintf(cl_f, "nodat ");
+			    fprintf(cl_io, "nodat ");
 			}
 		    }
-		    fprintf(cl_f, "\n");
+		    fprintf(cl_io, "\n");
 		}
 	    }
 	}
     } else if (s == all && r == all && b == all) {
 	for (s = 0; s < vol.ih.ic.num_sweeps; s++) {
-	    fprintf(cl_f, "%s. sweep %d\n", abbrv, s);
+	    fprintf(cl_io, "%s. sweep %d\n", abbrv, s);
 	    for (r = 0; r < vol.ih.ic.num_rays; r++) {
 		    if ( !vol.ray_ok[s][r] ) {
 			continue;
 		    }
-		fprintf(cl_f, "ray %d: ", r);
+		fprintf(cl_io, "ray %d: ", r);
 		for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		    if (Sigmet_IsData(d)) {
-			fprintf(cl_f, "%f ", d);
+			fprintf(cl_io, "%f ", d);
 		    } else {
-			fprintf(cl_f, "nodat ");
+			fprintf(cl_io, "nodat ");
 		    }
 		}
-		fprintf(cl_f, "\n");
+		fprintf(cl_io, "\n");
 	    }
 	}
     } else if (r == all && b == all) {
-	fprintf(cl_f, "%s. sweep %d\n", abbrv, s);
+	fprintf(cl_io, "%s. sweep %d\n", abbrv, s);
 	for (r = 0; r < vol.ih.ic.num_rays; r++) {
 	    if ( !vol.ray_ok[s][r] ) {
 		continue;
 	    }
-	    fprintf(cl_f, "ray %d: ", r);
+	    fprintf(cl_io, "ray %d: ", r);
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		if (Sigmet_IsData(d)) {
-		    fprintf(cl_f, "%f ", d);
+		    fprintf(cl_io, "%f ", d);
 		} else {
-		    fprintf(cl_f, "nodat ");
+		    fprintf(cl_io, "nodat ");
 		}
 	    }
-	    fprintf(cl_f, "\n");
+	    fprintf(cl_io, "\n");
 	}
     } else if (b == all) {
 	if (vol.ray_ok[s][r]) {
-	    fprintf(cl_f, "%s. sweep %d, ray %d: ", abbrv, s, r);
+	    fprintf(cl_io, "%s. sweep %d, ray %d: ", abbrv, s, r);
 	    for (b = 0; b < vol.ray_num_bins[s][r]; b++) {
 		d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 		if (Sigmet_IsData(d)) {
-		    fprintf(cl_f, "%f ", d);
+		    fprintf(cl_io, "%f ", d);
 		} else {
-		    fprintf(cl_f, "nodat ");
+		    fprintf(cl_io, "nodat ");
 		}
 	    }
-	    fprintf(cl_f, "\n");
+	    fprintf(cl_io, "\n");
 	}
     } else {
 	if (vol.ray_ok[s][r]) {
-	    fprintf(cl_f, "%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
+	    fprintf(cl_io, "%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
 	    d = Sigmet_DataType_ItoF(type, vol, vol.dat[y][s][r][b]);
 	    if (Sigmet_IsData(d)) {
-		fprintf(cl_f, "%f ", d);
+		fprintf(cl_io, "%f ", d);
 	    } else {
-		fprintf(cl_f, "nodat ");
+		fprintf(cl_io, "nodat ");
 	    }
-	    fprintf(cl_f, "\n");
+	    fprintf(cl_io, "\n");
 	}
     }
     return 1;
@@ -1470,7 +1494,7 @@ static int bin_outline_cb(int argc, char *argv[])
 	return 0;
     }
     c = (use_deg ? DEG_RAD : 1.0);
-    fprintf(cl_f, "%f %f %f %f %f %f %f %f\n",
+    fprintf(cl_io, "%f %f %f %f %f %f %f %f\n",
 	    corners[0] * c, corners[1] * c, corners[2] * c, corners[3] * c,
 	    corners[4] * c, corners[5] * c, corners[6] * c, corners[7] * c);
 
@@ -1554,7 +1578,7 @@ static int bintvls_cb(int argc, char *argv[])
 		d = Sigmet_DataType_ItoF(type_t, vol, vol.dat[y][s][r][b]);
 		if ( Sigmet_IsData(d)
 			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
-		    fprintf(cl_f, "%6d: %3d %5d\n", n, r, b);
+		    fprintf(cl_io, "%6d: %3d %5d\n", n, r, b);
 		}
 	    }
 	}
@@ -1718,7 +1742,7 @@ static int img_sz_cb(int argc, char *argv[])
     char *w_pxl_s;
 
     if ( argc == 1 ) {
-	fprintf(cl_f, "%d\n", w_pxl);
+	fprintf(cl_io, "%d\n", w_pxl);
 	return 1;
     } else if ( argc == 2 ) {
 	w_pxl_s = argv[1];
@@ -1878,7 +1902,7 @@ static int img_name_cb(int argc, char *argv[])
 	Err_Append("Could not make image file name. ");
 	return 0;
     }
-    fprintf(cl_f, "%s.png\n", img_fl_nm);
+    fprintf(cl_io, "%s.png\n", img_fl_nm);
 
     return 1;
 }
@@ -2081,7 +2105,7 @@ static int img_cb(int argc, char *argv[])
 	       Child.  Close stdout.
 	       Read polygons from stdin (read side of data pipe).
 	     */
-	    if ( close(cl_fd) == -1 ) {
+	    if ( close(cl_io_fd) == -1 ) {
 		fprintf(stderr, "%s: %s child could not close"
 			" server streams", img_app, time_stamp());
 		_exit(EXIT_FAILURE);
@@ -2236,7 +2260,7 @@ static int img_cb(int argc, char *argv[])
 	    north, south, west, east);
     fclose(kml_fl);
 
-    fprintf(cl_f, "%s\n", img_fl_nm);
+    fprintf(cl_io, "%s\n", img_fl_nm);
     return 1;
 error:
     if (out) {
