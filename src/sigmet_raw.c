@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.23 $ $Date: 2010/07/07 22:20:09 $
+ .	$Revision: 1.24 $ $Date: 2010/07/08 19:43:06 $
  */
 
 #include <stdlib.h>
@@ -27,24 +27,19 @@
 static int handle_signals(void);
 static void handler(int signum);
 
-/* Array size */
-#define LEN 1024
-
-/* Global file names.  Needed in signal handlers. */
-char rslt1_nm[LEN];		/* Name of file for standard results */
-char rslt2_nm[LEN];		/* Name of file for error results */
-
 int main(int argc, char *argv[])
 {
     char *cmd = argv[0];
     char *ddir;			/* Name of daemon working directory */
-    struct sockaddr_un io_sa;	/* Socket for "stdio" */
+    struct sockaddr_un io_sa;	/* Socket to send command to daemon and receive
+				   results */
     struct sockaddr *sa_p;	/* &io_sa, needed for call to bind */
-    int io_fd;			/* File descriptor for "stdio" */
-    FILE *io;			/* "stdio" */
-    struct sockaddr_un err_sa;	/* Socket for "stderr" */
-    int err_fd;			/* File descriptor for "stderr" */
-    FILE *err;			/* "stderr" */
+    int io_fd;			/* File descriptor associated with io_sa */
+    FILE *io;			/* Stream associated with io_fd */
+    struct sockaddr_un err_sa;	/* Socket to receive status and error info from
+				   daemon*/
+    int err_fd;			/* File descriptor associated with err_sa */
+    FILE *err;			/* Stream associated with err_fd */
     pid_t pid = getpid();
     char buf[SIGMET_RAWD_ARGVX];/* Output buffer */
     char *b;			/* Point into buf */
@@ -286,12 +281,6 @@ void handler(int signum)
 	case SIGXFSZ:
 	    write(STDERR_FILENO, "Exiting: file size limit exceeded\n", 34);
 	    break;
-    }
-    if ( access(rslt1_nm, F_OK) == 0 && unlink(rslt1_nm) == -1 ) {
-	write(STDERR_FILENO, "Could not remove result pipe\n", 29);
-    }
-    if ( access(rslt2_nm, F_OK) == 0 && unlink(rslt2_nm) == -1 ) {
-	write(STDERR_FILENO, "Could not remove result pipe\n", 29);
     }
     _exit(EXIT_FAILURE);
 }
