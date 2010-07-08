@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.22 $ $Date: 2010/07/02 22:15:47 $
+ .	$Revision: 1.23 $ $Date: 2010/07/07 22:20:09 $
  */
 
 #include <stdlib.h>
@@ -26,7 +26,6 @@
 
 static int handle_signals(void);
 static void handler(int signum);
-static void alarm_handler(int signum);
 
 /* Array size */
 #define LEN 1024
@@ -38,8 +37,6 @@ char rslt2_nm[LEN];		/* Name of file for error results */
 int main(int argc, char *argv[])
 {
     char *cmd = argv[0];
-    char *tmout_s;		/* Process time limit, string */
-    unsigned tmout;		/* Process time limit */
     char *ddir;			/* Name of daemon working directory */
     struct sockaddr_un io_sa;	/* Socket for "stdio" */
     struct sockaddr *sa_p;	/* &io_sa, needed for call to bind */
@@ -64,18 +61,6 @@ int main(int argc, char *argv[])
     if ( argc < 2 ) {
 	fprintf(stderr, "Usage: %s command\n", cmd);
 	exit(EXIT_FAILURE);
-    }
-
-    /* To avoid haning server, exit if take too long */
-    if ( (tmout_s = getenv("SIGMET_RAWD_TIMEOUT")) ) {
-	if (strcmp(tmout_s, "none") != 0 && sscanf(tmout_s, "%u", &tmout) == 1) {
-	    alarm(tmout);
-	} else {
-	    fprintf(stderr, "%s: timeout must be integer or \"none\".\n", cmd);
-	    exit(EXIT_FAILURE);
-	}
-    } else {
-	alarm(30);
     }
 
     /* Set up signal handling */
@@ -224,13 +209,6 @@ int handle_signals(void)
 	return 0;
     }
 
-    /* Call special handler for alarm signals */
-    act.sa_handler = alarm_handler;
-    if ( sigaction(SIGALRM, &act, NULL) == -1 ) {
-        perror(NULL);
-        return 0;
-    }
-
     /* Generic action for termination signals */
     act.sa_handler = handler;
     if ( sigaction(SIGTERM, &act, NULL) == -1 ) {
@@ -316,11 +294,4 @@ void handler(int signum)
 	write(STDERR_FILENO, "Could not remove result pipe\n", 29);
     }
     _exit(EXIT_FAILURE);
-}
-
-/* Exit on alarm */
-static void alarm_handler(int signum)
-{
-    write(STDERR_FILENO, "sigmet_raw timed out\n", 21);
-    exit(EXIT_FAILURE);
 }
