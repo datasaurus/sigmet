@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.209 $ $Date: 2010/07/02 22:15:47 $
+ .	$Revision: 1.210 $ $Date: 2010/07/07 22:20:09 $
  */
 
 #include <stdlib.h>
@@ -37,15 +37,26 @@
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
+/* Application and subcommand name */
+static char *cmd;
+static size_t cmd_len;			/* strlen(cmd) */
+static char *cmd1;
+
+/* Process streams and files */
+static int cl_io_fd;			/* File descriptor to read client command
+					   and send results */
+static FILE *cl_io;			/* Stream associated with cl_io_fd */
+static int cl_err_fd;			/* File descriptor to send status and
+					   error messages to client */
+static FILE *cl_err;			/* Stream associated with cl_err_fd */
+static pid_t vol_pid = -1;		/* Process providing a raw volume */
+
 /* Where to put output and error messages */
 #define SIGMET_RAWD_LOG "sigmet.log"
 #define SIGMET_RAWD_ERR "sigmet.err"
 
 /* Size for various strings */
 #define LEN 1024
-
-/* If true, send full error messages. */
-static int verbose = 0;
 
 /* If true, use degrees instead of radians */
 static int use_deg = 0;
@@ -68,28 +79,10 @@ static int hash(char *, struct stat *);
 static int get_vol_i(char *);
 static int new_vol_i(char *, struct stat *);
 
-/* Process streams and files */
-int cl_io_fd;				/* File descriptor for client "stdio" */
-FILE *cl_io;				/* File stream for client "stdio" */
-int cl_err_fd;				/* File descriptor for client "stderr" */
-FILE *cl_err;				/* File stream for client "stderr" */
-static pid_t vol_pid = -1;		/* Process providing a raw volume */
-static pid_t img_pid = -1;		/* Process id for image generator */
-
-/* Input line - has commands for the daemon */
-static char buf[SIGMET_RAWD_ARGVX];
-static char *buf_e = buf + SIGMET_RAWD_ARGVX;
-
-/* Application and subcommand name */
-static char *cmd;
-static size_t cmd_len;			/* strlen(cmd) */
-static char *cmd1;
-
 /* Subcommands */
-#define NCMD 29
+#define NCMD 28
 typedef int (callback)(int , char **);
 static callback cmd_len_cb;
-static callback verbose_cb;
 static callback pid_cb;
 static callback types_cb;
 static callback good_cb;
@@ -117,14 +110,14 @@ static callback img_name_cb;
 static callback img_cb;
 static callback stop_cb;
 static char *cmd1v[NCMD] = {
-    "cmd_len", "verbose", "pid", "types", "good", "hread",
+    "cmd_len", "pid", "types", "good", "hread",
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
     "colors", "bintvls", "radar_lon", "radar_lat", "shift_az",
     "proj", "img_app", "img_sz", "alpha", "img_name", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
-    cmd_len_cb, verbose_cb, pid_cb, types_cb, good_cb, hread_cb,
+    cmd_len_cb, pid_cb, types_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
     DataType_SetColors_CB, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
@@ -136,25 +129,6 @@ static callback *cb1v[NCMD] = {
 #include <proj_api.h>
 static projPJ pj;
 #endif
-
-/* KML template for positioning result */
-static char kml_tmpl[] = 
-"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-"<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
-"  <GroundOverlay>\n"
-"    <name>%s sweep</name>\n"
-"    <description>"
-"      %s at %02d/%02d/%02d %02d:%02d:%02.0f. Field: %s. %04.1f degrees"
-"    </description>\n"
-"    <Icon>%s</Icon>\n"
-"    <LatLonBox>\n"
-"      <north>%f</north>\n"
-"      <south>%f</south>\n"
-"      <west>%f</west>\n"
-"      <east>%f</east>\n"
-"    </LatLonBox>\n"
-"  </GroundOverlay>\n"
-"</kml>\n";
 
 /* Configuration for output images */
 static int w_pxl;			/* Width of image in display units,
@@ -169,7 +143,7 @@ static char *time_stamp(void);
 static FILE *vol_open(const char *);
 static int flush(int);
 static void unload(int);
-static int img_name(struct Sigmet_Vol *, char *, int, char *buf);
+static int img_name(struct Sigmet_Vol *, char *, int, char *);
 
 /* Signal handling functions */
 static int handle_signals(void);
@@ -182,13 +156,15 @@ int main(int argc, char *argv[])
     pid_t pid;			/* Return from fork */
     int flags;			/* Flags for log files */
     mode_t mode;		/* Mode for log files */
-    struct sockaddr_un io_sa;	/* Socket for "stdio" */
-    struct sockaddr_un err_sa;	/* Socket to for "stderr" */
+    struct sockaddr_un io_sa;	/* Socket to read command and return results */
+    struct sockaddr_un err_sa;	/* Socket to send status error info to client */
     struct sockaddr *sa_p;	/* &io_sa or &err_sa, needed for call to bind */
-    int io_fd, err_fd;		/* File descriptors for "stdout" and "stderr" */
+    int io_fd, err_fd;		/* File descriptors for io and err */
     struct sig_vol *sv_p;	/* Member of vols */
     pid_t client_pid = -1;	/* Client */
     char *ang_u;		/* Angle unit */
+    char buf[SIGMET_RAWD_ARGVX];/* Input line - has commands for the daemon */
+    char *buf_e = buf + SIGMET_RAWD_ARGVX;
     char *b;			/* Point into buf */
     int y;			/* Loop index */
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" }; /* Map projection */
@@ -474,30 +450,6 @@ static int cmd_len_cb(int argc, char *argv[])
 	return 0;
     }
     fprintf(cl_io, "%d\n", SIGMET_RAWD_ARGVX);
-    return 1;
-}
-
-static int verbose_cb(int argc, char *argv[])
-{
-    char *val;
-
-    if (argc != 2) {
-	Err_Append("Usage: ");
-	Err_Append(cmd1);
-	Err_Append(" true|false");
-	return 0;
-    }
-    val = argv[1];
-    if ( strcmp(val, "true") == 0 ) {
-	verbose = 1;
-    } else if ( strcmp(val, "false") == 0 ) {
-	verbose = 0;
-    } else {
-	Err_Append("Usage: ");
-	Err_Append(cmd1);
-	Err_Append(" true|false");
-	return 0;
-    }
     return 1;
 }
 
@@ -830,10 +782,6 @@ static int read_cb(int argc, char *argv[])
 		break;
 	    case MEM_FAIL:
 		/* Try to free some memory. If unable to free memory, fail. */
-		if ( verbose ) {
-		    printf("%s: freeing memory while reading %s\n",
-			    time_stamp(), vol_nm);
-		}
 		if ( !flush(1) ) {
 		    trying = 0;
 		}
@@ -1943,6 +1891,7 @@ static int img_cb(int argc, char *argv[])
     size_t img_fl_nm_l;		/* strlen(img_fl_nm) */
     char kml_fl_nm[LEN];	/* KML output file name */
     FILE *kml_fl;		/* KML file */
+    pid_t img_pid = -1;		/* Process id for image generator */
     FILE *out = NULL;		/* Where to send outlines to draw */
     struct XDRX_Stream xout;	/* XDR stream for out */
     jmp_buf err_jmp;		/* Handle output errors with setjmp, longjmp */
@@ -1952,6 +1901,25 @@ static int img_cb(int argc, char *argv[])
     int pfd[2];			/* Pipe for data */
     char err_buf[LEN];		/* Store image process output */
     double px_per_m;		/* Display units per map unit */
+
+    /* KML template for positioning result */
+    char kml_tmpl[] = 
+	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	"<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
+	"  <GroundOverlay>\n"
+	"    <name>%s sweep</name>\n"
+	"    <description>"
+	"      %s at %02d/%02d/%02d %02d:%02d:%02.0f. Field: %s. %04.1f degrees"
+	"    </description>\n"
+	"    <Icon>%s</Icon>\n"
+	"    <LatLonBox>\n"
+	"      <north>%f</north>\n"
+	"      <south>%f</south>\n"
+	"      <west>%f</west>\n"
+	"      <east>%f</east>\n"
+	"    </LatLonBox>\n"
+	"  </GroundOverlay>\n"
+	"</kml>\n";
 
     if ( strlen(img_app) == 0 ) {
 	Err_Append("Sweep drawing application not set");
