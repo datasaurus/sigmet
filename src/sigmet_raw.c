@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.25 $ $Date: 2010/07/08 20:44:45 $
+ .	$Revision: 1.26 $ $Date: 2010/07/09 18:43:59 $
  */
 
 #include <stdlib.h>
@@ -24,8 +24,13 @@
 #include "alloc.h"
 #include "sigmet_raw.h"
 
+#define SA_UN_SZ (sizeof(struct sockaddr_un))
+
 static int handle_signals(void);
 static void handler(int signum);
+
+/* Number of times client will attempt to connect to server */
+#define NTRIES 6
 
 int main(int argc, char *argv[])
 {
@@ -34,11 +39,12 @@ int main(int argc, char *argv[])
     struct sockaddr_un io_sa;	/* Socket to send command to daemon and receive
 				   results */
     struct sockaddr *sa_p;	/* &io_sa, needed for call to bind */
+    size_t plen;		/* Length of socket address path */
     int io_fd;			/* File descriptor associated with io_sa */
     FILE *io;			/* Stream associated with io_fd */
     struct sockaddr_un err_sa;	/* Socket to receive status and error info from
 				   daemon*/
-    int err_fd;			/* File descriptor associated with err_sa */
+    int err_skt_fd, err_fd;	/* File descriptors associated with error socket */
     FILE *err;			/* Stream associated with err_fd */
     pid_t pid = getpid();
     char buf[SIGMET_RAWD_ARGVX];/* Output buffer */
@@ -57,6 +63,15 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s command\n", cmd);
 	exit(EXIT_FAILURE);
     }
+    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
+	fprintf(stderr, "%s: SIGMET_RAWD_DIR not set.  Is the daemon running?\n",
+		cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( chdir(ddir) == -1 ) {
+	perror("Could not set working directory.");
+	exit(EXIT_FAILURE);
+    }
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
@@ -64,17 +79,25 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* Connect to daemon */
-    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	fprintf(stderr, "%s: SIGMET_RAWD_DIR not set.  Is the daemon running?\n",
-		cmd);
+    /* Create a socket to receive final status and error messages */
+    memset(&err_sa, '\0', SA_UN_SZ);
+    err_sa.sun_family = AF_UNIX;
+    plen = sizeof(err_sa.sun_path);
+    if ( snprintf(err_sa.sun_path, plen, "%d.err", pid) > plen) {
+	fprintf(stderr, "%s (%d): could not create error socket path name ",
+		cmd, pid);
 	exit(EXIT_FAILURE);
     }
-    if ( chdir(ddir) == -1 ) {
-	fprintf(stderr, "%s (%d): could not change to daemon working directory\n"
-		"%s\n", cmd, pid, strerror(errno));
+    sa_p = (struct sockaddr *)&err_sa;
+    if ( (err_skt_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
+	    || bind(err_skt_fd, sa_p, SA_UN_SZ) == -1
+	    || listen(err_skt_fd, SOMAXCONN) == -1 ) {
+	fprintf(stderr, "%s (%d): could not create error socket.\n%s\n",
+		cmd, pid, strerror(errno));
 	exit(EXIT_FAILURE);
     }
+
+    /* Connect to server via the server socket in SIGMET_RAWD_DIR */
     if ( (io_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create socket\n%s\n",
 		cmd, pid, strerror(errno));
@@ -85,7 +108,7 @@ int main(int argc, char *argv[])
     strncpy(io_sa.sun_path, SIGMET_RAWD_IN, sizeof(io_sa.sun_path) - 1);
     sa_p = (struct sockaddr *)&io_sa;
     if ( connect(io_fd, sa_p, sizeof(struct sockaddr_un)) == -1) {
-	fprintf(stderr, "%s (%d): could connect to daemon\n%s\n",
+	fprintf(stderr, "%s (%d): could not connect to daemon\n%s\n",
 		cmd, pid, strerror(errno));
 	exit(EXIT_FAILURE);
     }
@@ -134,33 +157,10 @@ int main(int argc, char *argv[])
     fclose(io);
 
     /* Get exit status and error messages from daemon */
-    if ( (err_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
-	fprintf(stderr, "%s (%d): could not create error socket\n%s\n",
-		cmd, pid, strerror(errno));
+    if ( (err_fd = accept(err_skt_fd, NULL, 0)) == -1 ) {
+	fprintf(stderr, "%s (%d): could not connect to daemon to get status "
+		"and error messages.\n%s\n", cmd, pid, strerror(errno));
 	exit(EXIT_FAILURE);
-    }
-    memset(&err_sa, '\0', sizeof(struct sockaddr_un));
-    err_sa.sun_family = AF_UNIX;
-    if (snprintf(err_sa.sun_path, sizeof(err_sa.sun_path), "%d.err", pid)
-	    > sizeof(err_sa.sun_path)) {
-	fprintf(stderr, "%s (%d): could not create name for error socket\n",
-		cmd, pid);
-	exit(EXIT_FAILURE);
-    }
-    sa_p = (struct sockaddr *)&err_sa;
-    while (connect(err_fd, sa_p, sizeof(struct sockaddr_un)) == -1) {
-	if ( errno == ENOENT ) {
-	    sleep(1);
-	    continue;
-	} else {
-	    fprintf(stderr, "%s (%d): could not connect to error socket\n%s\n",
-		    cmd, pid, strerror(errno));
-	    if ( close(err_fd) == -1 ) {
-		fprintf(stderr, "%s (%d): could not close error socket\n%s\n",
-			cmd, pid, strerror(errno));
-	    }
-	    exit(EXIT_FAILURE);
-	}
     }
     if ( !(err = fdopen(err_fd, "r")) ) {
 	fprintf(stderr, "%s (%d): could not create error stream\n%s\n",
@@ -175,6 +175,11 @@ int main(int argc, char *argv[])
 	fputc(c, stderr);
     }
     fclose(err);
+    close(err_skt_fd);
+    if ( unlink(err_sa.sun_path) == -1 ) {
+	fprintf(stderr, "%s (%d): could not delete error socket \n%s\n",
+		cmd, pid, strerror(errno));
+    }
 
     return status;
 }

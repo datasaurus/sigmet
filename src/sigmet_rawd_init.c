@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.211 $ $Date: 2010/07/08 19:34:58 $
+ .	$Revision: 1.212 $ $Date: 2010/07/09 20:05:20 $
  */
 
 #include <stdlib.h>
@@ -46,9 +46,6 @@ static char *cmd1;
 static int cl_io_fd;			/* File descriptor to read client command
 					   and send results */
 static FILE *cl_io;			/* Stream associated with cl_io_fd */
-static int cl_err_fd;			/* File descriptor to send status and
-					   error messages to client */
-static FILE *cl_err;			/* Stream associated with cl_err_fd */
 static pid_t vol_pid = -1;		/* Process providing a raw volume */
 
 /* Where to put output and error messages */
@@ -159,10 +156,13 @@ int main(int argc, char *argv[])
     int flags;			/* Flags for log files */
     mode_t mode;		/* Mode for log files */
     struct sockaddr_un d_io_sa;	/* Socket to read command and return results */
-    struct sockaddr_un d_err_sa;/* Socket to send status error info to client */
+    struct sockaddr_un err_sa;	/* Socket to send status error info to client */
     size_t plen;		/* Length of socket address path */
+    int err_fd;			/* File descriptor to send status and
+				   error messages to client */
+    FILE *err;			/* Stream associated with err_fd */
     struct sockaddr *sa_p;	/* &d_io_sa or &d_err_sa, for call to bind */
-    int d_io_fd, d_err_fd;	/* File descriptors for d_io and d_err */
+    int d_io_fd;		/* File descriptors for d_io and d_err */
     struct sig_vol *sv_p;	/* Member of vols */
     pid_t client_pid = -1;	/* Client */
     char *ang_u;		/* Angle unit */
@@ -361,24 +361,6 @@ int main(int argc, char *argv[])
 	    continue;
 	}
 
-	/* Create a socket to send status and error messages back to client */
-	memset(&d_err_sa, '\0', SA_UN_SZ);
-	d_err_sa.sun_family = AF_UNIX;
-	plen = sizeof(d_err_sa.sun_path);
-	if ( snprintf(d_err_sa.sun_path, plen, "%d.err", client_pid) > plen) {
-	    fprintf(stderr, "%s: could not create error socket path name "
-		    "for process %d.\n", cmd, client_pid);
-	    continue;
-	}
-	sa_p = (struct sockaddr *)&d_err_sa;
-	if ( (d_err_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
-		|| bind(d_err_fd, sa_p, SA_UN_SZ) == -1
-		|| listen(d_err_fd, SOMAXCONN) == -1 ) {
-	    fprintf(stderr, "%s: could not create error socket for process %d.\n"
-		    "%s\n", cmd, client_pid, strerror(errno));
-	    continue;
-	}
-
 	/* Identify command */
 	cmd1 = argv1[0];
 	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
@@ -400,40 +382,46 @@ int main(int argc, char *argv[])
 	}
 
 	/* Send status and error messages to the second socket */
-	if ( (cl_err_fd = accept(d_err_fd, NULL, 0)) == -1 ) {
+	memset(&err_sa, '\0', SA_UN_SZ);
+	err_sa.sun_family = AF_UNIX;
+	plen = sizeof(err_sa.sun_path);
+	if ( snprintf(err_sa.sun_path, plen, "%d.err", client_pid) > plen) {
+	    fprintf(stderr, "%s: could not create error socket path name "
+		    "for process %d.\n", cmd, client_pid);
+	    continue;
+	}
+	sa_p = (struct sockaddr *)&err_sa;
+	if ( (err_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
+	    fprintf(stderr, "%s: could not create error socket for process %d.\n"
+		    "%s\n", cmd, client_pid, strerror(errno));
+	    continue;
+	}
+	if ( (connect(err_fd, sa_p, sizeof(struct sockaddr_un))) == -1 ) {
 	    fprintf(stderr, "%s: could not connect error socket for process %d\n"
 		    "%s\n", cmd, client_pid, strerror(errno));
 	    continue;
 	}
-	if ( !(cl_err = fdopen(cl_err_fd, "w")) ) {
+	if ( !(err = fdopen(err_fd, "w")) ) {
 	    fprintf(stderr, "%s: could not create error stream for process %d\n"
 		    "%s\n", cmd, client_pid, strerror(errno));
 	    continue;
 	}
 	if ( success ) {
-	    if ( fputc(EXIT_SUCCESS, cl_err) == EOF ) {
-		fprintf(cl_err, "%s: could not send return code for %s.\n"
+	    if ( fputc(EXIT_SUCCESS, err) == EOF ) {
+		fprintf(err, "%s: could not send return code for %s.\n"
 			"%s\n", time_stamp(), cmd1, strerror(errno) );
 	    }
 	} else {
-	    if ( fputc(EXIT_FAILURE, cl_err) == EOF
-		    || fprintf(cl_err, "%s failed.\n%s\n",
+	    if ( fputc(EXIT_FAILURE, err) == EOF
+		    || fprintf(err, "%s failed.\n%s\n",
 			cmd1, Err_Get()) == -1 ) {
 		fprintf(stderr, "%s: could not send return code or error "
 			"output for %s.\n%s\n",
 			time_stamp(), cmd1, strerror(errno) );
 	    }
 	}
-	if ( fclose(cl_err) == EOF ) {
+	if ( fclose(err) == EOF ) {
 	    fprintf(stderr, "%s: could not close client error stream "
-		    "for process %d\n%s\n", cmd, client_pid, strerror(errno));
-	}
-	if ( close(d_err_fd) == -1 ) {
-	    fprintf(stderr, "%s: could not close error socket "
-		    "for process %d\n%s\n", cmd, client_pid, strerror(errno));
-	}
-	if ( unlink(d_err_sa.sun_path) == -1 ) {
-	    fprintf(stderr, "%s: could not delete error socket "
 		    "for process %d\n%s\n", cmd, client_pid, strerror(errno));
 	}
     }
