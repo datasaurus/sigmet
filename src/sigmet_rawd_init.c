@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.210 $ $Date: 2010/07/07 22:20:09 $
+ .	$Revision: 1.211 $ $Date: 2010/07/08 19:34:58 $
  */
 
 #include <stdlib.h>
@@ -149,6 +149,8 @@ static int img_name(struct Sigmet_Vol *, char *, int, char *);
 static int handle_signals(void);
 static void handler(int);
 
+#define SA_UN_SZ (sizeof(struct sockaddr_un))
+
 int main(int argc, char *argv[])
 {
     char *ddir;			/* Working directory for server */
@@ -156,10 +158,11 @@ int main(int argc, char *argv[])
     pid_t pid;			/* Return from fork */
     int flags;			/* Flags for log files */
     mode_t mode;		/* Mode for log files */
-    struct sockaddr_un io_sa;	/* Socket to read command and return results */
-    struct sockaddr_un err_sa;	/* Socket to send status error info to client */
-    struct sockaddr *sa_p;	/* &io_sa or &err_sa, needed for call to bind */
-    int io_fd, err_fd;		/* File descriptors for io and err */
+    struct sockaddr_un d_io_sa;	/* Socket to read command and return results */
+    struct sockaddr_un d_err_sa;/* Socket to send status error info to client */
+    size_t plen;		/* Length of socket address path */
+    struct sockaddr *sa_p;	/* &d_io_sa or &d_err_sa, for call to bind */
+    int d_io_fd, d_err_fd;	/* File descriptors for d_io and d_err */
     struct sig_vol *sv_p;	/* Member of vols */
     pid_t client_pid = -1;	/* Client */
     char *ang_u;		/* Angle unit */
@@ -278,13 +281,14 @@ int main(int argc, char *argv[])
 
     /* Create socket to communicate with clients */
     unlink(SIGMET_RAWD_IN);
-    memset(&io_sa, '\0', sizeof(struct sockaddr_un));
-    io_sa.sun_family = AF_UNIX;
-    strncpy(io_sa.sun_path, SIGMET_RAWD_IN, sizeof(io_sa.sun_path) - 1);
-    sa_p = (struct sockaddr *)&io_sa;
-    if ((io_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
-	    || bind(io_fd, sa_p, sizeof(struct sockaddr_un)) == -1
-	    || listen(io_fd, SOMAXCONN) == -1) {
+    memset(&d_io_sa, '\0', SA_UN_SZ);
+    d_io_sa.sun_family = AF_UNIX;
+    plen = sizeof(d_io_sa.sun_path) - 1;
+    strncpy(d_io_sa.sun_path, SIGMET_RAWD_IN, plen);
+    sa_p = (struct sockaddr *)&d_io_sa;
+    if ((d_io_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
+	    || bind(d_io_fd, sa_p, SA_UN_SZ) == -1
+	    || listen(d_io_fd, SOMAXCONN) == -1) {
 	fprintf(stderr, "%s: could not create io socket.\n%s\n",
 		cmd, strerror(errno));
 	exit(EXIT_FAILURE);
@@ -295,7 +299,7 @@ int main(int argc, char *argv[])
     fflush(stdout);
 
     /* Wait for clients */
-    while ( (cl_io_fd = accept(io_fd, NULL, 0)) != -1) {
+    while ( (cl_io_fd = accept(d_io_fd, NULL, 0)) != -1) {
 	size_t l;		/* Number of bytes to read from command buffer */
 	int argc1;		/* Number of arguments in received command line */
 	char *argv1[SIGMET_RAWD_ARGCX]; /* Arguments from client command line */
@@ -357,6 +361,24 @@ int main(int argc, char *argv[])
 	    continue;
 	}
 
+	/* Create a socket to send status and error messages back to client */
+	memset(&d_err_sa, '\0', SA_UN_SZ);
+	d_err_sa.sun_family = AF_UNIX;
+	plen = sizeof(d_err_sa.sun_path);
+	if ( snprintf(d_err_sa.sun_path, plen, "%d.err", client_pid) > plen) {
+	    fprintf(stderr, "%s: could not create error socket path name "
+		    "for process %d.\n", cmd, client_pid);
+	    continue;
+	}
+	sa_p = (struct sockaddr *)&d_err_sa;
+	if ( (d_err_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
+		|| bind(d_err_fd, sa_p, SA_UN_SZ) == -1
+		|| listen(d_err_fd, SOMAXCONN) == -1 ) {
+	    fprintf(stderr, "%s: could not create error socket for process %d.\n"
+		    "%s\n", cmd, client_pid, strerror(errno));
+	    continue;
+	}
+
 	/* Identify command */
 	cmd1 = argv1[0];
 	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
@@ -377,21 +399,13 @@ int main(int argc, char *argv[])
 	    fclose(cl_io);
 	}
 
-	/* Send status and error messages, if any */
-	memset(&err_sa, '\0', sizeof(struct sockaddr_un));
-	sa_p = (struct sockaddr *)&err_sa;
-	err_sa.sun_family = AF_UNIX;
-	if (snprintf(err_sa.sun_path, sizeof(err_sa.sun_path), "%d.err",
-		    client_pid) > sizeof(err_sa.sun_path)
-		|| (err_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
-		|| bind(err_fd, sa_p, sizeof(struct sockaddr_un)) == -1
-		|| listen(err_fd, SOMAXCONN) == -1) {
-	    fprintf(stderr, "%s: could not create error socket for process %d.\n"
+	/* Send status and error messages to the second socket */
+	if ( (cl_err_fd = accept(d_err_fd, NULL, 0)) == -1 ) {
+	    fprintf(stderr, "%s: could not connect error socket for process %d\n"
 		    "%s\n", cmd, client_pid, strerror(errno));
 	    continue;
 	}
-	if ( (cl_err_fd = accept(err_fd, NULL, 0)) == -1
-		|| !(cl_err = fdopen(cl_err_fd, "w")) ) {
+	if ( !(cl_err = fdopen(cl_err_fd, "w")) ) {
 	    fprintf(stderr, "%s: could not create error stream for process %d\n"
 		    "%s\n", cmd, client_pid, strerror(errno));
 	    continue;
@@ -410,9 +424,18 @@ int main(int argc, char *argv[])
 			time_stamp(), cmd1, strerror(errno) );
 	    }
 	}
-	fclose(cl_err);
-	unlink(err_sa.sun_path);
-	client_pid = -1;
+	if ( fclose(cl_err) == EOF ) {
+	    fprintf(stderr, "%s: could not close client error stream "
+		    "for process %d\n%s\n", cmd, client_pid, strerror(errno));
+	}
+	if ( close(d_err_fd) == -1 ) {
+	    fprintf(stderr, "%s: could not close error socket "
+		    "for process %d\n%s\n", cmd, client_pid, strerror(errno));
+	}
+	if ( unlink(d_err_sa.sun_path) == -1 ) {
+	    fprintf(stderr, "%s: could not delete error socket "
+		    "for process %d\n%s\n", cmd, client_pid, strerror(errno));
+	}
     }
 
     /* Should not end up here. Process should exit with "stop" command. */
