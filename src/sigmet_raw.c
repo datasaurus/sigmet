@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.24 $ $Date: 2010/07/08 19:43:06 $
+ .	$Revision: 1.25 $ $Date: 2010/07/08 20:44:45 $
  */
 
 #include <stdlib.h>
@@ -71,20 +71,27 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
     if ( chdir(ddir) == -1 ) {
-	perror("Could not change to daemon working directory.");
+	fprintf(stderr, "%s (%d): could not change to daemon working directory\n"
+		"%s\n", cmd, pid, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     if ( (io_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
-	perror("Could not connect to sigmet_raw daemon.");
+	fprintf(stderr, "%s (%d): could not create socket\n%s\n",
+		cmd, pid, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     memset(&io_sa, '\0', sizeof(struct sockaddr_un));
     io_sa.sun_family = AF_UNIX;
     strncpy(io_sa.sun_path, SIGMET_RAWD_IN, sizeof(io_sa.sun_path) - 1);
     sa_p = (struct sockaddr *)&io_sa;
-    connect(io_fd, sa_p, sizeof(struct sockaddr_un));
+    if ( connect(io_fd, sa_p, sizeof(struct sockaddr_un)) == -1) {
+	fprintf(stderr, "%s (%d): could connect to daemon\n%s\n",
+		cmd, pid, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
     if ( !(io = fdopen(io_fd, "r+")) ) {
-	perror("Could not connect to sigmet_raw daemon.");
+	fprintf(stderr, "%s (%d): could not create stream to talk to daemon\n%s\n",
+		cmd, pid, strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
@@ -111,7 +118,8 @@ int main(int argc, char *argv[])
     *(size_t *)buf = l - sizeof(size_t);
     if ( (w = write(io_fd, buf, l)) != l ) {
 	if ( w == -1 ) {
-	    perror("could not write command to sigmet daemon");
+	    fprintf(stderr, "%s (%d): could not send command to daemon\n%s\n",
+		    cmd, pid, strerror(errno));
 	} else {
 	    fprintf(stderr, "%s: Incomplete write to daemon.\n", cmd);
 	}
@@ -127,14 +135,16 @@ int main(int argc, char *argv[])
 
     /* Get exit status and error messages from daemon */
     if ( (err_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
-	perror("Could not connect to sigmet_raw daemon.");
+	fprintf(stderr, "%s (%d): could not create error socket\n%s\n",
+		cmd, pid, strerror(errno));
 	exit(EXIT_FAILURE);
     }
     memset(&err_sa, '\0', sizeof(struct sockaddr_un));
     err_sa.sun_family = AF_UNIX;
     if (snprintf(err_sa.sun_path, sizeof(err_sa.sun_path), "%d.err", pid)
 	    > sizeof(err_sa.sun_path)) {
-	perror("Could not create error stream");
+	fprintf(stderr, "%s (%d): could not create name for error socket\n",
+		cmd, pid);
 	exit(EXIT_FAILURE);
     }
     sa_p = (struct sockaddr *)&err_sa;
@@ -143,12 +153,22 @@ int main(int argc, char *argv[])
 	    sleep(1);
 	    continue;
 	} else {
-	    perror("Could not connect to error stream");
+	    fprintf(stderr, "%s (%d): could not connect to error socket\n%s\n",
+		    cmd, pid, strerror(errno));
+	    if ( close(err_fd) == -1 ) {
+		fprintf(stderr, "%s (%d): could not close error socket\n%s\n",
+			cmd, pid, strerror(errno));
+	    }
 	    exit(EXIT_FAILURE);
 	}
     }
     if ( !(err = fdopen(err_fd, "r")) ) {
-	perror("Could not connect to error stream");
+	fprintf(stderr, "%s (%d): could not create error stream\n%s\n",
+		cmd, pid, strerror(errno));
+	if ( close(err_fd) == -1 ) {
+	    fprintf(stderr, "%s (%d): could not close error stream\n%s\n",
+		    cmd, pid, strerror(errno));
+	}
 	exit(EXIT_FAILURE);
     }
     while ( (c = fgetc(err)) != EOF ) {
