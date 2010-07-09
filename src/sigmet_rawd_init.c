@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.213 $ $Date: 2010/07/09 21:46:34 $
+ .	$Revision: 1.214 $ $Date: 2010/07/09 21:56:16 $
  */
 
 #include <stdlib.h>
@@ -196,6 +196,23 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
+    /* Identify and go to working directory */
+    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
+	fprintf(stderr, "%s: could not identify daemon directory. "
+		"Please specify daemon directory with SIGMET_RAWD_DIR "
+		"environment variable.\n", cmd);
+	exit(EXIT_FAILURE);
+    }
+    if ( chdir(ddir) == -1 ) {
+	perror("Could not set working directory.");
+	exit(EXIT_FAILURE);
+    }
+    if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
+	fprintf(stderr, "%s: daemon socket %s already exists. "
+		"Is daemon already running?\n", cmd, SIGMET_RAWD_IN);
+	exit(EXIT_FAILURE);
+    }
+
     /* Initialize vols array */
     for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
 	sv_p->oqpd = 0;
@@ -230,18 +247,6 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "%s: unknown angle unit %s.\n", cmd, ang_u);
 	    exit(EXIT_FAILURE);
 	}
-    }
-
-    /* Identify and go to working directory */
-    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	fprintf(stderr, "%s: could not identify daemon directory. "
-		"Please specify daemon directory with SIGMET_RAWD_DIR "
-		"environment variable.\n", cmd);
-	exit(EXIT_FAILURE);
-    }
-    if ( chdir(ddir) == -1 ) {
-	perror("Could not set working directory.");
-	exit(EXIT_FAILURE);
     }
 
     if ( bg ) {
@@ -283,7 +288,6 @@ int main(int argc, char *argv[])
     }
 
     /* Create socket to communicate with clients */
-    unlink(SIGMET_RAWD_IN);
     memset(&d_io_sa, '\0', SA_UN_SZ);
     d_io_sa.sun_family = AF_UNIX;
     plen = sizeof(d_io_sa.sun_path) - 1;
