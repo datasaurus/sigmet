@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.212 $ $Date: 2010/07/09 20:05:20 $
+ .	$Revision: 1.213 $ $Date: 2010/07/09 21:46:34 $
  */
 
 #include <stdlib.h>
@@ -41,6 +41,9 @@
 static char *cmd;
 static size_t cmd_len;			/* strlen(cmd) */
 static char *cmd1;
+
+/* If true, daemon has received a "stop" command */
+static int stop = 0;
 
 /* Process streams and files */
 static int cl_io_fd;			/* File descriptor to read client command
@@ -299,7 +302,7 @@ int main(int argc, char *argv[])
     fflush(stdout);
 
     /* Wait for clients */
-    while ( (cl_io_fd = accept(d_io_fd, NULL, 0)) != -1) {
+    while ( !stop && (cl_io_fd = accept(d_io_fd, NULL, 0)) != -1 ) {
 	size_t l;		/* Number of bytes to read from command buffer */
 	int argc1;		/* Number of arguments in received command line */
 	char *argv1[SIGMET_RAWD_ARGCX]; /* Arguments from client command line */
@@ -424,6 +427,7 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "%s: could not close client error stream "
 		    "for process %d\n%s\n", cmd, client_pid, strerror(errno));
 	}
+
     }
 
     /* Should not end up here. Process should exit with "stop" command. */
@@ -2267,8 +2271,8 @@ static int stop_cb(int argc, char *argv[])
 	fprintf(stderr, "%s: could not delete input pipe.\n", time_stamp());
     }
     printf("%s: received stop command, exiting.\n", time_stamp());
-    exit(EXIT_SUCCESS);
-    return 0;
+    stop = 1;
+    return 1;
 }
 
 /*
