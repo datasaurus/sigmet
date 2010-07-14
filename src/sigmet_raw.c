@@ -7,9 +7,10 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.26 $ $Date: 2010/07/09 18:43:59 $
+ .	$Revision: 1.27 $ $Date: 2010/07/09 21:46:34 $
  */
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -29,9 +30,6 @@
 static int handle_signals(void);
 static void handler(int signum);
 
-/* Number of times client will attempt to connect to server */
-#define NTRIES 6
-
 int main(int argc, char *argv[])
 {
     char *cmd = argv[0];
@@ -47,7 +45,7 @@ int main(int argc, char *argv[])
     int err_skt_fd, err_fd;	/* File descriptors associated with error socket */
     FILE *err;			/* Stream associated with err_fd */
     pid_t pid = getpid();
-    char buf[SIGMET_RAWD_ARGVX];/* Output buffer */
+    char buf[LINE_MAX];		/* Command line sent to daemon */
     char *b;			/* Point into buf */
     char *b1;			/* End of buf */
     size_t l;			/* Length of command buffer as used */
@@ -56,7 +54,7 @@ int main(int argc, char *argv[])
     int c;			/* Character from daemon */
     int status;			/* Return from this process */
 
-    b1 = buf + SIGMET_RAWD_ARGVX;
+    b1 = buf + LINE_MAX;
     status = EXIT_SUCCESS;
 
     if ( argc < 2 ) {
@@ -97,7 +95,7 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* Connect to server via the server socket in SIGMET_RAWD_DIR */
+    /* Connect to daemon via the daemon socket in SIGMET_RAWD_DIR */
     if ( (io_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create socket\n%s\n",
 		cmd, pid, strerror(errno));
@@ -119,7 +117,7 @@ int main(int argc, char *argv[])
     }
 
     /* Fill buf and send to daemon. */
-    memset(buf, 0, SIGMET_RAWD_ARGVX);
+    memset(buf, 0, LINE_MAX);
     b = buf + sizeof(size_t);
     *(pid_t *)b = pid;
     b += sizeof(pid);
@@ -134,7 +132,7 @@ int main(int argc, char *argv[])
     }
     if ( b >= b1 ) {
 	fprintf(stderr, "%s: command line too big (%lu characters max)\n",
-		cmd, (unsigned long)(SIGMET_RAWD_ARGVX - sizeof(int) - 1));
+		cmd, (unsigned long)(LINE_MAX - sizeof(int) - 1));
 	exit(EXIT_FAILURE);
     }
     l = b - buf;

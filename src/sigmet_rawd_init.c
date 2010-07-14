@@ -9,9 +9,10 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.214 $ $Date: 2010/07/09 21:56:16 $
+ .	$Revision: 1.215 $ $Date: 2010/07/09 22:10:24 $
  */
 
+#include <limits.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
@@ -169,8 +170,8 @@ int main(int argc, char *argv[])
     struct sig_vol *sv_p;	/* Member of vols */
     pid_t client_pid = -1;	/* Client */
     char *ang_u;		/* Angle unit */
-    char buf[SIGMET_RAWD_ARGVX];/* Input line - has commands for the daemon */
-    char *buf_e = buf + SIGMET_RAWD_ARGVX;
+    char buf[LINE_MAX];		/* Input line - has commands for the daemon */
+    char *buf_e = buf + LINE_MAX;
     char *b;			/* Point into buf */
     int y;			/* Loop index */
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" }; /* Map projection */
@@ -333,7 +334,7 @@ int main(int argc, char *argv[])
 	    close(cl_io_fd);
 	    continue;
 	}
-	if ( l > SIGMET_RAWD_ARGVX ) {
+	if ( l > LINE_MAX ) {
 	    fprintf(stderr, "%s: command with %lu bytes too large for buffer.\n",
 		    time_stamp(), (unsigned long)l);
 	    continue;
@@ -468,7 +469,7 @@ static int cmd_len_cb(int argc, char *argv[])
 	Err_Append(cmd1);
 	return 0;
     }
-    fprintf(cl_io, "%d\n", SIGMET_RAWD_ARGVX);
+    fprintf(cl_io, "%d\n", LINE_MAX);
     return 1;
 }
 
