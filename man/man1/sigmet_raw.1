@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.19 $ $Date: 2010/05/23 05:01:43 $
+.\" $Revision: 1.20 $ $Date: 2010/07/01 18:37:28 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -13,8 +13,6 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 .nf
 \fBexport\fP \fBSIGMET_RAWD_DIR=\fP\fIdirectory\fP 
 \fBsigmet_rawd\fP [\fB-f\fP]
-\fBsigmet_raw\fP \fBcmd_len\fP
-\fBsigmet_raw\fP \fBverbose\fP \fBtrue\fP|\fBfalse\fP
 \fBsigmet_raw\fP \fBpid\fP
 \fBsigmet_raw\fP \fBtypes\fP
 \fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
@@ -67,13 +65,6 @@ Error messages go to \fB$SIGMET_RAWD_DIR/sigmet.err\fP.
 Once \fBsigmet_rawd\fP is running, the commands listed below are recognized.
 Note that file names should be given as absolute paths, since the daemon
 is probably not using the same current working directory as the client.
-.TP
-\fBsigmet_raw\fP \fBcmd_len\fP
-Prints the length of the longest command accepted by \fBsigmet_raw\fP.
-.TP
-\fBsigmet_raw\fP \fBverbose\fP \fBtrue\fP|\fBfalse\fP
-If argument is \fBtrue\fP, the daemon will print more frequent messages to its
-log file. If \fBfalse\fP, the daemon will print normal log messages.
 .TP
 \fBsigmet_raw\fP \fBpid\fP
 Prints the daemons proccess id.

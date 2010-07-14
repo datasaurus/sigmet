@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.215 $ $Date: 2010/07/09 22:10:24 $
+ .	$Revision: 1.216 $ $Date: 2010/07/14 16:07:40 $
  */
 
 #include <limits.h>
@@ -81,9 +81,8 @@ static int get_vol_i(char *);
 static int new_vol_i(char *, struct stat *);
 
 /* Subcommands */
-#define NCMD 28
+#define NCMD 27
 typedef int (callback)(int , char **);
-static callback cmd_len_cb;
 static callback pid_cb;
 static callback types_cb;
 static callback good_cb;
@@ -111,14 +110,14 @@ static callback img_name_cb;
 static callback img_cb;
 static callback stop_cb;
 static char *cmd1v[NCMD] = {
-    "cmd_len", "pid", "types", "good", "hread",
+    "pid", "types", "good", "hread",
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
     "colors", "bintvls", "radar_lon", "radar_lat", "shift_az",
     "proj", "img_app", "img_sz", "alpha", "img_name", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
-    cmd_len_cb, pid_cb, types_cb, good_cb, hread_cb,
+    pid_cb, types_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
     DataType_SetColors_CB, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
@@ -154,7 +153,7 @@ static void handler(int);
 
 int main(int argc, char *argv[])
 {
-    char *ddir;			/* Working directory for server */
+    char *ddir;			/* Working directory for daemon */
     int bg = 1;			/* If true, run in foreground (do not fork) */
     pid_t pid;			/* Return from fork */
     int flags;			/* Flags for log files */
@@ -251,7 +250,7 @@ int main(int argc, char *argv[])
     }
 
     if ( bg ) {
-	/* Put server in background */
+	/* Put daemon in background */
 	switch (pid = fork()) {
 	    case -1:
 		fprintf(stderr, "%s: could not fork.\n%s\n", cmd, strerror(errno));
@@ -462,17 +461,6 @@ static char *time_stamp(void)
     }
 }
 
-static int cmd_len_cb(int argc, char *argv[])
-{
-    if (argc != 1) {
-	Err_Append("Usage: ");
-	Err_Append(cmd1);
-	return 0;
-    }
-    fprintf(cl_io, "%d\n", LINE_MAX);
-    return 1;
-}
-
 static int pid_cb(int argc, char *argv[])
 {
     if (argc != 1) {
@@ -533,7 +521,7 @@ static FILE *vol_open(const char *vol_nm)
 		/* Child process - gzip.  Send child stdout to pipe. */
 		if ( close(cl_io_fd) == -1 ) {
 		    fprintf(stderr, "%s: gzip child could not close"
-			    " server streams", time_stamp());
+			    " daemon streams", time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
@@ -571,7 +559,7 @@ static FILE *vol_open(const char *vol_nm)
 		/* Child process - bzip2.  Send child stdout to pipe. */
 		if ( close(cl_io_fd) == -1 ) {
 		    fprintf(stderr, "%s: bzip2 child could not close"
-			    " server streams", time_stamp());
+			    " daemon streams", time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
@@ -2095,7 +2083,7 @@ static int img_cb(int argc, char *argv[])
 	     */
 	    if ( close(cl_io_fd) == -1 ) {
 		fprintf(stderr, "%s: %s child could not close"
-			" server streams", img_app, time_stamp());
+			" daemon streams", img_app, time_stamp());
 		_exit(EXIT_FAILURE);
 	    }
 	    if ( dup2(pfd[0], STDIN_FILENO) == -1 || close(pfd[1]) == -1 ) {
