@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.217 $ $Date: 2010/07/14 16:18:25 $
+ .	$Revision: 1.218 $ $Date: 2010/07/14 16:20:38 $
  */
 
 #include <limits.h>
@@ -164,6 +164,7 @@ int main(int argc, char *argv[])
     int err_fd;			/* File descriptor to send status and
 				   error messages to client */
     FILE *err;			/* Stream associated with err_fd */
+    int n, n_tries;		/* Attempts to connect to error socket */
     struct sockaddr *sa_p;	/* &d_io_sa or &d_err_sa, for call to bind */
     int d_io_fd;		/* File descriptors for d_io and d_err */
     struct sig_vol *sv_p;	/* Member of vols */
@@ -403,7 +404,22 @@ int main(int argc, char *argv[])
 		    "%s\n", cmd, client_pid, strerror(errno));
 	    continue;
 	}
-	if ( (connect(err_fd, sa_p, sizeof(struct sockaddr_un))) == -1 ) {
+	n_tries = 3;
+	for (n = 0; n < n_tries && connect(err_fd, sa_p, SA_UN_SZ) == -1; n++) {
+	    switch (errno) {
+		case ENOENT:
+		case EADDRNOTAVAIL:
+		case EALREADY:
+		case ECONNREFUSED:
+		    sleep(1);
+		    break;
+		default:
+		    fprintf(stderr, "%s: could not connect error socket for "
+			    "process %d\n%s\n", cmd, client_pid, strerror(errno));
+		    continue;
+	    }
+	}
+	if ( n == n_tries) {
 	    fprintf(stderr, "%s: could not connect error socket for process %d\n"
 		    "%s\n", cmd, client_pid, strerror(errno));
 	    continue;
