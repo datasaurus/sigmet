@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.216 $ $Date: 2010/07/14 16:07:40 $
+ .	$Revision: 1.217 $ $Date: 2010/07/14 16:18:25 $
  */
 
 #include <limits.h>
@@ -434,8 +434,10 @@ int main(int argc, char *argv[])
 
     }
 
-    /* Should not end up here. Process should exit with "stop" command. */
-    fprintf(stderr, "%s: unexpected exit.  %s\n", time_stamp(), strerror(errno));
+    if ( !stop ) {
+	fprintf(stderr, "%s: unexpected exit.\n%s\n",
+		time_stamp(), strerror(errno));
+    }
     unlink(SIGMET_RAWD_IN);
     for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
 	Sigmet_FreeVol(&sv_p->vol);
