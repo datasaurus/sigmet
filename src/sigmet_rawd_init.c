@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.218 $ $Date: 2010/07/14 16:20:38 $
+ .	$Revision: 1.219 $ $Date: 2010/07/14 18:03:39 $
  */
 
 #include <limits.h>
@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
 	    || bind(d_io_fd, sa_p, SA_UN_SZ) == -1
 	    || listen(d_io_fd, SOMAXCONN) == -1) {
 	fprintf(stderr, "%s: could not create io socket.\n%s\n",
-		cmd, strerror(errno));
+		time_stamp(), strerror(errno));
 	exit(EXIT_FAILURE);
     }
 
@@ -329,8 +329,7 @@ int main(int argc, char *argv[])
 	    continue;
 	}
 	if ( read(cl_io_fd, &l, sizeof(size_t)) != sizeof(size_t) ) {
-	    fprintf(stderr, "%s: failed to read command length.\n",
-		    time_stamp());
+	    fprintf(stderr, "%s: failed to read command length.\n", time_stamp());
 	    close(cl_io_fd);
 	    continue;
 	}
@@ -395,13 +394,13 @@ int main(int argc, char *argv[])
 	plen = sizeof(err_sa.sun_path);
 	if ( snprintf(err_sa.sun_path, plen, "%d.err", client_pid) > plen) {
 	    fprintf(stderr, "%s: could not create error socket path name "
-		    "for process %d.\n", cmd, client_pid);
+		    "for process %d.\n", time_stamp(), client_pid);
 	    continue;
 	}
 	sa_p = (struct sockaddr *)&err_sa;
 	if ( (err_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
 	    fprintf(stderr, "%s: could not create error socket for process %d.\n"
-		    "%s\n", cmd, client_pid, strerror(errno));
+		    "%s\n", time_stamp(), client_pid, strerror(errno));
 	    continue;
 	}
 	n_tries = 3;
@@ -415,18 +414,19 @@ int main(int argc, char *argv[])
 		    break;
 		default:
 		    fprintf(stderr, "%s: could not connect error socket for "
-			    "process %d\n%s\n", cmd, client_pid, strerror(errno));
+			    "process %d\n%s\n",
+			    time_stamp(), client_pid, strerror(errno));
 		    continue;
 	    }
 	}
 	if ( n == n_tries) {
 	    fprintf(stderr, "%s: could not connect error socket for process %d\n"
-		    "%s\n", cmd, client_pid, strerror(errno));
+		    "%s\n", time_stamp(), client_pid, strerror(errno));
 	    continue;
 	}
 	if ( !(err = fdopen(err_fd, "w")) ) {
 	    fprintf(stderr, "%s: could not create error stream for process %d\n"
-		    "%s\n", cmd, client_pid, strerror(errno));
+		    "%s\n", time_stamp(), client_pid, strerror(errno));
 	    continue;
 	}
 	if ( success ) {
@@ -439,13 +439,14 @@ int main(int argc, char *argv[])
 		    || fprintf(err, "%s failed.\n%s\n",
 			cmd1, Err_Get()) == -1 ) {
 		fprintf(stderr, "%s: could not send return code or error "
-			"output for %s.\n%s\n",
-			time_stamp(), cmd1, strerror(errno) );
+			"output for %s (%d).\n%s\n",
+			time_stamp(), cmd1, client_pid, strerror(errno) );
 	    }
 	}
 	if ( fclose(err) == EOF ) {
 	    fprintf(stderr, "%s: could not close client error stream "
-		    "for process %d\n%s\n", cmd, client_pid, strerror(errno));
+		    "for process %d\n%s\n",
+		    time_stamp(), client_pid, strerror(errno));
 	}
 
     }
@@ -710,7 +711,7 @@ static int hread_cb(int argc, char *argv[])
 		break;
 	    case MEM_FAIL:
 		/* Try to free some memory and try again */
-		fprintf(stderr, "Allocation failure. Flushing.\n");
+		fprintf(stderr, "Allocation failure. (%s) Flushing.\n", Err_Get());
 		if ( !flush(1) ) {
 		    trying = 0;
 		}
@@ -2101,12 +2102,12 @@ static int img_cb(int argc, char *argv[])
 	     */
 	    if ( close(cl_io_fd) == -1 ) {
 		fprintf(stderr, "%s: %s child could not close"
-			" daemon streams", img_app, time_stamp());
+			" daemon streams", time_stamp(), img_app);
 		_exit(EXIT_FAILURE);
 	    }
 	    if ( dup2(pfd[0], STDIN_FILENO) == -1 || close(pfd[1]) == -1 ) {
 		fprintf(stderr, "%s: could not set up %s process",
-			img_app, time_stamp());
+			time_stamp(), img_app);
 		_exit(EXIT_FAILURE);
 	    }
 	    execl(img_app, img_app, (char *)NULL);
