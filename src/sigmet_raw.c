@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.27 $ $Date: 2010/07/09 21:46:34 $
+ .	$Revision: 1.28 $ $Date: 2010/07/14 16:07:40 $
  */
 
 #include <limits.h>
@@ -169,6 +169,17 @@ int main(int argc, char *argv[])
 	}
 	exit(EXIT_FAILURE);
     }
+    if ( (status = fgetc(err)) == EOF ) {
+	fprintf(stderr, "%s (%d): could not get status from server\n%s\n",
+		cmd, pid, strerror(errno));
+	fclose(err);
+	close(err_skt_fd);
+	if ( unlink(err_sa.sun_path) == -1 ) {
+	    fprintf(stderr, "%s (%d): could not delete error socket \n%s\n",
+		    cmd, pid, strerror(errno));
+	}
+	exit(EXIT_FAILURE);
+    }
     while ( (c = fgetc(err)) != EOF ) {
 	fputc(c, stderr);
     }
@@ -186,8 +197,8 @@ int main(int argc, char *argv[])
    Basic signal management.
 
    Reference --
-       Rochkind, Marc J., "Advanced UNIX Programming, Second Edition",
-       2004, Addison-Wesley, Boston.
+   Rochkind, Marc J., "Advanced UNIX Programming, Second Edition",
+   2004, Addison-Wesley, Boston.
  */
 int handle_signals(void)
 {
