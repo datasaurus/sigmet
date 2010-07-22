@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.219 $ $Date: 2010/07/14 18:03:39 $
+ .	$Revision: 1.220 $ $Date: 2010/07/21 21:43:12 $
  */
 
 #include <limits.h>
@@ -2105,7 +2105,8 @@ static int img_cb(int argc, char *argv[])
 			" daemon streams", time_stamp(), img_app);
 		_exit(EXIT_FAILURE);
 	    }
-	    if ( dup2(pfd[0], STDIN_FILENO) == -1 || close(pfd[1]) == -1 ) {
+	    if ( dup2(pfd[0], STDIN_FILENO) == -1
+		    || close(pfd[0]) == -1 || close(pfd[1]) == -1 ) {
 		fprintf(stderr, "%s: could not set up %s process",
 			time_stamp(), img_app);
 		_exit(EXIT_FAILURE);
@@ -2132,7 +2133,9 @@ static int img_cb(int argc, char *argv[])
 	    /* Fail */
 	    Err_Append("Could not write ");
 	    Err_Append(item);
-	    Err_Append("Could not write image data. ");
+	    Err_Append(" for image ");
+	    Err_Append(img_fl_nm);
+	    Err_Append(". ");
 	    goto error;
 	    break;
 	case XDRX_EOF:
@@ -2142,20 +2145,20 @@ static int img_cb(int argc, char *argv[])
 
     /* Send global information about the image to drawing process */
     img_fl_nm_l = strlen(img_fl_nm);
-    item = " image file name. ";
+    item = "image file name";
     XDRX_Put_UInt(img_fl_nm_l, &xout, err_jmp);
     XDRX_Put_String(img_fl_nm, img_fl_nm_l, &xout, err_jmp);
-    item = " image dimensions. ";
+    item = "image dimensions";
     XDRX_Put_UInt(w_pxl, &xout, err_jmp);
     XDRX_Put_UInt(h_pxl, &xout, err_jmp);
-    item = " image real bounds. ";
+    item = "image real bounds";
     XDRX_Put_Double(left, &xout, err_jmp);
     XDRX_Put_Double(rght, &xout, err_jmp);
     XDRX_Put_Double(top, &xout, err_jmp);
     XDRX_Put_Double(btm, &xout, err_jmp);
-    item = " alpha channel value. ";
+    item = "alpha channel value";
     XDRX_Put_Double(alpha, &xout, err_jmp);
-    item = " colors. ";
+    item = "colors";
     XDRX_Put_UInt(n_clrs, &xout, err_jmp);
     for (n = 0; n < n_clrs; n++) {
 	XDRX_Put_UInt(clrs[n].red, &xout, err_jmp);
@@ -2188,11 +2191,11 @@ static int img_cb(int argc, char *argv[])
 			continue;
 		    }
 
-		    item = " polygon color index. ";
+		    item = "polygon color index";
 		    XDRX_Put_UInt(n, &xout, err_jmp);
-		    item = " polygon point count. ";
+		    item = "polygon point count";
 		    XDRX_Put_UInt(npts, &xout, err_jmp);
-		    item = " bin corner coordinates. ";
+		    item = "bin corner coordinates";
 		    XDRX_Put_Double(cnrs_uv[0].u, &xout, err_jmp);
 		    XDRX_Put_Double(cnrs_uv[0].v, &xout, err_jmp);
 		    XDRX_Put_Double(cnrs_uv[1].u, &xout, err_jmp);
@@ -2206,7 +2209,10 @@ static int img_cb(int argc, char *argv[])
 	}
     }
     XDRX_Destroy(&xout);
-    fclose(out);
+    if ( fclose(out) == EOF ) {
+	fprintf(stderr, "%s: could not close pipe to %d for image file %s.\n%s\n",
+		time_stamp(), img_pid, img_fl_nm, strerror(errno));
+    }
     out = NULL;
     p = waitpid(img_pid, &status, 0);
     if ( p == img_pid ) {
@@ -2259,10 +2265,15 @@ static int img_cb(int argc, char *argv[])
     return 1;
 error:
     if (out) {
-	fclose(out);
+	if ( fclose(out) == EOF ) {
+	    fprintf(stderr, "%s: could not close pipe to %d "
+		    "for image file %s.\n%s\n",
+		    time_stamp(), img_pid, img_fl_nm, strerror(errno));
+	}
     }
     if ( img_pid != -1 ) {
 	kill(img_pid, SIGTERM);
+	waitpid(img_pid, NULL, 0);
 	img_pid = -1;
     }
     return 0;
