@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.222 $ $Date: 2010/07/23 20:53:27 $
+ .	$Revision: 1.223 $ $Date: 2010/07/24 05:00:58 $
  */
 
 #include <limits.h>
@@ -2221,7 +2221,7 @@ error:
 	waitpid(img_pid, NULL, 0);
 	img_pid = -1;
     }
-    return 1;
+    return 0;
 }
 
 static int stop_cb(int argc, char *argv[])
