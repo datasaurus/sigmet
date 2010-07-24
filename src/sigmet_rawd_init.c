@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.223 $ $Date: 2010/07/24 05:00:58 $
+ .	$Revision: 1.224 $ $Date: 2010/07/24 14:00:38 $
  */
 
 #include <limits.h>
@@ -373,19 +373,24 @@ int main(int argc, char *argv[])
 	}
 	if ( (i_out = open(out_nm, O_WRONLY)) == -1
 		|| !(out = fdopen(i_out, "w"))) {
-	    fprintf(stderr, "%s: could not open pipe for standard output\n%s\n",
-		    cmd, strerror(errno));
+	    fprintf(stderr, "%s: could not open pipe for standard output for "
+		    "process %d\n%s\n", cmd, client_pid, strerror(errno));
 	    continue;
 	}
 	if ( snprintf(err_nm, LEN, "%d.2", client_pid) > LEN ) {
-	    fprintf(stderr, "%s: could not create name for error pipe.\n", cmd);
+	    fprintf(stderr, "%s: could not create name for error pipe for "
+		    "process %d.\n", cmd, client_pid);
 	    continue;
 	}
 	if ( (i_err = open(err_nm, O_WRONLY)) == -1
 		|| !(err = fdopen(i_err, "w"))) {
-	    fprintf(stderr, "%s: could not open pipe for error messages\n%s\n",
-		    cmd, strerror(errno));
-	    fclose(out);
+	    fprintf(stderr, "%s: could not open pipe for error messages for "
+		    "process %d\n%s\n", cmd, client_pid, strerror(errno));
+	    if ( fclose(out) == EOF ) {
+		fprintf(stderr, "%s: could not close client error streams "
+			"for process %d\n%s\n",
+			time_stamp(), client_pid, strerror(errno));
+	    }
 	    continue;
 	}
 
@@ -394,19 +399,22 @@ int main(int argc, char *argv[])
 	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 	    /* No command. Make error message. */
 	    status = EXIT_FAILURE;
-	    Err_Append("No option or subcommand named");
-	    Err_Append(cmd1);
-	    Err_Append("\n");
-	    Err_Append("Subcommand must be one of: ");
+	    fprintf(err, "No option or subcommand named %s. "
+		    "Subcommand must be one of: ", cmd1);
 	    for (i = 0; i < NCMD; i++) {
-		Err_Append(cmd1v[i]);
-		Err_Append(" ");
+		fprintf(err, "%s ", cmd1v[i]);
 	    }
-	    Err_Append("\n");
-	} else {
-	    /* Found command. Run it. */
-	    status = (cb1v[i])(argc1, argv1) ? EXIT_SUCCESS : EXIT_FAILURE;
+	    fprintf(err, "\n");
+	    if ( fclose(out) == EOF || fclose(err) == EOF ) {
+		fprintf(stderr, "%s: could not close client error streams "
+			"for process %d\n%s\n",
+			time_stamp(), client_pid, strerror(errno));
+	    }
+	    continue;
 	}
+
+	/* Found command. Run it. */
+	status = (cb1v[i])(argc1, argv1) ? EXIT_SUCCESS : EXIT_FAILURE;
 
 	/* Send result and clean up */
 	if ( fclose(out) == EOF || fclose(err) == EOF ) {
@@ -520,6 +528,11 @@ static FILE *vol_open(const char *vol_nm)
 			    time_stamp(), strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
+		if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
+		    fprintf(stderr, "%s: gzip process could not access error "
+			    "stream\n%s\n", time_stamp(), strerror(errno));
+		    _exit(EXIT_FAILURE);
+		}
 		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	    default:
@@ -556,6 +569,11 @@ static FILE *vol_open(const char *vol_nm)
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
 		    fprintf(stderr, "%s: could not set up bzip2 process",
 			    time_stamp());
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
+		    fprintf(stderr, "%s: bzip2 process could not access error "
+			    "stream\n%s\n", time_stamp(), strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
 		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
@@ -2044,7 +2062,7 @@ static int img_cb(int argc, char *argv[])
 	       Read polygons from stdin (read side of data pipe).
 	     */
 	    if ( close(cl_io_fd) == -1 ) {
-		fprintf(stderr, "%s: %s child could not close"
+		fprintf(stderr, "%s: %s image process could not close"
 			" daemon streams", time_stamp(), img_app);
 		_exit(EXIT_FAILURE);
 	    }
@@ -2052,6 +2070,11 @@ static int img_cb(int argc, char *argv[])
 		    || close(pfd[0]) == -1 || close(pfd[1]) == -1 ) {
 		fprintf(stderr, "%s: could not set up %s process",
 			time_stamp(), img_app);
+		_exit(EXIT_FAILURE);
+	    }
+	    if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
+		fprintf(stderr, "%s: image process could not access error "
+			"stream\n%s\n", time_stamp(), strerror(errno));
 		_exit(EXIT_FAILURE);
 	    }
 	    execl(img_app, img_app, (char *)NULL);
@@ -2209,8 +2232,8 @@ static int img_cb(int argc, char *argv[])
     fprintf(out, "%s\n", img_fl_nm);
     return 1;
 error:
-    if (out) {
-	if ( fclose(out) == EOF ) {
+    if (img_out) {
+	if ( fclose(img_out) == EOF ) {
 	    fprintf(stderr, "%s: could not close pipe to %d "
 		    "for image file %s.\n%s\n",
 		    time_stamp(), img_pid, img_fl_nm, strerror(errno));
