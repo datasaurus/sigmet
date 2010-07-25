@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.224 $ $Date: 2010/07/24 14:00:38 $
+ .	$Revision: 1.225 $ $Date: 2010/07/24 16:49:04 $
  */
 
 #include <limits.h>
@@ -405,16 +405,10 @@ int main(int argc, char *argv[])
 		fprintf(err, "%s ", cmd1v[i]);
 	    }
 	    fprintf(err, "\n");
-	    if ( fclose(out) == EOF || fclose(err) == EOF ) {
-		fprintf(stderr, "%s: could not close client error streams "
-			"for process %d\n%s\n",
-			time_stamp(), client_pid, strerror(errno));
-	    }
-	    continue;
+	} else {
+	    /* Found command. Run it. */
+	    status = (cb1v[i])(argc1, argv1) ? EXIT_SUCCESS : EXIT_FAILURE;
 	}
-
-	/* Found command. Run it. */
-	status = (cb1v[i])(argc1, argv1) ? EXIT_SUCCESS : EXIT_FAILURE;
 
 	/* Send result and clean up */
 	if ( fclose(out) == EOF || fclose(err) == EOF ) {
@@ -506,30 +500,29 @@ static FILE *vol_open(const char *vol_nm)
     if ( sfx && strcmp(sfx, ".gz") == 0 ) {
 	/* If filename ends with ".gz", read from gunzip pipe */
 	if ( pipe(pfd) == -1 ) {
-	    Err_Append(strerror(errno));
-	    Err_Append("\nCould not create pipe for gzip.  ");
+	    fprintf(err, "%s %s: could not create pipe for gzip\n%s\n",
+		    cmd, cmd1, strerror(errno));
 	    goto error;
 	}
 	vol_pid = fork();
 	switch (vol_pid) {
 	    case -1:
-		Err_Append(strerror(errno));
-		Err_Append("\nCould not spawn gzip process.  ");
+		fprintf(err, "%s %s: could not spawn gzip\n", cmd, cmd1);
 		goto error;
 	    case 0:
 		/* Child process - gzip.  Send child stdout to pipe. */
 		if ( close(cl_io_fd) == -1 ) {
-		    fprintf(stderr, "%s: gzip child could not close"
+		    fprintf(err, "%s: gzip child could not close"
 			    " daemon streams", time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
-		    fprintf(stderr, "%s: gzip process failed\n%s\n",
+		    fprintf(err, "%s: gzip process failed\n%s\n",
 			    time_stamp(), strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
-		    fprintf(stderr, "%s: gzip process could not access error "
+		    fprintf(err, "%s: gzip process could not access error "
 			    "stream\n%s\n", time_stamp(), strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
@@ -538,8 +531,8 @@ static FILE *vol_open(const char *vol_nm)
 	    default:
 		/* This process.  Read output from gzip. */
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-		    Err_Append(strerror(errno));
-		    Err_Append("\nCould not read gzip process.  ");
+		    fprintf(err, "%s %s: could not read gzip process\n%s\n",
+			    cmd, cmd1, strerror(errno));
 		    vol_pid = -1;
 		    goto error;
 		} else {
@@ -549,30 +542,29 @@ static FILE *vol_open(const char *vol_nm)
     } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
 	/* If filename ends with ".bz2", read from bunzip2 pipe */
 	if ( pipe(pfd) == -1 ) {
-	    Err_Append(strerror(errno));
-	    Err_Append("\nCould not create pipe for bzip2.  ");
+	    fprintf(err, "%s %s: could not create pipe for bzip2\n%s\n",
+		    cmd, cmd1, strerror(errno));
 	    goto error;
 	}
 	vol_pid = fork();
 	switch (vol_pid) {
 	    case -1:
-		Err_Append(strerror(errno));
-		Err_Append("\nCould not spawn bzip2 process.  ");
+		fprintf(err, "%s %s: could not spawn bzip2\n", cmd, cmd1);
 		goto error;
 	    case 0:
 		/* Child process - bzip2.  Send child stdout to pipe. */
 		if ( close(cl_io_fd) == -1 ) {
-		    fprintf(stderr, "%s: bzip2 child could not close"
+		    fprintf(err, "%s: bzip2 child could not close"
 			    " daemon streams", time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
-		    fprintf(stderr, "%s: could not set up bzip2 process",
+		    fprintf(err, "%s: could not set up bzip2 process",
 			    time_stamp());
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
-		    fprintf(stderr, "%s: bzip2 process could not access error "
+		    fprintf(err, "%s: bzip2 process could not access error "
 			    "stream\n%s\n", time_stamp(), strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
@@ -581,8 +573,8 @@ static FILE *vol_open(const char *vol_nm)
 	    default:
 		/* This process.  Read output from bzip2. */
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-		    Err_Append(strerror(errno));
-		    Err_Append("\nCould not read bzip2 process.  ");
+		    fprintf(err, "%s %s: could not read bzip2 process\n%s\n",
+			    cmd, cmd1, strerror(errno));
 		    vol_pid = -1;
 		    goto error;
 		} else {
@@ -591,9 +583,7 @@ static FILE *vol_open(const char *vol_nm)
 	}
     } else if ( !(in = fopen(vol_nm, "r")) ) {
 	/* Uncompressed file */
-	Err_Append("Could not open ");
-	Err_Append(vol_nm);
-	Err_Append(" for input.\n");
+	fprintf(err, "%s %s: could not open %s\n", cmd, cmd1, vol_nm);
 	return NULL;
     }
     return in;
@@ -637,12 +627,6 @@ static int good_cb(int argc, char *argv[])
 	waitpid(vol_pid, NULL, 0);
 	vol_pid = -1;
     }
-    if ( !rslt ) {
-	Err_Append("Could not navigate ");
-	Err_Append(vol_nm);
-	Err_Append(". ");
-    }
-    fclose(in);
     return rslt;
 }
 
@@ -673,7 +657,7 @@ static int hread_cb(int argc, char *argv[])
     /* Volume is not loaded. Try to find a slot in which to load it. */
     if ( (i = new_vol_i(vol_nm, &sbuf)) == -1 ) {
 	fprintf(err, "%s %s: could not find a slot while attempting "
-		"to (re)load %s\n", cmd, cmd1, vol_nm);
+		"to (re)load %s\n%s\n", cmd, cmd1, vol_nm, Err_Get());
 	return 0;
     }
 
@@ -693,7 +677,6 @@ static int hread_cb(int argc, char *argv[])
 		break;
 	    case MEM_FAIL:
 		/* Try to free some memory and try again */
-		fprintf(stderr, "Allocation failure. (%s) Flushing.\n", Err_Get());
 		if ( !flush(1) ) {
 		    trying = 0;
 		}
@@ -711,7 +694,7 @@ static int hread_cb(int argc, char *argv[])
 	fclose(in);
 	if (vol_pid != -1) {
 	    if ( waitpid(vol_pid, NULL, 0) == -1 ) {
-		fprintf(stderr, "%s: could not clean up afer input process for "
+		fprintf(err, "%s: could not clean up afer input process for "
 			"%s. %s. Continuing anyway.\n",
 			time_stamp(), vol_nm, strerror(errno));
 	    }
@@ -719,9 +702,8 @@ static int hread_cb(int argc, char *argv[])
 	}
     }
     if ( !loaded ) {
-	Err_Append("Could not read headers from ");
-	Err_Append(vol_nm);
-	Err_Append(".\n");
+	fprintf(err, "%s %s: could not read headers from %s\n", cmd, cmd1, vol_nm);
+	return 0;
     }
     vols[i].oqpd = 1;
     stat(vol_nm, &sbuf);
@@ -760,7 +742,7 @@ static int read_cb(int argc, char *argv[])
     if ( i == -1 ) {
 	if ( (i = new_vol_i(vol_nm, &sbuf)) == -1 ) {
 	    fprintf(err, "%s %s: could not find a slot while attempting "
-		    "to (re)load %s\n", cmd, cmd1, vol_nm);
+		    "to (re)load %s\n%s\n", cmd, cmd1, vol_nm, Err_Get());
 	    return 0;
 	}
     } else if ( i >= 0 && vols[i].vol.truncated ) {
@@ -804,7 +786,7 @@ static int read_cb(int argc, char *argv[])
 	fclose(in);
 	if (vol_pid != -1) {
 	    if ( waitpid(vol_pid, NULL, 0) == -1 ) {
-		fprintf(stderr, "%s: could not clean up afer input process for "
+		fprintf(err, "%s: could not clean up afer input process for "
 			"%s. %s. Continuing anyway.\n",
 			time_stamp(), vol_nm, strerror(errno));
 	    }
@@ -812,9 +794,9 @@ static int read_cb(int argc, char *argv[])
 	}
     }
     if ( !loaded ) {
-	Err_Append("Could not read volume from ");
-	Err_Append(vol_nm);
-	Err_Append(".\n");
+	fprintf(err, "%s %s: could not get valid volume from %s\n",
+		cmd, cmd1, vol_nm);
+	return 0;
     }
     vols[i].oqpd = 1;
     strncpy(vols[i].vol_nm, vol_nm, LEN);
@@ -850,10 +832,6 @@ static int hash(char *vol_nm, struct stat *sbuf_p)
 
     assert(N_VOLS == 256);
     if ( stat(vol_nm, &sbuf) == -1 ) {
-	Err_Append("Could not get information about volume file ");
-	Err_Append(vol_nm);
-	Err_Append("\n");
-	Err_Append(strerror(errno));
 	return -1;
     }
     sbuf_p->st_dev = sbuf.st_dev;
@@ -909,6 +887,8 @@ static int new_vol_i(char *vol_nm, struct stat *sbuf_p)
     int h, i;			/* Index into vols */
 
     if ( (h = hash(vol_nm, sbuf_p)) == -1 ) {
+	fprintf(err, "%s %s: could not get information about file %s\n%s\n",
+		cmd, cmd1, vol_nm, strerror(errno));
 	return -1;
     }
 
@@ -921,6 +901,8 @@ static int new_vol_i(char *vol_nm, struct stat *sbuf_p)
 	    return i;
 	}
     }
+    fprintf(err, "%s %s: could not find a slot for a new volume while attempting "
+	    "to load %s\n", cmd, cmd1, vol_nm);
     return -1;
 }
 
@@ -930,9 +912,6 @@ static int release_cb(int argc, char *argv[])
     int i;
 
     if ( argc != 2 ) {
-	Err_Append("Usage: ");
-	Err_Append(cmd1);
-	Err_Append(" sigmet_volume");
 	fprintf(err, "Usage: %s %s sigmet_volume\n", cmd, cmd1);
 	return 0;
     }
@@ -1548,9 +1527,9 @@ static int radar_lon_cb(int argc, char *argv[])
     lon_s = argv[1];
     vol_nm = argv[2];
     if ( sscanf(lon_s, "%lf", &lon) != 1 ) {
-	Err_Append("Expected float value for new longitude, got ");
-	Err_Append(lon_s);
-	Err_Append(". ");
+	fprintf(err, "%s %s: expected floating point value for new longitude, "
+		"got %s\n", cmd, cmd1, lon_s);
+	return 0;
     }
     i = get_vol_i(vol_nm);
     if ( i == -1 ) {
@@ -1580,9 +1559,9 @@ static int radar_lat_cb(int argc, char *argv[])
     lat_s = argv[1];
     vol_nm = argv[2];
     if ( sscanf(lat_s, "%lf", &lat) != 1 ) {
-	Err_Append("Expected float value for new latitude, got ");
-	Err_Append(lat_s);
-	Err_Append(". ");
+	fprintf(err, "%s %s: expected floating point value for new latitude, "
+		"got %s\n", cmd, cmd1, lat_s);
+	return 0;
     }
     i = get_vol_i(vol_nm);
     if ( i == -1 ) {
@@ -1616,6 +1595,7 @@ static int shift_az_cb(int argc, char *argv[])
     if ( sscanf(daz_s, "%lf", &daz) != 1 ) {
 	fprintf(err, "%s %s: expected float value for azimuth shift, got %s\n",
 		cmd, cmd1, daz_s);
+	return 0;
     }
     i = get_vol_i(vol_nm);
     if ( i == -1 ) {
@@ -1798,14 +1778,14 @@ static int img_name_cb(int argc, char *argv[])
 	return 0;
     }
     if ( sscanf(s_s, "%d", &s) != 1 ) {
-	Err_Append("Sweep index must be an integer.  ");
+	fprintf(err, "%s %s: expected integer for sweep index, got %s\n",
+		cmd, cmd1, s_s);
 	return 0;
     }
     i = get_vol_i(vol_nm);
     if ( i == -1 ) {
-	Err_Append(vol_nm);
-	Err_Append(" not loaded or was unloaded due to being truncated."
-		" Please (re)load with read command. ");
+	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
+		" Please (re)load with read command.\n", cmd, cmd1, vol_nm);
 	return 0;
     }
 
@@ -1886,7 +1866,6 @@ static int img_cb(int argc, char *argv[])
     pid_t p;			/* Return from waitpid */
     int status;			/* Exit status of image generator */
     int pfd[2];			/* Pipe for data */
-    char err_buf[LEN];		/* Store image process output */
     double px_per_m;		/* Display units per map unit */
 
     /* KML template for positioning result */
@@ -2062,18 +2041,18 @@ static int img_cb(int argc, char *argv[])
 	       Read polygons from stdin (read side of data pipe).
 	     */
 	    if ( close(cl_io_fd) == -1 ) {
-		fprintf(stderr, "%s: %s image process could not close"
+		fprintf(err, "%s: %s image process could not close"
 			" daemon streams", time_stamp(), img_app);
 		_exit(EXIT_FAILURE);
 	    }
 	    if ( dup2(pfd[0], STDIN_FILENO) == -1
 		    || close(pfd[0]) == -1 || close(pfd[1]) == -1 ) {
-		fprintf(stderr, "%s: could not set up %s process",
+		fprintf(err, "%s: could not set up %s process",
 			time_stamp(), img_app);
 		_exit(EXIT_FAILURE);
 	    }
 	    if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
-		fprintf(stderr, "%s: image process could not access error "
+		fprintf(err, "%s: image process could not access error "
 			"stream\n%s\n", time_stamp(), strerror(errno));
 		_exit(EXIT_FAILURE);
 	    }
@@ -2099,11 +2078,8 @@ static int img_cb(int argc, char *argv[])
 	    break;
 	case XDRX_ERR:
 	    /* Fail */
-	    Err_Append("Could not write ");
-	    Err_Append(item);
-	    Err_Append(" for image ");
-	    Err_Append(img_fl_nm);
-	    Err_Append(". ");
+	    fprintf(err, "%s %s: could not write %s for image %s\n",
+		    cmd, cmd1, item, img_fl_nm);
 	    goto error;
 	    break;
 	case XDRX_EOF:
@@ -2178,29 +2154,23 @@ static int img_cb(int argc, char *argv[])
     }
     XDRX_Destroy(&xout);
     if ( fclose(img_out) == EOF ) {
-	fprintf(stderr, "%s: could not close pipe to %d for image file %s.\n%s\n",
+	fprintf(err, "%s: could not close pipe to %d for image file %s.\n%s\n",
 		time_stamp(), img_pid, img_fl_nm, strerror(errno));
     }
     img_out = NULL;
     p = waitpid(img_pid, &status, 0);
     if ( p == img_pid ) {
 	if ( WIFEXITED(status) && WEXITSTATUS(status) == EXIT_FAILURE ) {
-	    Err_Append("Image process failed for ");
-	    Err_Append(img_fl_nm);
-	    Err_Append("See ");
-	    Err_Append(SIGMET_RAWD_ERR);
-	    Err_Append(" for possible error messages. ");
+	    fprintf(err, "%s %s: image process failed for %s\n",
+		    cmd, cmd1, img_fl_nm);
 	    goto error;
 	} else if ( WIFSIGNALED(status) ) {
-	    if ( snprintf(err_buf, LEN, "Image process exited on signal %d. ",
-			WTERMSIG(status)) <= LEN ) {
-		Err_Append(err_buf);
-	    } else {
-		Err_Append("Image process exited on signal. ");
-	    }
+	    fprintf(err, "%s %s: image process for %s exited on signal %d. ",
+			cmd, cmd1, img_fl_nm, WTERMSIG(status));
+	    goto error;
 	}
     } else {
-	fprintf(stderr, "%s: could not get exit status for image generator "
+	fprintf(err, "%s: could not get exit status for image generator "
 		"while processing %s. %s. Continuing anyway.\n",
 		time_stamp(), img_fl_nm,
 		(p == -1) ? strerror(errno) : "Unknown error.");
@@ -2208,17 +2178,18 @@ static int img_cb(int argc, char *argv[])
 
     /* Make kml file and return */
     if ( snprintf(kml_fl_nm, LEN, "%s.kml", base_nm) > LEN ) {
-	Err_Append("Could not make kml file name. ");
+	fprintf(err, "%s %s: could not make kml file name for %s\n",
+		cmd, cmd1, img_fl_nm);
 	goto error;
     }
     if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
-	Err_Append("Could not open ");
-	Err_Append(kml_fl_nm);
-	Err_Append(" for output. ");
+	fprintf(err, "%s %s: could not open %s for output\n",
+		cmd, cmd1, kml_fl_nm);
 	goto error;
     }
     if ( s >= vol.ih.ic.num_sweeps || !vol.sweep_ok[s]
 	    || !Tm_JulToCal(vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
+	fprintf(err, "%s %s: invalid sweep\n", cmd, cmd1);
 	goto error;
     }
     fprintf(kml_fl, kml_tmpl,
@@ -2234,7 +2205,7 @@ static int img_cb(int argc, char *argv[])
 error:
     if (img_out) {
 	if ( fclose(img_out) == EOF ) {
-	    fprintf(stderr, "%s: could not close pipe to %d "
+	    fprintf(err, "%s: could not close pipe to %d "
 		    "for image file %s.\n%s\n",
 		    time_stamp(), img_pid, img_fl_nm, strerror(errno));
 	}
