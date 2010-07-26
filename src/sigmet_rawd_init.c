@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.225 $ $Date: 2010/07/24 16:49:04 $
+ .	$Revision: 1.226 $ $Date: 2010/07/25 04:26:26 $
  */
 
 #include <limits.h>
@@ -1438,8 +1438,9 @@ static int bintvls_cb(int argc, char *argv[])
     enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
     int i;			/* Volume index. */
     int y, s, r, b;		/* Indeces: data type, sweep, ray, bin */
+    unsigned char n_clrs;	/* number of colors for the data type */
     double *bnds;		/* bounds[type_t] */
-    unsigned char n_bnds;	/* n_bounds[type_t] */
+    unsigned char n_bnds;	/* number of bounds = n_clrs + 1 */
     int n;			/* Index from bnds */
     double d;			/* Data value */
 
@@ -1455,11 +1456,12 @@ static int bintvls_cb(int argc, char *argv[])
 	fprintf(err, "%s %s: no data type named %s\n", cmd, cmd1, abbrv);
 	return 0;
     }
-    if ( !DataType_GetColors(abbrv, &n_bnds, NULL, &bnds) ) {
+    if ( !DataType_GetColors(abbrv, &n_clrs, NULL, &bnds) ) {
 	fprintf(err, "%s %s: cannot get data intervals for %s\n",
 		cmd, cmd1, abbrv);
 	return 0;
     }
+    n_bnds = n_clrs + 1;
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(err, "%s %s: expected integer for sweep index, got %s\n",
 		cmd, cmd1, s_s);
