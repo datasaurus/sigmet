@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.20 $ $Date: 2010/07/01 18:37:28 $
+.\" $Revision: 1.21 $ $Date: 2010/07/14 16:18:25 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -313,7 +313,8 @@ which should have been loaded with a call to \fBsigmet_raw\fP\ \fBread\fP.
 Makes an image for data type \fItype\fP, sweep \fIs\fP in the volume obtained
 from \fIvolume_file\fP, which should have been loaded with a call to
 \fBsigmet_raw\fP\ \fBread\fP. The daemon will write the image file in the
-\fB$SIGMET_RAWD_DIR\fP working directory.
+\fB$SIGMET_RAWD_DIR\fP working directory.  This command fails if the image file
+already exists.
 .TP
 \fBsigmet_raw\fP \fBstop\fP
 Stops the daemon. Working directory continues to exist. Subsequent calls to

@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.227 $ $Date: 2010/07/26 18:52:26 $
+ .	$Revision: 1.228 $ $Date: 2010/07/27 17:18:51 $
  */
 
 #include <limits.h>
@@ -1864,6 +1864,9 @@ static int img_cb(int argc, char *argv[])
     char base_nm[LEN]; 		/* Output file name */
     char img_fl_nm[LEN]; 	/* Image output file name */
     size_t img_fl_nm_l;		/* strlen(img_fl_nm) */
+    int flags;                  /* Image file creation flags */
+    mode_t mode;                /* Image file permissions */
+    int i_img_fl;		/* Image file descriptor, not used */
     char kml_fl_nm[LEN];	/* KML output file name */
     FILE *kml_fl;		/* KML file */
     pid_t img_pid = -1;		/* Process id for image generator */
@@ -2026,17 +2029,31 @@ static int img_cb(int argc, char *argv[])
     north *= DEG_PER_RAD;
     px_per_m = w_pxl / (rght - left);
 
-    /* Make name of output file */
+    /* Create image file. Fail if it exists */
     if ( !img_name(&vol, abbrv, s, base_nm) 
 	    || snprintf(img_fl_nm, LEN, "%s.png", base_nm) > LEN ) {
 	fprintf(err, "%s %s: could not make image file name\n", argv[0], argv[1]);
 	return 0;
+    }
+    flags = O_CREAT | O_EXCL | O_WRONLY;
+    mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    if ( (i_img_fl = open(img_fl_nm, flags, mode)) == -1 ) {
+        fprintf(stderr, "%s %s: could not create image file %s\n%s\n",
+                argv[0], argv[1], img_fl_nm, strerror(errno));
+        return 0;
+    }
+    if ( close(i_img_fl) == -1 ) {
+        fprintf(stderr, "%s %s: could not close image file %s\n%s\n",
+                argv[0], argv[1], img_fl_nm, strerror(errno));
+	unlink(img_fl_nm);
+        return 0;
     }
 
     /* Launch the external drawing application and create a pipe to it. */
     if ( pipe(pfd) == -1 ) {
 	fprintf(err, "%s %s: could not connect to image drawing application\n%s\n",
 		argv[0], argv[1], strerror(errno));
+	unlink(img_fl_nm);
 	return 0;
     }
     img_pid = fork();
@@ -2044,6 +2061,7 @@ static int img_cb(int argc, char *argv[])
 	case -1:
 	    fprintf(err, "%s %s: could not spawn image drawing application\n%s\n",
 		    argv[0], argv[1], strerror(errno));
+	    unlink(img_fl_nm);
 	    return 0;
 	case 0:
 	    /*
@@ -2075,6 +2093,7 @@ static int img_cb(int argc, char *argv[])
 	    if ( close(pfd[0]) == -1 || !(img_out = fdopen(pfd[1], "w"))) {
 		fprintf(err, "%s %s: could not write to image drawing "
 			"application\n%s\n", argv[0], argv[1], strerror(errno));
+		unlink(img_fl_nm);
 		img_pid = -1;
 		return 0;
 	    }
@@ -2225,6 +2244,7 @@ error:
 	waitpid(img_pid, NULL, 0);
 	img_pid = -1;
     }
+    unlink(img_fl_nm);
     return 0;
 }
 
