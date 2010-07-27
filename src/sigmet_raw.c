@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.29 $ $Date: 2010/07/22 16:00:23 $
+   .	$Revision: 1.30 $ $Date: 2010/07/23 20:53:27 $
  */
 
 #include <limits.h>
@@ -135,9 +135,9 @@ int main(int argc, char *argv[])
     b = buf + sizeof(size_t);
     *(pid_t *)b = pid;
     b += sizeof(pid);
-    *(int *)b = argc - 1;
+    *(int *)b = argc;
     b += sizeof(argc);
-    for (aa = argv + 1, a = *aa; b < b1 && *aa; b++, a++) {
+    for (aa = argv, a = *aa; b < b1 && *aa; b++, a++) {
 	*b = *a;
 	if (*a == '\0' && *++aa) {
 	    a = *aa;
@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
     while ( 1 ) {
 	read_set = set;
 	if ( select(fd_hwm + 1, &read_set, NULL, NULL, NULL) == -1 ) {
-	    fprintf(stderr, "%s (%d): could not get output from server\n%s\n",
+	    fprintf(stderr, "%s (%d): could not get output from daemon\n%s\n",
 		    cmd, pid, strerror(errno));
 	    goto error;
 	}
