@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.228 $ $Date: 2010/07/27 17:18:51 $
+ .	$Revision: 1.229 $ $Date: 2010/07/27 21:30:01 $
  */
 
 #include <limits.h>
@@ -2038,12 +2038,12 @@ static int img_cb(int argc, char *argv[])
     flags = O_CREAT | O_EXCL | O_WRONLY;
     mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     if ( (i_img_fl = open(img_fl_nm, flags, mode)) == -1 ) {
-        fprintf(stderr, "%s %s: could not create image file %s\n%s\n",
+        fprintf(err, "%s %s: could not create image file %s\n%s\n",
                 argv[0], argv[1], img_fl_nm, strerror(errno));
         return 0;
     }
     if ( close(i_img_fl) == -1 ) {
-        fprintf(stderr, "%s %s: could not close image file %s\n%s\n",
+        fprintf(err, "%s %s: could not close image file %s\n%s\n",
                 argv[0], argv[1], img_fl_nm, strerror(errno));
 	unlink(img_fl_nm);
         return 0;
