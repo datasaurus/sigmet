@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.30 $ $Date: 2010/07/23 20:53:27 $
+   .	$Revision: 1.31 $ $Date: 2010/07/27 17:18:51 $
  */
 
 #include <limits.h>
@@ -48,9 +48,9 @@ int main(int argc, char *argv[])
     struct sockaddr_un sa;	/* Address of socket that connects with daemon */
     int i_dmn = -1;		/* File descriptor associated with sa */
     pid_t pid = getpid();
-    char buf[LEN];		/* Line sent to or received from daemon */
+    char buf[LINE_MAX];		/* Line sent to or received from daemon */
     char *b;			/* Point into buf */
-    char *b1 = buf + LEN;	/* End of buf */
+    char *b1 = buf + LINE_MAX;	/* End of buf */
     size_t l;			/* Length of command buffer as used */
     char **aa, *a;		/* Loop parameters */
     ssize_t w;			/* Return from write */
@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
     }
 
     /* Fill buf and send to daemon. */
-    memset(buf, 0, LEN);
+    memset(buf, 0, LINE_MAX);
     b = buf + sizeof(size_t);
     *(pid_t *)b = pid;
     b += sizeof(pid);
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
     }
     if ( b >= b1 ) {
 	fprintf(stderr, "%s (%d): command line too big (%lu characters max)\n",
-		cmd, pid, (unsigned long)(LEN - sizeof(int) - 1));
+		cmd, pid, (unsigned long)(LINE_MAX - sizeof(int) - 1));
 	goto error;
     }
     l = b - buf;
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
 	if ( FD_ISSET(i_out, &read_set) ) {
 	    /* Daemon has sent standard output */
 
-	    if ((ll = read(i_out, buf, LEN)) == -1) {
+	    if ((ll = read(i_out, buf, LINE_MAX)) == -1) {
 		fprintf(stderr, "%s (%d): could not get standard output from "
 			"daemon\n%s\n", cmd, pid, strerror(errno));
 		goto error;
@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
 	} else if ( FD_ISSET(i_err, &read_set) ) {
 	    /* Daemon has sent error output */
 
-	    if ((ll = read(i_err, buf, LEN)) == -1) {
+	    if ((ll = read(i_err, buf, LINE_MAX)) == -1) {
 		fprintf(stderr, "%s (%d): could not get error output from "
 			"daemon\n%s\n", cmd, pid, strerror(errno));
 		goto error;
