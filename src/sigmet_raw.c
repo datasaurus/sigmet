@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.31 $ $Date: 2010/07/27 17:18:51 $
+   .	$Revision: 1.32 $ $Date: 2010/07/27 21:54:12 $
  */
 
 #include <limits.h>
@@ -30,12 +30,9 @@
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
 #define SA_PLEN (sizeof(sa.sun_path))
 
-/* Length of various strings */
-#define LEN 1024
-
 /* Names of fifos that communicate with daemon. (Global for signal handlers) */
-static char out_nm[LEN];	/* Receive standard output from daemon */
-static char err_nm[LEN];	/* Receive error output from daemon */
+static char out_nm[LINE_MAX];	/* Receive standard output from daemon */
+static char err_nm[LINE_MAX];	/* Receive error output from daemon */
 
 /* Local functions */
 static int handle_signals(void);
@@ -45,15 +42,15 @@ int main(int argc, char *argv[])
 {
     char *cmd = argv[0];
     char *ddir;			/* Name of daemon working directory */
+    char cwd[LINE_MAX];		/* Current working directory */
+    size_t cwd_l;		/* strlen(cwd) */
     struct sockaddr_un sa;	/* Address of socket that connects with daemon */
     int i_dmn = -1;		/* File descriptor associated with sa */
+    FILE *dmn;			/* File associated with sa */
     pid_t pid = getpid();
     char buf[LINE_MAX];		/* Line sent to or received from daemon */
-    char *b;			/* Point into buf */
-    char *b1 = buf + LINE_MAX;	/* End of buf */
-    size_t l;			/* Length of command buffer as used */
-    char **aa, *a;		/* Loop parameters */
-    ssize_t w;			/* Return from write */
+    char **a;			/* Pointer into argv */
+    size_t cmd_ln_l;		/* Command line length */
     int i_out = -1;		/* File descriptor for standard output from daemon*/
     int i_err = -1;		/* File descriptors error output from daemon */
     mode_t m;			/* Permissions for output fifos */
@@ -69,6 +66,11 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s command\n", cmd);
 	goto error;
     }
+    if ( argc > SIGMET_RAWD_ARGCX ) {
+	fprintf(stderr, "%s: cannot parse %d arguments. Maximum argument "
+		"count is %d\n", cmd, argc, SIGMET_RAWD_ARGCX);
+	goto error;
+    }
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
@@ -76,21 +78,21 @@ int main(int argc, char *argv[])
 	goto error;
     }
 
-    /* Go to daemon working directory and set up files */
+    if ( !getcwd(cwd, LINE_MAX - 1) ) {
+	fprintf(stderr, "%s (%d): could not store current working directory\n%s.\n",
+		cmd, pid, strerror(errno));
+	goto error;
+    }
+    cwd_l = strlen(cwd);
+
+    /* Set up files in daemon working directory */
     if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
 	fprintf(stderr, "%s (%d): SIGMET_RAWD_DIR not set. "
 		"Is the daemon running?\n", cmd, pid);
 	goto error;
     }
-    if ( chdir(ddir) == -1 ) {
-	fprintf(stderr, "%s (%d): could not go to daemon working directory.\n%s\n",
-		cmd, pid, strerror(errno));
-	goto error;
-    }
-
-    /* Make fifos for results and errors from daemon */
     m = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-    if ( snprintf(out_nm, LEN, "%d.1", pid) > LEN ) {
+    if ( snprintf(out_nm, LINE_MAX, "%s/%d.1", ddir, pid) > LINE_MAX ) {
 	fprintf(stderr, "%s (%d): could not create name for result pipe.\n",
 		cmd, pid);
 	goto error;
@@ -100,7 +102,7 @@ int main(int argc, char *argv[])
 		cmd, pid, strerror(errno));
 	goto error;
     }
-    if ( snprintf(err_nm, LEN, "%d.2", pid) > LEN ) {
+    if ( snprintf(err_nm, LINE_MAX, "%s/%d.2", ddir, pid) > LINE_MAX ) {
 	fprintf(stderr, "%s (%d): could not create name for error pipe.\n",
 		cmd, pid);
 	goto error;
@@ -114,7 +116,7 @@ int main(int argc, char *argv[])
     /* Connect to daemon via the daemon socket in SIGMET_RAWD_DIR */
     memset(&sa, '\0', SA_UN_SZ);
     sa.sun_family = AF_UNIX;
-    if ( snprintf(sa.sun_path, SA_PLEN, "%s", SIGMET_RAWD_IN) > SA_PLEN ) {
+    if ( snprintf(sa.sun_path, SA_PLEN, "%s/%s", ddir, SIGMET_RAWD_IN) > SA_PLEN ) {
 	fprintf(stderr, "%s (%d): could not fit %s into socket address path.\n",
 		cmd, pid, SIGMET_RAWD_IN);
 	goto error;
@@ -124,43 +126,55 @@ int main(int argc, char *argv[])
 		cmd, pid, strerror(errno));
 	goto error;
     }
-    if ( connect(i_dmn, (struct sockaddr *)&sa, SA_UN_SZ) == -1) {
+    if ( connect(i_dmn, (struct sockaddr *)&sa, SA_UN_SZ) == -1
+	    || !(dmn = fdopen(i_dmn, "w")) ) {
 	fprintf(stderr, "%s (%d): could not connect to daemon\n%s\n",
 		cmd, pid, strerror(errno));
 	goto error;
     }
 
-    /* Fill buf and send to daemon. */
-    memset(buf, 0, LINE_MAX);
-    b = buf + sizeof(size_t);
-    *(pid_t *)b = pid;
-    b += sizeof(pid);
-    *(int *)b = argc;
-    b += sizeof(argc);
-    for (aa = argv, a = *aa; b < b1 && *aa; b++, a++) {
-	*b = *a;
-	if (*a == '\0' && *++aa) {
-	    a = *aa;
-	    *++b = *a;
-	}
+    /* Determine length of command line */
+    for (cmd_ln_l = 0, a = argv; *a; a++) {
+	cmd_ln_l += strlen(*a) + 1;	/* Add argument length + 1 (for nul) */
     }
-    if ( b >= b1 ) {
-	fprintf(stderr, "%s (%d): command line too big (%lu characters max)\n",
-		cmd, pid, (unsigned long)(LINE_MAX - sizeof(int) - 1));
+
+    /* Send command to server */
+    if ( fwrite(&pid, sizeof(pid_t), 1, dmn) != 1 ) {
+	fprintf(stderr, "%s (%d): could not send process id to daemon\n%s\n",
+		cmd, pid, strerror(errno));
 	goto error;
     }
-    l = b - buf;
-    *(size_t *)buf = l - sizeof(size_t);
-    if ( (w = write(i_dmn, buf, l)) != l ) {
-	if ( w == -1 ) {
+    if ( fwrite(&cwd_l, sizeof(size_t), 1, dmn) != 1 ) {
+	fprintf(stderr, "%s (%d): could not send working directory length to "
+		"daemon\n%s\n", cmd, pid, strerror(errno));
+	goto error;
+    }
+    if ( fwrite(cwd, 1, cwd_l, dmn) != cwd_l ) {
+	fprintf(stderr, "%s (%d): could not send working directory name to "
+		"daemon\n%s\n", cmd, pid, strerror(errno));
+	goto error;
+    }
+    if ( fwrite(&argc, sizeof(int), 1, dmn) != 1 ) {
+	fprintf(stderr, "%s (%d): could not send argument count to daemon\n%s\n",
+		cmd, pid, strerror(errno));
+	goto error;
+    }
+    if ( fwrite(&cmd_ln_l, sizeof(size_t), 1, dmn) != 1 ) {
+	fprintf(stderr, "%s (%d): could not send command line length to "
+		"daemon\n%s\n", cmd, pid, strerror(errno));
+	goto error;
+    }
+    for (a = argv; *a; a++) {
+	size_t a_l;
+
+	a_l = strlen(*a);
+	if ( fwrite(*a, 1, a_l, dmn) != a_l || fputc('\0', dmn) == EOF ) {
 	    fprintf(stderr, "%s (%d): could not send command to daemon\n%s\n",
 		    cmd, pid, strerror(errno));
-	} else {
-	    fprintf(stderr, "%s (%d): incomplete write to daemon.\n", cmd, pid);
+	    goto error;
 	}
-	close(i_dmn);
-	goto error;
     }
+    fflush(dmn);
 
     /*
        Get standard output and errors from fifos. Get exit status

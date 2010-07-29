@@ -7,7 +7,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.4 $ $Date: 2010/02/15 21:38:20 $
+   .	$Revision: 1.5 $ $Date: 2010/07/02 22:15:47 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -16,8 +16,7 @@
 /* Daemon socket */
 #define SIGMET_RAWD_IN "sigmet.in"
 
-/* Maximum number of arguments, maximum length for one argument */
+/* Maximum number of arguments */
 #define SIGMET_RAWD_ARGCX	512
-#define SIGMET_RAWD_ARGVX	32767
 
 #endif

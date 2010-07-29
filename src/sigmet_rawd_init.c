@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.230 $ $Date: 2010/07/27 21:53:07 $
+ .	$Revision: 1.231 $ $Date: 2010/07/27 21:54:13 $
  */
 
 #include <limits.h>
@@ -162,14 +162,17 @@ int main(int argc, char *argv[])
     struct sockaddr *sa_p;	/* &sa or &d_err_sa, for call to bind */
     int i_dmn;			/* File descriptors for d_io and d_err */
     struct sig_vol *sv_p;	/* Member of vols */
-    pid_t client_pid = -1;	/* Client */
     char *ang_u;		/* Angle unit */
-    char buf[LINE_MAX];		/* Input line - has commands for the daemon */
-    char *buf_e = buf + LINE_MAX;
-    char *b;			/* Point into buf */
     int y;			/* Loop index */
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" }; /* Map projection */
     int i;
+    pid_t client_pid = -1;	/* Client process id */
+    char *cl_wd = NULL;		/* Client working directory */
+    size_t cl_wd_l;		/* strlen(cl_wd) */
+    size_t cl_wd_lx = 0;	/* Allocation at cl_wd */
+    char *cmd_ln = NULL;	/* Command line from client */
+    size_t cmd_ln_l;		/* strlen(cl_wd) */
+    size_t cmd_ln_lx = 0;	/* Given size of command line */
 
     cmd = argv[0];
 
@@ -304,9 +307,9 @@ int main(int argc, char *argv[])
 
     /* Wait for clients */
     while ( !stop && (cl_io_fd = accept(i_dmn, NULL, 0)) != -1 ) {
-	size_t l;		/* Number of bytes to read from command buffer */
 	int argc1;		/* Number of arguments in received command line */
-	char *argv1[SIGMET_RAWD_ARGCX]; /* Arguments from client command line */
+	char *argv1[SIGMET_RAWD_ARGCX];
+				/* Arguments from client command line */
 	int a;			/* Index into argv1 */
 	char *cmd0;		/* Name of client */
 	char *cmd1;		/* Subcommand */
@@ -314,81 +317,122 @@ int main(int argc, char *argv[])
 	char err_nm[LEN];	/* Fifo to send error output to client */
 	int status;		/* Result of callback, exit status for client */
 	int i;			/* Loop index */
+	char *c, *e;		/* Loop parameters */
+	void *t;		/* Hold return from realloc */
 
-	/*
-	   Client input is:
-	   l		- number of bytes in client input
-	   client pid	- native integer
-	   argc		- native integer
-	   arguments	- strings
-	 */
-
-	if ( read(cl_io_fd, &l, sizeof(size_t)) != sizeof(size_t) ) {
-	    fprintf(stderr, "%s: failed to read command length.\n", time_stamp());
+	/* Read client process id */
+	if ( read(cl_io_fd, &client_pid, sizeof(pid_t)) == -1 ) {
+	    fprintf(stderr, "%s: failed to read client process id.\n%s\n",
+		    time_stamp(), strerror(errno));
 	    close(cl_io_fd);
 	    continue;
 	}
-	if ( l > LINE_MAX ) {
-	    fprintf(stderr, "%s: command with %lu bytes too large for buffer.\n",
-		    time_stamp(), (unsigned long)l);
+
+	/* Read client working directory */
+	if ( read(cl_io_fd, &cl_wd_l, sizeof(size_t)) == -1 ) {
+	    fprintf(stderr, "%s: failed to read client working directory for "
+		    "process %d.\n%s\n",
+		    time_stamp(), client_pid, strerror(errno));
+	    close(cl_io_fd);
 	    continue;
 	}
-	if ( read(cl_io_fd, buf, l) != l ) {
-	    fprintf(stderr, "%s: failed to read command of %lu bytes. ",
-		    time_stamp(), (unsigned long)l);
+	if ( cl_wd_l + 1 > cl_wd_lx ) {
+	    if ( !(t = REALLOC(cl_wd, cl_wd_l + 1)) ) {
+		fprintf(stderr, "%s: allocation failed for working directory of "
+			"%ld bytes for process %d.\n",
+			time_stamp(), cl_wd_l, client_pid);
+		close(cl_io_fd);
+		continue;
+	    }
+	    cl_wd = t;
+	    cl_wd_lx = cl_wd_l;
+	}
+	memset(cl_wd, 0, cl_wd_lx);
+	if ( read(cl_io_fd, cl_wd, cl_wd_l) == -1 ) {
+	    fprintf(stderr, "%s: failed to read client working directory for "
+		    "process %d.\n%s\n",
+		    time_stamp(), client_pid, strerror(errno));
+	    close(cl_io_fd);
+	    continue;
+	}
+
+	/* Read argument count */
+	if ( read(cl_io_fd, &argc1, sizeof(int)) == -1 ) {
+	    fprintf(stderr, "%s: failed to read length of command line "
+		    "for process %d.\n%s\n",
+		    time_stamp(), client_pid, strerror(errno));
+	    close(cl_io_fd);
+	    continue;
+	}
+	if ( argc1 > SIGMET_RAWD_ARGCX ) {
+	    fprintf(stderr, "%s: cannot parse %d command line arguments for "
+		    "process %d. Maximum is %d.\n",
+		    time_stamp(), argc1, client_pid, SIGMET_RAWD_ARGCX);
+	    close(cl_io_fd);
+	    continue;
+	}
+
+	/* Read command line */
+	if ( read(cl_io_fd, &cmd_ln_l, sizeof(size_t)) == -1 ) {
+	    fprintf(stderr, "%s: failed to read length of command line "
+		    "for process %d.\n", time_stamp(), client_pid);
+	    close(cl_io_fd);
+	    continue;
+	}
+	if ( cmd_ln_l > cmd_ln_lx ) {
+	    if ( !(t = REALLOC(cmd_ln, cmd_ln_l)) ) {
+		fprintf(stderr, "%s: allocation failed for command line of "
+			"%ld bytes for process %d.\n",
+			time_stamp(), cmd_ln_l, client_pid);
+		close(cl_io_fd);
+		continue;
+	    }
+	    cmd_ln = t;
+	    cmd_ln_lx = cmd_ln_l;
+	}
+	memset(cmd_ln, 0, cmd_ln_lx);
+	if ( read(cl_io_fd, cmd_ln, cmd_ln_l) == -1 ) {
+	    fprintf(stderr, "%s: failed to read command line for "
+		    "process %d.%s\n", time_stamp(), client_pid, strerror(errno));
 	    close(cl_io_fd);
 	    continue;
 	}
 
 	/* Break command line into arguments */
-	b = buf;
-	client_pid = *(pid_t *)b;
-	b += sizeof(client_pid);
-	argc1 = *(int *)b;
-	b += sizeof(argc1);
-	if ( argc1 < 2 ) {
-	    fprintf(stderr, "%s: client command must have at least two arguments.",
-		    time_stamp());
-	    close(cl_io_fd);
-	    continue;
-	}
-	if ( argc1 > SIGMET_RAWD_ARGCX ) {
-	    fprintf(stderr, "%s: unable to parse command with %d arguments. "
-		    "Limit is %d\n", time_stamp(), argc1, SIGMET_RAWD_ARGCX );
-	    close(cl_io_fd);
-	    continue;
-	}
-	for (a = 0, argv1[a] = b; b < buf_e && a < argc1; b++) {
-	    if ( *b == '\0' ) {
-		argv1[++a] = b + 1;
+	for (a = 0, argv1[a] = c = cmd_ln, e = c + cmd_ln_l;
+		c < e && a < argc1;
+		c++) {
+	    if ( *c == '\0' ) {
+		argv1[++a] = c + 1;
 	    }
 	}
-	if ( b == buf_e ) {
-	    fprintf(stderr, "%s: command line gives no destination.\n",
-		    time_stamp());
+	if ( a > argc1 ) {
+	    fprintf(stderr, "%s: command line garbled for process %d.\n",
+		    time_stamp(), client_pid);
 	    continue;
 	}
 
 	/* Open fifos to client */
 	if ( snprintf(out_nm, LEN, "%d.1", client_pid) > LEN ) {
-	    fprintf(stderr, "%s: could not create name for result pipe.\n", cmd);
+	    fprintf(stderr, "%s: could not create name for result pipe for "
+		    "process %d.\n", time_stamp(), client_pid);
 	    continue;
 	}
 	if ( (i_out = open(out_nm, O_WRONLY)) == -1
 		|| !(out = fdopen(i_out, "w"))) {
 	    fprintf(stderr, "%s: could not open pipe for standard output for "
-		    "process %d\n%s\n", cmd, client_pid, strerror(errno));
+		    "process %d\n%s\n", time_stamp(), client_pid, strerror(errno));
 	    continue;
 	}
 	if ( snprintf(err_nm, LEN, "%d.2", client_pid) > LEN ) {
 	    fprintf(stderr, "%s: could not create name for error pipe for "
-		    "process %d.\n", cmd, client_pid);
+		    "process %d.\n", time_stamp(), client_pid);
 	    continue;
 	}
 	if ( (i_err = open(err_nm, O_WRONLY)) == -1
 		|| !(err = fdopen(i_err, "w"))) {
 	    fprintf(stderr, "%s: could not open pipe for error messages for "
-		    "process %d\n%s\n", cmd, client_pid, strerror(errno));
+		    "process %d\n%s\n", time_stamp(), client_pid, strerror(errno));
 	    if ( fclose(out) == EOF ) {
 		fprintf(stderr, "%s: could not close client error streams "
 			"for process %d\n%s\n",
