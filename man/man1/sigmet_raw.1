@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.21 $ $Date: 2010/07/14 16:18:25 $
+.\" $Revision: 1.22 $ $Date: 2010/07/27 21:31:43 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -46,8 +46,8 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 Sigmet raw product volumes.  \fBsigmet_raw\fP is a client that interacts with it.
 .PP
 \fBsigmet_rawd\fP and \fBsigmet_raw\fP require environment variable
-\fBSIGMET_RAWD_DIR\fP, that identifies the directory where the daemon and clients
-keep files.  This directory must exist before the \fBsigmet_rawd\fP can start.
+\fBSIGMET_RAWD_DIR\fP, that identifies the directory where the daemon keeps files.
+This directory must exist before the \fBsigmet_rawd\fP can start.
 Users with read-write-execute permission to this directory will be able to
 access and manipulate the daemon. Therefore, directory permissions should be set
 according to who should have access to the daemon.
@@ -63,8 +63,8 @@ overrides this behavior. Log messages go to \fB$SIGMET_RAWD_DIR/sigmet.log\fP.
 Error messages go to \fB$SIGMET_RAWD_DIR/sigmet.err\fP.
 .PP
 Once \fBsigmet_rawd\fP is running, the commands listed below are recognized.
-Note that file names should be given as absolute paths, since the daemon
-is probably not using the same current working directory as the client.
+File names not given as absolute paths are taken relative to the current working
+directory of the client.
 .TP
 \fBsigmet_raw\fP \fBpid\fP
 Prints the daemons proccess id.
@@ -309,11 +309,10 @@ Prints the name of the file which the \fBimg\fP subcommand will create for data
 type \fItype\fP, sweep \fIs\fP in the volume obtained from \fIvolume_file\fP,
 which should have been loaded with a call to \fBsigmet_raw\fP\ \fBread\fP.
 .TP
-\fBsigmet_raw\fP \fBimg\fP
+\fBsigmet_raw\fP \fBimg\fP \fItype\fP \fIs\fP \fIvolume_file\fP
 Makes an image for data type \fItype\fP, sweep \fIs\fP in the volume obtained
 from \fIvolume_file\fP, which should have been loaded with a call to
-\fBsigmet_raw\fP\ \fBread\fP. The daemon will write the image file in the
-\fB$SIGMET_RAWD_DIR\fP working directory.  This command fails if the image file
+\fBsigmet_raw\fP\ \fBread\fP. This command fails if the image file
 already exists.
 .TP
 \fBsigmet_raw\fP \fBstop\fP

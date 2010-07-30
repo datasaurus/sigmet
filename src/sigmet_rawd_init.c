@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.231 $ $Date: 2010/07/27 21:54:13 $
+ .	$Revision: 1.232 $ $Date: 2010/07/29 20:22:49 $
  */
 
 #include <limits.h>
@@ -44,6 +44,7 @@ static int stop = 0;
 /* Process streams and files */
 static int cl_io_fd;			/* File descriptor to read client command
 					   and send results */
+static char *cl_wd;			/* Client working directory */
 static pid_t vol_pid = -1;		/* Process providing a raw volume */
 static int i_out = -1;			/* Send standard output to client */
 static int i_err = -1;			/* Sent error output to client  */
@@ -54,7 +55,7 @@ static FILE *out, *err;			/* Standard streams for i_out and i_err */
 #define SIGMET_RAWD_ERR "sigmet.err"
 
 /* Size for various strings */
-#define LEN 1024
+#define LEN 4096
 
 /* If true, use degrees instead of radians */
 static int use_deg = 0;
@@ -137,6 +138,7 @@ static char img_app[LEN];		/* External application to draw sweeps */
 
 /* Convenience functions */
 static char *time_stamp(void);
+static int abs_name(char *, char *, size_t);
 static FILE *vol_open(const char *);
 static int flush(int);
 static void unload(int);
@@ -167,7 +169,6 @@ int main(int argc, char *argv[])
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" }; /* Map projection */
     int i;
     pid_t client_pid = -1;	/* Client process id */
-    char *cl_wd = NULL;		/* Client working directory */
     size_t cl_wd_l;		/* strlen(cl_wd) */
     size_t cl_wd_lx = 0;	/* Allocation at cl_wd */
     char *cmd_ln = NULL;	/* Command line from client */
@@ -504,6 +505,30 @@ static char *time_stamp(void)
     }
 }
 
+/*
+   Make nm absolute. If it is relative, append it to client working directory.
+   Store resulting name in nm_a, which should have space for l characters.
+   Return 1 on success. If failure, print an error message to err and return 0.
+ */
+static int abs_name(char *nm, char *nm_a, size_t l)
+{
+    int status;
+
+    if ( *nm != '/' ) {
+	status = snprintf(nm_a, l, "%s/%s", cl_wd, nm);
+    } else {
+	status = snprintf(nm_a, l, "%s", nm);
+    }
+    if ( status > l ) {
+	fprintf(err, "File name too long\n");
+	return 0;
+    } else if ( status == -1 ) {
+	fprintf(err, "%s\n", strerror(errno));
+	return 0;
+    }
+    return 1;
+}
+
 static int pid_cb(int argc, char *argv[])
 {
     if (argc != 2) {
@@ -654,7 +679,7 @@ error:
 
 static int good_cb(int argc, char *argv[])
 {
-    char *vol_nm;
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     FILE *in;
     int rslt;
 
@@ -662,7 +687,10 @@ static int good_cb(int argc, char *argv[])
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    vol_nm = argv[2];
+    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Could not assess %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     if ( !(in = vol_open(vol_nm)) ) {
 	fprintf(err, "%s %s could not open %s\n", argv[0], argv[1], vol_nm);
 	return 0;
@@ -682,13 +710,16 @@ static int hread_cb(int argc, char *argv[])
     int trying;			/* If true, still attempting to read volume */
     int i;			/* Index into vols */
     struct stat sbuf;   	/* Information about file to read */
-    char *vol_nm;		/* Sigmet raw file */
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     FILE *in;			/* Stream from Sigmet raw file */
 
-    if ( argc == 3 ) {
-	vol_nm = argv[2];
-    } else {
+    if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
+	return 0;
+    }
+
+    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name: %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
 
@@ -769,13 +800,16 @@ static int read_cb(int argc, char *argv[])
     int trying;			/* If true, still attempting to read volume */
     struct stat sbuf;   	/* Information about file to read */
     int i;			/* Index into vols */
-    char *vol_nm;		/* Sigmet raw file */
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     FILE *in;			/* Stream from Sigmet raw file */
 
-    if ( argc == 3 ) {
-	vol_nm = argv[2];
-    } else {
+    if ( argc != 3 ) {
 	fprintf(err, "%s %s sigmet_volume\n", argv[0], argv[1]);
+	return 0;
+    }
+
+    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
 
@@ -955,14 +989,17 @@ static int new_vol_i(char *vol_nm, struct stat *sbuf_p)
 
 static int release_cb(int argc, char *argv[])
 {
-    char *vol_nm;
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    vol_nm = argv[2];
+    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     i = get_vol_i(vol_nm);
     if ( i >= 0 && vols[i].users > 0 ) {
 	vols[i].users--;
@@ -976,14 +1013,17 @@ static int release_cb(int argc, char *argv[])
  */
 static int unload_cb(int argc, char *argv[])
 {
-    char *vol_nm;
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    vol_nm = argv[2];
+    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     i = get_vol_i(vol_nm);
     if ( i >= 0 ) {
 	if ( vols[i].users <= 0 ) {
@@ -1054,14 +1094,17 @@ static int flush_cb(int argc, char *argv[])
 
 static int volume_headers_cb(int argc, char *argv[])
 {
-    char *vol_nm;
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    vol_nm = argv[2];
+    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
@@ -1074,7 +1117,7 @@ static int volume_headers_cb(int argc, char *argv[])
 
 static int vol_hdr_cb(int argc, char *argv[])
 {
-    char *vol_nm;
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
     struct Sigmet_Vol vol;
     int y;
@@ -1086,7 +1129,10 @@ static int vol_hdr_cb(int argc, char *argv[])
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    vol_nm = argv[2];
+    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
@@ -1140,9 +1186,9 @@ static int vol_hdr_cb(int argc, char *argv[])
 
 static int near_sweep_cb(int argc, char *argv[])
 {
-    char *ang_s;	/* Sweep angle, degrees, as given on command line */
+    char *ang_s;		/* Sweep angle, degrees, from command line */
     double ang, da;
-    char *vol_nm;
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
     struct Sigmet_Vol vol;
     int s, nrst;
@@ -1152,7 +1198,10 @@ static int near_sweep_cb(int argc, char *argv[])
 	return 0;
     }
     ang_s = argv[2];
-    vol_nm = argv[3];
+    if ( !abs_name(argv[3], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     if ( sscanf(ang_s, "%lf", &ang) != 1 ) {
 	fprintf(err, "%s %s: expected floating point for sweep angle, got %s\n",
 		argv[0], argv[1], ang_s);
@@ -1184,7 +1233,7 @@ static int near_sweep_cb(int argc, char *argv[])
 
 static int ray_headers_cb(int argc, char *argv[])
 {
-    char *vol_nm;
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
     struct Sigmet_Vol vol;
     int s, r;
@@ -1193,7 +1242,10 @@ static int ray_headers_cb(int argc, char *argv[])
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    vol_nm = argv[2];
+    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
@@ -1230,7 +1282,7 @@ static int ray_headers_cb(int argc, char *argv[])
 
 static int data_cb(int argc, char *argv[])
 {
-    char *vol_nm;
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
     struct Sigmet_Vol vol;
     int s, y, r, b;
@@ -1277,7 +1329,10 @@ static int data_cb(int argc, char *argv[])
 		argv[0], argv[1]);
 	return 0;
     }
-    vol_nm = argv[argc - 1];
+    if ( !abs_name(argv[argc - 1], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
@@ -1409,7 +1464,7 @@ static int data_cb(int argc, char *argv[])
 
 static int bin_outline_cb(int argc, char *argv[])
 {
-    char *vol_nm;
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
     struct Sigmet_Vol vol;
     char *s_s, *r_s, *b_s;
@@ -1425,7 +1480,10 @@ static int bin_outline_cb(int argc, char *argv[])
     s_s = argv[2];
     r_s = argv[3];
     b_s = argv[4];
-    vol_nm = argv[5];
+    if ( !abs_name(argv[5], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     i = get_vol_i(vol_nm);
     if ( i == -1 ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
@@ -1479,7 +1537,7 @@ static int bin_outline_cb(int argc, char *argv[])
 
 static int bintvls_cb(int argc, char *argv[])
 {
-    char *vol_nm;		/* Sigmet raw file */
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     struct Sigmet_Vol vol;	/* Volume from global vols array */
     char *s_s;			/* Sweep index, as a string */
     char *abbrv;		/* Data type abbreviation */
@@ -1499,7 +1557,10 @@ static int bintvls_cb(int argc, char *argv[])
     }
     abbrv = argv[2];
     s_s = argv[3];
-    vol_nm = argv[4];
+    if ( !abs_name(argv[4], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
 	fprintf(err, "%s %s: no data type named %s\n", argv[0], argv[1], abbrv);
 	return 0;
@@ -1564,7 +1625,7 @@ static int bintvls_cb(int argc, char *argv[])
 /* Change radar longitude to given value, which must be given in degrees */
 static int radar_lon_cb(int argc, char *argv[])
 {
-    char *vol_nm;		/* Sigmet raw file */
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;			/* Volume index. */
     char *lon_s;		/* New longitude, degrees, in argv */
     double lon;			/* New longitude, degrees */
@@ -1575,7 +1636,10 @@ static int radar_lon_cb(int argc, char *argv[])
 	return 0;
     }
     lon_s = argv[2];
-    vol_nm = argv[3];
+    if ( !abs_name(argv[3], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     if ( sscanf(lon_s, "%lf", &lon) != 1 ) {
 	fprintf(err, "%s %s: expected floating point value for new longitude, "
 		"got %s\n", argv[0], argv[1], lon_s);
@@ -1596,7 +1660,7 @@ static int radar_lon_cb(int argc, char *argv[])
 /* Change radar latitude to given value, which must be given in degrees */
 static int radar_lat_cb(int argc, char *argv[])
 {
-    char *vol_nm;		/* Sigmet raw file */
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;			/* Volume index. */
     char *lat_s;		/* New latitude, degrees, in argv */
     double lat;			/* New latitude, degrees */
@@ -1607,7 +1671,10 @@ static int radar_lat_cb(int argc, char *argv[])
 	return 0;
     }
     lat_s = argv[2];
-    vol_nm = argv[3];
+    if ( !abs_name(argv[3], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     if ( sscanf(lat_s, "%lf", &lat) != 1 ) {
 	fprintf(err, "%s %s: expected floating point value for new latitude, "
 		"got %s\n", argv[0], argv[1], lat_s);
@@ -1628,7 +1695,7 @@ static int radar_lat_cb(int argc, char *argv[])
 /* Change ray azimuths to given value, which must be given in degrees */
 static int shift_az_cb(int argc, char *argv[])
 {
-    char *vol_nm;		/* Sigmet raw file */
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;			/* Volume index. */
     char *daz_s;		/* Amount to add to each azimuth, deg, in argv */
     double daz;			/* Amount to add to each azimuth, radians */
@@ -1641,7 +1708,10 @@ static int shift_az_cb(int argc, char *argv[])
 	return 0;
     }
     daz_s = argv[2];
-    vol_nm = argv[3];
+    if ( !abs_name(argv[3], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     if ( sscanf(daz_s, "%lf", &daz) != 1 ) {
 	fprintf(err, "%s %s: expected float value for azimuth shift, got %s\n",
 		argv[0], argv[1], daz_s);
@@ -1752,7 +1822,7 @@ static int img_app_cb(int argc, char *argv[])
 		argv[0], argv[1], img_app_s);
 	return 0;
     }
-    if (snprintf(img_app, LEN, "%s", img_app_s) > LEN) {
+    if ( snprintf(img_app, LEN, "%s", img_app_s) > LEN ) {
 	fprintf(err, "%s %s: name of image application too long.\n",
 		argv[0], argv[1]);
 	return 0;
@@ -1781,8 +1851,8 @@ static int alpha_cb(int argc, char *argv[])
 /*
    Print name of the image that img_cb would create for volume vol,
    type abbrv, sweep s to buf, which must have space for LEN characters,
-   including nul.  If something goes wrong, fill buf with nul's and return
-   0.
+   including nul.  Returned name has no suffix (e.g. "png" or "kml").
+   If something goes wrong, fill buf with nul's and return 0.
  */
 static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf)
 {
@@ -1808,7 +1878,7 @@ static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf)
 /* Print the name of the image that img would create */
 static int img_name_cb(int argc, char *argv[])
 {
-    char *vol_nm;		/* Sigmet raw file */
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     struct Sigmet_Vol vol;	/* Volume from global vols array */
     char *s_s;			/* Sweep index, as a string */
     char *abbrv;		/* Data type abbreviation */
@@ -1824,7 +1894,10 @@ static int img_name_cb(int argc, char *argv[])
     }
     abbrv = argv[2];
     s_s = argv[3];
-    vol_nm = argv[4];
+    if ( !abs_name(argv[4], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
 	fprintf(err, "%s %s: no data type named %s\n", argv[0], argv[1], abbrv);
 	return 0;
@@ -1876,7 +1949,7 @@ static int img_name_cb(int argc, char *argv[])
 
 static int img_cb(int argc, char *argv[])
 {
-    char *vol_nm;		/* Sigmet raw file */
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     struct Sigmet_Vol vol;	/* Volume from global vols array */
     char *s_s;			/* Sweep index, as a string */
     char *abbrv;		/* Data type abbreviation */
@@ -1955,7 +2028,10 @@ static int img_cb(int argc, char *argv[])
     }
     abbrv = argv[2];
     s_s = argv[3];
-    vol_nm = argv[4];
+    if ( !abs_name(argv[4], vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
+	return 0;
+    }
     if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
 	fprintf(err, "%s %s: no data type named %s\n", argv[0], argv[1], abbrv);
 	return 0;
@@ -2075,7 +2151,7 @@ static int img_cb(int argc, char *argv[])
 
     /* Create image file. Fail if it exists */
     if ( !img_name(&vol, abbrv, s, base_nm) 
-	    || snprintf(img_fl_nm, LEN, "%s.png", base_nm) > LEN ) {
+	    || snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) > LEN ) {
 	fprintf(err, "%s %s: could not make image file name\n", argv[0], argv[1]);
 	return 0;
     }
@@ -2250,7 +2326,7 @@ static int img_cb(int argc, char *argv[])
     }
 
     /* Make kml file and return */
-    if ( snprintf(kml_fl_nm, LEN, "%s.kml", base_nm) > LEN ) {
+    if ( snprintf(kml_fl_nm, LEN, "%s/%s.kml", cl_wd, base_nm) > LEN ) {
 	fprintf(err, "%s %s: could not make kml file name for %s\n",
 		argv[0], argv[1], img_fl_nm);
 	goto error;
