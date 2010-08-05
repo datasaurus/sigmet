@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.32 $ $Date: 2010/07/27 21:54:12 $
+   .	$Revision: 1.33 $ $Date: 2010/07/29 20:22:49 $
  */
 
 #include <limits.h>
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
 		    cmd, pid, strerror(errno));
 	    goto error;
 	}
-	if ( FD_ISSET(i_out, &read_set) ) {
+	if ( i_out != -1 && FD_ISSET(i_out, &read_set) ) {
 	    /* Daemon has sent standard output */
 
 	    if ((ll = read(i_out, buf, LINE_MAX)) == -1) {
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
 		    goto error;
 		}
 	    }
-	} else if ( FD_ISSET(i_err, &read_set) ) {
+	} else if ( i_err != -1 && FD_ISSET(i_err, &read_set) ) {
 	    /* Daemon has sent error output */
 
 	    if ((ll = read(i_err, buf, LINE_MAX)) == -1) {
@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
 		    goto error;
 		}
 	    }
-	} else if ( FD_ISSET(i_dmn, &read_set) ) {
+	} else if ( i_dmn != -1 && FD_ISSET(i_dmn, &read_set) ) {
 	    /* Daemon has sent exit status. Clean up and exit */
 
 	    if ( (ll = read(i_dmn, &status, sizeof(int))) == -1 || ll == 0 ) {
