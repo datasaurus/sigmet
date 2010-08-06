@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.232 $ $Date: 2010/07/29 20:22:49 $
+ .	$Revision: 1.233 $ $Date: 2010/07/30 18:47:36 $
  */
 
 #include <limits.h>
@@ -457,6 +457,9 @@ int main(int argc, char *argv[])
 	} else {
 	    /* Found command. Run it. */
 	    status = (cb1v[i])(argc1, argv1) ? EXIT_SUCCESS : EXIT_FAILURE;
+	    if ( status == EXIT_FAILURE ) {
+		fprintf(err, "%s\n", Err_Get());
+	    }
 	}
 
 	/* Send result and clean up */
