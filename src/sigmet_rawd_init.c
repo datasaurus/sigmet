@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.233 $ $Date: 2010/07/30 18:47:36 $
+ .	$Revision: 1.234 $ $Date: 2010/08/06 21:02:35 $
  */
 
 #include <limits.h>
@@ -83,6 +83,7 @@ static int new_vol_i(char *, struct stat *);
 typedef int (callback)(int , char **);
 static callback pid_cb;
 static callback types_cb;
+static callback setcolors_cb;
 static callback good_cb;
 static callback hread_cb;
 static callback read_cb;
@@ -108,17 +109,17 @@ static callback img_name_cb;
 static callback img_cb;
 static callback stop_cb;
 static char *cmd1v[NCMD] = {
-    "pid", "types", "good", "hread",
+    "pid", "types", "colors", "good", "hread",
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
-    "colors", "bintvls", "radar_lon", "radar_lat", "shift_az",
+    "bintvls", "radar_lon", "radar_lat", "shift_az",
     "proj", "img_app", "img_sz", "alpha", "img_name", "img", "stop"
 };
 static callback *cb1v[NCMD] = {
-    pid_cb, types_cb, good_cb, hread_cb,
+    pid_cb, types_cb, setcolors_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
-    DataType_SetColors_CB, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
+    bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
     proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, stop_cb
 };
 
@@ -555,6 +556,26 @@ static int types_cb(int argc, char *argv[])
 		Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
     }
     return 1;
+}
+
+int setcolors_cb(int argc, char *argv[])
+{
+    char *abbrv;		/* Data type abbreviation */
+    char *clr_fl_nm;		/* File with colors */
+    int status;
+
+    /* Parse command line */
+    if (argc != 4) {
+	fprintf(err, "Usage: %s %s type colors_file\n", argv[0], argv[1]);
+	return 0;
+    }
+    abbrv = argv[2];
+    clr_fl_nm = argv[3];
+    status = DataType_SetColors(abbrv, clr_fl_nm);
+    if ( !status ) {
+	fprintf(err, "%s\n", Err_Get());
+    }
+    return status;
 }
 
 /*
