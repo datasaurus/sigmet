@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.237 $ $Date: 2010/08/09 21:56:59 $
+ .	$Revision: 1.238 $ $Date: 2010/08/09 22:21:54 $
  */
 
 #include <limits.h>
@@ -557,7 +557,8 @@ static int abs_name(char *root, char *rel, char *abs, size_t l)
     return 1;
 }
 
-static int pid_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int pid_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     if (argc != 2) {
 	fprintf(err, "Usage: %s %s\n", argv[0], argv[1]);
@@ -567,7 +568,8 @@ static int pid_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int
     return 1;
 }
 
-static int types_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int types_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     int y;
 
@@ -582,7 +584,8 @@ static int types_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, i
     return 1;
 }
 
-static int setcolors_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int setcolors_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char *abbrv;		/* Data type abbreviation */
     char *clr_fl_nm;		/* File with colors */
@@ -715,7 +718,8 @@ error:
 	return NULL;
 }
 
-static int good_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int good_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     FILE *in;
@@ -743,7 +747,8 @@ static int good_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, in
     return rslt;
 }
 
-static int hread_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int hread_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     int loaded;			/* If true, volume is loaded */
     int trying;			/* If true, still attempting to read volume */
@@ -834,7 +839,8 @@ static int hread_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, i
     return 1;
 }
 
-static int read_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int read_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     int loaded;			/* If true, volume is loaded */
     int trying;			/* If true, still attempting to read volume */
@@ -930,7 +936,8 @@ static int read_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, in
     return 1;
 }
 
-static int list_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int list_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     int i;
 
@@ -1028,7 +1035,8 @@ static int new_vol_i(char *vol_nm, struct stat *sbuf_p, FILE *err)
     return -1;
 }
 
-static int release_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int release_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1053,7 +1061,8 @@ static int release_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
    Remove a volume and its entry. Noisily return error if volume in use. Quietly
    do nothing if volume does not exist.
  */
-static int unload_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int unload_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1112,7 +1121,8 @@ static int flush(int c)
 }
 
 /* This command removes some unused volumes, if possible. */
-static int flush_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int flush_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char *c_s;
     int c;
@@ -1135,7 +1145,8 @@ static int flush_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, i
     }
 }
 
-static int volume_headers_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int volume_headers_cb(int argc, char *argv[], char *cl_wd,
+	int i_out, FILE *out, int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1159,7 +1170,8 @@ static int volume_headers_cb(int argc, char *argv[], char *cl_wd, int i_out, FIL
     return 1;
 }
 
-static int vol_hdr_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int vol_hdr_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1229,7 +1241,8 @@ static int vol_hdr_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
     return 1;
 }
 
-static int near_sweep_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int near_sweep_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char *ang_s;		/* Sweep angle, degrees, from command line */
     double ang, da;
@@ -1277,7 +1290,8 @@ static int near_sweep_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *o
     return 1;
 }
 
-static int ray_headers_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int ray_headers_cb(int argc, char *argv[], char *cl_wd,
+	int i_out, FILE *out, int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1327,7 +1341,8 @@ static int ray_headers_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *
     return 1;
 }
 
-static int data_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int data_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1510,7 +1525,8 @@ static int data_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, in
     return 1;
 }
 
-static int bin_outline_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
+	int i_out, FILE *out, int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1584,7 +1600,8 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *
     return 1;
 }
 
-static int bintvls_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int bintvls_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     struct Sigmet_Vol vol;	/* Volume from global vols array */
@@ -1673,7 +1690,8 @@ static int bintvls_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 }
 
 /* Change radar longitude to given value, which must be given in degrees */
-static int radar_lon_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int radar_lon_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;			/* Volume index. */
@@ -1709,7 +1727,8 @@ static int radar_lon_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *ou
 }
 
 /* Change radar latitude to given value, which must be given in degrees */
-static int radar_lat_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int radar_lat_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;			/* Volume index. */
@@ -1745,7 +1764,8 @@ static int radar_lat_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *ou
 }
 
 /* Change ray azimuths to given value, which must be given in degrees */
-static int shift_az_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int shift_az_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;			/* Volume index. */
@@ -1808,7 +1828,8 @@ static int shift_az_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out
 }
 
 #ifdef PROJ4
-static int proj_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int proj_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     projPJ t_pj;
 
@@ -1831,7 +1852,8 @@ static int proj_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, in
 #endif
 
 /* Specify image width in pixels */
-static int img_sz_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int img_sz_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char *w_pxl_s;
 
@@ -1854,7 +1876,8 @@ static int img_sz_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, 
 }
 
 /* Identify image generator */
-static int img_app_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int img_app_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char *img_app_s;
     struct stat sbuf;
@@ -1884,7 +1907,8 @@ static int img_app_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 }
 
 /* Specify image alpha channel */
-static int alpha_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int alpha_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char *alpha_s;
 
@@ -1930,7 +1954,8 @@ static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf,
 }
 
 /* Print the name of the image that img would create */
-static int img_name_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int img_name_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     struct Sigmet_Vol vol;	/* Volume from global vols array */
@@ -2002,7 +2027,8 @@ static int img_name_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out
     return 1;
 }
 
-static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     struct Sigmet_Vol vol;	/* Volume from global vols array */
@@ -2419,7 +2445,8 @@ error:
     return 0;
 }
 
-static int stop_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+static int stop_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
+	int i_err, FILE *err)
 {
     struct sig_vol *sv_p;
     int y;
