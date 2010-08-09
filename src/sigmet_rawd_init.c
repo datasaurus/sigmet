@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.234 $ $Date: 2010/08/06 21:02:35 $
+ .	$Revision: 1.235 $ $Date: 2010/08/07 03:15:32 $
  */
 
 #include <limits.h>
@@ -42,10 +42,7 @@
 static int stop = 0;
 
 /* Process streams and files */
-static int cl_io_fd;			/* File descriptor to read client command
-					   and send results */
 static char *cl_wd;			/* Client working directory */
-static pid_t vol_pid = -1;		/* Process providing a raw volume */
 static int i_out = -1;			/* Send standard output to client */
 static int i_err = -1;			/* Sent error output to client  */
 static FILE *out, *err;			/* Standard streams for i_out and i_err */
@@ -75,6 +72,7 @@ static struct sig_vol vols[N_VOLS];	/* Available volumes */
 
 /* Find member of vols given a file * name */
 static int hash(char *, struct stat *);
+static pid_t vol_pid = -1;		/* Process providing a raw volume */
 static int get_vol_i(char *);
 static int new_vol_i(char *, struct stat *);
 
@@ -169,6 +167,8 @@ int main(int argc, char *argv[])
     int y;			/* Loop index */
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" }; /* Map projection */
     int i;
+    int cl_io_fd;		/* File descriptor to read client command
+				   and send results */
     pid_t client_pid = -1;	/* Client process id */
     size_t cl_wd_l;		/* strlen(cl_wd) */
     size_t cl_wd_lx = 0;	/* Allocation at cl_wd */
@@ -317,10 +317,20 @@ int main(int argc, char *argv[])
 	char *cmd1;		/* Subcommand */
 	char out_nm[LEN];	/* Fifo to send standard output to client */
 	char err_nm[LEN];	/* Fifo to send error output to client */
+	int flags;		/* Return from fcntl, when config'ing cl_io_fd */
 	int status;		/* Result of callback, exit status for client */
 	int i;			/* Loop index */
 	char *c, *e;		/* Loop parameters */
 	void *t;		/* Hold return from realloc */
+
+	/* Close command stream if daemon spawns a child */
+	if ( (flags = fcntl(cl_io_fd, F_GETFD)) == -1
+		|| fcntl(cl_io_fd, F_SETFD, flags | FD_CLOEXEC) == -1 ) {
+	    fprintf(stderr, "%s: could not set flags on connection to client.\n"
+		    "%s\n", time_stamp(), strerror(errno));
+	    close(cl_io_fd);
+	    continue;
+	}
 
 	/* Read client process id */
 	if ( read(cl_io_fd, &client_pid, sizeof(pid_t)) == -1 ) {
@@ -607,11 +617,6 @@ static FILE *vol_open(const char *vol_nm)
 		goto error;
 	    case 0:
 		/* Child process - gzip.  Send child stdout to pipe. */
-		if ( close(cl_io_fd) == -1 ) {
-		    fprintf(err, "%s: gzip child could not close"
-			    " daemon streams", time_stamp());
-		    _exit(EXIT_FAILURE);
-		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
 		    fprintf(err, "%s: gzip process failed\n%s\n",
 			    time_stamp(), strerror(errno));
@@ -648,11 +653,6 @@ static FILE *vol_open(const char *vol_nm)
 		goto error;
 	    case 0:
 		/* Child process - bzip2.  Send child stdout to pipe. */
-		if ( close(cl_io_fd) == -1 ) {
-		    fprintf(err, "%s: bzip2 child could not close"
-			    " daemon streams", time_stamp());
-		    _exit(EXIT_FAILURE);
-		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
 		    fprintf(err, "%s: could not set up bzip2 process",
 			    time_stamp());
@@ -2212,11 +2212,6 @@ static int img_cb(int argc, char *argv[])
 	       Child.  Close stdout.
 	       Read polygons from stdin (read side of data pipe).
 	     */
-	    if ( close(cl_io_fd) == -1 ) {
-		fprintf(err, "%s: %s image process could not close"
-			" daemon streams", time_stamp(), img_app);
-		_exit(EXIT_FAILURE);
-	    }
 	    if ( dup2(pfd[0], STDIN_FILENO) == -1
 		    || close(pfd[0]) == -1 || close(pfd[1]) == -1 ) {
 		fprintf(err, "%s: could not set up %s process",
