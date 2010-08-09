@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.235 $ $Date: 2010/08/07 03:15:32 $
+ .	$Revision: 1.236 $ $Date: 2010/08/09 21:42:32 $
  */
 
 #include <limits.h>
@@ -42,7 +42,6 @@
 static int stop = 0;
 
 /* Process streams and files */
-static char *cl_wd;			/* Client working directory */
 static int i_out = -1;			/* Send standard output to client */
 static int i_err = -1;			/* Sent error output to client  */
 static FILE *out, *err;			/* Standard streams for i_out and i_err */
@@ -78,7 +77,7 @@ static int new_vol_i(char *, struct stat *);
 
 /* Subcommands */
 #define NCMD 27
-typedef int (callback)(int , char **);
+typedef int (callback)(int , char **, char *);
 static callback pid_cb;
 static callback types_cb;
 static callback setcolors_cb;
@@ -137,7 +136,7 @@ static char img_app[LEN];		/* External application to draw sweeps */
 
 /* Convenience functions */
 static char *time_stamp(void);
-static int abs_name(char *, char *, size_t);
+static int abs_name(char *, char *, char *, size_t);
 static FILE *vol_open(const char *);
 static int flush(int);
 static void unload(int);
@@ -170,10 +169,11 @@ int main(int argc, char *argv[])
     int cl_io_fd;		/* File descriptor to read client command
 				   and send results */
     pid_t client_pid = -1;	/* Client process id */
+    char *cl_wd;		/* Client working directory */
     size_t cl_wd_l;		/* strlen(cl_wd) */
     size_t cl_wd_lx = 0;	/* Allocation at cl_wd */
     char *cmd_ln = NULL;	/* Command line from client */
-    size_t cmd_ln_l;		/* strlen(cl_wd) */
+    size_t cmd_ln_l;		/* strlen(cmd_ln) */
     size_t cmd_ln_lx = 0;	/* Given size of command line */
 
     cmd = argv[0];
@@ -367,6 +367,13 @@ int main(int argc, char *argv[])
 	    close(cl_io_fd);
 	    continue;
 	}
+	if ( *cl_wd != '/' ) {
+	    fprintf(stderr, "%s: client working directory must be absolute, "
+		    "not %s, for process %d.\n%s\n",
+		    time_stamp(), cl_wd, client_pid, strerror(errno));
+	    close(cl_io_fd);
+	    continue;
+	}
 
 	/* Read argument count */
 	if ( read(cl_io_fd, &argc1, sizeof(int)) == -1 ) {
@@ -467,7 +474,7 @@ int main(int argc, char *argv[])
 	    fprintf(err, "\n");
 	} else {
 	    /* Found command. Run it. */
-	    status = (cb1v[i])(argc1, argv1) ? EXIT_SUCCESS : EXIT_FAILURE;
+	    status = (cb1v[i])(argc1, argv1, cl_wd) ? EXIT_SUCCESS : EXIT_FAILURE;
 	    if ( status == EXIT_FAILURE ) {
 		fprintf(err, "%s\n", Err_Get());
 	    }
@@ -520,18 +527,22 @@ static char *time_stamp(void)
 }
 
 /*
-   Make nm absolute. If it is relative, append it to client working directory.
-   Store resulting name in nm_a, which should have space for l characters.
+   Make rel absolute. If it is relative, append it to root, which must be absolute.
+   Store resulting name in abs, which should have space for l characters.
    Return 1 on success. If failure, print an error message to err and return 0.
  */
-static int abs_name(char *nm, char *nm_a, size_t l)
+static int abs_name(char *root, char *rel, char *abs, size_t l)
 {
     int status;
 
-    if ( *nm != '/' ) {
-	status = snprintf(nm_a, l, "%s/%s", cl_wd, nm);
+    if ( *rel != '/' ) {
+	if ( *root != '/' ) {
+	    fprintf(err, "root path must be absolute, not %s\n", root);
+	    return 0;
+	}
+	status = snprintf(abs, l, "%s/%s", root, rel);
     } else {
-	status = snprintf(nm_a, l, "%s", nm);
+	status = snprintf(abs, l, "%s", rel);
     }
     if ( status > l ) {
 	fprintf(err, "File name too long\n");
@@ -543,7 +554,7 @@ static int abs_name(char *nm, char *nm_a, size_t l)
     return 1;
 }
 
-static int pid_cb(int argc, char *argv[])
+static int pid_cb(int argc, char *argv[], char *cl_wd)
 {
     if (argc != 2) {
 	fprintf(err, "Usage: %s %s\n", argv[0], argv[1]);
@@ -553,7 +564,7 @@ static int pid_cb(int argc, char *argv[])
     return 1;
 }
 
-static int types_cb(int argc, char *argv[])
+static int types_cb(int argc, char *argv[], char *cl_wd)
 {
     int y;
 
@@ -568,7 +579,7 @@ static int types_cb(int argc, char *argv[])
     return 1;
 }
 
-int setcolors_cb(int argc, char *argv[])
+static int setcolors_cb(int argc, char *argv[], char *cl_wd)
 {
     char *abbrv;		/* Data type abbreviation */
     char *clr_fl_nm;		/* File with colors */
@@ -701,7 +712,7 @@ error:
 	return NULL;
 }
 
-static int good_cb(int argc, char *argv[])
+static int good_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     FILE *in;
@@ -711,7 +722,7 @@ static int good_cb(int argc, char *argv[])
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[2], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Could not assess %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -728,7 +739,7 @@ static int good_cb(int argc, char *argv[])
     return rslt;
 }
 
-static int hread_cb(int argc, char *argv[])
+static int hread_cb(int argc, char *argv[], char *cl_wd)
 {
     int loaded;			/* If true, volume is loaded */
     int trying;			/* If true, still attempting to read volume */
@@ -742,7 +753,7 @@ static int hread_cb(int argc, char *argv[])
 	return 0;
     }
 
-    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[2], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name: %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -818,7 +829,7 @@ static int hread_cb(int argc, char *argv[])
     return 1;
 }
 
-static int read_cb(int argc, char *argv[])
+static int read_cb(int argc, char *argv[], char *cl_wd)
 {
     int loaded;			/* If true, volume is loaded */
     int trying;			/* If true, still attempting to read volume */
@@ -832,7 +843,7 @@ static int read_cb(int argc, char *argv[])
 	return 0;
     }
 
-    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[2], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -913,7 +924,7 @@ static int read_cb(int argc, char *argv[])
     return 1;
 }
 
-static int list_cb(int argc, char *argv[])
+static int list_cb(int argc, char *argv[], char *cl_wd)
 {
     int i;
 
@@ -1011,7 +1022,7 @@ static int new_vol_i(char *vol_nm, struct stat *sbuf_p)
     return -1;
 }
 
-static int release_cb(int argc, char *argv[])
+static int release_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1020,7 +1031,7 @@ static int release_cb(int argc, char *argv[])
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[2], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1035,7 +1046,7 @@ static int release_cb(int argc, char *argv[])
    Remove a volume and its entry. Noisily return error if volume in use. Quietly
    do nothing if volume does not exist.
  */
-static int unload_cb(int argc, char *argv[])
+static int unload_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1044,7 +1055,7 @@ static int unload_cb(int argc, char *argv[])
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[2], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1093,7 +1104,7 @@ static int flush(int c)
 }
 
 /* This command removes some unused volumes, if possible. */
-static int flush_cb(int argc, char *argv[])
+static int flush_cb(int argc, char *argv[], char *cl_wd)
 {
     char *c_s;
     int c;
@@ -1116,7 +1127,7 @@ static int flush_cb(int argc, char *argv[])
     }
 }
 
-static int volume_headers_cb(int argc, char *argv[])
+static int volume_headers_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1125,7 +1136,7 @@ static int volume_headers_cb(int argc, char *argv[])
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[2], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1139,7 +1150,7 @@ static int volume_headers_cb(int argc, char *argv[])
     return 1;
 }
 
-static int vol_hdr_cb(int argc, char *argv[])
+static int vol_hdr_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1153,7 +1164,7 @@ static int vol_hdr_cb(int argc, char *argv[])
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[2], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1208,7 +1219,7 @@ static int vol_hdr_cb(int argc, char *argv[])
     return 1;
 }
 
-static int near_sweep_cb(int argc, char *argv[])
+static int near_sweep_cb(int argc, char *argv[], char *cl_wd)
 {
     char *ang_s;		/* Sweep angle, degrees, from command line */
     double ang, da;
@@ -1222,7 +1233,7 @@ static int near_sweep_cb(int argc, char *argv[])
 	return 0;
     }
     ang_s = argv[2];
-    if ( !abs_name(argv[3], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[3], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1255,7 +1266,7 @@ static int near_sweep_cb(int argc, char *argv[])
     return 1;
 }
 
-static int ray_headers_cb(int argc, char *argv[])
+static int ray_headers_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1266,7 +1277,7 @@ static int ray_headers_cb(int argc, char *argv[])
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv[0], argv[1]);
 	return 0;
     }
-    if ( !abs_name(argv[2], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[2], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1304,7 +1315,7 @@ static int ray_headers_cb(int argc, char *argv[])
     return 1;
 }
 
-static int data_cb(int argc, char *argv[])
+static int data_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1353,7 +1364,7 @@ static int data_cb(int argc, char *argv[])
 		argv[0], argv[1]);
 	return 0;
     }
-    if ( !abs_name(argv[argc - 1], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[argc - 1], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1486,7 +1497,7 @@ static int data_cb(int argc, char *argv[])
     return 1;
 }
 
-static int bin_outline_cb(int argc, char *argv[])
+static int bin_outline_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
@@ -1504,7 +1515,7 @@ static int bin_outline_cb(int argc, char *argv[])
     s_s = argv[2];
     r_s = argv[3];
     b_s = argv[4];
-    if ( !abs_name(argv[5], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[5], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1559,7 +1570,7 @@ static int bin_outline_cb(int argc, char *argv[])
     return 1;
 }
 
-static int bintvls_cb(int argc, char *argv[])
+static int bintvls_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     struct Sigmet_Vol vol;	/* Volume from global vols array */
@@ -1581,7 +1592,7 @@ static int bintvls_cb(int argc, char *argv[])
     }
     abbrv = argv[2];
     s_s = argv[3];
-    if ( !abs_name(argv[4], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[4], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1647,7 +1658,7 @@ static int bintvls_cb(int argc, char *argv[])
 }
 
 /* Change radar longitude to given value, which must be given in degrees */
-static int radar_lon_cb(int argc, char *argv[])
+static int radar_lon_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;			/* Volume index. */
@@ -1660,7 +1671,7 @@ static int radar_lon_cb(int argc, char *argv[])
 	return 0;
     }
     lon_s = argv[2];
-    if ( !abs_name(argv[3], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[3], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1682,7 +1693,7 @@ static int radar_lon_cb(int argc, char *argv[])
 }
 
 /* Change radar latitude to given value, which must be given in degrees */
-static int radar_lat_cb(int argc, char *argv[])
+static int radar_lat_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;			/* Volume index. */
@@ -1695,7 +1706,7 @@ static int radar_lat_cb(int argc, char *argv[])
 	return 0;
     }
     lat_s = argv[2];
-    if ( !abs_name(argv[3], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[3], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1717,7 +1728,7 @@ static int radar_lat_cb(int argc, char *argv[])
 }
 
 /* Change ray azimuths to given value, which must be given in degrees */
-static int shift_az_cb(int argc, char *argv[])
+static int shift_az_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;			/* Volume index. */
@@ -1732,7 +1743,7 @@ static int shift_az_cb(int argc, char *argv[])
 	return 0;
     }
     daz_s = argv[2];
-    if ( !abs_name(argv[3], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[3], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1779,7 +1790,7 @@ static int shift_az_cb(int argc, char *argv[])
 }
 
 #ifdef PROJ4
-static int proj_cb(int argc, char *argv[])
+static int proj_cb(int argc, char *argv[], char *cl_wd)
 {
     projPJ t_pj;
 
@@ -1802,7 +1813,7 @@ static int proj_cb(int argc, char *argv[])
 #endif
 
 /* Specify image width in pixels */
-static int img_sz_cb(int argc, char *argv[])
+static int img_sz_cb(int argc, char *argv[], char *cl_wd)
 {
     char *w_pxl_s;
 
@@ -1825,7 +1836,7 @@ static int img_sz_cb(int argc, char *argv[])
 }
 
 /* Identify image generator */
-static int img_app_cb(int argc, char *argv[])
+static int img_app_cb(int argc, char *argv[], char *cl_wd)
 {
     char *img_app_s;
     struct stat sbuf;
@@ -1855,7 +1866,7 @@ static int img_app_cb(int argc, char *argv[])
 }
 
 /* Specify image alpha channel */
-static int alpha_cb(int argc, char *argv[])
+static int alpha_cb(int argc, char *argv[], char *cl_wd)
 {
     char *alpha_s;
 
@@ -1900,7 +1911,7 @@ static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf)
 }
 
 /* Print the name of the image that img would create */
-static int img_name_cb(int argc, char *argv[])
+static int img_name_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     struct Sigmet_Vol vol;	/* Volume from global vols array */
@@ -1918,7 +1929,7 @@ static int img_name_cb(int argc, char *argv[])
     }
     abbrv = argv[2];
     s_s = argv[3];
-    if ( !abs_name(argv[4], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[4], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -1971,7 +1982,7 @@ static int img_name_cb(int argc, char *argv[])
     return 1;
 }
 
-static int img_cb(int argc, char *argv[])
+static int img_cb(int argc, char *argv[], char *cl_wd)
 {
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     struct Sigmet_Vol vol;	/* Volume from global vols array */
@@ -2052,7 +2063,7 @@ static int img_cb(int argc, char *argv[])
     }
     abbrv = argv[2];
     s_s = argv[3];
-    if ( !abs_name(argv[4], vol_nm, LEN) ) {
+    if ( !abs_name(cl_wd, argv[4], vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n", argv[0], argv[1], argv[2]);
 	return 0;
     }
@@ -2387,7 +2398,7 @@ error:
     return 0;
 }
 
-static int stop_cb(int argc, char *argv[])
+static int stop_cb(int argc, char *argv[], char *cl_wd)
 {
     struct sig_vol *sv_p;
     int y;
