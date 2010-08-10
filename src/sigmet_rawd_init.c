@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.239 $ $Date: 2010/08/09 22:23:59 $
+ .	$Revision: 1.240 $ $Date: 2010/08/10 21:50:36 $
  */
 
 #include <limits.h>
@@ -137,7 +137,7 @@ static int abs_name(char *, char *, char *, size_t);
 static FILE *vol_open(const char *, int, FILE *);
 static int flush(int);
 static void unload(int);
-static int img_name(struct Sigmet_Vol *, char *, int, char *, FILE *);
+static int img_name(struct Sigmet_Vol *, char *, int, char *);
 
 /* Signal handling functions */
 static int handle_signals(void);
@@ -2007,8 +2007,7 @@ static int alpha_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
    including nul.  Returned name has no suffix (e.g. "png" or "kml").
    If something goes wrong, fill buf with nul's and return 0.
  */
-static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf,
-	FILE *err)
+static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf)
 {
     int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
     double sec;			/* Sweep second */
@@ -2016,14 +2015,14 @@ static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf,
     memset(buf, 0, LEN);
     if ( s >= vol_p->ih.ic.num_sweeps || !vol_p->sweep_ok[s]
 	    || !Tm_JulToCal(vol_p->sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
-	fprintf(err, "Sweep %d not valid in volume\n", s);
+	Err_Append("Sweep index out of range. ");
 	return 0;
     }
     if ( snprintf(buf, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f",
 		vol_p->ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
 		abbrv, vol_p->sweep_angle[s] * DEG_PER_RAD) > LEN ) {
 	memset(buf, 0, LEN);
-	fprintf(err, "Image file name too long\n");
+	Err_Append("Image file name too long. ");
 	return 0;
     }
     return 1;
@@ -2098,8 +2097,9 @@ static int img_name_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out
     }
 
     /* Print name of output file */
-    if ( !img_name(&vol, abbrv, s, img_fl_nm, err) ) {
-	fprintf(err, "%s %s: could not make image file name\n", argv0, argv1);
+    if ( !img_name(&vol, abbrv, s, img_fl_nm) ) {
+	fprintf(err, "%s %s: could not make image file name\n%s\n",
+		argv0, argv1, Err_Get());
 	return 0;
     }
     fprintf(out, "%s.png\n", img_fl_nm);
@@ -2316,9 +2316,10 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
     px_per_m = w_pxl / (rght - left);
 
     /* Create image file. Fail if it exists */
-    if ( !img_name(&vol, abbrv, s, base_nm, err) 
+    if ( !img_name(&vol, abbrv, s, base_nm) 
 	    || snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) > LEN ) {
-	fprintf(err, "%s %s: could not make image file name\n", argv0, argv1);
+	fprintf(err, "%s %s: could not make image file name\n%s\n",
+		argv0, argv1, Err_Get());
 	return 0;
     }
     flags = O_CREAT | O_EXCL | O_WRONLY;
