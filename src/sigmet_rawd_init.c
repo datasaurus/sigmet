@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.241 $ $Date: 2010/08/10 22:10:13 $
+ .	$Revision: 1.242 $ $Date: 2010/08/12 21:47:36 $
  */
 
 #include <limits.h>
@@ -226,8 +226,8 @@ int main(int argc, char *argv[])
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	if ( !DataType_Add(Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y)) ) {
-	    fprintf(stderr, "%s: could not register data type %s\n",
-		    cmd, Sigmet_DataType_Abbrv(y));
+	    fprintf(stderr, "%s: could not register data type %s\n%s\n",
+		    cmd, Sigmet_DataType_Abbrv(y), Err_Get());
 	    exit(EXIT_FAILURE);
 	}
     }
@@ -838,8 +838,8 @@ static int hread_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	}
     }
     if ( !loaded ) {
-	fprintf(err, "%s %s: could not read headers from %s\n",
-		argv0, argv1, vol_nm);
+	fprintf(err, "%s %s: could not read headers from %s\n%s\n",
+		argv0, argv1, vol_nm, Err_Get());
 	return 0;
     }
     vols[i].oqpd = 1;
@@ -939,8 +939,8 @@ static int read_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	}
     }
     if ( !loaded ) {
-	fprintf(err, "%s %s: could not get valid volume from %s\n",
-		argv0, argv1, vol_nm);
+	fprintf(err, "%s %s: could not get valid volume from %s\n%s\n",
+		argv0, argv1, vol_nm, Err_Get());
 	return 0;
     }
     vols[i].oqpd = 1;
@@ -1370,7 +1370,7 @@ static int ray_headers_cb(int argc, char *argv[], char *cl_wd,
 	    fprintf(out, "sweep %3d ray %4d | ", s, r);
 	    if ( !Tm_JulToCal(vol.ray_time[s][r],
 			&yr, &mon, &da, &hr, &min, &sec) ) {
-		fprintf(err, "%s %s: bad ray time\n", argv0, argv1);
+		fprintf(err, "%s %s: bad ray time\n%s\n", argv0, argv1, Err_Get());
 		return 0;
 	    }
 	    fprintf(out, "%04d/%02d/%02d %02d:%02d:%04.1f | ",
@@ -1640,8 +1640,8 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
 	return 0;
     }
     if ( !Sigmet_BinOutl(&vol, s, r, b, corners) ) {
-	fprintf(err, "%s %s: could not compute bin outlines "
-		"for bin %d %d %d in %s\n", argv0, argv1, s, r, b, vol_nm);
+	fprintf(err, "%s %s: could not compute bin outlines for bin %d %d %d in "
+		"%s\n%s\n", argv0, argv1, s, r, b, vol_nm, Err_Get());
 	return 0;
     }
     c = (use_deg ? DEG_RAD : 1.0);
@@ -2015,7 +2015,7 @@ static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf)
     memset(buf, 0, LEN);
     if ( s >= vol_p->ih.ic.num_sweeps || !vol_p->sweep_ok[s]
 	    || !Tm_JulToCal(vol_p->sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
-	Err_Append("Sweep index out of range. ");
+	Err_Append("Invalid sweep. ");
 	return 0;
     }
     if ( snprintf(buf, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f",
@@ -2243,6 +2243,10 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, s, vol_nm);
 	return 0;
     }
+    if ( !Tm_JulToCal(vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
+	fprintf(err, "%s %s: invalid sweep time\n%s\n", argv0, argv1, Err_Get());
+	goto error;
+    }
 
     /*
        To obtain longitude, latitude limits of display area, put radar
@@ -2389,8 +2393,8 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	    break;
 	case XDRX_ERR:
 	    /* Fail */
-	    fprintf(err, "%s %s: could not write %s for image %s\n",
-		    argv0, argv1, item, img_fl_nm);
+	    fprintf(err, "%s %s: could not write %s for image %s\n%s\n",
+		    argv0, argv1, item, img_fl_nm, Err_Get());
 	    goto error;
 	    break;
 	case XDRX_EOF:
@@ -2431,6 +2435,7 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		    size_t npts = 4;	/* Number of vertices */
 
 		    if ( !Sigmet_BinOutl(&vol, s, r, b, cnrs_ll) ) {
+			Err_Get();	/* Flush */
 			continue;
 		    }
 		    for (ll = cnrs_ll, uv = cnrs_uv; uv < cnrs_uv + 4; uv++) {
@@ -2496,11 +2501,6 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
     if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
 	fprintf(err, "%s %s: could not open %s for output\n",
 		argv0, argv1, kml_fl_nm);
-	goto error;
-    }
-    if ( s >= vol.ih.ic.num_sweeps || !vol.sweep_ok[s]
-	    || !Tm_JulToCal(vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
-	fprintf(err, "%s %s: invalid sweep\n", argv0, argv1);
 	goto error;
     }
     fprintf(kml_fl, kml_tmpl,
