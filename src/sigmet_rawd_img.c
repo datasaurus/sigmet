@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: $ $Date: $
+ .	$Revision: 1.1 $ $Date: 2010/08/18 20:55:19 $
  */
 
 #include <string.h>
@@ -15,16 +15,15 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include "sigmet_raw.h"
+#include "alloc.h"
 #include "err_msg.h"
-
-#define LEN 4096
 
 static unsigned w_pxl = 600;		/* Width of image in display units,
 					   pixels, points, cm */
 static unsigned h_pxl = 600;		/* Height of image in display units,
 					   pixels, points, cm */
 static double alpha = 1.0;		/* alpha channel. 1.0 => translucent */
-static char img_app[LEN] = {'\0'};	/* External application to draw sweeps */
+static char *img_app;			/* External application to draw sweeps */
 
 void SigmetRaw_SetImgSz(unsigned w, unsigned h)
 {
@@ -48,27 +47,30 @@ double SigmetRaw_GetImgAlpha(void)
     return alpha;
 }
 
-int SigmetRaw_SetImgApp(char *img_app_nm)
+int SigmetRaw_SetImgApp(char *nm)
 {
     struct stat sbuf;
     mode_t m = S_IXUSR | S_IXGRP | S_IXOTH;	/* Executable mode */
+    char *t;
 
-    if ( stat(img_app_nm, &sbuf) == -1 ) {
+    if ( stat(nm, &sbuf) == -1 ) {
 	Err_Append("Could not get information about ");
-	Err_Append(img_app_nm);
+	Err_Append(nm);
 	Err_Append(" ");
 	Err_Append(strerror(errno));
 	return 0;
     }
     if ( ((sbuf.st_mode & S_IFREG) != S_IFREG) || ((sbuf.st_mode & m) != m) ) {
-	Err_Append(img_app_nm);
+	Err_Append(nm);
 	Err_Append(" is not executable. ");
 	return 0;
     }
-    if ( snprintf(img_app, LEN, "%s", img_app_nm) > LEN ) {
-	Err_Append("Name of image application too long. ");
+    if ( !(t = REALLOC(img_app, strlen(nm) + 1)) ) {
+	Err_Append("Could not allocate memory for image app name. ");
 	return 0;
     }
+    img_app = t;
+    strcpy(img_app, nm);
     return 1;
 }
 
