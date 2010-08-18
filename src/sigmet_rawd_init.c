@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.243 $ $Date: 2010/08/17 22:28:29 $
+ .	$Revision: 1.244 $ $Date: 2010/08/18 18:02:53 $
  */
 
 #include <limits.h>
@@ -46,9 +46,6 @@
 
 /* Size for various strings */
 #define LEN 4096
-
-/* If true, use degrees instead of radians */
-static int use_deg = 0;
 
 /* Sigmet volumes */
 struct sig_vol {
@@ -155,7 +152,6 @@ int main(int argc, char *argv[])
     struct sockaddr *sa_p;	/* &sa or &d_err_sa, for call to bind */
     int i_dmn;			/* File descriptors for d_io and d_err */
     struct sig_vol *sv_p;	/* Member of vols */
-    char *ang_u;		/* Angle unit */
     int y;			/* Loop index */
     char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" }; /* Map projection */
     int i;
@@ -228,18 +224,6 @@ int main(int argc, char *argv[])
 	}
     }
     *img_app = '\0';
-
-    /* Check for angle unit */
-    if ((ang_u = getenv("ANGLE_UNIT")) != NULL) {
-	if (strcmp(ang_u, "DEGREE") == 0) {
-	    use_deg = 1;
-	} else if (strcmp(ang_u, "RADIAN") == 0) {
-	    use_deg = 0;
-	} else {
-	    fprintf(stderr, "%s: unknown angle unit %s.\n", cmd, ang_u);
-	    exit(EXIT_FAILURE);
-	}
-    }
 
     if ( bg ) {
 	/* Put daemon in background */
@@ -1599,19 +1583,23 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     int i;
     struct Sigmet_Vol vol;
-    char *s_s, *r_s, *b_s;
+    char *s_s, *r_s, *b_s, *u_s;
+    int use_rad = 1;		/* If true, use radians */
+    int use_deg = 0;		/* If true, use degrees */
     int s, r, b;
     double corners[8];
     double c;
 
-    if (argc != 6) {
-	fprintf(err, "Usage: %s %s sweep ray bin sigmet_volume\n", argv0, argv1);
+    if (argc != 7) {
+	fprintf(err, "Usage: %s %s sweep ray bin unit sigmet_volume\n",
+		argv0, argv1);
 	return 0;
     }
     s_s = argv[2];
     r_s = argv[3];
     b_s = argv[4];
-    vol_nm_r = argv[5];
+    u_s = argv[5];
+    vol_nm_r = argv[6];
     if ( !abs_name(cl_wd, vol_nm_r, vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n%s\n",
 		argv0, argv1, vol_nm_r, Err_Get());
@@ -1640,6 +1628,17 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, b_s);
 	return 0;
     }
+    if ( strcmp(u_s, "deg") == 0 || strcmp(u_s, "degree") == 0 ) {
+	use_rad = 0;
+	use_deg = 1;
+    } else if ( strcmp(u_s, "rad") == 0 || strcmp(u_s, "rad") == 0 ) {
+	use_rad = 1;
+	use_deg = 0;
+    } else {
+	fprintf(err, "Unknown angle unit %s. Angle unit must be \"degree\" "
+		"or \"radian\"\n", u_s);
+	return 0;
+    }
     if (s >= vol.ih.ic.num_sweeps) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
@@ -1660,7 +1659,11 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
 		"%s\n%s\n", argv0, argv1, s, r, b, vol_nm, Err_Get());
 	return 0;
     }
-    c = (use_deg ? DEG_RAD : 1.0);
+    if ( use_deg ) {
+	c = DEG_RAD;
+    } else if ( use_rad ) {
+	c = 1.0;
+    }
     fprintf(out, "%f %f %f %f %f %f %f %f\n",
 	    corners[0] * c, corners[1] * c, corners[2] * c, corners[3] * c,
 	    corners[4] * c, corners[5] * c, corners[6] * c, corners[7] * c);
