@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.22 $ $Date: 2010/07/27 21:31:43 $
+.\" $Revision: 1.23 $ $Date: 2010/07/30 18:52:19 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -27,7 +27,7 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_raw\fP \fBnear_sweep\fP
 \fBsigmet_raw\fP \fBray_headers\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBdata\fP [\fItype\fP] [\fIs\fP] [\fIr\fP] [\fIb\fP] \fIvolume_file\fP
-\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIunit\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBcolors\fP \fIdata_type\fP \fIcolors_file\fP
 \fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBradar_lon\fP \fIlon\fP \fIvolume_file\fP
@@ -209,12 +209,14 @@ ray \fIr\fP, bin \fIb\fP for
 the volume obtained from \fIvolume_file\fP, which should have been loaded with a
 call to \fBsigmet_raw\fP\ \fBread\fP.
 .TP
-\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIunit\fP \fIvolume_file\fP
 Prints the corners of bin \fIs\fP \fIr\fP \fIb\fP for
 the volume obtained from \fIvolume_file\fP, which should have been loaded with a
 call to \fBsigmet_raw\fP\ \fBread\fP.
 The corners will be printed as
 "\fIlon1\ lat1 lon2\ lat2 lon3\ lat3 lon4\ lat4\fP".
+Angle unit will be radians if \fIunit\fP is \fBradian\fP.
+Angle unit will be degrees if \fIunit\fP is \fBdegree\fP.
 .TP
 \fBsigmet_raw\fP \fBcolors\fP \fIdata_type\fP \fIcolors_file\fP
 Sets display colors for Sigmet data type \fIdata_type\fP.  \fIcolors_file\fP
