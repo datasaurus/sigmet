@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.242 $ $Date: 2010/08/12 21:47:36 $
+ .	$Revision: 1.243 $ $Date: 2010/08/17 22:28:29 $
  */
 
 #include <limits.h>
@@ -37,9 +37,6 @@
 #include "xdrx.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
-
-/* If true, daemon has received a "stop" command */
-static int stop = 0;
 
 /* Process streams and files */
 
@@ -73,7 +70,7 @@ static int get_vol_i(char *);
 static int new_vol_i(char *, struct stat *, FILE *);
 
 /* Subcommands */
-#define NCMD 27
+#define NCMD 26
 typedef int (callback)(int , char **, char *, int, FILE *, int, FILE *);
 static callback pid_cb;
 static callback types_cb;
@@ -101,20 +98,19 @@ static callback img_sz_cb;
 static callback alpha_cb;
 static callback img_name_cb;
 static callback img_cb;
-static callback stop_cb;
 static char *cmd1v[NCMD] = {
     "pid", "types", "colors", "good", "hread",
     "read", "list", "release", "unload", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
     "bintvls", "radar_lon", "radar_lat", "shift_az",
-    "proj", "img_app", "img_sz", "alpha", "img_name", "img", "stop"
+    "proj", "img_app", "img_sz", "alpha", "img_name", "img"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, types_cb, setcolors_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, unload_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
     bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
-    proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, stop_cb
+    proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb
 };
 
 /* Cartographic projection */
@@ -305,7 +301,7 @@ int main(int argc, char *argv[])
     fflush(stdout);
 
     /* Wait for clients */
-    while ( !stop && (cl_io_fd = accept(i_dmn, NULL, 0)) != -1 ) {
+    while ( (cl_io_fd = accept(i_dmn, NULL, 0)) != -1 ) {
 	int argc1;		/* Number of arguments in received command line */
 	char *argv1[SIGMET_RAWD_ARGCX];
 				/* Arguments from client command line */
@@ -319,6 +315,7 @@ int main(int argc, char *argv[])
 	FILE *out, *err;	/* Standard streams for i_out and i_err */
 	int flags;		/* Return from fcntl, when config'ing cl_io_fd */
 	int status;		/* Result of callback, exit status for client */
+	int stop = 0;		/* If true, daemon has received a "stop" command */
 	int i;			/* Loop index */
 	char *c, *e;		/* Loop parameters */
 	void *t;		/* Hold return from realloc */
@@ -463,7 +460,10 @@ int main(int argc, char *argv[])
 	/* Identify command */
 	cmd0 = argv1[0];
 	cmd1 = argv1[1];
-	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+	if ( strcmp(cmd1, "stop") == 0 ) {
+	    status = EXIT_SUCCESS;
+	    stop = 1;
+	} else if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 	    /* No command. Make error message. */
 	    status = EXIT_FAILURE;
 	    fprintf(err, "No option or subcommand named %s. "
@@ -496,12 +496,28 @@ int main(int argc, char *argv[])
 		    "%s\n", time_stamp(), cmd1, client_pid, strerror(errno) );
 	}
 
+	/* Execute "stop" command, if received. */
+	if (stop) {
+	    struct sig_vol *sv_p;
+	    int y;
+
+	    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
+		Sigmet_FreeVol(&sv_p->vol);
+	    }
+	    for (y = 0; y < SIGMET_NTYPES; y++) {
+		DataType_Rm(Sigmet_DataType_Abbrv(y));
+	    }
+	    if ( unlink(SIGMET_RAWD_IN) == -1 ) {
+		fprintf(stderr, "%s: could not delete input pipe.\n",
+			time_stamp());
+	    }
+	    printf("%s: received stop command, exiting.\n", time_stamp());
+	}
+
     }
 
-    if ( !stop ) {
-	fprintf(stderr, "%s: unexpected exit.\n%s\n",
-		time_stamp(), strerror(errno));
-    }
+    fprintf(stderr, "%s: unexpected exit.\n%s\n",
+	    time_stamp(), strerror(errno));
     unlink(SIGMET_RAWD_IN);
     for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
 	Sigmet_FreeVol(&sv_p->vol);
@@ -2528,26 +2544,6 @@ error:
     }
     unlink(img_fl_nm);
     return 0;
-}
-
-static int stop_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
-	int i_err, FILE *err)
-{
-    struct sig_vol *sv_p;
-    int y;
-
-    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
-	Sigmet_FreeVol(&sv_p->vol);
-    }
-    for (y = 0; y < SIGMET_NTYPES; y++) {
-	DataType_Rm(Sigmet_DataType_Abbrv(y));
-    }
-    if ( unlink(SIGMET_RAWD_IN) == -1 ) {
-	fprintf(stderr, "%s: could not delete input pipe.\n", time_stamp());
-    }
-    printf("%s: received stop command, exiting.\n", time_stamp());
-    stop = 1;
-    return 1;
 }
 
 /*
