@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.245 $ $Date: 2010/08/18 18:18:04 $
+ .	$Revision: 1.246 $ $Date: 2010/08/18 19:35:23 $
  */
 
 #include <limits.h>
@@ -487,6 +487,7 @@ int main(int argc, char *argv[])
 			time_stamp());
 	    }
 	    printf("%s: received stop command, exiting.\n", time_stamp());
+	    exit(EXIT_SUCCESS);
 	}
 
     }
