@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.246 $ $Date: 2010/08/18 19:35:23 $
+ .	$Revision: 1.247 $ $Date: 2010/08/18 19:40:36 $
  */
 
 #include <limits.h>
@@ -108,14 +108,6 @@ static callback *cb1v[NCMD] = {
     proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb
 };
 
-/* Configuration for output images */
-static int w_pxl;			/* Width of image in display units,
-					   pixels, points, cm */
-static int h_pxl;			/* Height of image in display units,
-					   pixels, points, cm */
-static double alpha = 1.0;		/* alpha channel. 1.0 => translucent */
-static char img_app[LEN];		/* External application to draw sweeps */
-
 /* Convenience functions */
 static char *time_stamp(void);
 static int abs_name(char *, char *, char *, size_t);
@@ -202,7 +194,6 @@ int main(int argc, char *argv[])
     }
 
     /* Initialize other variables */
-    w_pxl = h_pxl = 600;
     if ( !SigmetRaw_ProjInit() ) {
 	fprintf(stderr, "%s: could not set default projection.\n", cmd);
 	exit(EXIT_FAILURE);
@@ -214,7 +205,6 @@ int main(int argc, char *argv[])
 	    exit(EXIT_FAILURE);
 	}
     }
-    *img_app = '\0';
 
     if ( bg ) {
 	/* Put daemon in background */
@@ -1926,22 +1916,40 @@ static int img_sz_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *w_pxl_s;
+    unsigned w_pxl, h_pxl;
 
     if ( argc == 2 ) {
-	fprintf(out, "%d\n", w_pxl);
+	SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
+	fprintf(out, "%u %u\n", w_pxl, h_pxl);
 	return 1;
     } else if ( argc == 3 ) {
-	w_pxl_s = argv[2];
-	if ( sscanf(w_pxl_s, "%d", &w_pxl) != 1 ) {
+	char *w_pxl_s = argv[2];
+
+	if ( sscanf(w_pxl_s, "%u", &w_pxl) != 1 ) {
 	    fprintf(err, "%s %s: expected integer for display width, got %s\n",
 		    argv0, argv1, w_pxl_s);
 	    return 0;
 	}
-	h_pxl = w_pxl;
+	SigmetRaw_SetImgSz(w_pxl, w_pxl);
+	return 1;
+    } else if ( argc == 4 ) {
+	char *w_pxl_s = argv[2];
+	char *h_pxl_s = argv[3];
+
+	if ( sscanf(w_pxl_s, "%u", &w_pxl) != 1 ) {
+	    fprintf(err, "%s %s: expected integer for display width, got %s\n",
+		    argv0, argv1, w_pxl_s);
+	    return 0;
+	}
+	if ( sscanf(h_pxl_s, "%u", &h_pxl) != 1 ) {
+	    fprintf(err, "%s %s: expected integer for display height, got %s\n",
+		    argv0, argv1, h_pxl_s);
+	    return 0;
+	}
+	SigmetRaw_SetImgSz(w_pxl, h_pxl);
 	return 1;
     } else {
-	fprintf(err, "Usage: %s %s width_pxl\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s [width_pxl] [height_pxl]\n", argv0, argv1);
 	return 0;
     }
 }
@@ -1953,27 +1961,15 @@ static int img_app_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     char *img_app_s;
-    struct stat sbuf;
-    mode_t m = S_IXUSR | S_IXGRP | S_IXOTH;	/* Executable mode */
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s img_app\n", argv0, argv1);
 	return 0;
     }
     img_app_s = argv[2];
-    if ( stat(img_app_s, &sbuf) == -1 ) {
-	fprintf(err, "%s %s: could not get information about %s.\n%s\n",
-		argv0, argv1, img_app_s, strerror(errno));
-	return 0;
-    }
-    if ( ((sbuf.st_mode & S_IFREG) != S_IFREG) || ((sbuf.st_mode & m) != m) ) {
-	fprintf(err, "%s %s: %s is not executable.\n",
-		argv0, argv1, img_app_s);
-	return 0;
-    }
-    if ( snprintf(img_app, LEN, "%s", img_app_s) > LEN ) {
-	fprintf(err, "%s %s: name of image application too long.\n",
-		argv0, argv1);
+    if ( !SigmetRaw_SetImgApp(img_app_s) ) {
+	fprintf(err, "%s %s: Could not set image application to %s.\n%s\n",
+		argv0, argv1, img_app_s, Err_Get());
 	return 0;
     }
     return 1;
@@ -1986,6 +1982,7 @@ static int alpha_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     char *alpha_s;
+    double alpha;
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s value\n", argv0, argv1);
@@ -1997,6 +1994,7 @@ static int alpha_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, alpha_s);
 	return 0;
     }
+    SigmetRaw_SetImgAlpha(alpha);
     return 1;
 }
 
@@ -2143,11 +2141,14 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
     int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
     double sec;			/* Sweep second */
     char base_nm[LEN]; 		/* Output file name */
+    unsigned w_pxl, h_pxl;	/* Width and height of image, in display units */
+    double alpha;		/* Image alpha channel */
     char img_fl_nm[LEN]; 	/* Image output file name */
     size_t img_fl_nm_l;		/* strlen(img_fl_nm) */
     int flags;                  /* Image file creation flags */
     mode_t mode;                /* Image file permissions */
     int i_img_fl;		/* Image file descriptor, not used */
+    char *img_app;		/* External application to draw image */
     char kml_fl_nm[LEN];	/* KML output file name */
     FILE *kml_fl;		/* KML file */
     pid_t img_pid = -1;		/* Process id for image generator */
@@ -2183,7 +2184,9 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	fprintf(err, "%s %s: geographic projection not set\n", argv0, argv1);
 	return 0;
     }
-    if ( strlen(img_app) == 0 ) {
+    alpha = SigmetRaw_GetImgAlpha();
+    img_app = SigmetRaw_GetImgApp();
+    if ( !img_app || strlen(img_app) == 0 ) {
 	fprintf(err, "%s %s: sweep drawing application not set\n",
 		argv0, argv1);
 	return 0;
@@ -2321,6 +2324,8 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
     east *= DEG_PER_RAD;
     south *= DEG_PER_RAD;
     north *= DEG_PER_RAD;
+
+    SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
     px_per_m = w_pxl / (rght - left);
 
     /* Create image file. Fail if it exists */

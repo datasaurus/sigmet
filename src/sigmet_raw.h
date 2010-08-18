@@ -7,7 +7,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.6 $ $Date: 2010/07/29 20:22:49 $
+   .	$Revision: 1.7 $ $Date: 2010/08/18 19:42:04 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -24,5 +24,11 @@
 int SigmetRaw_ProjInit(void);
 int SigmetRaw_SetProj(int, char **);
 projPJ SigmetRaw_GetProj(void);
+void SigmetRaw_SetImgSz(unsigned, unsigned);
+void SigmetRaw_GetImgSz(unsigned *, unsigned *);
+void SigmetRaw_SetImgAlpha(double);
+double SigmetRaw_GetImgAlpha(void);
+int SigmetRaw_SetImgApp(char *);
+char * SigmetRaw_GetImgApp(void);
 
 #endif
