@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.244 $ $Date: 2010/08/18 18:02:53 $
+ .	$Revision: 1.245 $ $Date: 2010/08/18 18:18:04 $
  */
 
 #include <limits.h>
@@ -37,8 +37,6 @@
 #include "xdrx.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
-
-/* Process streams and files */
 
 /* Where to put output and error messages */
 #define SIGMET_RAWD_LOG "sigmet.log"
@@ -110,12 +108,6 @@ static callback *cb1v[NCMD] = {
     proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb
 };
 
-/* Cartographic projection */
-#ifdef PROJ4
-#include <proj_api.h>
-static projPJ pj;
-#endif
-
 /* Configuration for output images */
 static int w_pxl;			/* Width of image in display units,
 					   pixels, points, cm */
@@ -153,7 +145,6 @@ int main(int argc, char *argv[])
     int i_dmn;			/* File descriptors for d_io and d_err */
     struct sig_vol *sv_p;	/* Member of vols */
     int y;			/* Loop index */
-    char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" }; /* Map projection */
     int i;
     int cl_io_fd;		/* File descriptor to read client command
 				   and send results */
@@ -212,7 +203,7 @@ int main(int argc, char *argv[])
 
     /* Initialize other variables */
     w_pxl = h_pxl = 600;
-    if ( !(pj = pj_init(2, dflt_proj)) ) {
+    if ( !SigmetRaw_ProjInit() ) {
 	fprintf(stderr, "%s: could not set default projection.\n", cmd);
 	exit(EXIT_FAILURE);
     }
@@ -1914,31 +1905,19 @@ static int shift_az_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out
     return 1;
 }
 
-#ifdef PROJ4
 static int proj_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	int i_err, FILE *err)
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    projPJ t_pj;
 
-    if ( !(t_pj = pj_init(argc - 2, argv + 2)) ) {
-	int a;
-
-	fprintf(err, "%s %s: unknown projection\n", argv0, argv1);
-	for (a = argc + 2; a < argc; a++) {
-	    fprintf(err, "%s ", argv[a]);
-	}
-	fprintf(err, "\n");
+    if ( !(SigmetRaw_SetProj(argc - 2, argv + 2)) ) {
+	fprintf(err, "%s %s: could not set projection\n%s\n",
+		argv0, argv1, Err_Get());
 	return 0;
     }
-    if ( pj ) {
-	pj_free(pj);
-    }
-    pj = t_pj;
     return 1;
 }
-#endif
 
 /* Specify image width in pixels */
 static int img_sz_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
@@ -2156,6 +2135,7 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
     double ray_len;		/* Ray length, meters or great circle radians */
     double west, east;		/* Display area longitude limits */
     double south, north;	/* Display area latitude limits */
+    projPJ pj;			/* Geographic projection */
     projUV cnrs_uv[4];		/* Corners of a gate, lon-lat or x-y */
     projUV *uv;			/* Element from cnrs_uv */
     int n;			/* Loop index */
@@ -2198,6 +2178,10 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	"  </GroundOverlay>\n"
 	"</kml>\n";
 
+    if ( !(pj = SigmetRaw_GetProj()) ) {
+	fprintf(err, "%s %s: geographic projection not set\n", argv0, argv1);
+	return 0;
+    }
     if ( strlen(img_app) == 0 ) {
 	fprintf(err, "%s %s: sweep drawing application not set\n",
 		argv0, argv1);
