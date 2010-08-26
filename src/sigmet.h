@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.27 $ $Date: 2010/03/23 22:05:43 $
+   .	$Revision: 1.28 $ $Date: 2010/05/23 05:00:08 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -410,6 +410,7 @@ struct Sigmet_Ingest_Header {
 struct Sigmet_Vol {
 
     /* Volume headers */
+    int has_headers;				/* true => struct has headers */
     struct Sigmet_Product_Hdr ph;		/* Record #1 */
     struct Sigmet_Ingest_Header ih;		/* Record #2 */
 

@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.43 $ $Date: 2010/03/23 22:00:48 $
+   .	$Revision: 1.44 $ $Date: 2010/03/23 22:05:43 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -254,6 +254,7 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     }
     vol_p->num_types = num_types;
 
+    vol_p->has_headers = 1;
     return READ_OK;
 
 error:
@@ -266,6 +267,9 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
     int y;
     char elem_nm[STR_LEN];
 
+    if ( !vol_p->has_headers ) {
+	fprintf(out, "volume has no headers\n");
+    }
     print_product_hdr(out, "<product_hdr>.", vol_p->ph);
     print_ingest_header(out, "<ingest_header>.", vol_p->ih);
     fprintf(out, "%d " FS " %s " FS " %s\n",
