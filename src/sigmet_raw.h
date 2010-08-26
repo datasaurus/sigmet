@@ -7,12 +7,13 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.7 $ $Date: 2010/08/18 19:42:04 $
+   .	$Revision: 1.8 $ $Date: 2010/08/18 20:54:29 $
  */
 
 #ifndef SIGMET_RAW_H_
 #define SIGMET_RAW_H_
 
+#include <stdio.h>
 #include <proj_api.h>
 
 /* Daemon socket */
@@ -30,5 +31,11 @@ void SigmetRaw_SetImgAlpha(double);
 double SigmetRaw_GetImgAlpha(void);
 int SigmetRaw_SetImgApp(char *);
 char * SigmetRaw_GetImgApp(void);
+void SigmetRaw_VolInit(void);
+void SigmetRaw_VolFree(void);
+int SigmetRaw_GoodVol(char *, int, FILE *);
+struct Sigmet_Vol *SigmetRaw_GetVol(char *, unsigned, FILE *, int);
+int SigmetRaw_VolList(FILE *);
+int SigmetRaw_Release(char *, FILE *);
 
 #endif
