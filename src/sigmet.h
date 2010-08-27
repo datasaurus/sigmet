@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.30 $ $Date: 2010/08/27 14:27:23 $
+   .	$Revision: 1.31 $ $Date: 2010/08/27 14:45:20 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */

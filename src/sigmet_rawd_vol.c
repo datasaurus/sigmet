@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.3 $ $Date: 2010/08/27 13:57:01 $
+ .	$Revision: 1.4 $ $Date: 2010/08/27 14:06:15 $
  */
 
 #include <unistd.h>
@@ -184,17 +184,17 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
 	    return 0;
 	}
 	switch (read_fn(in, v_p)) {
-	    case READ_OK:
+	    case SIGMET_READ_OK:
 		/* Success. Break out. */
 		loaded = 1;
 		break;
-	    case MEM_FAIL:
+	    case SIGMET_MEM_FAIL:
 		/* Try to free some memory and try again */
 		fprintf(err, "Out of memory. Offloading unused volumes\n");
 		flush();
 		break;
-	    case INPUT_FAIL:
-	    case BAD_VOL:
+	    case SIGMET_INPUT_FAIL:
+	    case SIGMET_BAD_VOL:
 		/* Read failed. Disable this slot and return failure. */
 		fprintf(err, "%s\n", Err_Get());
 		unload(sv_p);

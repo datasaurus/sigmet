@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.249 $ $Date: 2010/08/27 14:45:20 $
+ .	$Revision: 1.250 $ $Date: 2010/08/27 16:35:51 $
  */
 
 #include <limits.h>
@@ -714,8 +714,6 @@ static int good_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
     char *argv1 = argv[1];
     char *vol_nm_r;		/* Path to Sigmet volume from command line */
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
-    FILE *in;
-    int rslt;
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv0, argv1);
@@ -727,17 +725,7 @@ static int good_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return 0;
     }
-    if ( !(in = vol_open(vol_nm, i_err, err)) ) {
-	fprintf(err, "%s %s could not open %s\n", argv0, argv1, vol_nm);
-	return 0;
-    }
-    rslt = Sigmet_GoodVol(in);
-    fclose(in);
-    if ( vol_pid != -1 ) {
-	waitpid(vol_pid, NULL, 0);
-	vol_pid = -1;
-    }
-    return rslt;
+    return SigmetRaw_GoodVol(vol_nm, i_err, err);
 }
 
 static int hread_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
