@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.6 $ $Date: 2010/08/27 19:23:28 $
+ .	$Revision: 1.7 $ $Date: 2010/08/27 19:25:52 $
  */
 
 #include <unistd.h>
@@ -48,7 +48,6 @@ static int hash(dev_t, ino_t);
 static struct sig_vol *new_vol(dev_t, ino_t);
 static struct sig_vol *get_vol(dev_t, ino_t);
 static FILE *vol_open(const char *, pid_t *, int, FILE *);
-static void flush(void);
 static int unload(struct sig_vol *);
 
 /* Sigmet_ReadHdr or Sigmet_ReadVol */
@@ -187,7 +186,7 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
 	    case SIGMET_MEM_FAIL:
 		/* Try to free some memory and try again */
 		fprintf(err, "Out of memory. Offloading unused volumes\n");
-		flush();
+		SigmetRaw_Flush();
 		break;
 	    case SIGMET_INPUT_FAIL:
 	    case SIGMET_BAD_VOL:
@@ -252,6 +251,16 @@ int SigmetRaw_Release(char *vol_nm, FILE *err)
 	sv_p->users--;
     }
     return 1;
+}
+
+/* Remove unused volumes */
+void SigmetRaw_Flush(void)
+{
+    struct sig_vol *sv_p;
+
+    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
+	unload(sv_p);
+    }
 }
 
 /*
@@ -458,14 +467,4 @@ static int unload(struct sig_vol *sv_p)
     Sigmet_FreeVol((struct Sigmet_Vol *)sv_p);
     memset(sv_p, 0, sizeof(struct sig_vol));
     return 1;
-}
-
-/* Remove unused volumes */
-static void flush(void)
-{
-    struct sig_vol *sv_p;
-
-    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
-	unload(sv_p);
-    }
 }
