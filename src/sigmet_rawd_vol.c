@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.4 $ $Date: 2010/08/27 14:06:15 $
+ .	$Revision: 1.5 $ $Date: 2010/08/27 18:29:44 $
  */
 
 #include <unistd.h>
@@ -102,7 +102,7 @@ int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
     }
 
     /* If volume is already loaded and not truncated, it is good */
-    if ( (sv_p = get_vol(st_dev, st_ino)) >= 0 && !sv_p->vol.truncated ) {
+    if ( (sv_p = get_vol(st_dev, st_ino)) && !sv_p->vol.truncated ) {
 	return 1;
     }
 
@@ -131,7 +131,6 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
     ino_t st_ino;		/* File system index number for vol_nm */
     struct sig_vol *sv_p;	/* Member of vols */
     struct Sigmet_Vol *v_p;	/* Return value */
-    unsigned s;			/* Sweep index */
     int loaded;			/* If true, volume is loaded */
     int try;			/* Number of attempts to read volume */
     int max_try = 3;		/* Maximum tries */
@@ -142,7 +141,7 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
     if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
 	fprintf(err, "Could not get information about %s\n%s\n",
 		vol_nm, strerror(errno));
-	return 0;
+	return NULL;
     }
 
     /*
@@ -159,10 +158,7 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
 	    sv_p->users++;
 	    return v_p;
 	}
-	for (s = 0; s < v_p->ih.tc.tni.num_sweeps && v_p->sweep_ok[s]; s++) {
-	    continue;
-	}
-	if ( s >= n_swps_wanted ) {
+	if ( n_swps_wanted == UINT_MAX || v_p->num_sweeps_ax >= n_swps_wanted ) {
 	    sv_p->users++;
 	    return v_p;
 	} else {
@@ -170,7 +166,7 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
 	}
     } else if ( (sv_p = new_vol(st_dev, st_ino)) ) {
 	fprintf(err, "Volume table full. Could not (re)load %s\n", vol_nm);
-	return 0;
+	return NULL;
     }
     v_p = (struct Sigmet_Vol *)sv_p;
 
@@ -181,7 +177,7 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
 	    fprintf(err, "Could not open %s for input.\n", vol_nm);
 	    unload(sv_p);
-	    return 0;
+	    return NULL;
 	}
 	switch (read_fn(in, v_p)) {
 	    case SIGMET_READ_OK:
@@ -212,7 +208,7 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
 	unload(sv_p);
-	return 0;
+	return NULL;
     }
     strncpy(sv_p->vol_nm, vol_nm, LEN);
     sv_p->users++;
@@ -224,17 +220,13 @@ int SigmetRaw_VolList(FILE *out)
 {
     struct sig_vol *sv_p;
     struct Sigmet_Vol *v_p;
-    int s;
 
     for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
 	v_p = (struct Sigmet_Vol *)sv_p;
 	if ( sv_p->in_use ) {
 	    /* File name. Number of users. Number of sweeps. */
-	    fprintf(out, "%s users=%d. ", sv_p->vol_nm, sv_p->users);
-	    for (s = 0; s < v_p->ih.tc.tni.num_sweeps && v_p->sweep_ok[s]; s++) {
-		continue;
-	    }
-	    fprintf(out, "sweeps=%d.\n ", s);
+	    fprintf(out, "%s users=%d. sweeps=%d.\n ",
+		    sv_p->vol_nm, sv_p->users, v_p->num_sweeps_ax);
 	}
     }
     return 1;
