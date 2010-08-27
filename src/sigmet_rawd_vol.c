@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.1 $ $Date: 2010/08/26 21:17:45 $
+ .	$Revision: 1.2 $ $Date: 2010/08/27 13:55:27 $
  */
 
 #include <unistd.h>
@@ -58,12 +58,17 @@ typedef enum Sigmet_ReadStatus (read_fn_t)(FILE *, struct Sigmet_Vol *);
 void SigmetRaw_VolInit(void)
 {
     struct sig_vol *sv_p;
+    static int init;
 
+    if ( init ) {
+	return;
+    }
     assert(N_VOLS == 256);
     for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
 	Sigmet_InitVol((struct Sigmet_Vol *)sv_p);
 	memset(sv_p, 0, sizeof(struct sig_vol));
     }
+    init = 1;
 }
 
 /* Free memory and reinitialize this interface */
