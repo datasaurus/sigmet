@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.248 $ $Date: 2010/08/18 20:54:29 $
+ .	$Revision: 1.249 $ $Date: 2010/08/27 14:45:20 $
  */
 
 #include <limits.h>
@@ -890,7 +890,8 @@ static int read_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	}
 	switch (Sigmet_ReadVol(in, &vols[i].vol)) {
 	    case SIGMET_READ_OK:
-		/* Success. Break out. */
+	    case SIGMET_INPUT_FAIL:
+		/* Success, or partial success. Break out. */
 		loaded = 1;
 		trying = 0;
 		break;
@@ -900,7 +901,6 @@ static int read_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		    trying = 0;
 		}
 		break;
-	    case SIGMET_INPUT_FAIL:
 	    case SIGMET_BAD_VOL:
 		/* Read failed. Disable this slot and fail. */
 		unload(i);
