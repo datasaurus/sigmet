@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.5 $ $Date: 2010/08/27 18:29:44 $
+ .	$Revision: 1.6 $ $Date: 2010/08/27 19:23:28 $
  */
 
 #include <unistd.h>
@@ -164,7 +164,7 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
 	} else {
 	    Sigmet_FreeVol(v_p);
 	}
-    } else if ( (sv_p = new_vol(st_dev, st_ino)) ) {
+    } else if ( !(sv_p = new_vol(st_dev, st_ino)) ) {
 	fprintf(err, "Volume table full. Could not (re)load %s\n", vol_nm);
 	return NULL;
     }
