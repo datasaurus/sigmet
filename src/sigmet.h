@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.29 $ $Date: 2010/08/26 20:08:45 $
+   .	$Revision: 1.30 $ $Date: 2010/08/27 14:27:23 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -469,7 +469,8 @@ unsigned long Sigmet_RadBin4(double);
 unsigned long Sigmet_RadBin2(double);
 
 /* Return codes from Sigmet_ReadHdr and Sigmet_ReadVol */
-enum Sigmet_ReadStatus {READ_OK, INPUT_FAIL, BAD_VOL, MEM_FAIL};
+enum Sigmet_ReadStatus {SIGMET_READ_OK, SIGMET_INPUT_FAIL, SIGMET_BAD_VOL,
+    SIGMET_MEM_FAIL};
 
 void Sigmet_InitVol(struct Sigmet_Vol *);
 void Sigmet_FreeVol(struct Sigmet_Vol *);

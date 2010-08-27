@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.247 $ $Date: 2010/08/18 19:40:36 $
+ .	$Revision: 1.248 $ $Date: 2010/08/18 20:54:29 $
  */
 
 #include <limits.h>
@@ -788,19 +788,19 @@ static int hread_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	    return 0;
 	}
 	switch (Sigmet_ReadHdr(in, &vols[i].vol)) {
-	    case READ_OK:
+	    case SIGMET_READ_OK:
 		/* Success. Break out. */
 		loaded = 1;
 		trying = 0;
 		break;
-	    case MEM_FAIL:
+	    case SIGMET_MEM_FAIL:
 		/* Try to free some memory and try again */
 		if ( !flush(1) ) {
 		    trying = 0;
 		}
 		break;
-	    case INPUT_FAIL:
-	    case BAD_VOL:
+	    case SIGMET_INPUT_FAIL:
+	    case SIGMET_BAD_VOL:
 		/* Read failed. Disable this slot and return failure. */
 		unload(i);
 		trying = 0;
@@ -889,19 +889,19 @@ static int read_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	    return 0;
 	}
 	switch (Sigmet_ReadVol(in, &vols[i].vol)) {
-	    case READ_OK:
+	    case SIGMET_READ_OK:
 		/* Success. Break out. */
 		loaded = 1;
 		trying = 0;
 		break;
-	    case MEM_FAIL:
+	    case SIGMET_MEM_FAIL:
 		/* Try to free some memory. If unable to free memory, fail. */
 		if ( !flush(1) ) {
 		    trying = 0;
 		}
 		break;
-	    case INPUT_FAIL:
-	    case BAD_VOL:
+	    case SIGMET_INPUT_FAIL:
+	    case SIGMET_BAD_VOL:
 		/* Read failed. Disable this slot and fail. */
 		unload(i);
 		trying = 0;
