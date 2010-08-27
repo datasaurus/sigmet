@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.28 $ $Date: 2010/05/23 05:00:08 $
+   .	$Revision: 1.29 $ $Date: 2010/08/26 20:08:45 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -426,6 +426,7 @@ struct Sigmet_Vol {
 						   happens when operator orders
 						   "STOP NOW" during the task,
 						   or if a volume transfer fails */
+    int num_sweeps_ax;				/* Actual number of sweeps */
     int *sweep_ok;				/* Sweep status, dimensioned
 						   [sweep]. If sweep_ok[i],
 						   i'th sweep is complete. */

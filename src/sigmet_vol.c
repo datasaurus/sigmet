@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.44 $ $Date: 2010/03/23 22:05:43 $
+   .	$Revision: 1.45 $ $Date: 2010/08/26 20:08:45 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -893,6 +893,11 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     }
     vol_p->truncated = (r + 1 < num_rays || s + 1 < num_sweeps) ? 1 : 0;
     FREE(ray);
+    for (s = 0; s < vol_p->ih.tc.tni.num_sweeps && vol_p->sweep_ok[s]; s++) {
+	continue;
+    }
+    vol_p->num_sweeps_ax = s;
+
     return READ_OK;
 
 error:
