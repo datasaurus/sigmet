@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.2 $ $Date: 2010/08/27 13:55:27 $
+ .	$Revision: 1.3 $ $Date: 2010/08/27 13:57:01 $
  */
 
 #include <unistd.h>
@@ -122,9 +122,9 @@ int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 
 /*
    Fetch a volume from the data base, loading it if necessary.  Caller only
-   needs num_sweeps sweeps.  Send error messages to err or i_err.
+   needs n_swps_wanted sweeps.  Send error messages to err or i_err.
  */
-struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned num_sweeps, FILE *err,
+struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *err,
 	int i_err)
 {
     dev_t st_dev;		/* Device where vol_nm resides */
@@ -145,21 +145,24 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned num_sweeps, FILE *err
 	return 0;
     }
 
-    if ( (sv_p = get_vol(st_dev, st_ino)) ) {
-	/*
-	   If volume is loaded and has at least num_sweeps, return it.
-	   Otherwise, unload it, but keep the entry in the vols array.
-	 */
+    /*
+       If volume has a table entry, see if the vol member is present and has
+       the desired number of sweeps. If so, return the address of the volume.
+       If not, keep the table entry, but reinitialize the volume and read it
+       again.
 
+       If volume has no table entry, create one for it.
+     */
+    if ( (sv_p = get_vol(st_dev, st_ino)) ) {
 	v_p = (struct Sigmet_Vol *)sv_p;
-	if ( num_sweeps == 0 && v_p->has_headers ) {
+	if ( n_swps_wanted == 0 && v_p->has_headers ) {
 	    sv_p->users++;
 	    return v_p;
 	}
 	for (s = 0; s < v_p->ih.tc.tni.num_sweeps && v_p->sweep_ok[s]; s++) {
 	    continue;
 	}
-	if ( s >= num_sweeps ) {
+	if ( s >= n_swps_wanted ) {
 	    sv_p->users++;
 	    return v_p;
 	} else {
@@ -172,7 +175,7 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned num_sweeps, FILE *err
     v_p = (struct Sigmet_Vol *)sv_p;
 
     /* Read volume */
-    read_fn = (num_sweeps == 0) ? Sigmet_ReadHdr : Sigmet_ReadVol;
+    read_fn = (n_swps_wanted == 0) ? Sigmet_ReadHdr : Sigmet_ReadVol;
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	in_pid = -1;
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
