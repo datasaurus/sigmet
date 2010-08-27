@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.46 $ $Date: 2010/08/27 14:27:23 $
+   .	$Revision: 1.47 $ $Date: 2010/08/27 14:45:20 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -557,11 +557,13 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
     s = r = b = 0;
     yf = y = 0;
+    status = SIGMET_READ_OK;
 
     /* Read headers. */
     if ( (status = Sigmet_ReadHdr(f, vol_p)) != SIGMET_READ_OK ) {
 	Err_Append("Could not read volume headers.\n");
-	goto error;
+	Sigmet_FreeVol(vol_p);
+	return SIGMET_BAD_VOL;
     }
 
     /* Allocate arrays in vol_p. */
@@ -891,14 +893,17 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    }
 	}
     }
-    vol_p->truncated = (r + 1 < num_rays || s + 1 < num_sweeps) ? 1 : 0;
-    FREE(ray);
     for (s = 0; s < vol_p->ih.tc.tni.num_sweeps && vol_p->sweep_ok[s]; s++) {
 	continue;
     }
+    vol_p->truncated = (r + 1 < num_rays || s + 1 < num_sweeps) ? 1 : 0;
+    if ( vol_p->truncated && feof(f) ) {
+	status = SIGMET_INPUT_FAIL;
+    }
+    FREE(ray);
     vol_p->num_sweeps_ax = s;
 
-    return SIGMET_READ_OK;
+    return status;
 
 error:
     FREE(ray);
