@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.7 $ $Date: 2010/08/27 19:25:52 $
+ .	$Revision: 1.8 $ $Date: 2010/08/27 19:48:09 $
  */
 
 #include <unistd.h>
@@ -48,10 +48,7 @@ static int hash(dev_t, ino_t);
 static struct sig_vol *new_vol(dev_t, ino_t);
 static struct sig_vol *get_vol(dev_t, ino_t);
 static FILE *vol_open(const char *, pid_t *, int, FILE *);
-static int unload(struct sig_vol *);
-
-/* Sigmet_ReadHdr or Sigmet_ReadVol */
-typedef enum Sigmet_ReadStatus (read_fn_t)(FILE *, struct Sigmet_Vol *);
+static void unload(struct sig_vol *);
 
 /* Initialize this interface */
 void SigmetRaw_VolInit(void)
@@ -65,7 +62,11 @@ void SigmetRaw_VolInit(void)
     assert(N_VOLS == 256);
     for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
 	Sigmet_InitVol((struct Sigmet_Vol *)sv_p);
-	memset(sv_p, 0, sizeof(struct sig_vol));
+	sv_p->in_use = 0;
+	memset(sv_p->vol_nm, 0, LEN);
+	sv_p->st_dev = 0;
+	sv_p->st_ino = 0;
+	sv_p->users = 0;
     }
     init = 1;
 }
@@ -77,7 +78,11 @@ void SigmetRaw_VolFree(void)
 
     for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
 	Sigmet_FreeVol((struct Sigmet_Vol *)sv_p);
-	memset(sv_p, 0, sizeof(struct sig_vol));
+	sv_p->in_use = 0;
+	memset(sv_p->vol_nm, 0, LEN);
+	sv_p->st_dev = 0;
+	sv_p->st_ino = 0;
+	sv_p->users = 0;
     }
 }
 
@@ -120,22 +125,22 @@ int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 }
 
 /*
-   Fetch a volume from the data base, loading it if necessary.  Caller only
-   needs n_swps_wanted sweeps.  Send error messages to err or i_err.
+   Fetch a volume with headers from the data base, loading it if necessary.
+   If function loads it, only load headers.
+   User count for the volume's entry is incremented. Send error messages to
+   err or i_err.
  */
-struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *err,
-	int i_err)
+struct Sigmet_Vol *SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err)
 {
     dev_t st_dev;		/* Device where vol_nm resides */
     ino_t st_ino;		/* File system index number for vol_nm */
     struct sig_vol *sv_p;	/* Member of vols */
-    struct Sigmet_Vol *v_p;	/* Return value */
+    struct Sigmet_Vol *vol_p;	/* Return value */
     int loaded;			/* If true, volume is loaded */
     int try;			/* Number of attempts to read volume */
     int max_try = 3;		/* Maximum tries */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
-    read_fn_t *read_fn;		/* Function to call to read volume */
 
     if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
 	fprintf(err, "Could not get information about %s\n%s\n",
@@ -144,33 +149,23 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
     }
 
     /*
-       If volume has a table entry, see if the vol member is present and has
-       the desired number of sweeps. If so, return the address of the volume.
-       If not, keep the table entry, but reinitialize the volume and read it
-       again.
-
-       If volume has no table entry, create one for it.
+       Find or make entry for the volume in vols. If entry already exists and
+       has headers, return.
      */
     if ( (sv_p = get_vol(st_dev, st_ino)) ) {
-	v_p = (struct Sigmet_Vol *)sv_p;
-	if ( n_swps_wanted == 0 && v_p->has_headers ) {
+	vol_p = (struct Sigmet_Vol *)sv_p;
+	if ( vol_p->has_headers ) {
 	    sv_p->users++;
-	    return v_p;
-	}
-	if ( n_swps_wanted == UINT_MAX || v_p->num_sweeps_ax >= n_swps_wanted ) {
-	    sv_p->users++;
-	    return v_p;
-	} else {
-	    Sigmet_FreeVol(v_p);
+	    return vol_p;
 	}
     } else if ( !(sv_p = new_vol(st_dev, st_ino)) ) {
 	fprintf(err, "Volume table full. Could not (re)load %s\n", vol_nm);
 	return NULL;
     }
-    v_p = (struct Sigmet_Vol *)sv_p;
+    sv_p->users++;
+    vol_p = (struct Sigmet_Vol *)sv_p;
 
-    /* Read volume */
-    read_fn = (n_swps_wanted == 0) ? Sigmet_ReadHdr : Sigmet_ReadVol;
+    /* Try to read volume headers */
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	in_pid = -1;
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
@@ -178,7 +173,7 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
 	    unload(sv_p);
 	    return NULL;
 	}
-	switch (read_fn(in, v_p)) {
+	switch (Sigmet_ReadHdr(in, vol_p)) {
 	    case SIGMET_READ_OK:
 		/* Success. Break out. */
 		loaded = 1;
@@ -192,10 +187,9 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
 	    case SIGMET_BAD_VOL:
 		/* Read failed. Disable this slot and return failure. */
 		fprintf(err, "%s\n", Err_Get());
-		unload(sv_p);
+		try = max_try;
 		break;
 	}
-	fseek(in, 0, SEEK_END);
 	while (fgetc(in) != EOF) {
 	    continue;
 	}
@@ -206,26 +200,129 @@ struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, unsigned n_swps_wanted, FILE *
     }
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
+	sv_p->users--;
 	unload(sv_p);
 	return NULL;
     }
     strncpy(sv_p->vol_nm, vol_nm, LEN);
+    return vol_p;
+}
+
+/*
+   Fetch a volume from the data base, loading it if necessary.
+   User count for the volume's entry is incremented. Send error messages to
+   err or i_err.
+ */
+struct Sigmet_Vol *SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err)
+{
+    dev_t st_dev;		/* Device where vol_nm resides */
+    ino_t st_ino;		/* File system index number for vol_nm */
+    struct sig_vol *sv_p;	/* Member of vols */
+    struct Sigmet_Vol *vol_p;	/* Return value */
+    int loaded;			/* If true, volume is loaded */
+    int try;			/* Number of attempts to read volume */
+    int max_try = 3;		/* Maximum tries */
+    FILE *in;			/* Stream from Sigmet raw file */
+    pid_t in_pid = -1;		/* Process providing in, if any */
+
+    if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
+	fprintf(err, "Could not get information about %s\n%s\n",
+		vol_nm, strerror(errno));
+	return NULL;
+    }
+
+    /*
+       Find or make entry for the volume in vols. If entry already exists and
+       has data, return.
+     */
+    if ( (sv_p = get_vol(st_dev, st_ino)) ) {
+	vol_p = (struct Sigmet_Vol *)sv_p;
+	if ( !vol_p->truncated ) {
+	    sv_p->users++;
+	    return vol_p;
+	}
+    } else if ( !(sv_p = new_vol(st_dev, st_ino)) ) {
+	fprintf(err, "Volume table full. Could not (re)load %s\n", vol_nm);
+	return NULL;
+    }
+    vol_p = (struct Sigmet_Vol *)sv_p;
     sv_p->users++;
-    return v_p;
+
+    /* Read volume */
+    for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
+	in_pid = -1;
+	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
+	    fprintf(err, "Could not open %s for input.\n", vol_nm);
+	    unload(sv_p);
+	    return NULL;
+	}
+	switch (Sigmet_ReadVol(in, vol_p)) {
+	    case SIGMET_READ_OK:
+	    case SIGMET_INPUT_FAIL:
+		/* Success or partial success. Break out. */
+		loaded = 1;
+		break;
+	    case SIGMET_MEM_FAIL:
+		/* Try to free some memory and try again */
+		fprintf(err, "Read failed. Out of memory. %s "
+			"Offloading unused volumes\n", Err_Get());
+		SigmetRaw_Flush();
+		break;
+	    case SIGMET_BAD_VOL:
+		/* Read failed. Disable this slot and return failure. */
+		fprintf(err, "Read failed, bad volume. %s\n", Err_Get());
+		try = max_try;
+		break;
+	}
+	while (fgetc(in) != EOF) {
+	    continue;
+	}
+	fclose(in);
+	if (in_pid != -1) {
+	    waitpid(in_pid, NULL, 0);
+	}
+    }
+    if ( !loaded ) {
+	fprintf(err, "Could not read %s\n", vol_nm);
+	sv_p->users--;
+	unload(sv_p);
+	return NULL;
+    }
+    strncpy(sv_p->vol_nm, vol_nm, LEN);
+    return vol_p;
+}
+
+/* Fetch a volume from the data base.  Send error messages to err or i_err. */
+struct Sigmet_Vol *SigmetRaw_GetVol(char *vol_nm, FILE *err, int i_err)
+{
+    dev_t st_dev;		/* Device where vol_nm resides */
+    ino_t st_ino;		/* File system index number for vol_nm */
+    struct sig_vol *sv_p;	/* Member of vols */
+
+    if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
+	fprintf(err, "Could not get information about %s\n%s\n",
+		vol_nm, strerror(errno));
+	return NULL;
+    }
+    if ( !(sv_p = get_vol(st_dev, st_ino)) || !sv_p->vol.has_headers) {
+	fprintf(err, "%s not loaded. Please load with read command.\n", vol_nm);
+	return NULL;
+    }
+    return (struct Sigmet_Vol *)sv_p;
 }
 
 /* Print list of currently loaded volumes. */
 int SigmetRaw_VolList(FILE *out)
 {
     struct sig_vol *sv_p;
-    struct Sigmet_Vol *v_p;
+    struct Sigmet_Vol *vol_p;
 
     for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
-	v_p = (struct Sigmet_Vol *)sv_p;
+	vol_p = (struct Sigmet_Vol *)sv_p;
 	if ( sv_p->in_use ) {
 	    /* File name. Number of users. Number of sweeps. */
-	    fprintf(out, "%s users=%d. sweeps=%d.\n ",
-		    sv_p->vol_nm, sv_p->users, v_p->num_sweeps_ax);
+	    fprintf(out, "%s users=%d. sweeps=%d.\n",
+		    sv_p->vol_nm, sv_p->users, vol_p->num_sweeps_ax);
 	}
     }
     return 1;
@@ -259,7 +356,9 @@ void SigmetRaw_Flush(void)
     struct sig_vol *sv_p;
 
     for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
-	unload(sv_p);
+	if ( sv_p->in_use ) {
+	    unload(sv_p);
+	}
     }
 }
 
@@ -459,12 +558,23 @@ error:
 }
 
 /* Try to unload volume */
-static int unload(struct sig_vol *sv_p)
+static void unload(struct sig_vol *sv_p)
 {
-    if ( sv_p->users > 0 ) {
-	return 0;
+    struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)sv_p;
+
+    if ( !sv_p->in_use ) {
+	return;
     }
-    Sigmet_FreeVol((struct Sigmet_Vol *)sv_p);
-    memset(sv_p, 0, sizeof(struct sig_vol));
-    return 1;
+    if ( sv_p->users > 0 ) {
+	return;
+    }
+    if ( vol_p->has_headers ) {
+	Sigmet_FreeVol(vol_p);
+    }
+    sv_p->in_use = 0;
+    memset(sv_p->vol_nm, 0, LEN);
+    sv_p->st_dev = 0;
+    sv_p->st_ino = 0;
+    sv_p->users = 0;
+    return;
 }
