@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.47 $ $Date: 2010/08/27 14:45:20 $
+   .	$Revision: 1.48 $ $Date: 2010/08/27 16:16:02 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -204,6 +204,8 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	(1 << 26), (1 << 27), (1 << 28)
     };
     unsigned data_type_mask;
+
+    Sigmet_FreeVol(vol_p);
 
     /* record 1, <product_header> */
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
@@ -559,7 +561,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     yf = y = 0;
     status = SIGMET_READ_OK;
 
-    /* Read headers. */
+    /* Read headers. As a side effect, this initializes vol_p. */
     if ( (status = Sigmet_ReadHdr(f, vol_p)) != SIGMET_READ_OK ) {
 	Err_Append("Could not read volume headers.\n");
 	Sigmet_FreeVol(vol_p);
