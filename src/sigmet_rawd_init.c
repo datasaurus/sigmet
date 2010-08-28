@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.251 $ $Date: 2010/08/27 18:29:44 $
+ .	$Revision: 1.252 $ $Date: 2010/08/27 20:30:39 $
  */
 
 #include <limits.h>
@@ -439,6 +439,8 @@ int main(int argc, char *argv[])
 	    for (y = 0; y < SIGMET_NTYPES; y++) {
 		DataType_Rm(Sigmet_DataType_Abbrv(y));
 	    }
+	    FREE(cl_wd);
+	    FREE(cmd_ln);
 	    if ( unlink(SIGMET_RAWD_IN) == -1 ) {
 		fprintf(stderr, "%s: could not delete input pipe.\n",
 			time_stamp());
@@ -598,7 +600,7 @@ static int hread_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return 0;
     }
-    return (SigmetRaw_GetVol(vol_nm, 0, err, i_err) != NULL);
+    return (SigmetRaw_ReadHdr(vol_nm, err, i_err) != NULL);
 }
 
 static int read_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
@@ -619,7 +621,7 @@ static int read_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return 0;
     }
-    return (SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err) != NULL);
+    return (SigmetRaw_ReadVol(vol_nm, err, i_err) != NULL);
 }
 
 static int list_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
@@ -676,7 +678,7 @@ static int volume_headers_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
 	return 0;
@@ -708,7 +710,7 @@ static int vol_hdr_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
 	return 0;
@@ -787,7 +789,7 @@ static int near_sweep_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *o
 	return 0;
     }
     ang *= RAD_PER_DEG;
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
 	return 0;
@@ -799,7 +801,7 @@ static int near_sweep_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *o
 	return 0;
     }
     nrst = -1;
-    for (da = DBL_MAX, s = 0; s < vol_p->ih.tc.tni.num_sweeps; s++) {
+    for (da = DBL_MAX, s = 0; s < vol_p->num_sweeps_ax; s++) {
 	if ( fabs(vol_p->sweep_angle[s] - ang) < da ) {
 	    da = fabs(vol_p->sweep_angle[s] - ang);
 	    nrst = s;
@@ -829,12 +831,17 @@ static int ray_headers_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
 	return 0;
     }
-    for (s = 0; s < vol_p->ih.tc.tni.num_sweeps; s++) {
+    if ( vol_p->truncated ) {
+	fprintf(err, "%s %s: %s is truncated. Please reload.\n",
+		argv0, argv1, vol_nm);
+	return 0;
+    }
+    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 	for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
 	    int yr, mon, da, hr, min;
 	    double sec;
@@ -919,7 +926,7 @@ static int data_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
 	return 0;
@@ -942,7 +949,7 @@ static int data_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	    return 0;
 	}
     }
-    if (s != all && s >= vol_p->ih.ic.num_sweeps) {
+    if ( s != all && s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
 	return 0;
@@ -963,7 +970,7 @@ static int data_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	for (y = 0; y < vol_p->num_types; y++) {
 	    type = vol_p->types[y];
 	    abbrv = Sigmet_DataType_Abbrv(type);
-	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 		fprintf(out, "%s. sweep %d\n", abbrv, s);
 		for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
 		    if ( !vol_p->ray_ok[s][r] ) {
@@ -984,7 +991,7 @@ static int data_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 	    }
 	}
     } else if (s == all && r == all && b == all) {
-	for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+	for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 	    fprintf(out, "%s. sweep %d\n", abbrv, s);
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		    if ( !vol_p->ray_ok[s][r] ) {
@@ -1077,7 +1084,7 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
 	return 0;
@@ -1109,7 +1116,7 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
 		"or \"radian\"\n", u_s);
 	return 0;
     }
-    if (s >= vol_p->ih.ic.num_sweeps) {
+    if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
 	return 0;
@@ -1187,7 +1194,7 @@ static int bintvls_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, s_s);
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
 	return 0;
@@ -1204,7 +1211,7 @@ static int bintvls_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, abbrv, vol_nm);
 	return 0;
     }
-    if (s >= vol_p->ih.ic.num_sweeps) {
+    if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
 	return 0;
@@ -1260,9 +1267,9 @@ static int radar_lon_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *ou
 		"got %s\n", argv0, argv1, lon_s);
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, 0, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
-		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
+		" Please (re)load with hread command.\n", argv0, argv1, vol_nm);
 	return 0;
     }
     lon = GeogLonR(lon * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
@@ -1300,9 +1307,9 @@ static int radar_lat_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *ou
 		"got %s\n", argv0, argv1, lat_s);
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, 0, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
-		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
+		" Please (re)load with hread command.\n", argv0, argv1, vol_nm);
 	return 0;
     }
     lat = GeogLonR(lat * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
@@ -1342,22 +1349,27 @@ static int shift_az_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out
 		argv0, argv1, daz_s);
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
+	return 0;
+    }
+    if ( vol_p->truncated ) {
+	fprintf(err, "%s %s: %s is truncated. Please reload.\n",
+		argv0, argv1, vol_nm);
 	return 0;
     }
     daz = GeogLonR(daz * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
     idaz = Sigmet_RadBin4(daz);
     switch (vol_p->ih.tc.tni.scan_mode) {
 	case RHI:
-	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 		vol_p->ih.tc.tni.scan_info.rhi_info.az[s] += idaz;
 	    }
 	    break;
 	case PPI_S:
 	case PPI_C:
-	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 		vol_p->ih.tc.tni.scan_info.ppi_info.left_az += idaz;
 		vol_p->ih.tc.tni.scan_info.ppi_info.right_az += idaz;
 	    }
@@ -1367,7 +1379,7 @@ static int shift_az_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out
 	case MAN_SCAN:
 	    break;
     }
-    for (s = 0; s < vol_p->ih.tc.tni.num_sweeps; s++) {
+    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 	for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
 	    vol_p->ray_az0[s][r]
 		= GeogLonR(vol_p->ray_az0[s][r] + daz, 180.0 * RAD_PER_DEG);
@@ -1544,7 +1556,7 @@ static int img_name_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out
 		argv0, argv1, s_s);
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
 	return 0;
@@ -1561,7 +1573,7 @@ static int img_name_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out
 		argv0, argv1, abbrv, vol_nm);
 	return 0;
     }
-    if (s >= vol_p->ih.ic.num_sweeps) {
+    if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
 	return 0;
@@ -1699,7 +1711,7 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, s_s);
 	return 0;
     }
-    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, UINT_MAX, err, i_err)) ) {
+    if ( !(vol_p = SigmetRaw_GetVol(vol_nm, err, i_err)) ) {
 	fprintf(err, "%s %s: %s not loaded or was unloaded due to being truncated."
 		" Please (re)load with read command.\n", argv0, argv1, vol_nm);
 	return 0;
@@ -1716,7 +1728,7 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out, FILE *out,
 		argv0, argv1, abbrv, vol_nm);
 	return 0;
     }
-    if (s >= vol_p->ih.ic.num_sweeps) {
+    if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
 	return 0;
