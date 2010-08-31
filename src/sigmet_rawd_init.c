@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.261 $ $Date: 2010/08/31 19:45:45 $
+ .	$Revision: 1.262 $ $Date: 2010/08/31 19:45:55 $
  */
 
 #include <limits.h>
@@ -218,7 +218,6 @@ int main(int argc, char *argv[])
 	FILE *out, *err;	/* Standard streams for i_out and i_err */
 	int flags;		/* Return from fcntl, when config'ing cl_io_fd */
 	int status;		/* Result of callback, exit status for client */
-	int stop = 0;		/* If true, daemon has received a "stop" command */
 	int i;			/* Loop index */
 	char *c, *e;		/* Loop parameters */
 	void *t;		/* Hold return from realloc */
@@ -363,10 +362,7 @@ int main(int argc, char *argv[])
 	/* Identify command */
 	cmd0 = argv1[0];
 	cmd1 = argv1[1];
-	if ( strcmp(cmd1, "stop") == 0 ) {
-	    status = EXIT_SUCCESS;
-	    stop = 1;
-	} else if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 	    /* No command. Make error message. */
 	    status = EXIT_FAILURE;
 	    fprintf(err, "No option or subcommand named %s. "
@@ -398,31 +394,12 @@ int main(int argc, char *argv[])
 	    fprintf(err, "%s: could not close socket for %s (%d).\n"
 		    "%s\n", time_stamp(), cmd1, client_pid, strerror(errno) );
 	}
-
-	/* Execute "stop" command, if received. */
-	if (stop) {
-	    int y;
-
-	    printf("%s: received stop command, exiting.\n", time_stamp());
-	    SigmetRaw_VolFree();
-	    for (y = 0; y < SIGMET_NTYPES; y++) {
-		DataType_Rm(Sigmet_DataType_Abbrv(y));
-	    }
-	    FREE(cl_wd);
-	    FREE(cmd_ln);
-	    if ( unlink(SIGMET_RAWD_IN) == -1 ) {
-		fprintf(stderr, "%s: could not delete input pipe.\n",
-			time_stamp());
-	    }
-	    exit(EXIT_SUCCESS);
-	}
-
     }
 
     /* Should not end up here */
     fprintf(stderr, "%s: unexpected exit.\n%s\n",
 	    time_stamp(), strerror(errno));
-    kill(0, SIGKILL);
+    kill(0, SIGTERM);
     unlink(SIGMET_RAWD_IN);
     SigmetRaw_VolFree();
     for (y = 0; y < SIGMET_NTYPES; y++) {
