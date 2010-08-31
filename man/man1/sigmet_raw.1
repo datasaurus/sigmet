@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.24 $ $Date: 2010/08/18 18:21:36 $
+.\" $Revision: 1.25 $ $Date: 2010/08/31 20:43:34 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -47,7 +47,7 @@ The following subcommands are recognized:
 \fBsigmet_raw\fP \fBstart\fP \fIcommand ...\fP
 This command must be run before any of the other commands listed below will
 work. It starts a background daemon, named \fBsigmet_rawd\fP, that stores and
-manages Sigmet volumes. Then it creates an enviroment needed to access the
+manages Sigmet volumes. Then it creates an environment needed to access the
 daemon, and then it executes unix command \fIcommand\fP.  \fIcommand\fP can be an
 interactive shell, e.g.  \fBsigmet_raw start bash -l\fP, or a shell script.
 If \fIcommand\fP is an interactive shell, the prompt will return to the
@@ -68,7 +68,7 @@ Log messages go to \fBsigmet.log\fP, and error messages go to \fBsigmet.err\fP i
 the daemon directory.
 .TP
 \fBsigmet_raw\fP \fBpid\fP
-Prints the daemons proccess id.
+Prints the daemons process id.
 .TP
 \fBsigmet_raw\fP \fBtypes\fP
 Prints a list of Sigmet data types.  Output lines have form:
@@ -276,7 +276,7 @@ order given:
     unsigned int     - image width, pixels
     unsigned int     - image height, pixels
     double           - real (map) coordinate of left edge of image
-    double           - real (map) coordinate of rigth edge of image
+    double           - real (map) coordinate of right edge of image
     double           - real (map) coordinate of top edge of image
     double           - real (map) coordinate of bottom edge of image
     double           - image alpha channel, in range [0.0,1.0]
