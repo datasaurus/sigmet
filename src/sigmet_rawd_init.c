@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.256 $ $Date: 2010/08/31 18:37:21 $
+ .	$Revision: 1.257 $ $Date: 2010/08/31 19:12:08 $
  */
 
 #include <limits.h>
@@ -433,7 +433,7 @@ int main(int argc, char *argv[])
 
 error:
     fprintf(stderr, "%s: sigmet_raw daemon exiting. Terminating all sigmet_raw "
-	    "processes.\n");
+	    "processes.\n", time_stamp());
     kill(0, SIGTERM);
     exit(EXIT_FAILURE);
 }
