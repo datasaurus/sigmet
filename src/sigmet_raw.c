@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.36 $ $Date: 2010/08/31 15:23:13 $
+   .	$Revision: 1.37 $ $Date: 2010/08/31 15:29:00 $
  */
 
 #include <limits.h>
@@ -50,7 +50,6 @@ int main(int argc, char *argv[])
     char *argv0 = argv[0];
     char *ddir;			/* Name of daemon working directory */
     char ddir_t[LEN];		/* Temporary writing space */
-    int try, max_tries = 3;	/* Number of times check for existence of ddir */
     char cwd[LINE_MAX];		/* Current working directory */
     size_t cwd_l;		/* strlen(cwd) */
     struct sockaddr_un sa;	/* Address of socket that connects with daemon */
@@ -168,23 +167,6 @@ int main(int argc, char *argv[])
 		    fprintf(stderr, "Could not create process group.\n%s\n",
 			    strerror(errno));
 		    _exit(EXIT_FAILURE);
-		}
-
-		/* Wait for daemon to make its working directory */
-		for (try = 0; try < max_tries; try++) {
-		    int d;
-
-		    if ( (d = open(ddir, O_RDONLY)) == -1 ) {
-			sleep(1);
-		    } else {
-			close(d);
-			try = max_tries + 1;
-		    }
-		}
-		if ( try == max_tries ) {
-		    fprintf(stderr, "%s (%d): could not find daemon working "
-			    "directory. Daemon probably failed.\n", argv0, pid);
-		    goto error;
 		}
 
 		/* Execute the user command */
