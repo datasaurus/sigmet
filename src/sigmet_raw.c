@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.38 $ $Date: 2010/08/31 15:30:47 $
+   .	$Revision: 1.39 $ $Date: 2010/08/31 19:11:32 $
  */
 
 #include <limits.h>
@@ -549,11 +549,11 @@ int handle_signals(void)
 void handler(int signum)
 {
     switch (signum) {
-	case SIGKILL:
-	    write(STDERR_FILENO, "Exiting on kill signal           \n", 34);
-	    break;
 	case SIGTERM:
 	    write(STDERR_FILENO, "Exiting on termination signal    \n", 34);
+	    break;
+	case SIGKILL:
+	    write(STDERR_FILENO, "Exiting on kill signal           \n", 34);
 	    break;
 	case SIGBUS:
 	    write(STDERR_FILENO, "Exiting on bus error             \n", 34);
@@ -580,5 +580,9 @@ void handler(int signum)
     unlink(out_nm);
     unlink(err_nm);
     kill(0, SIGTERM);
-    _exit(EXIT_FAILURE);
+    if ( signum == SIGTERM ) {
+	_exit(EXIT_SUCCESS);
+    } else {
+	_exit(EXIT_FAILURE);
+    }
 }

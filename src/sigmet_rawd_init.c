@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.257 $ $Date: 2010/08/31 19:12:08 $
+ .	$Revision: 1.258 $ $Date: 2010/08/31 19:22:36 $
  */
 
 #include <limits.h>
@@ -2104,8 +2104,45 @@ static void handler(int signum)
 	    write(STDERR_FILENO, "Exiting: file size limit exceeded\n", 34);
 	    break;
     }
+}
+
+/* For exit signals, print an error message if possible */
+void handler(int signum)
+{
+    switch (signum) {
+	case SIGTERM:
+	    write(STDERR_FILENO, "Exiting on termination signal    \n", 34);
+	    break;
+	case SIGKILL:
+	    write(STDERR_FILENO, "Exiting on kill signal           \n", 34);
+	    break;
+	case SIGBUS:
+	    write(STDERR_FILENO, "Exiting on bus error             \n", 34);
+	    break;
+	case SIGFPE:
+	    write(STDERR_FILENO, "Exiting arithmetic exception     \n", 34);
+	    break;
+	case SIGILL:
+	    write(STDERR_FILENO, "Exiting illegal instruction      \n", 34);
+	    break;
+	case SIGSEGV:
+	    write(STDERR_FILENO, "Exiting invalid memory reference \n", 34);
+	    break;
+	case SIGSYS:
+	    write(STDERR_FILENO, "Exiting on bad system call       \n", 34);
+	    break;
+	case SIGXCPU:
+	    write(STDERR_FILENO, "Exiting: CPU time limit exceeded \n", 34);
+	    break;
+	case SIGXFSZ:
+	    write(STDERR_FILENO, "Exiting: file size limit exceeded\n", 34);
+	    break;
+    }
     unlink(SIGMET_RAWD_IN);
-    write(STDERR_FILENO, "Sending KILL signal to process group\n", 37);
     kill(0, SIGTERM);
-    _exit(EXIT_FAILURE);
+    if ( signum == SIGTERM ) {
+	_exit(EXIT_SUCCESS);
+    } else {
+	_exit(EXIT_FAILURE);
+    }
 }
