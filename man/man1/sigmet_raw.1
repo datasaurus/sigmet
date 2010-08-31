@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.23 $ $Date: 2010/07/30 18:52:19 $
+.\" $Revision: 1.24 $ $Date: 2010/08/18 18:21:36 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -12,7 +12,7 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 .SH SYNOPSIS
 .nf
 \fBexport\fP \fBSIGMET_RAWD_DIR=\fP\fIdirectory\fP 
-\fBsigmet_rawd\fP [\fB-f\fP]
+\fBsigmet_raw\fP \fBstart\fP \fIcommand ...\fP
 \fBsigmet_raw\fP \fBpid\fP
 \fBsigmet_raw\fP \fBtypes\fP
 \fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
@@ -20,8 +20,7 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_raw\fP \fBread\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBlist\fP
 \fBsigmet_raw\fP \fBrelease\fP \fIvolume_file\fP
-\fBsigmet_raw\fP \fBunload\fP \fIvolume_file\fP
-\fBsigmet_raw\fP \fBflush\fP \fIcount\fP
+\fBsigmet_raw\fP \fBflush\fP
 \fBsigmet_raw\fP \fBvolume_headers\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBvol_hdr\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBnear_sweep\fP
@@ -39,32 +38,34 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_raw\fP \fBalpha\fP \fIa\fP
 \fBsigmet_raw\fP \fBimg_name\fP [\fItype\fP] [\fIs\fP] \fIvolume_file\fP
 \fBsigmet_raw\fP \fBimg\fP
-\fBsigmet_raw\fP \fBstop\fP
 .fi
 .SH DESCRIPTION
-\fBsigmet_rawd\fP is a daemon that reads, stores, and manipulates data from
-Sigmet raw product volumes.  \fBsigmet_raw\fP is a client that interacts with it.
-.PP
-\fBsigmet_rawd\fP and \fBsigmet_raw\fP require environment variable
-\fBSIGMET_RAWD_DIR\fP, that identifies the directory where the daemon keeps files.
-This directory must exist before the \fBsigmet_rawd\fP can start.
-Users with read-write-execute permission to this directory will be able to
-access and manipulate the daemon. Therefore, directory permissions should be set
-according to who should have access to the daemon.
-.PP
-The daemon stores an array of volumes for repeated access.  Multiple invocations
-of \fBsigmet_raw\fP in various shells where \fBSIGMET_RAWD_DIR\fP is set can
-access the stored volumes.  Subcommands and options to \fBsigmet_raw\fP, described
-below, tell the daemon to read, manipulate, provide information from, and release
-volumes in the daemon's internal array
-.PP
-\fBsigmet_rawd\fP goes to the background upon startup. The \fB-f\fP option
-overrides this behavior. Log messages go to \fB$SIGMET_RAWD_DIR/sigmet.log\fP.
-Error messages go to \fB$SIGMET_RAWD_DIR/sigmet.err\fP.
-.PP
-Once \fBsigmet_rawd\fP is running, the commands listed below are recognized.
-File names not given as absolute paths are taken relative to the current working
-directory of the client.
+\fBsigmet_raw\fP reads, stores, and manipulates data from Sigmet raw product
+volumes. Its behavior is determined by the subcommand on the command line.
+The following subcommands are recognized:
+.TP
+\fBsigmet_raw\fP \fBstart\fP \fIcommand ...\fP
+This command must be run before any of the other commands listed below will
+work. It starts a background daemon, named \fBsigmet_rawd\fP, that stores and
+manages Sigmet volumes. Then it creates an enviroment needed to access the
+daemon, and then it executes unix command \fIcommand\fP.  \fIcommand\fP can be an
+interactive shell, e.g.  \fBsigmet_raw start bash -l\fP, or a shell script.
+If \fIcommand\fP is an interactive shell, the prompt will return to the
+usual prompt for the shell, and the user can type in commands.  Invocations of
+\fBsigmet_raw\fP on the command line or in the script will use the
+daemon to store and fetch data from Sigmet volumes. The daemon automatically exits
+when \fIcommand\fP exits, either because the user logs out, or the script finishes.
+
+The daemon keeps files in a directory specified by environment variable
+\fBSIGMET_RAWD_DIR\fP, or $\fBHOME/.sigmet_raw\fP if \fBSIGMET_RAWD_DIR\fP is not
+set.
+
+Invocations of \fBsigmet_raw\fP in other shells can use the same daemon if their
+\fBSIGMET_RAWD_DIR\fP is set to the path used by a given instance of
+\fBsigmet_raw start\fP.
+
+Log messages go to \fBsigmet.log\fP, and error messages go to \fBsigmet.err\fP in
+the daemon directory.
 .TP
 \fBsigmet_raw\fP \fBpid\fP
 Prints the daemons proccess id.
@@ -126,14 +127,8 @@ the volume becomes available for new volumes.  Every call to
 \fBsigmet_raw\fP\ \fBread\fP should have a corresponding call to
 \fBsigmet_raw\fP\ \fBrelease\fP
 .TP
-\fBsigmet_raw\fP \fBunload\fP \fIvolume_file\fP
-If the user count for \fIvolume_file\fP, this command removes it from memory.
-It fails if the volume is in use.
-.TP
-\fBsigmet_raw\fP \fBflush\fP \fIcount\fP
-Attempts to remove \fIcount\fP unused volumes from memory. If there are fewer than
-\fIcount\fP unused volumes, the command frees as many as it can, and returns a
-failure code.
+\fBsigmet_raw\fP \fBflush\fP
+Removes unused volumes from memory.
 .TP
 \fBsigmet_raw\fP \fBvolume_headers\fP \fIvolume_file\fP
 Prints volume headers for
@@ -316,10 +311,6 @@ Makes an image for data type \fItype\fP, sweep \fIs\fP in the volume obtained
 from \fIvolume_file\fP, which should have been loaded with a call to
 \fBsigmet_raw\fP\ \fBread\fP. This command fails if the image file
 already exists.
-.TP
-\fBsigmet_raw\fP \fBstop\fP
-Stops the daemon. Working directory continues to exist. Subsequent calls to
-\fBsigmet_raw\fP will fail.
 .SH SEE ALSO
 sigmet (3), IRIS Programmer's Manual (http://sigmet.com)
 .br
