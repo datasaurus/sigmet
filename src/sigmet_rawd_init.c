@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.252 $ $Date: 2010/08/27 20:30:39 $
+ .	$Revision: 1.253 $ $Date: 2010/08/28 14:05:13 $
  */
 
 #include <limits.h>
@@ -103,17 +103,15 @@ static void handler(int);
 
 int main(int argc, char *argv[])
 {
-    char *cmd;			/* Name of this daemon */
+    char *argv0;		/* Name of this daemon */
+    int flags;			/* Flags for log files */
     mode_t mode;		/* Mode for files */
     char *ddir;			/* Working directory for daemon */
-    int bg = 1;			/* If true, run in foreground (do not fork) */
-    pid_t pid;			/* Return from fork */
-    int flags;			/* Flags for log files */
+    char ddir_t[LEN];		/* Temporary writing space */
     struct sockaddr_un sa;	/* Socket to read command and return exit status */
     struct sockaddr *sa_p;	/* &sa or &d_err_sa, for call to bind */
     int i_dmn;			/* File descriptors for d_io and d_err */
     int y;			/* Loop index */
-    int i;
     int cl_io_fd;		/* File descriptor to read client command
 				   and send results */
     pid_t client_pid = -1;	/* Client process id */
@@ -123,94 +121,74 @@ int main(int argc, char *argv[])
     char *cmd_ln = NULL;	/* Command line from client */
     size_t cmd_ln_l;		/* strlen(cmd_ln) */
     size_t cmd_ln_lx = 0;	/* Given size of command line */
+    int i;
 
-    cmd = argv[0];
+    argv0 = argv[0];
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
-	fprintf(stderr, "%s: could not set up signal management.", cmd);
-	exit(EXIT_FAILURE);
+	fprintf(stderr, "%s: could not set up signal management.", argv0);
+	goto error;
     }
 
-    /* Usage: sigmet_rawd [-f] */
-    if ( argc == 1 ) {
-	printf("%s --\nVersion %s. Copyright (c) 2010 Gordon D. Carrie. "
-		"All rights reserved.\n", cmd, SIGMET_VSN);
-    } else if ( argc == 2 && strcmp(argv[1], "-f") == 0 ) {
-	bg = 0;
-    } else {
-	fprintf(stderr, "Usage: %s [-f]\n", cmd);
-	exit(EXIT_FAILURE);
+    /* Usage: sigmet_rawd */
+    if ( argc != 1 ) {
+	fprintf(stderr, "Usage: %s\n", argv0);
+	goto error;
     }
 
     /* Identify and go to working directory */
     if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	fprintf(stderr, "%s: could not identify daemon directory. "
-		"Please specify daemon directory with SIGMET_RAWD_DIR "
-		"environment variable.\n", cmd);
-	exit(EXIT_FAILURE);
+	if ( snprintf(ddir_t, LEN, "%s/.sigmet_raw", getenv("HOME")) > LEN ) {
+	    fprintf(stderr, "%s (%d): could not create name for daemon working "
+		    "directory.\n", argv0, getpid());
+	    goto error;
+	}
+	ddir = ddir_t;
+    }
+    mode = S_IRUSR | S_IWUSR | S_IXUSR;
+    if ( mkdir(ddir, mode) == -1 ) {
+	perror("Could not create daemon working directory.");
+	goto error;
     }
     if ( chdir(ddir) == -1 ) {
-	perror("Could not set working directory.");
-	exit(EXIT_FAILURE);
+	perror("Could not set daemon working directory.");
+	goto error;
     }
     if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
 	fprintf(stderr, "%s: daemon socket %s already exists. "
-		"Is daemon already running?\n", cmd, SIGMET_RAWD_IN);
-	exit(EXIT_FAILURE);
+		"Is daemon already running?\n", argv0, SIGMET_RAWD_IN);
+	goto error;
     }
+
+    /* Set up output. */
+    flags = O_CREAT | O_TRUNC | O_WRONLY;
+    mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+    if ( (i = open(SIGMET_RAWD_LOG, flags, mode)) == -1
+	    || dup2(i, STDOUT_FILENO) == -1 || close(i) == -1 ) {
+	fprintf(stderr, "%s: could not open log file.", argv0);
+	_exit(EXIT_FAILURE);
+    }
+    if ( (i = open(SIGMET_RAWD_ERR, flags, mode)) == -1
+	    || dup2(i, STDERR_FILENO) == -1 || close(i) == -1 ) {
+	fprintf(stderr, "%s: could not open error file.", argv0);
+	_exit(EXIT_FAILURE);
+    }
+    fclose(stdin);
 
     /* Initialize volume table */
     SigmetRaw_VolInit();
 
     /* Initialize other variables */
     if ( !SigmetRaw_ProjInit() ) {
-	fprintf(stderr, "%s: could not set default projection.\n", cmd);
-	exit(EXIT_FAILURE);
+	fprintf(stderr, "%s: could not set default projection.\n", argv0);
+	goto error;
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	if ( !DataType_Add(Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y)) ) {
 	    fprintf(stderr, "%s: could not register data type %s\n%s\n",
-		    cmd, Sigmet_DataType_Abbrv(y), Err_Get());
-	    exit(EXIT_FAILURE);
-	}
-    }
-
-    if ( bg ) {
-	/* Put daemon in background */
-	switch (pid = fork()) {
-	    case -1:
-		fprintf(stderr, "%s: could not fork.\n%s\n", cmd, strerror(errno));
-		exit(EXIT_FAILURE);
-	    case 0:
-		/* Child = daemon process. */
-
-		if ( !handle_signals() ) {
-		    fprintf(stderr, "%s: could not set up signal management "
-			    "in daemon.", cmd);
-		    exit(EXIT_FAILURE);
-		}
-
-		/* Set up output. */
-		flags = O_CREAT | O_TRUNC | O_WRONLY;
-		mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-		if ( (i = open(SIGMET_RAWD_LOG, flags, mode)) == -1
-			|| dup2(i, STDOUT_FILENO) == -1 || close(i) == -1 ) {
-		    fprintf(stderr, "%s: could not open log file.", cmd);
-		    _exit(EXIT_FAILURE);
-		}
-		if ( (i = open(SIGMET_RAWD_ERR, flags, mode)) == -1
-			|| dup2(i, STDERR_FILENO) == -1 || close(i) == -1 ) {
-		    fprintf(stderr, "%s: could not open error file.", cmd);
-		    _exit(EXIT_FAILURE);
-		}
-		fclose(stdin);
-		break;
-	    default:
-		/* Parent. Print information and exit. */
-		printf("Starting sigmet_rawd. Process id = %d.\n"
-			"Daemon working directory = %s\n", pid, ddir);
-		exit(EXIT_SUCCESS);
+		    argv0, Sigmet_DataType_Abbrv(y), Err_Get());
+	    goto error;
 	}
     }
 
@@ -219,8 +197,8 @@ int main(int argc, char *argv[])
     sa.sun_family = AF_UNIX;
     if ( snprintf(sa.sun_path, SA_PLEN, "%s", SIGMET_RAWD_IN) > SA_PLEN ) {
 	fprintf(stderr, "%s (%d): could not fit %s into socket address path.\n",
-		cmd, getpid(), SIGMET_RAWD_IN);
-	exit(EXIT_FAILURE);
+		argv0, getpid(), SIGMET_RAWD_IN);
+	goto error;
     }
     sa_p = (struct sockaddr *)&sa;
     if ((i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
@@ -228,7 +206,7 @@ int main(int argc, char *argv[])
 	    || listen(i_dmn, SOMAXCONN) == -1) {
 	fprintf(stderr, "%s: could not create io socket.\n%s\n",
 		time_stamp(), strerror(errno));
-	exit(EXIT_FAILURE);
+	goto error;
     }
 
     printf("Daemon starting. Process id = %d\n", getpid());
@@ -435,6 +413,7 @@ int main(int argc, char *argv[])
 	if (stop) {
 	    int y;
 
+	    printf("%s: received stop command, exiting.\n", time_stamp());
 	    SigmetRaw_VolFree();
 	    for (y = 0; y < SIGMET_NTYPES; y++) {
 		DataType_Rm(Sigmet_DataType_Abbrv(y));
@@ -445,14 +424,15 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s: could not delete input pipe.\n",
 			time_stamp());
 	    }
-	    printf("%s: received stop command, exiting.\n", time_stamp());
 	    exit(EXIT_SUCCESS);
 	}
 
     }
 
+    /* Should not end up here */
     fprintf(stderr, "%s: unexpected exit.\n%s\n",
 	    time_stamp(), strerror(errno));
+    kill(0, SIGKILL);
     unlink(SIGMET_RAWD_IN);
     SigmetRaw_VolFree();
     for (y = 0; y < SIGMET_NTYPES; y++) {
@@ -460,6 +440,11 @@ int main(int argc, char *argv[])
     }
 
     return 0;
+
+error:
+    fprintf(stderr, "Sending KILL signal to process group\n");
+    kill(0, SIGKILL);
+    exit(EXIT_FAILURE);
 }
 
 /* Get a character string with the current time */
@@ -2111,30 +2096,25 @@ static void handler(int signum)
 {
     switch (signum) {
 	case SIGTERM:
-	    write(STDERR_FILENO, " exiting on termination signal    \n", 35);
-	    break;
-	case SIGBUS:
-	    write(STDERR_FILENO, " exiting on bus error             \n", 35);
+	    write(STDOUT_FILENO, "Exit ok (termination signal)\n" , 29);
+	    unlink(SIGMET_RAWD_IN);
+	    _exit(EXIT_SUCCESS);
 	    break;
 	case SIGFPE:
-	    write(STDERR_FILENO, " exiting arithmetic exception     \n", 35);
-	    break;
-	case SIGILL:
-	    write(STDERR_FILENO, " exiting illegal instruction      \n", 35);
-	    break;
-	case SIGSEGV:
-	    write(STDERR_FILENO, " exiting invalid memory reference \n", 35);
+	    write(STDERR_FILENO, "Exiting arithmetic exception     \n", 34);
 	    break;
 	case SIGSYS:
-	    write(STDERR_FILENO, " exiting on bad system call       \n", 35);
+	    write(STDERR_FILENO, "Exiting on bad system call       \n", 34);
 	    break;
 	case SIGXCPU:
-	    write(STDERR_FILENO, " exiting: CPU time limit exceeded \n", 35);
+	    write(STDERR_FILENO, "Exiting: CPU time limit exceeded \n", 34);
 	    break;
 	case SIGXFSZ:
-	    write(STDERR_FILENO, " exiting: file size limit exceeded\n", 35);
+	    write(STDERR_FILENO, "Exiting: file size limit exceeded\n", 34);
 	    break;
     }
     unlink(SIGMET_RAWD_IN);
+    write(STDERR_FILENO, "Sending KILL signal to process group\n", 37);
+    kill(0, SIGTERM);
     _exit(EXIT_FAILURE);
 }
