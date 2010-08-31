@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.39 $ $Date: 2010/08/31 19:11:32 $
+   .	$Revision: 1.40 $ $Date: 2010/08/31 19:30:52 $
  */
 
 #include <limits.h>
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
 	if ( WIFEXITED(si) ) {
 	    status = WEXITSTATUS(si);
 	    if ( status == EXIT_SUCCESS ) {
-		printf("%s: exit ok\n", c_s);
+		printf("%s: done. exit ok\n", c_s);
 	    } else {
 		printf("%s: failed with exit status %d\n", c_s, WEXITSTATUS(si));
 	    }
@@ -548,38 +548,41 @@ int handle_signals(void)
 /* For exit signals, print an error message if possible */
 void handler(int signum)
 {
+    char *msg;
+
     switch (signum) {
 	case SIGTERM:
-	    write(STDERR_FILENO, "Exiting on termination signal    \n", 34);
+	    msg = "sigmet_raw command exiting on termination signal    \n";
 	    break;
 	case SIGKILL:
-	    write(STDERR_FILENO, "Exiting on kill signal           \n", 34);
+	    msg = "sigmet_raw command exiting on kill signal           \n";
 	    break;
 	case SIGBUS:
-	    write(STDERR_FILENO, "Exiting on bus error             \n", 34);
+	    msg = "sigmet_raw command exiting on bus error             \n";
 	    break;
 	case SIGFPE:
-	    write(STDERR_FILENO, "Exiting arithmetic exception     \n", 34);
+	    msg = "sigmet_raw command exiting arithmetic exception     \n";
 	    break;
 	case SIGILL:
-	    write(STDERR_FILENO, "Exiting illegal instruction      \n", 34);
+	    msg = "sigmet_raw command exiting illegal instruction      \n";
 	    break;
 	case SIGSEGV:
-	    write(STDERR_FILENO, "Exiting invalid memory reference \n", 34);
+	    msg = "sigmet_raw command exiting invalid memory reference \n";
 	    break;
 	case SIGSYS:
-	    write(STDERR_FILENO, "Exiting on bad system call       \n", 34);
+	    msg = "sigmet_raw command exiting on bad system call       \n";
 	    break;
 	case SIGXCPU:
-	    write(STDERR_FILENO, "Exiting: CPU time limit exceeded \n", 34);
+	    msg = "sigmet_raw command exiting: CPU time limit exceeded \n";
 	    break;
 	case SIGXFSZ:
-	    write(STDERR_FILENO, "Exiting: file size limit exceeded\n", 34);
+	    msg = "sigmet_raw command exiting: file size limit exceeded\n";
 	    break;
     }
     unlink(out_nm);
     unlink(err_nm);
     kill(0, SIGTERM);
+    write(STDERR_FILENO, msg, 53);
     if ( signum == SIGTERM ) {
 	_exit(EXIT_SUCCESS);
     } else {

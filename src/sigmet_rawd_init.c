@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.260 $ $Date: 2010/08/31 19:45:45 $
+ .	$Revision: 1.261 $ $Date: 2010/08/31 19:45:45 $
  */
 
 #include <limits.h>
