@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.35 $ $Date: 2010/08/31 14:58:42 $
+   .	$Revision: 1.36 $ $Date: 2010/08/31 15:23:13 $
  */
 
 #include <limits.h>
@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
 			    strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
-		execl(SIGMET_RAWD, SIGMET_RAWD, (char *)NULL);
+		execlp(SIGMET_RAWD, SIGMET_RAWD, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	}
 
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
 		}
 
 		/* Execute the user command */
-		execv(argv2, argv + 2);
+		execvp(argv2, argv + 2);
 		_exit(EXIT_FAILURE);
 	}
 
