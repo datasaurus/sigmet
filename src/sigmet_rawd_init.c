@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.255 $ $Date: 2010/08/31 15:23:13 $
+ .	$Revision: 1.256 $ $Date: 2010/08/31 18:37:21 $
  */
 
 #include <limits.h>
@@ -432,8 +432,9 @@ int main(int argc, char *argv[])
     return 0;
 
 error:
-    fprintf(stderr, "Sending KILL signal to process group\n");
-    kill(0, SIGKILL);
+    fprintf(stderr, "%s: sigmet_raw daemon exiting. Terminating all sigmet_raw "
+	    "processes.\n");
+    kill(0, SIGTERM);
     exit(EXIT_FAILURE);
 }
 
