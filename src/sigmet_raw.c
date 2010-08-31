@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.37 $ $Date: 2010/08/31 15:29:00 $
+   .	$Revision: 1.38 $ $Date: 2010/08/31 15:30:47 $
  */
 
 #include <limits.h>
@@ -104,6 +104,18 @@ int main(int argc, char *argv[])
     }
 
     /*
+       Make the daemon socket name. If subcommand is "start", the associated
+       user command will need the sun_path member.
+     */
+    memset(&sa, '\0', SA_UN_SZ);
+    sa.sun_family = AF_UNIX;
+    if ( snprintf(sa.sun_path, SA_PLEN, "%s/%s", ddir, SIGMET_RAWD_IN) > SA_PLEN ) {
+	fprintf(stderr, "%s (%d): could not fit %s into socket address path.\n",
+		argv0, pid, SIGMET_RAWD_IN);
+	goto error;
+    }
+
+    /*
        If subcommand is "start", spawn daemon and spawn the user command (the part
        of the command line after "start").
      */
@@ -112,6 +124,8 @@ int main(int argc, char *argv[])
 	pid_t dpid;		/* Id for daemon */
 	pid_t upid;		/* Id of user command */
 	pid_t cpid;		/* Id of a child process */
+	int try;		/* Number of times user command will check for
+				   existence of socket */
 	char *c_s;		/* Identify child in printed messages */
 	int si;			/* Exit information from a user command */
 	int status;		/* Exit status of user command */
@@ -128,9 +142,9 @@ int main(int argc, char *argv[])
 	    _exit(EXIT_FAILURE);
 	}
 
-	/* Create daemon working directory and add to environment */
+	/* If necessary, create daemon working directory. Add to environment */
 	m = S_IRUSR | S_IWUSR | S_IXUSR;
-	if ( mkdir(ddir, m) == -1 ) {
+	if ( mkdir(ddir, m) == -1 && errno != EEXIST ) {
 	    perror("Could not create daemon working directory.");
 	    goto error;
 	}
@@ -168,8 +182,19 @@ int main(int argc, char *argv[])
 			    strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
-
-		/* Execute the user command */
+		for (try = 3; try > 0; try--) {
+		    if ( access(sa.sun_path, R_OK) == 0 ) {
+			try = -1;
+			break;
+		    } else {
+			sleep(1);
+		    }
+		}
+		if ( try == 0 ) {
+		    fprintf(stderr, "Could not find daemon socket.\n%s\n",
+			    strerror(errno));
+		    _exit(EXIT_FAILURE);
+		}
 		execvp(argv2, argv + 2);
 		_exit(EXIT_FAILURE);
 	}
@@ -231,13 +256,6 @@ int main(int argc, char *argv[])
     }
 
     /* Connect to daemon via socket in daemon directory */
-    memset(&sa, '\0', SA_UN_SZ);
-    sa.sun_family = AF_UNIX;
-    if ( snprintf(sa.sun_path, SA_PLEN, "%s/%s", ddir, SIGMET_RAWD_IN) > SA_PLEN ) {
-	fprintf(stderr, "%s (%d): could not fit %s into socket address path.\n",
-		argv0, pid, SIGMET_RAWD_IN);
-	goto error;
-    }
     if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create socket to connect with daemon\n"
 		"%s\n", argv0, pid, strerror(errno));
@@ -245,8 +263,8 @@ int main(int argc, char *argv[])
     }
     if ( connect(i_dmn, (struct sockaddr *)&sa, SA_UN_SZ) == -1
 	    || !(dmn = fdopen(i_dmn, "w")) ) {
-	fprintf(stderr, "%s (%d): could not connect to daemon\n%s\n",
-		argv0, pid, strerror(errno));
+	fprintf(stderr, "%s (%d): could not connect to daemon\nError %d: %s\n",
+		argv0, pid, errno, strerror(errno));
 	goto error;
     }
 
