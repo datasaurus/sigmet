@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.254 $ $Date: 2010/08/31 14:58:42 $
+ .	$Revision: 1.255 $ $Date: 2010/08/31 15:23:13 $
  */
 
 #include <limits.h>
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
     char *ddir;			/* Working directory for daemon */
     struct sockaddr_un sa;	/* Socket to read command and return exit status */
     struct sockaddr *sa_p;	/* &sa or &d_err_sa, for call to bind */
-    int i_dmn;			/* File descriptors for d_io and d_err */
+    int i_dmn;			/* File descriptors for daemon socket */
     int y;			/* Loop index */
     int cl_io_fd;		/* File descriptor to read client command
 				   and send results */
