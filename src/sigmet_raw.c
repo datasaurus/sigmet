@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.34 $ $Date: 2010/08/05 00:40:20 $
+   .	$Revision: 1.35 $ $Date: 2010/08/31 14:58:42 $
  */
 
 #include <limits.h>
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     size_t cmd_ln_l;		/* Command line length */
     int i_out = -1;		/* File descriptor for standard output from daemon*/
     int i_err = -1;		/* File descriptors error output from daemon */
-    mode_t m;			/* Permissions for output fifos */
+    mode_t m;			/* File permissions */
     fd_set set, read_set;	/* Give i_dmn, i_out, and i_err to select */
     int fd_hwm = 0;		/* Highest file descriptor */
     ssize_t ll;			/* Number of bytes read from server */
@@ -129,7 +129,12 @@ int main(int argc, char *argv[])
 	    _exit(EXIT_FAILURE);
 	}
 
-	/* Add daemon working directory to environment */
+	/* Create daemon working directory and add to environment */
+	m = S_IRUSR | S_IWUSR | S_IXUSR;
+	if ( mkdir(ddir, m) == -1 ) {
+	    perror("Could not create daemon working directory.");
+	    goto error;
+	}
 	if ( setenv("SIGMET_RAWD_DIR", ddir, 1) == -1 ) {
 	    fprintf(stderr, "%s (%d): could not export name for daemon working "
 		    "directory.\n", argv0, pid);

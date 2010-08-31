@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.253 $ $Date: 2010/08/28 14:05:13 $
+ .	$Revision: 1.254 $ $Date: 2010/08/31 14:58:42 $
  */
 
 #include <limits.h>
@@ -107,7 +107,6 @@ int main(int argc, char *argv[])
     int flags;			/* Flags for log files */
     mode_t mode;		/* Mode for files */
     char *ddir;			/* Working directory for daemon */
-    char ddir_t[LEN];		/* Temporary writing space */
     struct sockaddr_un sa;	/* Socket to read command and return exit status */
     struct sockaddr *sa_p;	/* &sa or &d_err_sa, for call to bind */
     int i_dmn;			/* File descriptors for d_io and d_err */
@@ -139,16 +138,7 @@ int main(int argc, char *argv[])
 
     /* Identify and go to working directory */
     if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	if ( snprintf(ddir_t, LEN, "%s/.sigmet_raw", getenv("HOME")) > LEN ) {
-	    fprintf(stderr, "%s (%d): could not create name for daemon working "
-		    "directory.\n", argv0, getpid());
-	    goto error;
-	}
-	ddir = ddir_t;
-    }
-    mode = S_IRUSR | S_IWUSR | S_IXUSR;
-    if ( mkdir(ddir, mode) == -1 ) {
-	perror("Could not create daemon working directory.");
+	fprintf(stderr, "%s (%d): SIGMET_RAWD_DIR not set.\n", argv0, getpid());
 	goto error;
     }
     if ( chdir(ddir) == -1 ) {
