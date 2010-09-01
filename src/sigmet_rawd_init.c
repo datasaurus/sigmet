@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.263 $ $Date: 2010/08/31 19:54:50 $
+ .	$Revision: 1.264 $ $Date: 2010/09/01 14:33:12 $
  */
 
 #include <limits.h>
@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
 	if ( cl_wd_l + 1 > cl_wd_lx ) {
 	    if ( !(t = REALLOC(cl_wd, cl_wd_l + 1)) ) {
 		fprintf(stderr, "%s: allocation failed for working directory of "
-			"%u bytes for process %d.\n",
+			"%lu bytes for process %d.\n",
 			time_stamp(), cl_wd_l, client_pid);
 		close(cl_io_fd);
 		continue;
@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
 	if ( cmd_ln_l > cmd_ln_lx ) {
 	    if ( !(t = REALLOC(cmd_ln, cmd_ln_l)) ) {
 		fprintf(stderr, "%s: allocation failed for command line of "
-			"%u bytes for process %d.\n",
+			"%lu bytes for process %d.\n",
 			time_stamp(), cmd_ln_l, client_pid);
 		close(cl_io_fd);
 		continue;
@@ -2095,7 +2095,11 @@ void handler(int signum)
     }
     write(STDERR_FILENO, msg, 52);
     unlink(SIGMET_RAWD_IN);
+
+    /* Give rest of group a second to exit cleanly, then terminate everything. */
+    sleep(1);
     kill(0, SIGTERM);
+
     if ( signum == SIGTERM ) {
 	_exit(EXIT_SUCCESS);
     } else {

@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.40 $ $Date: 2010/08/31 19:30:52 $
+   .	$Revision: 1.41 $ $Date: 2010/08/31 19:45:55 $
  */
 
 #include <limits.h>
@@ -117,16 +117,16 @@ int main(int argc, char *argv[])
 
     /*
        If subcommand is "start", spawn daemon and spawn the user command (the part
-       of the command line after "start").
+       of the command line after "start"). This instance of sigmet_raw will run
+       until either the daemon or the user command exits.
      */
     if ( strcmp(argv[1], "start") == 0 ) {
 	char *argv2;		/* User command to run as a child process */
 	pid_t dpid;		/* Id for daemon */
 	pid_t upid;		/* Id of user command */
-	pid_t cpid;		/* Id of a child process */
+	pid_t chpid;		/* Id of a child process */
 	int try;		/* Number of times user command will check for
 				   existence of socket */
-	char *c_s;		/* Identify child in printed messages */
 	int si;			/* Exit information from a user command */
 	int status;		/* Exit status of user command */
 
@@ -200,31 +200,46 @@ int main(int argc, char *argv[])
 	}
 
 	/* Wait for a child to exit */
-	if ( (cpid = waitpid(0, &si, 0)) == -1 ) {
+	if ( (chpid = waitpid(0, &si, 0)) == -1 ) {
 	    fprintf(stderr, "%s (%d): unable to wait for children.\n%s\n",
 		    argv0, pid, strerror(errno));
 	    exit(EXIT_FAILURE);
 	}
-	c_s = ( cpid == dpid ) ? "sigmet daemon" : argv2;
-	if ( WIFEXITED(si) ) {
-	    status = WEXITSTATUS(si);
-	    if ( status == EXIT_SUCCESS ) {
-		printf("%s: done. exit ok\n", c_s);
+	if ( chpid == upid ) {
+	    /*
+	       The user command exited first. Clean up, stop the daemon, and
+	       return the user command's exit status as the status of
+	       "sigmet start ..."
+	     */
+
+	    if ( WIFEXITED(si) ) {
+		status = WEXITSTATUS(si);
+	    } else if ( WIFSIGNALED(si) ) {
+		fprintf(stderr, "%s: exited on signal %d\n", argv2, WTERMSIG(si));
+		status = EXIT_FAILURE;
 	    } else {
-		printf("%s: failed with exit status %d\n", c_s, WEXITSTATUS(si));
+		fprintf(stderr, "%s: unknown exit.\n", argv2);
+		status = EXIT_FAILURE;
 	    }
-	} else if ( WIFSIGNALED(si) ) {
-	    printf("%s: exited on signal %d\n", c_s, WTERMSIG(si));
-	} else {
-	    printf("%s: unknown exit.\n", c_s);
-	}
-	if ( cpid == dpid ) {
-	    kill(upid, SIGTERM);
-	} else {
 	    kill(dpid, SIGTERM);
+	    exit(status);
+	} else {
+	    /*
+	       Daemon exited first - should not happen.
+	     */
+
+	    fprintf(stderr, "Unexpected exit by sigmet_rawd daemon. ");
+	    if ( WIFEXITED(si) ) {
+		fprintf(stderr, "Daemon exited with status code %d\n",
+			WEXITSTATUS(si));
+	    } else if ( WIFSIGNALED(si) ) {
+		fprintf(stderr, "Daemon exited on signal %d\n", WTERMSIG(si));
+	    } else {
+		fprintf(stderr, "Not known how daemon exited.\n");
+	    }
+	    kill(upid, SIGTERM);
+	    exit(EXIT_FAILURE);
 	}
-	printf("sigmet_raw and associated processes are exiting.\n");
-	exit(EXIT_SUCCESS);
     }
 
     /*
@@ -581,7 +596,11 @@ void handler(int signum)
     }
     unlink(out_nm);
     unlink(err_nm);
+
+    /* Give rest of group a second to exit cleanly, then terminate everything. */
+    sleep(1);
     kill(0, SIGTERM);
+
     write(STDERR_FILENO, msg, 53);
     if ( signum == SIGTERM ) {
 	_exit(EXIT_SUCCESS);
