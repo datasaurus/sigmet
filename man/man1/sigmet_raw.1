@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.25 $ $Date: 2010/08/31 20:43:34 $
+.\" $Revision: 1.26 $ $Date: 2010/08/31 21:32:19 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -79,10 +79,10 @@ Prints a list of Sigmet data types.  Output lines have form:
 See the IRIS Programmer's Manual for information about Sigmet data types.
 .TP
 \fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
-Returns success if \fIvolume_file\fP contains a valid Sigmet raw product
-volume. Otherwise, \fBsigmet_raw\fP returns failure. No output is printed,
-and nothing from the volume is stored. The daemon only tries the read the
-headers and navigate the data section of the file.
+This command attempts to navigate \fIvolume_file\fP, but does not store any data.
+No output is printed.  This command returns 0 if it succeeds and the volume is
+good, 1 if \fIvolume_file\fP does not exist, 2 if it cannot read
+\fIvolume_file\fP, and 3 if \fIvolume_file\fP is not a good volume.
 .TP
 \fBsigmet_raw\fP \fBhread\fP \fIvolume_file\fP
 Tells the daemon to read headers from \fIvolume_file\fP, which must be the path
@@ -96,6 +96,11 @@ The daemon will not delete a volume with a positive user count.  The user
 count should eventually be decreased with a call to \fBrelease\fP.
 If a volume is already in storage, the daemon will not normally read it again.
 It will only increment the user count. 
+If the daemon runs out of memory while loading a volume, it will flush unused
+volumes and try again.
+This command returns 0 if it succeeds, 1 if \fIvolume_file\fP does not exist,
+2 if the daemon cannot read \fIvolume_file\fP, 3 if the daemon runs out of
+memory, and 4 for any other error.
 .TP
 \fBsigmet_raw\fP \fBread\fP \fIvolume_file\fP
 Tells the daemon to read \fIvolume_file\fP, which must be the path of a Sigmet raw
@@ -115,6 +120,11 @@ operator issued a "stop now" command before the Sigmet task completed.  The
 \fBtruncated\fP header member obtained with
 \fBsigmet_raw\fP\ \fBvolume_headers\fP indicates whether a loaded volume is
 truncated.
+If the daemon runs out of memory while loading a volume, it will flush unused
+volumes and try again.
+This command returns 0 if it succeeds, 1 if \fIvolume_file\fP does not exist,
+2 if the daemon cannot read \fIvolume_file\fP, 3 if the daemon runs out of
+memory, and 4 for any other error.
 .TP
 \fBsigmet_raw\fP \fBlist\fP
 Prints a list of currently loaded volumes, their user counts, and whether they
@@ -128,7 +138,8 @@ the volume becomes available for new volumes.  Every call to
 \fBsigmet_raw\fP\ \fBrelease\fP
 .TP
 \fBsigmet_raw\fP \fBflush\fP
-Removes unused volumes from memory.
+Removes unused volumes from memory.  This command returns 0 if it removes
+any volumes.
 .TP
 \fBsigmet_raw\fP \fBvolume_headers\fP \fIvolume_file\fP
 Prints volume headers for
@@ -234,6 +245,8 @@ monotonic.  Members of the \fIcolors\fP array must have the form
 and blue values.
 In subsequent displays, a bin (gate) whose value satisfies
 bounds[i]\ <=\ value\ <\ bounds[i+1] will be displayed with colors[i].
+This command returns 0 if it succeeds, 1 if \fIcolors_file\fP is inaccessible or
+corrupt, 2 if the daemon runs out of memory, and 3 for any other error.
 .TP
 \fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIvolume_file\fP
 Assigns bins (gates) for data type \fItype\fP, sweep \fIs\fP, in the volume from
