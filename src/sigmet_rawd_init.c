@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.269 $ $Date: 2010/09/02 19:01:25 $
+ .	$Revision: 1.270 $ $Date: 2010/09/02 20:39:37 $
  */
 
 #include <limits.h>
@@ -105,7 +105,6 @@ static void handler(int);
 int main(int argc, char *argv[])
 {
     char *argv0;		/* Name of this daemon */
-    pid_t pid = getpid();	/* Process id of daemon */
     int flags;			/* Flags for log files */
     mode_t mode;		/* Mode for files */
     char *ddir;			/* Working directory for daemon */
@@ -130,13 +129,6 @@ int main(int argc, char *argv[])
     if ( !handle_signals() ) {
 	fprintf(stderr, "%s: could not set up signal management.", argv0);
 	goto error;
-    }
-
-    /* Create a process group for daemon so that children can be terminated */
-    if ( setpgid(0, pid) == -1 ) {
-	fprintf(stderr, "Could not create process group.\n%s\n",
-		strerror(errno));
-	_exit(EXIT_FAILURE);
     }
 
     /* Usage: sigmet_rawd */
@@ -1833,11 +1825,6 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 	       Read polygons from stdin (read side of data pipe).
 	     */
 
-	    if ( setpgid(0, pid) == -1 ) {
-		fprintf(stderr, "Could not create process group for %s.\n%s\n",
-			img_app, strerror(errno));
-		_exit(EXIT_FAILURE);
-	    }
 	    if ( dup2(pfd[0], STDIN_FILENO) == -1
 		    || close(pfd[0]) == -1 || close(pfd[1]) == -1 ) {
 		fprintf(err, "%s: could not set up %s process",

@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.12 $ $Date: 2010/09/02 19:51:34 $
+ .	$Revision: 1.13 $ $Date: 2010/09/02 20:39:37 $
  */
 
 #include <unistd.h>
@@ -513,11 +513,6 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		goto error;
 	    case 0:
 		/* Child process - gzip.  Send child stdout to pipe. */
-		if ( setpgid(0, pid) == -1 ) {
-		    fprintf(stderr, "Could not create process group.\n%s\n",
-			    strerror(errno));
-		    _exit(EXIT_FAILURE);
-		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
 		    fprintf(err, "gzip process failed\n%s\n", strerror(errno));
 		    _exit(EXIT_FAILURE);
@@ -553,11 +548,6 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		goto error;
 	    case 0:
 		/* Child process - bzip2.  Send child stdout to pipe. */
-		if ( setpgid(0, pid) == -1 ) {
-		    fprintf(stderr, "Could not create process group.\n%s\n",
-			    strerror(errno));
-		    _exit(EXIT_FAILURE);
-		}
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
 		    fprintf(err, "could not set up bzip2 process");
 		    _exit(EXIT_FAILURE);
