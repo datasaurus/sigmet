@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.42 $ $Date: 2010/09/01 21:25:28 $
+   .	$Revision: 1.43 $ $Date: 2010/09/02 13:32:34 $
  */
 
 #include <limits.h>
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     fd_set set, read_set;	/* Give i_dmn, i_out, and i_err to select */
     int fd_hwm = 0;		/* Highest file descriptor */
     ssize_t ll;			/* Number of bytes read from server */
-    int status = EXIT_SUCCESS;	/* Return from this process */
+    enum Sigmet_CB_Return sstatus; /* Result of callback */
 
     strcpy(out_nm, "");
     strcpy(err_nm, "");
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
 	int try;		/* Number of times user command will check for
 				   existence of socket */
 	int si;			/* Exit information from a user command */
-	int status;		/* Exit status of user command */
+	int status;		/* Exit status from a user command */
 
 	if ( argc < 3 ) {
 	    fprintf(stderr, "Usage: %s start command ...\n", argv0);
@@ -429,9 +429,10 @@ int main(int argc, char *argv[])
 		}
 	    }
 	} else if ( i_dmn != -1 && FD_ISSET(i_dmn, &read_set) ) {
-	    /* Daemon has sent exit status. Clean up and exit */
+	    /* Daemon has sent return status for a command. Clean up and exit */
 
-	    if ( (ll = read(i_dmn, &status, sizeof(int))) == -1 || ll == 0 ) {
+	    if ( (ll = read(i_dmn, &sstatus, sizeof(enum Sigmet_CB_Return))) == -1
+		    || ll == 0 ) {
 		fprintf(stderr, "%s (%d): could not get exit status from "
 			"daemon\n%s\n", argv0, pid, strerror(errno));
 		goto error;
@@ -447,12 +448,12 @@ int main(int argc, char *argv[])
 	    if ( i_err != -1 ) {
 		close(i_err);
 	    }
-	    exit(status);
+	    exit(sstatus);
 	}
     }
 
     /* Unreachable */
-    return status;
+    return EXIT_FAILURE;
 
 error:
     if ( strcmp(out_nm, "") != 0 ) {
