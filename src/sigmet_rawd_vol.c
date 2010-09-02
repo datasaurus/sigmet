@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.10 $ $Date: 2010/09/01 21:55:12 $
+ .	$Revision: 1.11 $ $Date: 2010/09/02 18:12:45 $
  */
 
 #include <unistd.h>
@@ -90,7 +90,7 @@ void SigmetRaw_VolFree(void)
    Return true if vol_nm is a good (navigable) Sigmet volume.
    Print error messages to err (in this application) and i_err (in child process).
  */
-int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
+enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 {
     dev_t st_dev;
     ino_t st_ino;
@@ -102,25 +102,24 @@ int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
     if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
 	fprintf(err, "Could not get information about %s\n%s\n",
 		vol_nm, strerror(errno));
-	return 0;
+	return SIGMET_CB_NOFILE;
     }
 
     /* If volume is already loaded and not truncated, it is good */
     if ( (sv_p = get_vol(st_dev, st_ino)) && !sv_p->vol.truncated ) {
-	return 1;
+	return SIGMET_CB_SUCCESS;
     }
 
     /* Volume not loaded. Inspect vol_nm with Sigmet_GoodVol. */
     if ( !(in = vol_open(vol_nm, &p, i_err, err)) ) {
 	fprintf(err, "Could not open %s\n", vol_nm);
-	return 0;
+	return SIGMET_CB_INPUT_FAIL;
     }
-    rslt = Sigmet_GoodVol(in);
+    rslt = Sigmet_GoodVol(in) ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
     fclose(in);
     if ( p != -1 ) {
 	waitpid(p, NULL, 0);
     }
-
     return rslt;
 }
 
@@ -147,7 +146,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
 	fprintf(err, "Could not get information about %s\n%s\n",
 		vol_nm, strerror(errno));
-	return SIGMET_CB_INPUT_FAIL;
+	return SIGMET_CB_NOFILE;
     }
 
     /*
@@ -247,7 +246,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
 	fprintf(err, "Could not get information about %s\n%s\n",
 		vol_nm, strerror(errno));
-	return SIGMET_CB_INPUT_FAIL;
+	return SIGMET_CB_NOFILE;
     }
 
     /*
@@ -337,7 +336,7 @@ enum Sigmet_CB_Return SigmetRaw_GetVol(char *vol_nm, FILE *err, int i_err,
     if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
 	fprintf(err, "Could not get information about %s\n%s\n",
 		vol_nm, strerror(errno));
-	return SIGMET_CB_INPUT_FAIL;
+	return SIGMET_CB_NOFILE;
     }
     if ( !(sv_p = get_vol(st_dev, st_ino)) || !sv_p->vol.has_headers) {
 	fprintf(err, "%s not loaded. Please load with read command.\n", vol_nm);
@@ -377,7 +376,7 @@ enum Sigmet_CB_Return SigmetRaw_Release(char *vol_nm, FILE *err)
     if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
 	fprintf(err, "Could not get information about %s\n%s\n",
 		vol_nm, strerror(errno));
-	return SIGMET_CB_INPUT_FAIL;
+	return SIGMET_CB_NOFILE;
     }
     if ( (sv_p = get_vol(st_dev, st_ino)) && sv_p->users > 0 ) {
 	sv_p->users--;

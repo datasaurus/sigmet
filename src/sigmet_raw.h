@@ -7,7 +7,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.11 $ $Date: 2010/08/28 17:56:04 $
+   .	$Revision: 1.12 $ $Date: 2010/09/02 18:12:45 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -20,6 +20,7 @@
 /* Return codes for daemon commands */
 enum Sigmet_CB_Return {
     SIGMET_CB_SUCCESS,
+    SIGMET_CB_NOFILE,
     SIGMET_CB_INPUT_FAIL,
     SIGMET_CB_MEM_FAIL,
     SIGMET_CB_FAIL,
@@ -42,7 +43,7 @@ int SigmetRaw_SetImgApp(char *);
 char * SigmetRaw_GetImgApp(void);
 void SigmetRaw_VolInit(void);
 void SigmetRaw_VolFree(void);
-int SigmetRaw_GoodVol(char *, int, FILE *);
+enum Sigmet_CB_Return SigmetRaw_GoodVol(char *, int, FILE *);
 enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *, FILE *, int, struct Sigmet_Vol **);
 enum Sigmet_CB_Return SigmetRaw_ReadVol(char *, FILE *, int, struct Sigmet_Vol **);
 enum Sigmet_CB_Return SigmetRaw_GetVol(char *, FILE *, int, struct Sigmet_Vol **);
