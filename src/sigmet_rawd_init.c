@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.267 $ $Date: 2010/09/02 18:12:45 $
+ .	$Revision: 1.268 $ $Date: 2010/09/02 18:23:36 $
  */
 
 #include <limits.h>
@@ -184,7 +184,10 @@ int main(int argc, char *argv[])
 	goto error;
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
-	if ( !DataType_Add(Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y)) ) {
+	enum DataType_Return status;
+
+	status = DataType_Add(Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
+	if ( status != DATATYPE_SUCCESS ) {
 	    fprintf(stderr, "%s: could not register data type %s\n%s\n",
 		    argv0, Sigmet_DataType_Abbrv(y), Err_Get());
 	    goto error;
@@ -515,10 +518,20 @@ static enum Sigmet_CB_Return setcolors_cb(int argc, char *argv[], char *cl_wd,
     abbrv = argv[2];
     clr_fl_nm = argv[3];
     status = DataType_SetColors(abbrv, clr_fl_nm);
-    if ( !status ) {
+    if ( status != DATATYPE_SUCCESS ) {
 	fprintf(err, "%s\n", Err_Get());
     }
-    return status;
+    switch (status) {
+	case DATATYPE_SUCCESS:
+	    return SIGMET_CB_SUCCESS;
+	case DATATYPE_INPUT_FAIL:
+	    return SIGMET_CB_INPUT_FAIL;
+	case DATATYPE_MEM_FAIL:
+	    return SIGMET_CB_MEM_FAIL;
+	case DATATYPE_FAIL:
+	    return SIGMET_CB_FAIL;
+    }
+    return SIGMET_CB_SUCCESS;
 }
 
 static enum Sigmet_CB_Return good_cb(int argc, char *argv[], char *cl_wd,
@@ -1146,7 +1159,7 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
 	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
-    if ( !DataType_GetColors(abbrv, &n_clrs, NULL, &bnds) ) {
+    if ( DataType_GetColors(abbrv, &n_clrs, NULL, &bnds) != DATATYPE_SUCCESS ) {
 	fprintf(err, "%s %s: cannot get data intervals for %s\n",
 		argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
@@ -1663,8 +1676,8 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
-    if ( !DataType_GetColors(abbrv, &n_clrs, &clrs, &bnds) || n_clrs == 0
-	    || !clrs || !bnds ) {
+    if ( DataType_GetColors(abbrv, &n_clrs, &clrs, &bnds) != DATATYPE_SUCCESS
+	    || n_clrs == 0 || !clrs || !bnds ) {
 	fprintf(err, "%s %s: colors and bounds not set for %s\n",
 		argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
