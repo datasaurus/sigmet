@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.11 $ $Date: 2010/09/02 18:12:45 $
+ .	$Revision: 1.12 $ $Date: 2010/09/02 19:51:34 $
  */
 
 #include <unistd.h>
@@ -384,16 +384,19 @@ enum Sigmet_CB_Return SigmetRaw_Release(char *vol_nm, FILE *err)
     return SIGMET_CB_SUCCESS;
 }
 
-/* Remove unused volumes */
-void SigmetRaw_Flush(void)
+/* Remove unused volumes. Return true if any volumes can be removed. */
+int SigmetRaw_Flush(void)
 {
     struct sig_vol *sv_p;
+    int c;
 
-    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
+    for (c = 0, sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
 	if ( sv_p->in_use ) {
 	    unload(sv_p);
+	    c++;
 	}
     }
+    return c > 0;
 }
 
 /*

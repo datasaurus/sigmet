@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.268 $ $Date: 2010/09/02 18:23:36 $
+ .	$Revision: 1.269 $ $Date: 2010/09/02 19:01:25 $
  */
 
 #include <limits.h>
@@ -631,8 +631,7 @@ static enum Sigmet_CB_Return release_cb(int argc, char *argv[], char *cl_wd,
 static enum Sigmet_CB_Return flush_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
-    SigmetRaw_Flush();
-    return SIGMET_CB_SUCCESS;
+    return SigmetRaw_Flush() ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
 }
 
 static enum Sigmet_CB_Return volume_headers_cb(int argc, char *argv[], char *cl_wd,
