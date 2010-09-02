@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.41 $ $Date: 2010/08/31 19:45:55 $
+   .	$Revision: 1.42 $ $Date: 2010/09/01 21:25:28 $
  */
 
 #include <limits.h>
@@ -182,6 +182,8 @@ int main(int argc, char *argv[])
 			    strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
+
+		/* Wait for daemon to make its input socket */
 		for (try = 3; try > 0; try--) {
 		    if ( access(sa.sun_path, R_OK) == 0 ) {
 			try = -1;
@@ -195,6 +197,8 @@ int main(int argc, char *argv[])
 			    strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
+
+		/* Execute the user command */
 		execvp(argv2, argv + 2);
 		_exit(EXIT_FAILURE);
 	}
@@ -328,7 +332,7 @@ int main(int argc, char *argv[])
 
     /*
        Get standard output and errors from fifos. Get exit status
-       (singe byte 0 or 1) from i_dmn.
+       (single byte 0 or 1) from i_dmn.
      */
 
     if ( (i_out = open(out_nm, O_RDONLY)) == -1 ) {
@@ -378,7 +382,7 @@ int main(int argc, char *argv[])
 		}
 		if ( close(i_out) == -1 ) {
 		    fprintf(stderr, "%s (%d): could not close standard output "
-			    "stream from dameon\n%s\n",
+			    "stream from daemon\n%s\n",
 			    argv0, pid, strerror(errno));
 		    goto error;
 		}
@@ -410,7 +414,7 @@ int main(int argc, char *argv[])
 		}
 		if ( close(i_err) == -1 ) {
 		    fprintf(stderr, "%s (%d): could not close error output stream "
-			    "from dameon\n%s\n", argv0, pid, strerror(errno));
+			    "from daemon\n%s\n", argv0, pid, strerror(errno));
 		    goto error;
 		}
 		i_err = -1;
