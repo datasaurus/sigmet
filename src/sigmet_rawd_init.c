@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.266 $ $Date: 2010/09/01 21:55:12 $
+ .	$Revision: 1.267 $ $Date: 2010/09/02 18:12:45 $
  */
 
 #include <limits.h>
@@ -1780,8 +1780,9 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     px_per_m = w_pxl / (rght - left);
 
     /* Create image file. Fail if it exists */
-    if ( !img_name(vol_p, abbrv, s, base_nm) 
-	    || snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) > LEN ) {
+    if ( !( img_name(vol_p, abbrv, s, base_nm) 
+		&& snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) <= LEN )
+	    ) {
 	fprintf(err, "%s %s: could not make image file name\n%s\n",
 		argv0, argv1, Err_Get());
 	return SIGMET_CB_FAIL;
