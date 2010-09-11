@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.13 $ $Date: 2010/09/02 20:39:37 $
+ .	$Revision: 1.14 $ $Date: 2010/09/02 22:25:17 $
  */
 
 #include <unistd.h>
@@ -495,7 +495,6 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
     FILE *in = NULL;		/* Return value */
     char *sfx;			/* Filename suffix */
     int pfd[2] = {-1};		/* Pipe for data */
-    pid_t pid = getpid();	/* This process */
     pid_t ch_pid = -1;		/* Child process id */
 
     *pid_p = -1;
