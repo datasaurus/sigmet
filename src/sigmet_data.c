@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.11 $ $Date: 2010/02/26 16:21:44 $
+   .	$Revision: 1.12 $ $Date: 2010/05/23 05:00:08 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -16,6 +16,10 @@
 #include <math.h>
 #include "err_msg.h"
 #include "sigmet.h"
+
+/* 2^16 and 2^32 */
+#define TWO_16 ((double)((unsigned)0xFFFF) + 1.0)
+#define TWO_32 ((double)((unsigned)0xFFFFFFFF) + 1.0)
 
 /* Short names for Sigmet data types.  Index with enum Sigmet_DataType. */
 static char *abbrv[SIGMET_NTYPES] = {
@@ -103,22 +107,22 @@ static itof_proc (itof)[SIGMET_NTYPES] = {
 
 double Sigmet_Bin4Rad(unsigned long a)
 {
-    return (double)a / (unsigned)0xFFFFFFFF * 2 * PI;
+    return (double)a / TWO_32 * 2 * PI;
 }
 
 double Sigmet_Bin2Rad(unsigned short a)
 {
-    return (double)a / (unsigned)0xFFFF * 2 * PI;
+    return (double)a / TWO_16 * 2 * PI;
 }
 
 unsigned long Sigmet_RadBin4(double a)
 {
-    return (unsigned)0xFFFFFFFF * a / (2 * PI);
+    return a * TWO_32 / (2 * PI);
 }
 
 unsigned long Sigmet_RadBin2(double a)
 {
-    return (unsigned)0xFFFF * a / (2 * PI);
+    return a * TWO_16 / (2 * PI);
 }
 
 /* Fetch the short name of a Sigmet data type */
