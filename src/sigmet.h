@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.32 $ $Date: 2010/08/27 18:29:44 $
+   .	$Revision: 1.33 $ $Date: 2010/09/02 18:12:45 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -20,6 +20,7 @@
 
 #include <float.h>
 #include <stdio.h>
+#include "dorade_lib.h"
 
 #define	PI		3.1415926535897932384
 #define	PI_2		1.57079632679489661923
@@ -343,7 +344,7 @@ struct Sigmet_Task_Manual_Scan_Info {
 };
 
 struct Sigmet_Task_Scan_Info {
-    unsigned scan_mode;
+    enum Sigmet_ScanMode scan_mode;
     int resoln;
     int num_sweeps;
     union {
@@ -363,7 +364,7 @@ struct Sigmet_Task_Misc_Info {
     int trunc_ht;
     int comment_sz;
     unsigned horiz_beam_width;
-    unsigned v_beam_width;
+    unsigned vert_beam_width;
     unsigned custom[10];
 };
 
@@ -481,5 +482,6 @@ void Sigmet_PrintHdr(FILE *, struct Sigmet_Vol *);
 enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *, struct Sigmet_Vol *);
 int Sigmet_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
+int Sigmet_ToDorade(struct Sigmet_Vol *, int, struct Dorade_Sweep *);
 
 #endif

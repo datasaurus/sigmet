@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.49 $ $Date: 2010/08/28 16:26:02 $
+   .	$Revision: 1.50 $ $Date: 2010/09/02 18:12:45 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1908,7 +1908,23 @@ struct Sigmet_Task_Scan_Info get_task_scan_info(char *rec)
 {
     struct Sigmet_Task_Scan_Info tsi;
 
-    tsi.scan_mode = get_uint16(rec + 0);
+    switch (get_uint16(rec + 0)) {
+	case 1:
+	    tsi.scan_mode = PPI_S;
+	    break;
+	case 2:
+	    tsi.scan_mode = RHI;
+	    break;
+	case 3:
+	    tsi.scan_mode = MAN_SCAN;
+	    break;
+	case 4:
+	    tsi.scan_mode = PPI_C;
+	    break;
+	case 5:
+	    tsi.scan_mode = FILE_SCAN;
+	    break;
+    }
     tsi.resoln = get_sint16(rec + 2);
     tsi.num_sweeps = get_sint16(rec + 6);
     switch (tsi.scan_mode) {
@@ -2106,7 +2122,7 @@ struct Sigmet_Task_Misc_Info get_task_misc_info(char *rec)
     tmi.trunc_ht = get_sint32(rec + 28);
     tmi.comment_sz = get_sint16(rec + 62);
     tmi.horiz_beam_width = get_uint32(rec + 64);
-    tmi.v_beam_width = get_uint32(rec + 68);
+    tmi.vert_beam_width = get_uint32(rec + 68);
     q = tmi.custom;
     p = rec + 72;
     p1 = p + sizeof(*tmi.custom) * 10;
@@ -2141,6 +2157,8 @@ void print_task_misc_info(FILE *out, char *pfx,
 	    "Number of bytes of comments entered");
     print_u(out, tmi.horiz_beam_width, prefix, "horiz_beam_width",
 	    "Horizontal beamwidth (binary angle, starting in 7.18)");
+    print_u(out, tmi.vert_beam_width, prefix, "vert_beam_width",
+	    "Vertical beamwidth (binary angle, starting in 7.18)");
     for (n = 0; n < 10; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "custom[", n, "]");
 	fprintf(out, "%u " FS " %s " FS " %s\n", tmi.custom[n], struct_path,
