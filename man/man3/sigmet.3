@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.8 $ $Date: 2010/05/23 05:00:08 $
+.\" $Revision: 1.9 $ $Date: 2010/08/27 15:45:30 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
 Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_InitVol, Sigmet_FreeVol, Sigmet_GoodVol, Sigmet_ReadHdr, Sigmet_PrintHdr, Sigmet_ReadVol, Sigmet_BadRay, Sigmet_BinOutl \- read Sigmet raw data
@@ -115,9 +115,10 @@ whether the function succeeded, or how it failed. The return value will be one o
 \fBSigmet_ReadHdr\fP reads and stores volume headers for a Sigmet raw product
 file from stream \fIf\fP into the volume structure at \fIsigPtr\fP.
 \fIf\fP should be at the start of a raw product file.  \fIsigPtr\fP
-should have already been initialized with a call to \fBSigmet_InitVol\fP.
-This function only reads volume headers. Sweep headers and rays are
-left in their bogus initialized state.
+should have been initialized at least once with a call to \fBSigmet_InitVol\fP.
+Upon entry, \fBSigmet_ReadHdr\fP will free the contents of \fIf\fP with a call
+to \fBSigmet_FreeVol\fP.  This function only reads volume headers. Sweep headers
+and rays are left in their bogus initialized state.
 \fBSigmet_ReadHdr\fP returns a read status enumerator described above, which
 should be \fBSIGMET_READ_OK\fP.
 If the return value is \fBSIGMET_INPUT_FAIL\fP, \fBSIGMET_BAD_VOL\fP, or
@@ -129,10 +130,11 @@ an error message that can be retrieved with \fBerr_get\fP.
 file from stream \fIf\fP into the volume structure at \fIsigPtr\fP.
 \fIf\fP should be at the start of a raw product file.  \fIsigPtr\fP
 should have already been initialized with a call to \fBSigmet_InitVol\fP.
-\fBSigmet_ReadVol\fP returns a read status enumerator described above.
-If the return value is \fBSIGMET_READ_OK\fP or \fBSIGMET_INPUT_FAIL\fP, some of
-all of the volume is stored at \fIsigPtr\fP.  Memory allocated should eventually
-be freed with a call to \fISigmet_FreeVol\fP.
+Upon entry, \fBSigmet_ReadHdr\fP will free the contents of \fIf\fP with a call
+to \fBSigmet_FreeVol\fP.  \fBSigmet_ReadVol\fP returns a read status enumerator
+described above.  If the return value is \fBSIGMET_READ_OK\fP or
+\fBSIGMET_INPUT_FAIL\fP, some of all of the volume is stored at \fIsigPtr\fP.
+Memory allocated should eventually be freed with a call to \fISigmet_FreeVol\fP.
 If the return value is \fBSIGMET_BAD_VOL\fP or \fBSIGMET_MEM_FAIL\fP, it
 re-initializes the structure at \fIsigPtr\fP with a call to \fBSigmet_InitVol\fP.
 If something goes wrong (return value is not \fBSIGMET_READ_OK\fP) it leaves an
