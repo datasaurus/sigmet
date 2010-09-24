@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.270 $ $Date: 2010/09/02 20:39:37 $
+ .	$Revision: 1.271 $ $Date: 2010/09/02 22:25:17 $
  */
 
 #include <limits.h>
@@ -1608,7 +1608,6 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     char *img_app;		/* External application to draw image */
     char kml_fl_nm[LEN];	/* KML output file name */
     FILE *kml_fl;		/* KML file */
-    pid_t pid = getpid();	/* Process id of daemon */
     pid_t img_pid = -1;		/* Process id for image generator */
     FILE *img_out = NULL;	/* Where to send outlines to draw */
     struct XDRX_Stream xout;	/* XDR stream for img_out */
