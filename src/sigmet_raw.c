@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.44 $ $Date: 2010/09/02 18:12:45 $
+   .	$Revision: 1.45 $ $Date: 2010/10/08 18:24:16 $
  */
 
 #include <limits.h>
@@ -167,6 +167,8 @@ int main(int argc, char *argv[])
 		    _exit(EXIT_FAILURE);
 		}
 		execlp(SIGMET_RAWD, SIGMET_RAWD, (char *)NULL);
+		fprintf(stderr, "Could not start %s\n%s\n",
+			SIGMET_RAWD, strerror(errno));
 		_exit(EXIT_FAILURE);
 	}
 
