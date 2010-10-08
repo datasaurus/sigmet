@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.271 $ $Date: 2010/09/02 22:25:17 $
+ .	$Revision: 1.272 $ $Date: 2010/09/24 15:52:13 $
  */
 
 #include <limits.h>
@@ -37,6 +37,7 @@
 #include "xdrx.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
+#include "sigmet_dorade.h"
 
 /* Where to put output and error messages */
 #define SIGMET_RAWD_LOG "sigmet.log"
@@ -46,7 +47,7 @@
 #define LEN 4096
 
 /* Subcommands */
-#define NCMD 25
+#define NCMD 26
 typedef enum Sigmet_CB_Return (callback)(int , char **, char *, int, FILE *,
 	int, FILE *);
 static callback pid_cb;
@@ -74,19 +75,20 @@ static callback img_sz_cb;
 static callback alpha_cb;
 static callback img_name_cb;
 static callback img_cb;
+static callback dorade_cb;
 static char *cmd1v[NCMD] = {
     "pid", "types", "colors", "good", "hread",
     "read", "list", "release", "flush", "volume_headers",
     "vol_hdr", "near_sweep", "ray_headers", "data", "bin_outline",
     "bintvls", "radar_lon", "radar_lat", "shift_az",
-    "proj", "img_app", "img_sz", "alpha", "img_name", "img"
+    "proj", "img_app", "img_sz", "alpha", "img_name", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, types_cb, setcolors_cb, good_cb, hread_cb,
     read_cb, list_cb, release_cb, flush_cb, volume_headers_cb,
     vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb,
     bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
-    proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb
+    proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb
 };
 
 /* Convenience functions */
@@ -102,12 +104,13 @@ static void handler(int);
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
 #define SA_PLEN (sizeof(sa.sun_path))
 
+static char *ddir;		/* Working directory for daemon */
+
 int main(int argc, char *argv[])
 {
     char *argv0;		/* Name of this daemon */
     int flags;			/* Flags for log files */
     mode_t mode;		/* Mode for files */
-    char *ddir;			/* Working directory for daemon */
     struct sockaddr_un sa;	/* Socket to read command and return exit status */
     struct sockaddr *sa_p;	/* &sa or &d_err_sa, for call to bind */
     int i_dmn;			/* File descriptors for daemon socket */
@@ -189,7 +192,7 @@ int main(int argc, char *argv[])
     /* Create socket to communicate with clients */
     memset(&sa, '\0', SA_UN_SZ);
     sa.sun_family = AF_UNIX;
-    if ( snprintf(sa.sun_path, SA_PLEN, "%s", SIGMET_RAWD_IN) > SA_PLEN ) {
+    if ( snprintf(sa.sun_path, SA_PLEN, "%s", SIGMET_RAWD_IN) >= SA_PLEN ) {
 	fprintf(stderr, "%s (%d): could not fit %s into socket address path.\n",
 		argv0, getpid(), SIGMET_RAWD_IN);
 	goto error;
@@ -254,8 +257,8 @@ int main(int argc, char *argv[])
 	if ( cl_wd_l + 1 > cl_wd_lx ) {
 	    if ( !(t = REALLOC(cl_wd, cl_wd_l + 1)) ) {
 		fprintf(stderr, "%s: allocation failed for working directory of "
-			"%lu bytes for process %d.\n",
-			time_stamp(), cl_wd_l, client_pid);
+			"%lu bytes for process %ld.\n",
+			time_stamp(), (unsigned long)cl_wd_l, (long)client_pid);
 		close(cl_io_fd);
 		continue;
 	    }
@@ -304,8 +307,8 @@ int main(int argc, char *argv[])
 	if ( cmd_ln_l > cmd_ln_lx ) {
 	    if ( !(t = REALLOC(cmd_ln, cmd_ln_l)) ) {
 		fprintf(stderr, "%s: allocation failed for command line of "
-			"%lu bytes for process %d.\n",
-			time_stamp(), cmd_ln_l, client_pid);
+			"%lu bytes for process %ld.\n",
+			time_stamp(), (unsigned long)cmd_ln_l, (long)client_pid);
 		close(cl_io_fd);
 		continue;
 	    }
@@ -335,7 +338,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Open fifos to client */
-	if ( snprintf(out_nm, LEN, "%d.1", client_pid) > LEN ) {
+	if ( snprintf(out_nm, LEN, "%d.1", client_pid) >= LEN ) {
 	    fprintf(stderr, "%s: could not create name for result pipe for "
 		    "process %d.\n", time_stamp(), client_pid);
 	    continue;
@@ -346,7 +349,7 @@ int main(int argc, char *argv[])
 		    "process %d\n%s\n", time_stamp(), client_pid, strerror(errno));
 	    continue;
 	}
-	if ( snprintf(err_nm, LEN, "%d.2", client_pid) > LEN ) {
+	if ( snprintf(err_nm, LEN, "%d.2", client_pid) >= LEN ) {
 	    fprintf(stderr, "%s: could not create name for error pipe for "
 		    "process %d.\n", time_stamp(), client_pid);
 	    continue;
@@ -451,7 +454,7 @@ static int abs_name(char *root, char *rel, char *abs, size_t l)
     } else {
 	status = snprintf(abs, l, "%s", rel);
     }
-    if ( status > l ) {
+    if ( status >= l ) {
 	Err_Append("File name too long.\n");
 	return 0;
     } else if ( status == -1 ) {
@@ -648,7 +651,7 @@ static enum Sigmet_CB_Return volume_headers_cb(int argc, char *argv[], char *cl_
     }
     status = SigmetRaw_GetVol(vol_nm, err, i_err, &vol_p);
     if ( status == SIGMET_CB_SUCCESS ) {
-	    Sigmet_PrintHdr(out, vol_p);
+	Sigmet_PrintHdr(out, vol_p);
     }
     return status;
 }
@@ -1477,7 +1480,7 @@ static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf)
     }
     if ( snprintf(buf, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f",
 		vol_p->ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
-		abbrv, vol_p->sweep_angle[s] * DEG_PER_RAD) > LEN ) {
+		abbrv, vol_p->sweep_angle[s] * DEG_PER_RAD) >= LEN ) {
 	memset(buf, 0, LEN);
 	Err_Append("Image file name too long. ");
 	return 0;
@@ -1784,7 +1787,7 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 
     /* Create image file. Fail if it exists */
     if ( !( img_name(vol_p, abbrv, s, base_nm) 
-		&& snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) <= LEN )
+		&& snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) >= LEN )
 	    ) {
 	fprintf(err, "%s %s: could not make image file name\n%s\n",
 		argv0, argv1, Err_Get());
@@ -1958,7 +1961,7 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     }
 
     /* Make kml file and return */
-    if ( snprintf(kml_fl_nm, LEN, "%s/%s.kml", cl_wd, base_nm) > LEN ) {
+    if ( snprintf(kml_fl_nm, LEN, "%s/%s.kml", cl_wd, base_nm) >= LEN ) {
 	fprintf(err, "%s %s: could not make kml file name for %s\n",
 		argv0, argv1, img_fl_nm);
 	goto error;
@@ -1992,6 +1995,108 @@ error:
 	img_pid = -1;
     }
     unlink(img_fl_nm);
+    return SIGMET_CB_FAIL;
+}
+
+static enum Sigmet_CB_Return dorade_cb(int argc, char *argv[], char *cl_wd,
+	int i_out, FILE *out, int i_err, FILE *err)
+{
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+    char *vol_nm_r;		/* Path to Sigmet volume from command line */
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    int s;			/* Index of desired sweep, or -1 for all */
+    char *s_s;			/* String representation of s */
+    int all = -1;
+    struct Sigmet_Vol *vol_p;
+    enum Sigmet_CB_Return status; /* Result of SigmetRaw_GetVol */
+    struct Dorade_Sweep swp;
+
+    Dorade_Sweep_Init(&swp);
+    if ( argc == 3 ) {
+	s = all;
+	vol_nm_r = argv[2];
+    } else if ( argc == 4 ) {
+	s_s = argv[2];
+	if ( strcmp(s_s, "all") == 0 ) {
+	    s = all;
+	} else if ( sscanf(s_s, "%d", &s) != 1 ) {
+	    fprintf(err, "%s %s: expected integer for sweep index, got \"%s\"\n",
+		    argv0, argv1, s_s);
+	    return SIGMET_CB_FAIL;
+	}
+	vol_nm_r = argv[3];
+    } else {
+	fprintf(err, "Usage: %s %s [s] sigmet_volume\n", argv0, argv1);
+	return SIGMET_CB_FAIL;
+    }
+    if ( !abs_name(cl_wd, vol_nm_r, vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n%s\n",
+		argv0, argv1, vol_nm_r, Err_Get());
+	return SIGMET_CB_FAIL;
+    }
+    status = SigmetRaw_GetVol(vol_nm, err, i_err, &vol_p);
+    if ( status != SIGMET_CB_SUCCESS ) {
+	    return status;
+    }
+    if ( s >= vol_p->num_sweeps_ax ) {
+	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
+		argv0, argv1, s, vol_nm);
+	return SIGMET_CB_FAIL;
+    }
+    if ( chdir(cl_wd) == -1 ) {
+	fprintf(err, "%s %s: could not change to client working directory: "
+		"%s\n%s\n", argv0, argv1, cl_wd, strerror(errno));
+	return SIGMET_CB_FAIL;
+    }
+    if ( s == all ) {
+	for (s = 0; s < vol_p->num_sweeps_ax; s++) {
+	    Dorade_Sweep_Init(&swp);
+	    if ( !Sigmet_ToDorade(vol_p, s, &swp) ) {
+		fprintf(err, "%s %s: could not translate sweep %d of %s to "
+			"DORADE format\n%s\n", argv0, argv1, s, vol_nm, Err_Get());
+		goto error;
+	    }
+	    if ( !Dorade_Sweep_Write(&swp) ) {
+		fprintf(err, "%s %s: could not write DORADE file for sweep "
+			"%d of %s\n%s\n", argv0, argv1, s, vol_nm, Err_Get());
+		goto error;
+	    }
+	    Dorade_Sweep_Free(&swp);
+	}
+    } else {
+	Dorade_Sweep_Init(&swp);
+	if ( !Sigmet_ToDorade(vol_p, s, &swp) ) {
+	    fprintf(err, "%s %s: could not translate sweep %d of %s to "
+		    "DORADE format\n%s\n", argv0, argv1, s, vol_nm, Err_Get());
+	    goto error;
+	}
+	if ( !Dorade_Sweep_Write(&swp) ) {
+	    fprintf(err, "%s %s: could not write DORADE file for sweep "
+		    "%d of %s\n%s\n", argv0, argv1, s, vol_nm, Err_Get());
+	    goto error;
+	}
+	Dorade_Sweep_Free(&swp);
+    }
+    if ( chdir(ddir) == -1 ) {
+	/* Daemon broke. */
+	fprintf(err, "%s %s: daemon could not change to daemon working "
+		"directory.\n", argv0, argv1);
+	perror("Could not change to daemon working directory.");
+	exit(EXIT_FAILURE);
+    }
+
+    return SIGMET_CB_SUCCESS;
+
+error:
+    Dorade_Sweep_Free(&swp);
+    if ( chdir(ddir) == -1 ) {
+	/* Daemon broke. */
+	fprintf(err, "%s %s: daemon could not change to daemon working "
+		"directory.\n", argv0, argv1);
+	perror("Could not change to daemon working directory.");
+	exit(EXIT_FAILURE);
+    }
     return SIGMET_CB_FAIL;
 }
 
