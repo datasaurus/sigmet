@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.43 $ $Date: 2010/09/02 13:32:34 $
+   .	$Revision: 1.44 $ $Date: 2010/09/02 18:12:45 $
  */
 
 #include <limits.h>
@@ -200,6 +200,8 @@ int main(int argc, char *argv[])
 
 		/* Execute the user command */
 		execvp(argv2, argv + 2);
+		fprintf(stderr, "Could not start %s\n%s\n",
+			argv2, strerror(errno));
 		_exit(EXIT_FAILURE);
 	}
 
