@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.2 $ $Date: 2010/10/19 21:45:45 $
+   .	$Revision: 1.3 $ $Date: 2010/10/19 22:05:32 $
  */
 
 #include <string.h>
@@ -18,8 +18,6 @@
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "dorade_lib.h"
-
-static char *abbrv(enum Sigmet_DataType y);
 
 /*
    Copy metadata and data from sweep s of the Sigmet volume at vol_p to
@@ -35,6 +33,14 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     double prf;					/* PRF from vol_p */
     int p, r, c;				/* Loop parameters */
     int num_parms, num_rays, num_cells;		/* Convenience */
+
+    /*
+       soloii equivalents for certain Sigmet data types.
+       Index soloii_abbrv with Sigmet_DataType enumerator to determine equivalent
+       abbreviation, e.g. soloii_abbrv[DB_DBT] is "ZT" => use "ZT" in sweep files
+       instead of "DB_DBT".
+     */
+    static char *soloii_abbrv[SIGMET_NTYPES] = {NULL, "ZT", "DZ", "VR", "SW", NULL};
 
     /* Convenience variables point into swp_p */
     struct Dorade_SSWB *sswb_p;
@@ -151,12 +157,15 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	Err_Append("Could not allocate array of parameter descriptors. ");
     }
     for (p = 0; p < num_parms; p++) {
-	parm_p = sensor_p->parm + p;
+	enum Sigmet_DataType y;	/* Sigmet data type at offset p */
+	char *abbrv;		/* Data type abbreviation, e.g. "DZ" or "DB_ZDR" */
 
-	strncpy(parm_p->parameter_name, abbrv(vol_p->types[p]), 8);
-	strncpy(parm_p->param_description, Sigmet_DataType_Descr(vol_p->types[p]),
-		40);
-	switch (vol_p->types[p]) {
+	parm_p = sensor_p->parm + p;
+	y = vol_p->types[p];
+	abbrv = (soloii_abbrv[y]) ? soloii_abbrv[y] : Sigmet_DataType_Abbrv(y);
+	strncpy(parm_p->parameter_name, abbrv, 8);
+	strncpy(parm_p->param_description, Sigmet_DataType_Descr(y), 40);
+	switch (y) {
 	    case DB_ERROR:
 		Err_Append("Bad volume (unknown data type DB_ERROR)");
 		goto error;
@@ -361,16 +370,3 @@ error:
     Dorade_Sweep_Free(swp_p);
     return 0;
 };
-
-/*
-   Make an abbreviation for a Sigmet data type.
-   Usually return the Sigmet abbreviation.  For some data types,
-   return value is an alternate abbreviation that soloii seems to need.
-   Return value should not be modified by the user.
-   */
-static char *abbrv(enum Sigmet_DataType y)
-{
-    static char *abbrv[SIGMET_NTYPES] = {NULL, "ZT", "DZ", "VR", "SW", NULL};
-
-    return (abbrv[y] != NULL) ? abbrv[y] : Sigmet_DataType_Abbrv(y);
-}
