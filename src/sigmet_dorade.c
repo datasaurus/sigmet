@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.1 $ $Date: 2010/10/19 20:39:52 $
+   .	$Revision: 1.2 $ $Date: 2010/10/19 21:45:45 $
  */
 
 #include <string.h>
@@ -18,6 +18,8 @@
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "dorade_lib.h"
+
+static char *abbrv(enum Sigmet_DataType y);
 
 /*
    Copy metadata and data from sweep s of the Sigmet volume at vol_p to
@@ -151,7 +153,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     for (p = 0; p < num_parms; p++) {
 	parm_p = sensor_p->parm + p;
 
-	strncpy(parm_p->parameter_name, Sigmet_DataType_Abbrv(vol_p->types[p]), 8);
+	strncpy(parm_p->parameter_name, abbrv(vol_p->types[p]), 8);
 	strncpy(parm_p->param_description, Sigmet_DataType_Descr(vol_p->types[p]),
 		40);
 	switch (vol_p->types[p]) {
@@ -359,3 +361,16 @@ error:
     Dorade_Sweep_Free(swp_p);
     return 0;
 };
+
+/*
+   Make an abbreviation for a Sigmet data type.
+   Usually return the Sigmet abbreviation.  For some data types,
+   return value is an alternate abbreviation that soloii seems to need.
+   Return value should not be modified by the user.
+   */
+static char *abbrv(enum Sigmet_DataType y)
+{
+    static char *abbrv[SIGMET_NTYPES] = {NULL, "ZT", "DZ", "VR", "SW", NULL};
+
+    return (abbrv[y] != NULL) ? abbrv[y] : Sigmet_DataType_Abbrv(y);
+}
