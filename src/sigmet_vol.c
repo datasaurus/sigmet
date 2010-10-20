@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.50 $ $Date: 2010/09/02 18:12:45 $
+   .	$Revision: 1.51 $ $Date: 2010/09/24 15:42:33 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -829,7 +829,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			 */
 			swap_arr16(ray + SZ_RAY_HDR, 2);
 			tm_incr = get_sint32(ray + SZ_RAY_HDR);
-			vol_p->ray_time[s][r] = swpTm + 0.001 * tm_incr;
+			vol_p->ray_time[s][r] = swpTm + tm_incr * 0.001 / 86400.0;
 			break;
 		    case DB_DBT:
 		    case DB_DBZ:
