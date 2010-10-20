@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.3 $ $Date: 2010/10/19 22:05:32 $
+   .	$Revision: 1.4 $ $Date: 2010/10/19 22:19:19 $
  */
 
 #include <string.h>
@@ -120,7 +120,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	    radd_p->scan_mode = DORADE_BAD_I;
 	    break;
     }
-    radd_p->num_parms = num_parms;
+    radd_p->num_parms = radd_p->total_num_des = num_parms;
     radd_p->data_compress = 0;
     radd_p->radar_longitude
 	= GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0) * DEG_PER_RAD;
@@ -146,8 +146,8 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     radd_p->eff_unamb_range = 0.5 * 2.9979e5 / prf;	/* km */
     radd_p->num_freq_trans = 1;
     radd_p->num_ipps_trans = 1;
-    radd_p->freq1 = 2.9979e8 / wave_len;
-    radd_p->interpulse_per1 = 1.0 / prf;
+    radd_p->freq1 = 1.0e-9 * 2.9979e8 / wave_len;	/* GHz */
+    radd_p->interpulse_per1 = 1000.0 * 1.0 / prf;	/* millisec */
     strncpy(radd_p->config_name, vol_p->ph.pc.task_name, 8);
     radd_p->pulse_width = 0.01 * vol_p->ih.tc.tdi.pulse_w;
     strncpy(radd_p->site_name, vol_p->ih.ic.su_site_name, 20);
@@ -161,6 +161,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	char *abbrv;		/* Data type abbreviation, e.g. "DZ" or "DB_ZDR" */
 
 	parm_p = sensor_p->parm + p;
+	Dorade_PARM_Init(parm_p);
 	y = vol_p->types[p];
 	abbrv = (soloii_abbrv[y]) ? soloii_abbrv[y] : Sigmet_DataType_Abbrv(y);
 	strncpy(parm_p->parameter_name, abbrv, 8);
@@ -211,9 +212,9 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 		break;
 	}
 
-	parm_p->xmitted_freq = 2.9979e8 / wave_len;
-	parm_p->recvr_bandwidth = vol_p->ih.tc.tci.bandwidth;
-	parm_p->pulse_width = vol_p->ih.tc.tdi.pulse_w * 1.0e-8 * 2.9979e8;
+	parm_p->xmitted_freq = 1.0e-9 * 2.9979e8 / wave_len;
+	parm_p->recvr_bandwidth = 1.0e-3 * vol_p->ih.tc.tci.bandwidth;
+	parm_p->pulse_width = vol_p->ih.tc.tdi.pulse_w * 0.01 * 1.0e-6 * 2.9979e8;
 	parm_p->num_samples = vol_p->ih.tc.tdi.sampl_sz;
 	parm_p->binary_format = DD_16_BITS;	/* To keep significant bits */
 	strncpy(parm_p->threshold_field, "NONE", 8);
