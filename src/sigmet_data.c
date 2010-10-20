@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.12 $ $Date: 2010/05/23 05:00:08 $
+   .	$Revision: 1.13 $ $Date: 2010/09/23 15:44:18 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -34,13 +34,13 @@ static char *abbrv[SIGMET_NTYPES] = {
 /* Descriptors for Sigmet data types. Index with enum Sigmet_DataType. */
 static char *descr[SIGMET_NTYPES] = {
     "Extended header",
-    "Total power (1 byte)",
+    "Uncorrected reflectivity (1 byte)",
     "Reflectivity (1 byte)",
     "Velocity (1 byte)",
     "Width (1 byte)",
     "Differential reflectivity (1 byte)",
     "Corrected reflectivity (1 byte)",
-    "Total power (2 byte)",
+    "Uncorrected reflectivity (2 byte)",
     "Reflectivity (2 byte)",
     "Velocity (2 byte)",
     "Width (2 byte)",
