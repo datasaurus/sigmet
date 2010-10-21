@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.272 $ $Date: 2010/09/24 15:52:13 $
+ .	$Revision: 1.273 $ $Date: 2010/10/08 18:32:52 $
  */
 
 #include <limits.h>
@@ -1786,11 +1786,14 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     px_per_m = w_pxl / (rght - left);
 
     /* Create image file. Fail if it exists */
-    if ( !( img_name(vol_p, abbrv, s, base_nm) 
-		&& snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) >= LEN )
-	    ) {
+    if ( !img_name(vol_p, abbrv, s, base_nm) ) {
 	fprintf(err, "%s %s: could not make image file name\n%s\n",
 		argv0, argv1, Err_Get());
+	return SIGMET_CB_FAIL;
+    }
+    if (snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) >= LEN) {
+	fprintf(err, "%s %s: could not make image file name. "
+		"%s/%s.png too long.\n", argv0, argv1, cl_wd, base_nm);
 	return SIGMET_CB_FAIL;
     }
     flags = O_CREAT | O_EXCL | O_WRONLY;
