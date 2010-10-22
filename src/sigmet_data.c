@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.13 $ $Date: 2010/09/23 15:44:18 $
+   .	$Revision: 1.14 $ $Date: 2010/10/20 16:23:28 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -64,47 +64,6 @@ static char *descr[SIGMET_NTYPES] = {
     "Error"
 };
 
-static float itof_XHDR(struct Sigmet_Vol v, unsigned i);
-static float itof_DBT(struct Sigmet_Vol v, unsigned i);
-static float itof_DBZ(struct Sigmet_Vol v, unsigned i);
-static float itof_VEL(struct Sigmet_Vol v, unsigned i);
-static float itof_WIDTH(struct Sigmet_Vol v, unsigned i);
-static float itof_ZDR(struct Sigmet_Vol v, unsigned i);
-static float itof_DBZC(struct Sigmet_Vol v, unsigned i);
-static float itof_DBT2(struct Sigmet_Vol v, unsigned i);
-static float itof_DBZ2(struct Sigmet_Vol v, unsigned i);
-static float itof_VEL2(struct Sigmet_Vol v, unsigned i);
-static float itof_WIDTH2(struct Sigmet_Vol v, unsigned i);
-static float itof_ZDR2(struct Sigmet_Vol v, unsigned i);
-static float itof_RAINRATE2(struct Sigmet_Vol v, unsigned i);
-static float itof_KDP(struct Sigmet_Vol v, unsigned i);
-static float itof_KDP2(struct Sigmet_Vol v, unsigned i);
-static float itof_PHIDP(struct Sigmet_Vol v, unsigned i);
-static float itof_VELC(struct Sigmet_Vol v, unsigned i);
-static float itof_SQI(struct Sigmet_Vol v, unsigned i);
-static float itof_RHOHV(struct Sigmet_Vol v, unsigned i);
-static float itof_RHOHV2(struct Sigmet_Vol v, unsigned i);
-static float itof_DBZC2(struct Sigmet_Vol v, unsigned i);
-static float itof_VELC2(struct Sigmet_Vol v, unsigned i);
-static float itof_SQI2(struct Sigmet_Vol v, unsigned i);
-static float itof_PHIDP2(struct Sigmet_Vol v, unsigned i);
-static float itof_LDRH(struct Sigmet_Vol v, unsigned i);
-static float itof_LDRH2(struct Sigmet_Vol v, unsigned i);
-static float itof_LDRV(struct Sigmet_Vol v, unsigned i);
-static float itof_LDRV2(struct Sigmet_Vol v, unsigned i);
-
-static double v_nq(struct Sigmet_Vol v);
-
-typedef float (*itof_proc)(struct Sigmet_Vol, unsigned);
-static itof_proc (itof)[SIGMET_NTYPES] = {
-    itof_XHDR,	itof_DBT,	itof_DBZ,	itof_VEL,	itof_WIDTH,
-    itof_ZDR,	itof_DBZC,	itof_DBT2,	itof_DBZ2,	itof_VEL2,
-    itof_WIDTH2,itof_ZDR2,	itof_RAINRATE2,	itof_KDP,	itof_KDP2,
-    itof_PHIDP,	itof_VELC,	itof_SQI,	itof_RHOHV,	itof_RHOHV2,
-    itof_DBZC2,	itof_VELC2,	itof_SQI2,	itof_PHIDP2,	itof_LDRH,
-    itof_LDRH2,	itof_LDRV,	itof_LDRV2
-};
-
 double Sigmet_Bin4Rad(unsigned long a)
 {
     return (double)a / TWO_32 * 2 * PI;
@@ -137,211 +96,17 @@ char * Sigmet_DataType_Descr(enum Sigmet_DataType y)
     return (y < SIGMET_NTYPES) ? descr[y] : NULL;
 }
 
-float Sigmet_NoData(void)
+double Sigmet_NoData(void)
 {
-    return FLT_MAX;
+    return DBL_MAX;
 }
 
-int Sigmet_IsData(float v)
+int Sigmet_IsData(double v)
 {
-    return !(v == FLT_MAX);
+    return !(v == DBL_MAX);
 }
 
-int Sigmet_IsNoData(float v)
+int Sigmet_IsNoData(double v)
 {
-    return v == FLT_MAX;
-}
-
-
-/* Convert Sigmet volume integer storage value to float measurement */
-float Sigmet_DataType_ItoF(enum Sigmet_DataType y, struct Sigmet_Vol v, unsigned i)
-{
-    return (*itof[y])(v, i);
-}
-
-/* Extended header is not really a "data type." */
-static float itof_XHDR(struct Sigmet_Vol v, unsigned i)
-{
-    return Sigmet_NoData();
-}
-
-static float itof_DBT(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0) ? Sigmet_NoData() : (i > 255) ? 95.5 : 0.5 * (i - 64.0);
-}
-
-static float itof_DBZ(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0) ? Sigmet_NoData() : (i > 255) ? 95.5 : 0.5 * (i - 64.0);
-}
-
-/* Nyquist velocity */
-static double v_nq(struct Sigmet_Vol vol)
-{
-    double wav_len, prf;
-
-    prf = vol.ih.tc.tdi.prf;
-    wav_len = 0.01 * 0.01 * vol.ih.tc.tmi.wave_len;
-    switch (vol.ih.tc.tdi.m_prf_mode) {
-	case ONE_ONE:
-	    return 0.25 * wav_len * prf;
-	case TWO_THREE:
-	    return 2 * 0.25 * wav_len * prf;
-	case THREE_FOUR:
-	    return 3 * 0.25 * wav_len * prf;
-	case FOUR_FIVE:
-	    return 3 * 0.25 * wav_len * prf;
-    }
-    return Sigmet_NoData();
-}
-
-/* Scale velocity to Nyquist. */
-static float itof_VEL(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 255) ? Sigmet_NoData() : v_nq(v) * (i - 128.0) / 127.0;
-}
-
-/* Scale spectrum width to Nyquist velocity. */
-static float itof_WIDTH(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 255) ? Sigmet_NoData() : v_nq(v) * i / 256.0;
-}
-
-static float itof_ZDR(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 255) ? Sigmet_NoData() : (i - 128.0) / 16.0;
-}
-
-static float itof_DBZC(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0) ? Sigmet_NoData() : (i > 255) ? 95.5 : 0.5 * (i - 64.0);
-}
-
-static float itof_DBT2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
-}
-
-static float itof_DBZ2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
-}
-
-static float itof_VEL2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
-}
-
-static float itof_WIDTH2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * i;
-}
-
-static float itof_ZDR2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
-}
-
-static float itof_RAINRATE2(struct Sigmet_Vol v, unsigned i)
-{
-    unsigned e;		/* 4 bit exponent */
-    unsigned m;		/* 12 bit mantissa */
-
-    if (i == 0 || i > 65535)
-    {
-	return Sigmet_NoData();
-    }
-    e = (unsigned)(0xF000 & i) >> 12;
-    m = 0x0FFF & i;
-    if (e == 0) {
-	return 0.0001 * (m - 1);
-    } else {
-	return 0.0001 * (((0x01000 | m) << (e - 1)) - 1);
-    }
-}
-
-static float itof_KDP(struct Sigmet_Vol v, unsigned i)
-{
-    double wav_len;
-
-    wav_len = 0.01 * v.ih.tc.tmi.wave_len;
-    if (i == 0 || i > 255) {
-	return Sigmet_NoData();
-    } else if (i > 128) {
-	return 0.25 * pow(600.0, (i - 129.0) / 126.0) / wav_len;
-    } else if (i == 128) {
-	return 0.0;
-    } else {
-	return -0.25 * pow(600.0, (127.0 - i) / 126.0) / wav_len;
-    }
-}
-
-static float itof_KDP2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
-}
-
-static float itof_PHIDP(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 255) ? Sigmet_NoData() : 180.0 / 254.0 * (i - 1.0);
-}
-
-static float itof_VELC(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 255) ? Sigmet_NoData() : 75.0 / 127.0 * (i - 128.0);
-}
-
-static float itof_SQI(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 254) ? Sigmet_NoData() : sqrt((i - 1) / 253.0);
-}
-
-static float itof_RHOHV(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 254) ? Sigmet_NoData() : sqrt((i - 1) / 253.0);
-}
-
-static float itof_RHOHV2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : (i - 1) / 65535.0;
-}
-
-static float itof_DBZC2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
-}
-
-static float itof_VELC2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
-}
-
-static float itof_SQI2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : (i - 1) / 65535.0;
-}
-
-static float itof_PHIDP2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 360.0 / 65534.0 * (i - 1.0);
-}
-
-static float itof_LDRH(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 255) ? Sigmet_NoData() : 0.2 * (i - 1) - 45.0;
-}
-
-static float itof_LDRH2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
-}
-
-static float itof_LDRV(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 255) ? Sigmet_NoData() : 0.2 * (i - 1) - 45.0;
-}
-
-static float itof_LDRV2(struct Sigmet_Vol v, unsigned i)
-{
-    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
+    return v == DBL_MAX;
 }

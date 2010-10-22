@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.33 $ $Date: 2010/09/02 18:12:45 $
+   .	$Revision: 1.34 $ $Date: 2010/09/24 15:42:33 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -20,6 +20,7 @@
 
 #include <float.h>
 #include <stdio.h>
+#include "type_nbit.h"
 #include "dorade_lib.h"
 
 #define	PI		3.1415926535897932384
@@ -395,6 +396,12 @@ struct Sigmet_Ingest_Header {
     struct Sigmet_Task_Configuration tc;
 };
 
+/* Data array, dimensioned [sweep][ray][bin] */
+union Sigmet_DatArr {
+    U1BYT ***d1;				/* 1 byte data */
+    U2BYT ***d2;				/* 2 byte data */
+};
+
 /*
    struct Sigmet_Vol:
 
@@ -451,19 +458,15 @@ struct Sigmet_Vol {
 						   dimensioned [sweep][ray] */
     double **ray_az1;				/* Azimuth at end of ray, radians,
 						   dimensioned [sweep][ray] */
-    int ****dat;				/* Data.  Dimensioned
-						   [type][sweep][ray][bin]
-						   Units and encoding depend on
-						   type. */
+    union Sigmet_DatArr *dat;			/* Data, dimensioned [type] */
 };
 
 enum Sigmet_DataType Sigmet_DataType(char *);
 char *Sigmet_DataType_Abbrv(enum Sigmet_DataType);
 char *Sigmet_DataType_Descr(enum Sigmet_DataType);
-float Sigmet_NoData(void);
-int Sigmet_IsData(float);
-int Sigmet_IsNoData(float);
-float Sigmet_DataType_ItoF(enum Sigmet_DataType, struct Sigmet_Vol, unsigned);
+double Sigmet_NoData(void);
+int Sigmet_IsData(double);
+int Sigmet_IsNoData(double);
 double Sigmet_Bin4Rad(unsigned long);
 double Sigmet_Bin2Rad(unsigned short);
 unsigned long Sigmet_RadBin4(double);
@@ -482,6 +485,8 @@ void Sigmet_PrintHdr(FILE *, struct Sigmet_Vol *);
 enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *, struct Sigmet_Vol *);
 int Sigmet_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
+double Sigmet_VNyquist(struct Sigmet_Vol *);
+double Sigmet_VolDat(struct Sigmet_Vol *, int, int, int, int);
 int Sigmet_ToDorade(struct Sigmet_Vol *, int, struct Dorade_Sweep *);
 
 #endif

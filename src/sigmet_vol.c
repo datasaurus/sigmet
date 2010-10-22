@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.51 $ $Date: 2010/09/24 15:42:33 $
+   .	$Revision: 1.52 $ $Date: 2010/10/20 15:12:24 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -123,11 +123,13 @@ static void print_s(FILE *, char *, char *, char *, char *);
 
 /* Allocators */
 static double ** calloc2d(long, long);
-static void free2d(double **dat);
+static void free2d(double **);
 static int ** calloc2i(long, long);
-static void free2i(int **dat);
-static int **** calloc4i(long, long, long, long);
-static void free4i(int ****dat);
+static void free2i(int **);
+static U1BYT *** calloc3_u1(long, long, long);
+static void free3_u1(U1BYT ***);
+static U2BYT *** calloc3_u2(long, long, long);
+static void free3_u2(U2BYT ***);
 
 void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 {
@@ -154,6 +156,8 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 
 void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 {
+    int y;
+
     if (!vol_p) {
 	return;
     }
@@ -167,8 +171,47 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
     free2d(vol_p->ray_tilt1);
     free2d(vol_p->ray_az0);
     free2d(vol_p->ray_az1);
-    free4i(vol_p->dat);
-    Sigmet_InitVol(vol_p);
+    if ( vol_p->dat ) {
+	for (y = 0; y < vol_p->num_types; y++) {
+	    switch (vol_p->types[y]) {
+		case DB_XHDR:
+		case DB_ERROR:
+		    break;
+		case DB_DBT:
+		case DB_DBZ:
+		case DB_VEL:
+		case DB_WIDTH:
+		case DB_ZDR:
+		case DB_DBZC:
+		case DB_KDP:
+		case DB_PHIDP:
+		case DB_VELC:
+		case DB_SQI:
+		case DB_RHOHV:
+		case DB_LDRH:
+		case DB_LDRV:
+		    free3_u1(vol_p->dat[y].d1);
+		    break;
+		case DB_DBT2:
+		case DB_DBZ2:
+		case DB_VEL2:
+		case DB_WIDTH2:
+		case DB_ZDR2:
+		case DB_RAINRATE2:
+		case DB_KDP2:
+		case DB_RHOHV2:
+		case DB_DBZC2:
+		case DB_VELC2:
+		case DB_SQI2:
+		case DB_PHIDP2:
+		case DB_LDRH2:
+		case DB_LDRV2:
+		    free3_u2(vol_p->dat[y].d2);
+		    break;
+	    }
+	}
+	Sigmet_InitVol(vol_p);
+    }
 }
 
 enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
@@ -189,7 +232,7 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
      */
     int num_types_fl;
     int num_types;
-    int y;				/* Type index (0 based) */
+    enum Sigmet_DataType type;
 
     /*
        These masks are placed against the data type mask in the task dsp info
@@ -242,15 +285,15 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
        If bit is set, add the corresponding type to types array.
      */
     data_type_mask = vol_p->ih.tc.tdi.curr_data_mask.mask_word_0;
-    for (y = 0, num_types_fl = 0, num_types = 0; y < SIGMET_NTYPES; y++) {
-	if (data_type_mask & type_masks[y]) {
-	    if (y == DB_XHDR) {
+    for (type = 0, num_types_fl = num_types = 0; type < SIGMET_NTYPES; type++) {
+	if (data_type_mask & type_masks[type]) {
+	    if (type == DB_XHDR) {
 		vol_p->xhdr = 1;
 	    } else {
-		vol_p->types[num_types] = y;
+		vol_p->types[num_types] = type;
 		num_types++;
 	    }
-	    vol_p->types_fl[num_types_fl] = y;
+	    vol_p->types_fl[num_types_fl] = type;
 	    num_types_fl++;
 	}
     }
@@ -318,10 +361,11 @@ int Sigmet_GoodVol(FILE *f)
     unsigned msec;
 
     unsigned numWds;			/* Number of words in a run of data */
-    int s, y, r;			/* Sweep, type, ray indeces */
+    enum Sigmet_DataType type;
+    int s, r;				/* Sweep, ray indeces */
     int i, n;				/* Temporary values */
 
-    s = y = r = 0;
+    s = type = r = 0;
     Sigmet_InitVol(&vol);
 
     /* record 1, <product_header> */
@@ -353,21 +397,20 @@ int Sigmet_GoodVol(FILE *f)
        If bit is set, add the corresponding type to types array.
      */
     data_type_mask = vol.ih.tc.tdi.curr_data_mask.mask_word_0;
-    for (y = 0, num_types_fl = 0, num_types = 0; y < SIGMET_NTYPES; y++) {
-	if (data_type_mask & type_masks[y]) {
-	    if (y == DB_XHDR) {
+    for (type = 0, num_types_fl = 0, num_types = 0; type < SIGMET_NTYPES; type++) {
+	if (data_type_mask & type_masks[type]) {
+	    if (type == DB_XHDR) {
 		vol.xhdr = 1;
 	    } else {
-		vol.types[num_types] = y;
+		vol.types[num_types] = type;
 		num_types++;
 	    }
-	    vol.types_fl[num_types_fl] = y;
+	    vol.types_fl[num_types_fl] = type;
 	    num_types_fl++;
 	}
     }
     vol.num_types = num_types;
 
-    /* Allocate arrays in vol. */
     num_types = vol.num_types;
     num_types_fl = num_types + vol.xhdr;
     num_sweeps = vol.ih.tc.tni.num_sweeps;
@@ -423,7 +466,7 @@ int Sigmet_GoodVol(FILE *f)
 	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR
 		    + num_types_fl * SZ_INGEST_DATA_HDR);
 	    swap_arr16(recP, recEnd - recP);
-	    y = 0;
+	    type = 0;
 
 	} else {
 
@@ -498,9 +541,9 @@ int Sigmet_GoodVol(FILE *f)
 		/* Skip ray data. */
 
 		/* Reset for next ray. */
-		if (++y == num_types_fl) {
+		if (++type == num_types_fl) {
 		    r++;
-		    y = 0;
+		    type = 0;
 		}
 		recP++;
 	    } else {
@@ -645,11 +688,67 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	goto error;
     }
 
-    vol_p->dat = calloc4i(num_types, num_sweeps, num_rays, num_bins);
+    vol_p->dat = CALLOC(num_types, sizeof(union Sigmet_DatArr));
     if ( !vol_p->dat ) {
-	Err_Append("Could not allocate data array.  ");
+	Err_Append("Could not allocate data array (data type dimension). ");
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
+    }
+    for (y = 0; y < vol_p->num_types; y++) {
+	switch (vol_p->types[y]) {
+	    case DB_XHDR:
+		Err_Append("Volume in memory is corrupt. Bogus extended header "
+			"\"type\" in data array.");
+		status = SIGMET_VOL_BAD_VOL;
+		goto error;
+		break;
+	    case DB_ERROR:
+		Err_Append("Volume in memory is corrupt. Bogus error \"type\" "
+			"in data array.");
+		status = SIGMET_VOL_BAD_VOL;
+		goto error;
+		break;
+	    case DB_DBT:
+	    case DB_DBZ:
+	    case DB_VEL:
+	    case DB_WIDTH:
+	    case DB_ZDR:
+	    case DB_DBZC:
+	    case DB_KDP:
+	    case DB_PHIDP:
+	    case DB_VELC:
+	    case DB_SQI:
+	    case DB_RHOHV:
+	    case DB_LDRH:
+	    case DB_LDRV:
+		vol_p->dat[y].d1 = calloc3_u1(num_sweeps, num_rays, num_bins);
+		if ( !vol_p->dat[y].d1 ) {
+		    status = SIGMET_VOL_MEM_FAIL;
+		    goto error;
+		}
+		break;
+	    case DB_DBT2:
+	    case DB_DBZ2:
+	    case DB_VEL2:
+	    case DB_WIDTH2:
+	    case DB_ZDR2:
+	    case DB_RAINRATE2:
+	    case DB_KDP2:
+	    case DB_RHOHV2:
+	    case DB_DBZC2:
+	    case DB_VELC2:
+	    case DB_SQI2:
+	    case DB_PHIDP2:
+	    case DB_LDRH2:
+	    case DB_LDRV2:
+		vol_p->dat[y].d2 = calloc3_u2(num_sweeps, num_rays, num_bins);
+		if ( !vol_p->dat[y].d2 ) {
+		    status = SIGMET_VOL_MEM_FAIL;
+		    goto error;
+		}
+		break;
+		break;
+	}
     }
 
     /*
@@ -845,7 +944,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_LDRH:
 		    case DB_LDRV:
 			for (b = 0; b < nbins; b++)  {
-			    vol_p->dat[y][s][r][b] = rayd[b];
+			    vol_p->dat[y].d1[s][r][b] = rayd[b];
 			}
 			break;
 		    case DB_DBT2:
@@ -863,7 +962,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_LDRH2:
 		    case DB_LDRV2:
 			for (b = 0; b < nbins; b++)  {
-			    vol_p->dat[y][s][r][b] = ((U16BIT *)rayd)[b];
+			    vol_p->dat[y].d2[s][r][b] = ((U2BYT *)rayd)[b];
 			}
 			break;
 		    case DB_ERROR:
@@ -916,6 +1015,134 @@ error:
 int Sigmet_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 {
     return vol_p->ray_az0[s][r] == vol_p->ray_az1[s][r];
+}
+
+/* Fetch a value from a Sigmet volume */
+double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
+{
+    enum Sigmet_DataType type;
+    unsigned i;
+    double wav_len;
+    unsigned e;		/* 4 bit exponent */
+    unsigned m;		/* 12 bit mantissa */
+
+
+    if ( !vol_p ) {
+	return Sigmet_NoData();
+    }
+    if ( y >= vol_p->num_types || s >= vol_p->num_sweeps_ax
+	    || r >= vol_p->ih.ic.num_rays
+	    || !vol_p->ray_num_bins || b >= vol_p->ray_num_bins[s][r] ) {
+	return Sigmet_NoData();
+    }
+    type = vol_p->types[y];
+    switch (type) {
+	case DB_XHDR:
+	    return Sigmet_NoData();
+	case DB_ERROR:
+	    return Sigmet_NoData();
+	case DB_DBT:
+	case DB_DBZ:
+	case DB_DBZC:
+	    i = vol_p->dat[y].d1[s][r][b];
+	    return (i == 0)
+		? Sigmet_NoData() : (i > 255) ? 95.5 : 0.5 * (i - 64.0);
+	case DB_VEL:
+	    i = vol_p->dat[y].d1[s][r][b];
+	    return (i == 0 || i > 255)
+		? Sigmet_NoData() : Sigmet_VNyquist(vol_p) * (i - 128.0) / 127.0;
+	case DB_WIDTH:
+	    i = vol_p->dat[y].d1[s][r][b];
+	    return (i == 0 || i > 255)
+		? Sigmet_NoData() : Sigmet_VNyquist(vol_p) * i / 256.0;
+	case DB_ZDR:
+	    i = vol_p->dat[y].d1[s][r][b];
+	    return (i == 0 || i > 255) ? Sigmet_NoData() : (i - 128.0) / 16.0;
+	case DB_KDP:
+	    i = vol_p->dat[y].d1[s][r][b];
+	    wav_len = 0.01 * vol_p->ih.tc.tmi.wave_len;
+	    if (i == 0 || i > 255) {
+		return Sigmet_NoData();
+	    } else if (i > 128) {
+		return 0.25 * pow(600.0, (i - 129.0) / 126.0) / wav_len;
+	    } else if (i == 128) {
+		return 0.0;
+	    } else {
+		return -0.25 * pow(600.0, (127.0 - i) / 126.0) / wav_len;
+	    }
+	case DB_PHIDP:
+	    i = vol_p->dat[y].d1[s][r][b];
+	    return (i == 0 || i > 255)
+		? Sigmet_NoData() : 180.0 / 254.0 * (i - 1.0);
+	case DB_VELC:
+	    i = vol_p->dat[y].d1[s][r][b];
+	    return (i == 0 || i > 255)
+		? Sigmet_NoData() : 75.0 / 127.0 * (i - 128.0);
+	case DB_SQI:
+	case DB_RHOHV:
+	    i = vol_p->dat[y].d1[s][r][b];
+	    return (i == 0 || i > 254) ? Sigmet_NoData() : sqrt((i - 1) / 253.0);
+	case DB_LDRH:
+	case DB_LDRV:
+	    i = vol_p->dat[y].d1[s][r][b];
+	    return (i == 0 || i > 255) ? Sigmet_NoData() : 0.2 * (i - 1) - 45.0;
+	case DB_DBT2:
+	case DB_DBZ2:
+	case DB_VEL2:
+	case DB_ZDR2:
+	case DB_KDP2:
+	case DB_DBZC2:
+	case DB_VELC2:
+	case DB_LDRH2:
+	case DB_LDRV2:
+	    i = vol_p->dat[y].d2[s][r][b];
+	    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
+	case DB_WIDTH2:
+	    i = vol_p->dat[y].d2[s][r][b];
+	    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * i;
+	case DB_RAINRATE2:
+	    i = vol_p->dat[y].d2[s][r][b];
+	    if (i == 0 || i > 65535)
+	    {
+		return Sigmet_NoData();
+	    }
+	    e = (unsigned)(0xF000 & i) >> 12;
+	    m = 0x0FFF & i;
+	    if (e == 0) {
+		return 0.0001 * (m - 1);
+	    } else {
+		return 0.0001 * (((0x01000 | m) << (e - 1)) - 1);
+	    }
+	case DB_RHOHV2:
+	case DB_SQI2:
+	    i = vol_p->dat[y].d2[s][r][b];
+	    return (i == 0 || i > 65535) ? Sigmet_NoData() : (i - 1) / 65535.0;
+	case DB_PHIDP2:
+	    i = vol_p->dat[y].d2[s][r][b];
+	    return (i == 0 || i > 65535)
+		? Sigmet_NoData() : 360.0 / 65534.0 * (i - 1.0);
+    }
+    return Sigmet_NoData();
+}
+
+/* Nyquist velocity */
+double Sigmet_VNyquist(struct Sigmet_Vol *v_p)
+{
+    double wav_len, prf;
+
+    prf = v_p->ih.tc.tdi.prf;
+    wav_len = 0.01 * 0.01 * v_p->ih.tc.tmi.wave_len;
+    switch (v_p->ih.tc.tdi.m_prf_mode) {
+	case ONE_ONE:
+	    return 0.25 * wav_len * prf;
+	case TWO_THREE:
+	    return 2 * 0.25 * wav_len * prf;
+	case THREE_FOUR:
+	    return 3 * 0.25 * wav_len * prf;
+	case FOUR_FIVE:
+	    return 3 * 0.25 * wav_len * prf;
+    }
+    return Sigmet_NoData();
 }
 
 /* Return lon-lat's at corners of a bin */
@@ -2513,7 +2740,7 @@ static int ** calloc2i(long j, long i)
     return dat;
 }
 
-/* Free array created by calloc2d */
+/* Free array created by calloc2i */
 static void free2i(int **dat)
 {
     if (dat && dat[0]) {
@@ -2522,75 +2749,128 @@ static void free2i(int **dat)
     FREE(dat);
 }
 
-/* Allocate a 4 dimensional array of ints */
-static int **** calloc4i(long lmax, long kmax, long jmax, long imax)
+/*
+   Allocate a 3 dimensional array of unsigned one byte integers.  Return the
+   array. If something goes wrong, post an error message with Err_Append and
+   return NULL.
+ */
+static U1BYT ***calloc3_u1(long kmax, long jmax, long imax)
 {
-    int ****dat;
-    long k, j, l;
-    size_t ll, kk, jj, ii;
+    U1BYT ***dat;
+    long k, j;
+    size_t kk, jj, ii;
 
     /* Make sure casting to size_t does not overflow anything. */
-    if (lmax <= 0 || kmax <= 0 || jmax <= 0 || imax <= 0) {
+    if ( kmax <= 0 || jmax <= 0 || imax <= 0 ) {
 	Err_Append("Array dimensions must be positive.\n");
 	return NULL;
     }
-    ll = (size_t)lmax;
     kk = (size_t)kmax;
     jj = (size_t)jmax;
     ii = (size_t)imax;
-    if ((ll * kk) / ll != kk || (ll * kk * jj) / (ll * kk) != jj
-	    || (ll * kk * jj * ii) / (ll * kk * jj) != ii) {
+    if ( (kk * jj) / kk != jj || (kk * jj * ii) / (kk * jj) != ii) {
 	Err_Append("Dimensions too big for pointer arithmetic.\n");
 	return NULL;
     }
 
-    dat = (int ****)CALLOC(ll + 2, sizeof(int ***));
+    dat = (U1BYT ***)CALLOC(kk + 2, sizeof(U1BYT **));
     if ( !dat ) {
 	Err_Append("Could not allocate 3rd dimension.\n");
 	return NULL;
     }
-    dat[0] = (int ***)CALLOC(ll * kk + 1, sizeof(int **));
+    dat[0] = (U1BYT **)CALLOC(kk * jj + 1, sizeof(U1BYT *));
     if ( !dat[0] ) {
 	FREE(dat);
 	Err_Append("Could not allocate 2nd dimension.\n");
 	return NULL;
     }
-    dat[0][0] = (int **)CALLOC(ll * kk * jj + 1, sizeof(int *));
+    dat[0][0] = (U1BYT *)CALLOC(kk * jj * ii + 1, sizeof(U1BYT));
     if ( !dat[0][0] ) {
 	FREE(dat[0]);
 	FREE(dat);
 	Err_Append("Could not allocate 1st dimension.\n");
 	return NULL;
     }
-    dat[0][0][0] = (int *)CALLOC(ll * kk * jj * ii, sizeof(int));
-    if ( !dat[0][0][0] ) {
-	FREE(dat[0][0]);
-	FREE(dat[0]);
-	FREE(dat);
-	Err_Append("Could not allocate array of values.\n");
-	return NULL;
+    for (k = 1; k <= kmax; k++) {
+	dat[k] = dat[k - 1] + jmax;
     }
-    for (l = 1; l <= lmax; l++) {
-	dat[l] = dat[l - 1] + kmax;
-    }
-    for (k = 1; k <= lmax * kmax; k++) {
-	dat[0][k] = dat[0][k - 1] + jmax;
-    }
-    for (j = 1; j <= lmax * kmax * jmax; j++) {
-	dat[0][0][j] = dat[0][0][j - 1] + imax;
+    for (j = 1; j <= kmax * jmax; j++) {
+	dat[0][j] = dat[0][j - 1] + imax;
     }
     return dat;
 }
 
-/* Free array created by calloc4d */
-static void free4i(int ****dat)
+/* Free array created by calloc3_u1 */
+static void free3_u1(U1BYT ***dat)
 {
     if (dat) {
 	if (dat[0]) {
 	    if (dat[0][0]) {
-		if (dat[0][0][0]) {
-		    FREE(dat[0][0][0]);
-		}
+		FREE(dat[0][0]);
+	    }
+	    FREE(dat[0]);
+	}
+	FREE(dat);
+    }
+}
+
+/*
+   Allocate a 3 dimensional array of unsigned two byte integers.  Return the
+   array. If something goes wrong, post an error message with Err_Append and
+   return NULL.
+ */
+static U2BYT ***calloc3_u2(long kmax, long jmax, long imax)
+{
+    U2BYT ***dat;
+    long k, j;
+    size_t kk, jj, ii;
+
+    /* Make sure casting to size_t does not overflow anything. */
+    if ( kmax <= 0 || jmax <= 0 || imax <= 0 ) {
+	Err_Append("Array dimensions must be positive.\n");
+	return NULL;
+    }
+    kk = (size_t)kmax;
+    jj = (size_t)jmax;
+    ii = (size_t)imax;
+    if ( (kk * jj) / kk != jj || (kk * jj * ii) / (kk * jj) != ii) {
+	Err_Append("Dimensions too big for pointer arithmetic.\n");
+	return NULL;
+    }
+
+    dat = (U2BYT ***)CALLOC(kk + 2, sizeof(U2BYT **));
+    if ( !dat ) {
+	Err_Append("Could not allocate 3rd dimension.\n");
+	return NULL;
+    }
+    dat[0] = (U2BYT **)CALLOC(kk * jj + 1, sizeof(U2BYT *));
+    if ( !dat[0] ) {
+	FREE(dat);
+	Err_Append("Could not allocate 2nd dimension.\n");
+	return NULL;
+    }
+    dat[0][0] = (U2BYT *)CALLOC(kk * jj * ii + 1, sizeof(U2BYT));
+    if ( !dat[0][0] ) {
+	FREE(dat[0]);
+	FREE(dat);
+	Err_Append("Could not allocate 1st dimension.\n");
+	return NULL;
+    }
+    for (k = 1; k <= kmax; k++) {
+	dat[k] = dat[k - 1] + jmax;
+    }
+    for (j = 1; j <= kmax * jmax; j++) {
+	dat[0][j] = dat[0][j - 1] + imax;
+    }
+    return dat;
+}
+
+/* Free array created by calloc3_u1 */
+static void free3_u2(U2BYT ***dat)
+{
+    if (dat) {
+	if (dat[0]) {
+	    if (dat[0][0]) {
 		FREE(dat[0][0]);
 	    }
 	    FREE(dat[0]);

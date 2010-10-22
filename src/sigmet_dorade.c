@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.4 $ $Date: 2010/10/19 22:19:19 $
+   .	$Revision: 1.5 $ $Date: 2010/10/20 17:05:50 $
  */
 
 #include <string.h>
@@ -343,7 +343,6 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     dat_p = swp_p->dat;
     for (p = 0; p < num_parms; p++) {
 	int bad_data = swp_p->sensor.parm[p].bad_data;
-	enum Sigmet_DataType type = vol_p->types[p];
 
 	for (r = 0; r < num_rays; r++) {
 	    if ( !vol_p->ray_ok[s][r] ) {
@@ -352,9 +351,9 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 		}
 	    } else {
 		for (c = 0; c < num_cells; c++) {
-		    float d;
+		    double d;
 
-		    d = Sigmet_DataType_ItoF(type, *vol_p, vol_p->dat[p][s][r][c]);
+		    d = Sigmet_VolDat(vol_p, p, s, r, c);
 		    if (Sigmet_IsData(d)) {
 			dat_p[p][r][c] = d;
 		    } else {

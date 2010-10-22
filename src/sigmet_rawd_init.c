@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.273 $ $Date: 2010/10/08 18:32:52 $
+ .	$Revision: 1.274 $ $Date: 2010/10/21 16:18:21 $
  */
 
 #include <limits.h>
@@ -848,7 +848,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
     enum Sigmet_CB_Return status; /* Result of SigmetRaw_GetVol */
     int s, y, r, b;
     char *abbrv;
-    float d;
+    double d;
     enum Sigmet_DataType type;
     int all = -1;
 
@@ -867,7 +867,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
     y = s = r = b = all;
     type = DB_ERROR;
     if (argc > 3 && (type = Sigmet_DataType(argv[2])) == DB_ERROR) {
-	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
+	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, argv[2]);
 	return SIGMET_CB_FAIL;
     }
     if (argc > 4 && sscanf(argv[3], "%d", &s) != 1) {
@@ -947,8 +947,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 		    }
 		    fprintf(out, "ray %d: ", r);
 		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-			d = Sigmet_DataType_ItoF(type, *vol_p,
-				vol_p->dat[y][s][r][b]);
+			d = Sigmet_VolDat(vol_p, y, s, r, b);
 			if (Sigmet_IsData(d)) {
 			    fprintf(out, "%f ", d);
 			} else {
@@ -968,7 +967,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 		    }
 		fprintf(out, "ray %d: ", r);
 		for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		    d = Sigmet_DataType_ItoF(type, *vol_p, vol_p->dat[y][s][r][b]);
+		    d = Sigmet_VolDat(vol_p, y, s, r, b);
 		    if (Sigmet_IsData(d)) {
 			fprintf(out, "%f ", d);
 		    } else {
@@ -986,7 +985,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	    }
 	    fprintf(out, "ray %d: ", r);
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		d = Sigmet_DataType_ItoF(type, *vol_p, vol_p->dat[y][s][r][b]);
+		d = Sigmet_VolDat(vol_p, y, s, r, b);
 		if (Sigmet_IsData(d)) {
 		    fprintf(out, "%f ", d);
 		} else {
@@ -999,7 +998,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	if (vol_p->ray_ok[s][r]) {
 	    fprintf(out, "%s. sweep %d, ray %d: ", abbrv, s, r);
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		d = Sigmet_DataType_ItoF(type, *vol_p, vol_p->dat[y][s][r][b]);
+		d = Sigmet_VolDat(vol_p, y, s, r, b);
 		if (Sigmet_IsData(d)) {
 		    fprintf(out, "%f ", d);
 		} else {
@@ -1011,7 +1010,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
     } else {
 	if (vol_p->ray_ok[s][r]) {
 	    fprintf(out, "%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
-	    d = Sigmet_DataType_ItoF(type, *vol_p, vol_p->dat[y][s][r][b]);
+	    d = Sigmet_VolDat(vol_p, y, s, r, b);
 	    if (Sigmet_IsData(d)) {
 		fprintf(out, "%f ", d);
 	    } else {
@@ -1195,7 +1194,7 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_ok[s][r] ) {
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		d = Sigmet_DataType_ItoF(type_t, *vol_p, vol_p->dat[y][s][r][b]);
+		d = Sigmet_VolDat(vol_p, y, s, r, b);
 		if ( Sigmet_IsData(d)
 			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
 		    fprintf(out, "%6d: %3d %5d\n", n, r, b);
@@ -1900,7 +1899,7 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_ok[s][r] ) {
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		d = Sigmet_DataType_ItoF(type_t, *vol_p, vol_p->dat[y][s][r][b]);
+		d = Sigmet_VolDat(vol_p, y, s, r, b);
 		if ( Sigmet_IsData(d) && (n = BISearch(d, bnds, n_bnds)) != -1 ) {
 		    int undef = 0;	/* If true, gate is outside map */
 		    size_t npts = 4;	/* Number of vertices */
@@ -2015,7 +2014,6 @@ static enum Sigmet_CB_Return dorade_cb(int argc, char *argv[], char *cl_wd,
     enum Sigmet_CB_Return status; /* Result of SigmetRaw_GetVol */
     struct Dorade_Sweep swp;
 
-    Dorade_Sweep_Init(&swp);
     if ( argc == 3 ) {
 	s = all;
 	vol_nm_r = argv[2];
