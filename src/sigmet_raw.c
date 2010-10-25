@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.45 $ $Date: 2010/10/08 18:24:16 $
+   .	$Revision: 1.46 $ $Date: 2010/10/08 18:25:55 $
  */
 
 #include <limits.h>
@@ -140,6 +140,13 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "Could not create process group.\n%s\n",
 		    strerror(errno));
 	    _exit(EXIT_FAILURE);
+	}
+
+	/* Fail if daemon socket already exists */
+	if ( access(sa.sun_path, F_OK) == 0 ) {
+	    fprintf(stderr, "%s: daemon socket %s exists. "
+		    "Is daemon already running?\n", argv0, sa.sun_path);
+	    goto error;
 	}
 
 	/* If necessary, create daemon working directory. Add to environment */
