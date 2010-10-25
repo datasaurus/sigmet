@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.47 $ $Date: 2010/10/25 18:28:31 $
+   .	$Revision: 1.48 $ $Date: 2010/10/25 19:08:41 $
  */
 
 #include <limits.h>
@@ -37,7 +37,10 @@
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
 #define SA_PLEN (sizeof(sa.sun_path))
 
-/* Names of fifos that communicate with daemon. (Global for signal handlers) */
+/*
+   Names of fifos that communicate with daemon. (These variables are global because
+   signal handlers need them)
+ */
 static char out_nm[LINE_MAX];	/* Receive standard output from daemon */
 static char err_nm[LINE_MAX];	/* Receive error output from daemon */
 
@@ -579,44 +582,65 @@ int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
+    int out;
 
-    switch (signum) {
-	case SIGTERM:
-	    msg = "sigmet_raw command exiting on termination signal    \n";
-	    break;
-	case SIGKILL:
-	    msg = "sigmet_raw command exiting on kill signal           \n";
-	    break;
-	case SIGBUS:
-	    msg = "sigmet_raw command exiting on bus error             \n";
-	    break;
-	case SIGFPE:
-	    msg = "sigmet_raw command exiting arithmetic exception     \n";
-	    break;
-	case SIGILL:
-	    msg = "sigmet_raw command exiting illegal instruction      \n";
-	    break;
-	case SIGSEGV:
-	    msg = "sigmet_raw command exiting invalid memory reference \n";
-	    break;
-	case SIGSYS:
-	    msg = "sigmet_raw command exiting on bad system call       \n";
-	    break;
-	case SIGXCPU:
-	    msg = "sigmet_raw command exiting: CPU time limit exceeded \n";
-	    break;
-	case SIGXFSZ:
-	    msg = "sigmet_raw command exiting: file size limit exceeded\n";
-	    break;
-    }
+    /*
+       Close fifo's
+     */
     unlink(out_nm);
     unlink(err_nm);
 
-    /* Give rest of group a second to exit cleanly, then terminate everything. */
+    /*
+       Give rest of process group, if any, a second to exit cleanly, then
+       terminate everything.  This is needed if "sigmet_raw start" receives
+       a signal.
+     */
     sleep(1);
     kill(0, SIGTERM);
 
-    write(STDERR_FILENO, msg, 53);
+    /*
+       Specify exit message and where to send it.
+     */
+    switch (signum) {
+	case SIGTERM:
+	    msg = "sigmet_raw command exiting on termination signal    \n";
+	    out = STDOUT_FILENO;
+	    break;
+	case SIGKILL:
+	    msg = "sigmet_raw command exiting on kill signal           \n";
+	    out = STDERR_FILENO;
+	    break;
+	case SIGBUS:
+	    msg = "sigmet_raw command exiting on bus error             \n";
+	    out = STDERR_FILENO;
+	    break;
+	case SIGFPE:
+	    msg = "sigmet_raw command exiting arithmetic exception     \n";
+	    out = STDERR_FILENO;
+	    break;
+	case SIGILL:
+	    msg = "sigmet_raw command exiting illegal instruction      \n";
+	    out = STDERR_FILENO;
+	    break;
+	case SIGSEGV:
+	    msg = "sigmet_raw command exiting invalid memory reference \n";
+	    out = STDERR_FILENO;
+	    break;
+	case SIGSYS:
+	    msg = "sigmet_raw command exiting on bad system call       \n";
+	    out = STDERR_FILENO;
+	    break;
+	case SIGXCPU:
+	    msg = "sigmet_raw command exiting: CPU time limit exceeded \n";
+	    out = STDERR_FILENO;
+	    break;
+	case SIGXFSZ:
+	    msg = "sigmet_raw command exiting: file size limit exceeded\n";
+	    out = STDERR_FILENO;
+	    break;
+    }
+
+    write(out, msg, 53);
     if ( signum == SIGTERM ) {
 	_exit(EXIT_SUCCESS);
     } else {
