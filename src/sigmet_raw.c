@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.46 $ $Date: 2010/10/08 18:25:55 $
+   .	$Revision: 1.47 $ $Date: 2010/10/25 18:28:31 $
  */
 
 #include <limits.h>
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
        until either the daemon or the user command exits.
      */
     if ( strcmp(argv[1], "start") == 0 ) {
-	char *argv2;		/* User command to run as a child process */
+	char *ucmd;		/* User command to run as a child process */
 	pid_t dpid;		/* Id for daemon */
 	pid_t upid;		/* Id of user command */
 	pid_t chpid;		/* Id of a child process */
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "Usage: %s start command ...\n", argv0);
 	    goto error;
 	}
-	argv2 = argv[2];
+	ucmd = argv[2];
 
 	if ( setpgid(0, pid) == -1 ) {
 	    fprintf(stderr, "Could not create process group.\n%s\n",
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Could not fork\n%s\n.", strerror(errno));
 		break;
 	    case 0:
-		/* Child process - from command line */
+		/* Child process - user command from command line */
 		if ( setpgid(0, pid) == -1 ) {
 		    fprintf(stderr, "Could not create process group.\n%s\n",
 			    strerror(errno));
@@ -208,13 +208,12 @@ int main(int argc, char *argv[])
 		}
 
 		/* Execute the user command */
-		execvp(argv2, argv + 2);
-		fprintf(stderr, "Could not start %s\n%s\n",
-			argv2, strerror(errno));
+		execvp(ucmd, argv + 2);
+		fprintf(stderr, "Could not start %s\n%s\n", ucmd, strerror(errno));
 		_exit(EXIT_FAILURE);
 	}
 
-	/* Wait for a child to exit */
+	/* Wait for a member of the process group to exit */
 	if ( (chpid = waitpid(0, &si, 0)) == -1 ) {
 	    fprintf(stderr, "%s (%d): unable to wait for children.\n%s\n",
 		    argv0, pid, strerror(errno));
@@ -230,10 +229,10 @@ int main(int argc, char *argv[])
 	    if ( WIFEXITED(si) ) {
 		status = WEXITSTATUS(si);
 	    } else if ( WIFSIGNALED(si) ) {
-		fprintf(stderr, "%s: exited on signal %d\n", argv2, WTERMSIG(si));
+		fprintf(stderr, "%s: exited on signal %d\n", ucmd, WTERMSIG(si));
 		status = EXIT_FAILURE;
 	    } else {
-		fprintf(stderr, "%s: unknown exit.\n", argv2);
+		fprintf(stderr, "%s: unknown exit.\n", ucmd);
 		status = EXIT_FAILURE;
 	    }
 	    kill(dpid, SIGTERM);
