@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.48 $ $Date: 2010/10/25 19:08:41 $
+   .	$Revision: 1.49 $ $Date: 2010/10/25 20:40:15 $
  */
 
 #include <limits.h>
@@ -583,6 +583,7 @@ void handler(int signum)
 {
     char *msg;
     int out;
+    int status;
 
     /*
        Close fifo's
@@ -605,45 +606,49 @@ void handler(int signum)
 	case SIGTERM:
 	    msg = "sigmet_raw command exiting on termination signal    \n";
 	    out = STDOUT_FILENO;
+	    status = EXIT_SUCCESS;
 	    break;
 	case SIGKILL:
 	    msg = "sigmet_raw command exiting on kill signal           \n";
 	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGBUS:
 	    msg = "sigmet_raw command exiting on bus error             \n";
 	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGFPE:
 	    msg = "sigmet_raw command exiting arithmetic exception     \n";
 	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGILL:
 	    msg = "sigmet_raw command exiting illegal instruction      \n";
 	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGSEGV:
 	    msg = "sigmet_raw command exiting invalid memory reference \n";
 	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGSYS:
 	    msg = "sigmet_raw command exiting on bad system call       \n";
 	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGXCPU:
 	    msg = "sigmet_raw command exiting: CPU time limit exceeded \n";
 	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGXFSZ:
 	    msg = "sigmet_raw command exiting: file size limit exceeded\n";
 	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
 	    break;
     }
-
     write(out, msg, 53);
-    if ( signum == SIGTERM ) {
-	_exit(EXIT_SUCCESS);
-    } else {
-	_exit(EXIT_FAILURE);
-    }
+    _exit(status);
 }
