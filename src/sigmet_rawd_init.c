@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.274 $ $Date: 2010/10/21 16:18:21 $
+ .	$Revision: 1.275 $ $Date: 2010/10/22 22:28:19 $
  */
 
 #include <limits.h>
@@ -2184,46 +2184,64 @@ static int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
+    int out;
+    int status;
 
-    switch (signum) {
-	case SIGTERM:
-	    msg = "sigmet_raw daemon exiting on termination signal    \n";
-	    break;
-	case SIGKILL:
-	    msg = "sigmet_raw daemon exiting on kill signal           \n";
-	    break;
-	case SIGBUS:
-	    msg = "sigmet_raw daemon exiting on bus error             \n";
-	    break;
-	case SIGFPE:
-	    msg = "sigmet_raw daemon exiting arithmetic exception     \n";
-	    break;
-	case SIGILL:
-	    msg = "sigmet_raw daemon exiting illegal instruction      \n";
-	    break;
-	case SIGSEGV:
-	    msg = "sigmet_raw daemon exiting invalid memory reference \n";
-	    break;
-	case SIGSYS:
-	    msg = "sigmet_raw daemon exiting on bad system call       \n";
-	    break;
-	case SIGXCPU:
-	    msg = "sigmet_raw daemon exiting: CPU time limit exceeded \n";
-	    break;
-	case SIGXFSZ:
-	    msg = "sigmet_raw daemon exiting: file size limit exceeded\n";
-	    break;
-    }
-    write(STDERR_FILENO, msg, 52);
+    /* Close the input socket */
     unlink(SIGMET_RAWD_IN);
 
     /* Give rest of group a second to exit cleanly, then terminate everything. */
     sleep(1);
     kill(0, SIGTERM);
 
-    if ( signum == SIGTERM ) {
-	_exit(EXIT_SUCCESS);
-    } else {
-	_exit(EXIT_FAILURE);
+    /* Specify exit message and where to send it. */
+    switch (signum) {
+	case SIGTERM:
+	    msg = "sigmet_raw daemon exiting on termination signal    \n";
+	    out = STDOUT_FILENO;
+	    status = EXIT_SUCCESS;
+	    break;
+	case SIGKILL:
+	    msg = "sigmet_raw daemon exiting on kill signal           \n";
+	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
+	    break;
+	case SIGBUS:
+	    msg = "sigmet_raw daemon exiting on bus error             \n";
+	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
+	    break;
+	case SIGFPE:
+	    msg = "sigmet_raw daemon exiting arithmetic exception     \n";
+	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
+	    break;
+	case SIGILL:
+	    msg = "sigmet_raw daemon exiting illegal instruction      \n";
+	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
+	    break;
+	case SIGSEGV:
+	    msg = "sigmet_raw daemon exiting invalid memory reference \n";
+	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
+	    break;
+	case SIGSYS:
+	    msg = "sigmet_raw daemon exiting on bad system call       \n";
+	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
+	    break;
+	case SIGXCPU:
+	    msg = "sigmet_raw daemon exiting: CPU time limit exceeded \n";
+	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
+	    break;
+	case SIGXFSZ:
+	    msg = "sigmet_raw daemon exiting: file size limit exceeded\n";
+	    out = STDERR_FILENO;
+	    status = EXIT_FAILURE;
+	    break;
     }
+    write(out, msg, 52);
+    _exit(status);
 }
