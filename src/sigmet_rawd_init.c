@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.277 $ $Date: 2010/10/25 20:51:43 $
+ .	$Revision: 1.278 $ $Date: 2010/10/26 15:31:11 $
  */
 
 #include <limits.h>
@@ -2194,50 +2194,33 @@ void handler(int signum)
     switch (signum) {
 	case SIGTERM:
 	    msg = "sigmet_rawd daemon exiting on termination signal    \n";
-	    out = STDOUT_FILENO;
-	    status = EXIT_SUCCESS;
-	    break;
+	    write(STDOUT_FILENO, msg, 53);
+	    _exit(EXIT_SUCCESS);
 	case SIGKILL:
 	    msg = "sigmet_rawd daemon exiting on kill signal           \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGBUS:
 	    msg = "sigmet_rawd daemon exiting on bus error             \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGFPE:
 	    msg = "sigmet_rawd daemon exiting arithmetic exception     \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGILL:
 	    msg = "sigmet_rawd daemon exiting illegal instruction      \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGSEGV:
 	    msg = "sigmet_rawd daemon exiting invalid memory reference \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGSYS:
 	    msg = "sigmet_rawd daemon exiting on bad system call       \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGXCPU:
 	    msg = "sigmet_rawd daemon exiting: CPU time limit exceeded \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGXFSZ:
 	    msg = "sigmet_rawd daemon exiting: file size limit exceeded\n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
     }
-    write(out, msg, 53);
-    _exit(status);
+    write(STDERR_FILENO, msg, 53);
+    _exit(EXIT_FAILURE);
 }
