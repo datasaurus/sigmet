@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.51 $ $Date: 2010/10/26 15:48:28 $
+   .	$Revision: 1.52 $ $Date: 2010/10/26 16:51:36 $
  */
 
 #include <limits.h>
@@ -578,8 +578,6 @@ int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
-    int out;
-    int status;
 
     /*
        Close fifo's
@@ -595,56 +593,38 @@ void handler(int signum)
     sleep(1);
     kill(0, SIGTERM);
 
-    /*
-       Specify exit message and where to send it.
-     */
+    /* Print information about signal and exit. */
     switch (signum) {
 	case SIGTERM:
-	    msg = "sigmet_raw command exiting on termination signal    \n";
-	    out = STDOUT_FILENO;
-	    status = EXIT_SUCCESS;
+	    write(STDOUT_FILENO, "sigmet_raw command exiting on termination "
+		    "signal\n", 49);
+	    _exit(EXIT_SUCCESS);
 	    break;
 	case SIGKILL:
 	    msg = "sigmet_raw command exiting on kill signal           \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGBUS:
 	    msg = "sigmet_raw command exiting on bus error             \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGFPE:
 	    msg = "sigmet_raw command exiting arithmetic exception     \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGILL:
 	    msg = "sigmet_raw command exiting illegal instruction      \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGSEGV:
 	    msg = "sigmet_raw command exiting invalid memory reference \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGSYS:
 	    msg = "sigmet_raw command exiting on bad system call       \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGXCPU:
 	    msg = "sigmet_raw command exiting: CPU time limit exceeded \n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
 	case SIGXFSZ:
 	    msg = "sigmet_raw command exiting: file size limit exceeded\n";
-	    out = STDERR_FILENO;
-	    status = EXIT_FAILURE;
 	    break;
     }
-    write(out, msg, 53);
-    _exit(status);
+    write(STDERR_FILENO, msg, 53);
+    _exit(EXIT_FAILURE);
 }
