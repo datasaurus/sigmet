@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.49 $ $Date: 2010/10/25 20:40:15 $
+   .	$Revision: 1.50 $ $Date: 2010/10/25 21:59:56 $
  */
 
 #include <limits.h>
@@ -139,7 +139,11 @@ int main(int argc, char *argv[])
 	}
 	ucmd = argv[2];
 
-	if ( setpgid(0, pid) == -1 ) {
+	/*
+	   Make this process the group leader. Group will be this process,
+	   the sigmet_rawd daemon, and the user command
+	 */
+	if ( setpgid(pid, pid) == -1 ) {
 	    fprintf(stderr, "Could not create process group.\n%s\n",
 		    strerror(errno));
 	    _exit(EXIT_FAILURE);
@@ -167,6 +171,7 @@ int main(int argc, char *argv[])
 	/* Start the daemon */
 	switch (dpid = fork()) {
 	    case -1:
+		/* Fail */
 		fprintf(stderr, "Could not fork\n%s\n.", strerror(errno));
 		break;
 	    case 0:
@@ -181,6 +186,7 @@ int main(int argc, char *argv[])
 			SIGMET_RAWD, strerror(errno));
 		_exit(EXIT_FAILURE);
 	}
+	/* Daemon is spawned. Continuing code for "sigmet_raw start ..." */
 
 	/* Run the user command */
 	switch (upid = fork()) {
@@ -215,18 +221,21 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Could not start %s\n%s\n", ucmd, strerror(errno));
 		_exit(EXIT_FAILURE);
 	}
+	/* User command is spawned. Continuing code for "sigmet_raw start ..." */
 
-	/* Wait for a member of the process group to exit */
-	if ( (chpid = waitpid(0, &si, 0)) == -1 ) {
+	/* Wait for a child to exit */
+	if ( (chpid = wait(&si)) == -1 ) {
 	    fprintf(stderr, "%s (%d): unable to wait for children.\n%s\n",
 		    argv0, pid, strerror(errno));
+	    kill(upid, SIGTERM);
+	    kill(dpid, SIGTERM);
 	    exit(EXIT_FAILURE);
 	}
 	if ( chpid == upid ) {
 	    /*
-	       The user command exited first. Clean up, stop the daemon, and
+	       Exiting child is the user command. Clean up, stop the daemon, and
 	       return the user command's exit status as the status of
-	       "sigmet start ..."
+	       "sigmet_raw start ..."
 	     */
 
 	    if ( WIFEXITED(si) ) {
@@ -234,15 +243,12 @@ int main(int argc, char *argv[])
 	    } else if ( WIFSIGNALED(si) ) {
 		fprintf(stderr, "%s: exited on signal %d\n", ucmd, WTERMSIG(si));
 		status = EXIT_FAILURE;
-	    } else {
-		fprintf(stderr, "%s: unknown exit.\n", ucmd);
-		status = EXIT_FAILURE;
 	    }
 	    kill(dpid, SIGTERM);
 	    exit(status);
 	} else {
 	    /*
-	       Daemon exited first - should not happen.
+	       Exiting child is the daemon - should not happen.
 	     */
 
 	    fprintf(stderr, "Unexpected exit by sigmet_rawd daemon. ");
@@ -251,8 +257,6 @@ int main(int argc, char *argv[])
 			WEXITSTATUS(si));
 	    } else if ( WIFSIGNALED(si) ) {
 		fprintf(stderr, "Daemon exited on signal %d\n", WTERMSIG(si));
-	    } else {
-		fprintf(stderr, "Not known how daemon exited.\n");
 	    }
 	    kill(upid, SIGTERM);
 	    exit(EXIT_FAILURE);
