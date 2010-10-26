@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.279 $ $Date: 2010/10/26 16:50:32 $
+ .	$Revision: 1.280 $ $Date: 2010/10/26 16:54:32 $
  */
 
 #include <limits.h>
@@ -2184,8 +2184,6 @@ static int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
-    int out;
-    int status;
 
     /* Close the input socket */
     unlink(SIGMET_RAWD_IN);
