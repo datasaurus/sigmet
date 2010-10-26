@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.54 $ $Date: 2010/10/26 17:03:30 $
+   .	$Revision: 1.55 $ $Date: 2010/10/26 19:00:53 $
  */
 
 #include <limits.h>
@@ -443,7 +443,8 @@ int main(int argc, char *argv[])
 	    if ( (ll = read(i_dmn, &sstatus, sizeof(enum Sigmet_CB_Return))) == -1
 		    || ll == 0 ) {
 		fprintf(stderr, "%s (%d): could not get exit status from "
-			"daemon\n%s\n", argv0, pid, strerror(errno));
+			"daemon\n%s\n", argv0, pid,
+			(ll == -1) ? strerror(errno) : "nothing to read");
 		goto error;
 	    }
 	    unlink(out_nm);
