@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.53 $ $Date: 2010/10/26 17:00:19 $
+   .	$Revision: 1.54 $ $Date: 2010/10/26 17:03:30 $
  */
 
 #include <limits.h>
@@ -169,8 +169,8 @@ int main(int argc, char *argv[])
 	    case 0:
 		/* Child process - sigmet_rawd daemon */
 		if ( setpgid(0, pgid) == -1 ) {
-		    fprintf(stderr, "Could not create process group.\n%s\n",
-			    strerror(errno));
+		    fprintf(stderr, "sigmet_raw daemon could not attach to "
+			    "process group.\n%s\n", strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
 		execlp(SIGMET_RAWD, SIGMET_RAWD, (char *)NULL);
@@ -188,8 +188,8 @@ int main(int argc, char *argv[])
 	    case 0:
 		/* Child process - user command from command line */
 		if ( setpgid(0, pgid) == -1 ) {
-		    fprintf(stderr, "Could not create process group.\n%s\n",
-			    strerror(errno));
+		    fprintf(stderr, "%s could not attach to process group.\n%s\n",
+			    argv[2], strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
 
