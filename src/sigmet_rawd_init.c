@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.278 $ $Date: 2010/10/26 15:31:11 $
+ .	$Revision: 1.279 $ $Date: 2010/10/26 16:50:32 $
  */
 
 #include <limits.h>
@@ -2190,7 +2190,7 @@ void handler(int signum)
     /* Close the input socket */
     unlink(SIGMET_RAWD_IN);
 
-    /* Specify exit message and where to send it. */
+    /* Print information about signal and exit. */
     switch (signum) {
 	case SIGTERM:
 	    msg = "sigmet_rawd daemon exiting on termination signal    \n";
