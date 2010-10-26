@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.50 $ $Date: 2010/10/25 21:59:56 $
+   .	$Revision: 1.51 $ $Date: 2010/10/26 15:48:28 $
  */
 
 #include <limits.h>
@@ -127,6 +127,8 @@ int main(int argc, char *argv[])
 	char *ucmd;		/* User command to run as a child process */
 	pid_t dpid;		/* Id for daemon */
 	pid_t upid;		/* Id of user command */
+	pid_t pgid = pid;	/* Process group id, for this process, user command,
+				   and daemon */
 	pid_t chpid;		/* Id of a child process */
 	int try;		/* Number of times user command will check for
 				   existence of socket */
@@ -138,16 +140,6 @@ int main(int argc, char *argv[])
 	    goto error;
 	}
 	ucmd = argv[2];
-
-	/*
-	   Make this process the group leader. Group will be this process,
-	   the sigmet_rawd daemon, and the user command
-	 */
-	if ( setpgid(pid, pid) == -1 ) {
-	    fprintf(stderr, "Could not create process group.\n%s\n",
-		    strerror(errno));
-	    _exit(EXIT_FAILURE);
-	}
 
 	/* Fail if daemon socket already exists */
 	if ( access(sa.sun_path, F_OK) == 0 ) {
@@ -176,7 +168,7 @@ int main(int argc, char *argv[])
 		break;
 	    case 0:
 		/* Child process - sigmet_rawd daemon */
-		if ( setpgid(0, pid) == -1 ) {
+		if ( setpgid(0, pgid) == -1 ) {
 		    fprintf(stderr, "Could not create process group.\n%s\n",
 			    strerror(errno));
 		    _exit(EXIT_FAILURE);
@@ -195,7 +187,7 @@ int main(int argc, char *argv[])
 		break;
 	    case 0:
 		/* Child process - user command from command line */
-		if ( setpgid(0, pid) == -1 ) {
+		if ( setpgid(0, pgid) == -1 ) {
 		    fprintf(stderr, "Could not create process group.\n%s\n",
 			    strerror(errno));
 		    _exit(EXIT_FAILURE);
