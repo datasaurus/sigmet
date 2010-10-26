@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.52 $ $Date: 2010/10/26 16:51:36 $
+   .	$Revision: 1.53 $ $Date: 2010/10/26 17:00:19 $
  */
 
 #include <limits.h>
@@ -596,9 +596,7 @@ void handler(int signum)
     /* Print information about signal and exit. */
     switch (signum) {
 	case SIGTERM:
-	    write(STDOUT_FILENO, "sigmet_raw command exiting on termination "
-		    "signal\n", 49);
-	    _exit(EXIT_SUCCESS);
+	    msg = "sigmet_raw command exiting on termination signal    \n";
 	    break;
 	case SIGKILL:
 	    msg = "sigmet_raw command exiting on kill signal           \n";
