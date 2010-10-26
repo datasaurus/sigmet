@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.276 $ $Date: 2010/10/25 20:50:07 $
+ .	$Revision: 1.277 $ $Date: 2010/10/25 20:51:43 $
  */
 
 #include <limits.h>
@@ -2189,10 +2189,6 @@ void handler(int signum)
 
     /* Close the input socket */
     unlink(SIGMET_RAWD_IN);
-
-    /* Give rest of group a second to exit cleanly, then terminate everything. */
-    sleep(1);
-    kill(0, SIGTERM);
 
     /* Specify exit message and where to send it. */
     switch (signum) {
