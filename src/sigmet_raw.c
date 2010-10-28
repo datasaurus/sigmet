@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.56 $ $Date: 2010/10/26 19:07:00 $
+   .	$Revision: 1.57 $ $Date: 2010/10/26 20:35:14 $
  */
 
 #include <limits.h>
@@ -26,9 +26,6 @@
 #include <sys/select.h>
 #include "alloc.h"
 #include "sigmet_raw.h"
-
-/* Daemon program name */
-#define SIGMET_RAWD "sigmet_rawd"
 
 /* Size for various strings */
 #define LEN 4096
@@ -52,7 +49,6 @@ int main(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *ddir;			/* Name of daemon working directory */
-    char ddir_t[LEN];		/* Temporary writing space */
     char cwd[LINE_MAX];		/* Current working directory */
     size_t cwd_l;		/* strlen(cwd) */
     struct sockaddr_un sa;	/* Address of socket that connects with daemon */
@@ -77,190 +73,27 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s command\n", argv0);
 	goto error;
     }
+    if ( strcmp(argv[1], "start") == 0 ) {
+	Sigmet_RawStart(argc - 2, argv + 2);
+    }
     if ( argc > SIGMET_RAWD_ARGCX ) {
 	fprintf(stderr, "%s: cannot parse %d arguments. Maximum argument "
 		"count is %d\n", argv0, argc, SIGMET_RAWD_ARGCX);
 	goto error;
     }
-
-    /* Set up signal handling */
     if ( !handle_signals() ) {
 	fprintf(stderr, "%s (%d): could not set up signal management.", argv0, pid);
 	goto error;
     }
 
-    if ( !getcwd(cwd, LINE_MAX - 1) ) {
-	fprintf(stderr, "%s (%d): could not store current working directory\n%s.\n",
-		argv0, pid, strerror(errno));
-	goto error;
-    }
-    cwd_l = strlen(cwd);
-
     /* Identify daemon working directory */
     if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	if ( snprintf(ddir_t, LEN, "%s/.sigmet_raw", getenv("HOME")) > LEN ) {
-	    fprintf(stderr, "%s (%d): could not create name for daemon working "
-		    "directory.\n", argv0, getpid());
-	    exit(EXIT_FAILURE);
-	}
-	ddir = ddir_t;
+	fprintf(stderr, "%s (%d): SIGMET_RAWD_DIR not set. Could not identify "
+		"daemon working directory.\n", argv0, pid);
+	exit(EXIT_FAILURE);
     }
 
-    /*
-       Make the daemon socket name. If subcommand is "start", the associated
-       user command will need the sun_path member.
-     */
-    memset(&sa, '\0', SA_UN_SZ);
-    sa.sun_family = AF_UNIX;
-    if ( snprintf(sa.sun_path, SA_PLEN, "%s/%s", ddir, SIGMET_RAWD_IN) > SA_PLEN ) {
-	fprintf(stderr, "%s (%d): could not fit %s into socket address path.\n",
-		argv0, pid, SIGMET_RAWD_IN);
-	goto error;
-    }
-
-    /*
-       If subcommand is "start", spawn daemon and spawn the user command (the part
-       of the command line after "start"). This instance of sigmet_raw will run
-       until either the daemon or the user command exits.
-     */
-    if ( strcmp(argv[1], "start") == 0 ) {
-	char *ucmd;		/* User command to run as a child process */
-	pid_t dpid;		/* Id for daemon */
-	pid_t upid;		/* Id of user command */
-	pid_t pgid = pid;	/* Process group id, for this process, user command,
-				   and daemon */
-	pid_t chpid;		/* Id of a child process */
-	int try;		/* Number of times user command will check for
-				   existence of socket */
-	int si;			/* Exit information from a user command */
-	int status;		/* Exit status from a user command */
-
-	if ( argc < 3 ) {
-	    fprintf(stderr, "Usage: %s start command ...\n", argv0);
-	    goto error;
-	}
-	ucmd = argv[2];
-
-	/* Fail if daemon socket already exists */
-	if ( access(sa.sun_path, F_OK) == 0 ) {
-	    fprintf(stderr, "%s: daemon socket %s exists. "
-		    "Is daemon already running?\n", argv0, sa.sun_path);
-	    goto error;
-	}
-
-	/* If necessary, create daemon working directory. Add to environment */
-	m = S_IRUSR | S_IWUSR | S_IXUSR;
-	if ( mkdir(ddir, m) == -1 && errno != EEXIST ) {
-	    perror("Could not create daemon working directory.");
-	    goto error;
-	}
-	if ( setenv("SIGMET_RAWD_DIR", ddir, 1) == -1 ) {
-	    fprintf(stderr, "%s (%d): could not export name for daemon working "
-		    "directory.\n", argv0, pid);
-	    goto error;
-	}
-
-	/* Start the daemon */
-	switch (dpid = fork()) {
-	    case -1:
-		/* Fail */
-		fprintf(stderr, "Could not fork\n%s\n.", strerror(errno));
-		break;
-	    case 0:
-		/* Child process - sigmet_rawd daemon */
-		if ( setpgid(0, pgid) == -1 ) {
-		    fprintf(stderr, "sigmet_raw daemon could not attach to "
-			    "process group.\n%s\n", strerror(errno));
-		    _exit(EXIT_FAILURE);
-		}
-		execlp(SIGMET_RAWD, SIGMET_RAWD, (char *)NULL);
-		fprintf(stderr, "Could not start %s\n%s\n",
-			SIGMET_RAWD, strerror(errno));
-		_exit(EXIT_FAILURE);
-	}
-	/* Daemon is spawned. Continuing code for "sigmet_raw start ..." */
-
-	/* Run the user command */
-	switch (upid = fork()) {
-	    case -1:
-		fprintf(stderr, "Could not fork\n%s\n.", strerror(errno));
-		break;
-	    case 0:
-		/* Child process - user command from command line */
-		if ( setpgid(0, pgid) == -1 ) {
-		    fprintf(stderr, "%s could not attach to process group.\n%s\n",
-			    argv[2], strerror(errno));
-		    _exit(EXIT_FAILURE);
-		}
-
-		/* Wait for daemon to make its input socket */
-		for (try = 3; try > 0; try--) {
-		    if ( access(sa.sun_path, R_OK) == 0 ) {
-			try = -1;
-			break;
-		    } else {
-			sleep(1);
-		    }
-		}
-		if ( try == 0 ) {
-		    fprintf(stderr, "Could not find daemon socket.\n%s\n",
-			    strerror(errno));
-		    _exit(EXIT_FAILURE);
-		}
-
-		/* Execute the user command */
-		execvp(ucmd, argv + 2);
-		fprintf(stderr, "Could not start %s\n%s\n", ucmd, strerror(errno));
-		_exit(EXIT_FAILURE);
-	}
-	/* User command is spawned. Continuing code for "sigmet_raw start ..." */
-
-	/* Wait for a child to exit */
-	if ( (chpid = wait(&si)) == -1 ) {
-	    fprintf(stderr, "%s (%d): unable to wait for children.\n%s\n",
-		    argv0, pid, strerror(errno));
-	    kill(upid, SIGTERM);
-	    kill(dpid, SIGTERM);
-	    exit(EXIT_FAILURE);
-	}
-	if ( chpid == upid ) {
-	    /*
-	       Exiting child is the user command. Clean up, stop the daemon, and
-	       return the user command's exit status as the status of
-	       "sigmet_raw start ..."
-	     */
-
-	    if ( WIFEXITED(si) ) {
-		status = WEXITSTATUS(si);
-	    } else if ( WIFSIGNALED(si) ) {
-		fprintf(stderr, "%s: exited on signal %d\n", ucmd, WTERMSIG(si));
-		status = EXIT_FAILURE;
-	    }
-	    kill(dpid, SIGTERM);
-	    exit(status);
-	} else {
-	    /*
-	       Exiting child is the daemon - should not happen.
-	     */
-
-	    fprintf(stderr, "Unexpected exit by sigmet_rawd daemon. ");
-	    if ( WIFEXITED(si) ) {
-		fprintf(stderr, "Daemon exited with status code %d\n",
-			WEXITSTATUS(si));
-	    } else if ( WIFSIGNALED(si) ) {
-		fprintf(stderr, "Daemon exited on signal %d\n", WTERMSIG(si));
-	    }
-	    kill(upid, SIGTERM);
-	    exit(EXIT_FAILURE);
-	}
-    }
-
-    /*
-       Subcommand is not "start". Daemon should already be running and its
-       directory indicated with the SIGMET_RAWD_DIR environment variable. 
-       Connect to the daemon and run the subcommand.
-     */
-
+    /* Create input and output fifo's */
     m = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
     if ( snprintf(out_nm, LINE_MAX, "%s/%d.1", ddir, pid) > LINE_MAX ) {
 	fprintf(stderr, "%s (%d): could not create name for result pipe.\n",
@@ -284,6 +117,13 @@ int main(int argc, char *argv[])
     }
 
     /* Connect to daemon via socket in daemon directory */
+    memset(&sa, '\0', SA_UN_SZ);
+    sa.sun_family = AF_UNIX;
+    if ( snprintf(sa.sun_path, SA_PLEN, "%s/%s", ddir, SIGMET_RAWD_IN) > SA_PLEN ) {
+	fprintf(stderr, "%s (%d): could not fit %s into socket address path.\n",
+		argv0, pid, SIGMET_RAWD_IN);
+	goto error;
+    }
     if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create socket to connect with daemon\n"
 		"%s\n", argv0, pid, strerror(errno));
@@ -295,6 +135,14 @@ int main(int argc, char *argv[])
 		argv0, pid, errno, strerror(errno));
 	goto error;
     }
+
+    /* Identify current working directory */
+    if ( !getcwd(cwd, LINE_MAX - 1) ) {
+	fprintf(stderr, "%s (%d): could not store current working directory\n%s.\n",
+		argv0, pid, strerror(errno));
+	goto error;
+    }
+    cwd_l = strlen(cwd);
 
     /* Determine length of command line */
     for (cmd_ln_l = 0, a = argv; *a; a++) {
@@ -585,14 +433,6 @@ void handler(int signum)
      */
     unlink(out_nm);
     unlink(err_nm);
-
-    /*
-       Give rest of process group, if any, a second to exit cleanly, then
-       terminate everything.  This is needed if "sigmet_raw start" receives
-       a signal.
-     */
-    sleep(1);
-    kill(0, SIGTERM);
 
     /* Print information about signal and exit. */
     switch (signum) {
