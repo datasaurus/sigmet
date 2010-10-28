@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.283 $ $Date: 2010/10/28 20:50:14 $
+ .	$Revision: 1.284 $ $Date: 2010/10/28 20:50:56 $
  */
 
 #include <limits.h>
@@ -37,7 +37,6 @@
 #include "xdrx.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
-#include "sigmet_dorade.h"
 
 /* Where to put output and error messages */
 #define SIGMET_RAWD_LOG "sigmet.log"
