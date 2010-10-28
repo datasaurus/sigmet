@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.281 $ $Date: 2010/10/26 18:21:18 $
+ .	$Revision: 1.282 $ $Date: 2010/10/26 21:08:30 $
  */
 
 #include <limits.h>
@@ -206,7 +206,8 @@ int main(int argc, char *argv[])
 	goto error;
     }
 
-    printf("sigmet_rawd daemon starting. Process id = %d\n", getpid());
+    printf("sigmet_rawd daemon starting. Process id = %d. Socket = %s/%s\n",
+	    getpid(), ddir, sa.sun_path);
 
     fflush(stdout);
 
@@ -405,7 +406,6 @@ int main(int argc, char *argv[])
     /* Should not end up here */
     fprintf(stderr, "%s: unexpected exit.\n%s\n",
 	    time_stamp(), strerror(errno));
-    kill(0, SIGTERM);
     unlink(SIGMET_RAWD_IN);
     SigmetRaw_VolFree();
     for (y = 0; y < SIGMET_NTYPES; y++) {
@@ -414,9 +414,7 @@ int main(int argc, char *argv[])
     exit(EXIT_FAILURE);
 
 error:
-    fprintf(stderr, "%s: sigmet_raw daemon exiting. Terminating all sigmet_raw "
-	    "processes.\n", time_stamp());
-    kill(0, SIGTERM);
+    fprintf(stderr, "%s: sigmet_rawd failed.\n", time_stamp());
     exit(EXIT_FAILURE);
 }
 
@@ -2045,11 +2043,6 @@ static enum Sigmet_CB_Return dorade_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, s, vol_nm);
 	return SIGMET_CB_FAIL;
     }
-    if ( chdir(cl_wd) == -1 ) {
-	fprintf(err, "%s %s: could not change to client working directory: "
-		"%s\n%s\n", argv0, argv1, cl_wd, strerror(errno));
-	return SIGMET_CB_FAIL;
-    }
     if ( s == all ) {
 	for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 	    Dorade_Sweep_Init(&swp);
@@ -2058,7 +2051,7 @@ static enum Sigmet_CB_Return dorade_cb(int argc, char *argv[], char *cl_wd,
 			"DORADE format\n%s\n", argv0, argv1, s, vol_nm, Err_Get());
 		goto error;
 	    }
-	    if ( !Dorade_Sweep_Write(&swp) ) {
+	    if ( !Dorade_Sweep_Write(&swp, cl_wd) ) {
 		fprintf(err, "%s %s: could not write DORADE file for sweep "
 			"%d of %s\n%s\n", argv0, argv1, s, vol_nm, Err_Get());
 		goto error;
@@ -2072,32 +2065,18 @@ static enum Sigmet_CB_Return dorade_cb(int argc, char *argv[], char *cl_wd,
 		    "DORADE format\n%s\n", argv0, argv1, s, vol_nm, Err_Get());
 	    goto error;
 	}
-	if ( !Dorade_Sweep_Write(&swp) ) {
+	if ( !Dorade_Sweep_Write(&swp, cl_wd) ) {
 	    fprintf(err, "%s %s: could not write DORADE file for sweep "
 		    "%d of %s\n%s\n", argv0, argv1, s, vol_nm, Err_Get());
 	    goto error;
 	}
 	Dorade_Sweep_Free(&swp);
     }
-    if ( chdir(ddir) == -1 ) {
-	/* Daemon broke. */
-	fprintf(err, "%s %s: daemon could not change to daemon working "
-		"directory.\n", argv0, argv1);
-	perror("Could not change to daemon working directory.");
-	exit(EXIT_FAILURE);
-    }
 
     return SIGMET_CB_SUCCESS;
 
 error:
     Dorade_Sweep_Free(&swp);
-    if ( chdir(ddir) == -1 ) {
-	/* Daemon broke. */
-	fprintf(err, "%s %s: daemon could not change to daemon working "
-		"directory.\n", argv0, argv1);
-	perror("Could not change to daemon working directory.");
-	exit(EXIT_FAILURE);
-    }
     return SIGMET_CB_FAIL;
 }
 
@@ -2196,8 +2175,8 @@ static int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
+    int status;
 
-    /* Close the input socket */
     unlink(SIGMET_RAWD_IN);
 
     /* Print information about signal and exit. */
