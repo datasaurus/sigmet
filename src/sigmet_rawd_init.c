@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.284 $ $Date: 2010/10/28 20:50:56 $
+ .	$Revision: 1.285 $ $Date: 2010/10/28 22:28:56 $
  */
 
 #include <limits.h>
@@ -1987,11 +1987,6 @@ error:
 		    "for image file %s.\n%s\n",
 		    time_stamp(), img_pid, img_fl_nm, strerror(errno));
 	}
-    }
-    if ( img_pid != -1 ) {
-	kill(img_pid, SIGTERM);
-	waitpid(img_pid, NULL, 0);
-	img_pid = -1;
     }
     unlink(img_fl_nm);
     return SIGMET_CB_FAIL;
