@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.15 $ $Date: 2010/09/11 16:02:47 $
+ .	$Revision: 1.16 $ $Date: 2010/10/29 21:40:12 $
  */
 
 #include <unistd.h>
@@ -410,19 +410,24 @@ void SigmetRaw_VolList(FILE *out)
     }
 }
 
-/*
-   Clients use this function to indicate a volume is no longer needed.
-   It decrements the volume's user count. If user count goes to zero,
-   the volume is a candidate for deletion.
- */
-enum Sigmet_CB_Return SigmetRaw_Release(char *vol_nm, FILE *err)
+/* Indicate that a volume no longer must be kept */
+void SigmetRaw_Keep(char *vol_nm)
+{
+    struct sig_vol *sv_p;
+
+    if ( (sv_p = sig_vol_get(vol_nm)) ) {
+	sv_p->keep = 1;
+    }
+}
+
+/* Indicate that a volume no longer must be kept */
+void SigmetRaw_Release(char *vol_nm)
 {
     struct sig_vol *sv_p;
 
     if ( (sv_p = sig_vol_get(vol_nm)) ) {
 	sv_p->keep = 0;
     }
-    return SIGMET_CB_SUCCESS;
 }
 
 /* Remove unused volumes. Return number of volumes removed. */
