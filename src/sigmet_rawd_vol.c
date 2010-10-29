@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.16 $ $Date: 2010/10/29 21:40:12 $
+ .	$Revision: 1.17 $ $Date: 2010/10/29 22:04:40 $
  */
 
 #include <unistd.h>
@@ -338,6 +338,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     }
 
     /* Try up to max_tries times to read volume */
+    Sigmet_FreeVol(vol_p);
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	    in_pid = -1;
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
