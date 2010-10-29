@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.52 $ $Date: 2010/10/20 15:12:24 $
+   .	$Revision: 1.53 $ $Date: 2010/10/22 22:28:19 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1126,13 +1126,13 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 }
 
 /* Nyquist velocity */
-double Sigmet_VNyquist(struct Sigmet_Vol *v_p)
+double Sigmet_VNyquist(struct Sigmet_Vol *vol_p)
 {
     double wav_len, prf;
 
-    prf = v_p->ih.tc.tdi.prf;
-    wav_len = 0.01 * 0.01 * v_p->ih.tc.tmi.wave_len;
-    switch (v_p->ih.tc.tdi.m_prf_mode) {
+    prf = vol_p->ih.tc.tdi.prf;
+    wav_len = 0.01 * 0.01 * vol_p->ih.tc.tmi.wave_len;
+    switch (vol_p->ih.tc.tdi.m_prf_mode) {
 	case ONE_ONE:
 	    return 0.25 * wav_len * prf;
 	case TWO_THREE:
