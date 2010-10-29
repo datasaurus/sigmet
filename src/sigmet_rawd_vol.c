@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.14 $ $Date: 2010/09/02 22:25:17 $
+ .	$Revision: 1.15 $ $Date: 2010/09/11 16:02:47 $
  */
 
 #include <unistd.h>
@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include "alloc.h"
 #include "err_msg.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
@@ -30,43 +31,38 @@
 /* A Sigmet volume struct and data to manage it. */
 struct sig_vol {
     struct Sigmet_Vol vol;		/* Sigmet volume struct. See sigmet.h */
-    int in_use;				/* True => this entry is associated with
-					   a volume */
     char vol_nm[LEN];			/* file that provided the volume */
     dev_t st_dev;			/* Device that provided vol */
     ino_t st_ino;			/* I-number of file that provided vol */
-    int users;				/* Number of client sessions using vol */
+    int keep;				/* If true, do not delete this volume */
+    struct sig_vol *next;		/* Next volume in linked list */
 };
 
 /* Data base of Sigmet volumes for the application */
 #define N_VOLS 256
-static struct sig_vol vols[N_VOLS];
+static struct sig_vol *vols[N_VOLS];
 
 /* Local functions and variables */
+static struct sig_vol *sig_vol_new(void);
+static void sig_vol_destroy(struct sig_vol *);
+static int hash(ino_t);
 static int file_id(char *, dev_t *, ino_t *);
-static int hash(dev_t, ino_t);
-static struct sig_vol *new_vol(dev_t, ino_t);
-static struct sig_vol *get_vol(dev_t, ino_t);
+static struct sig_vol *sig_vol_get(char *vol_nm);
+static void sig_vol_rm(char *vol_nm);
 static FILE *vol_open(const char *, pid_t *, int, FILE *);
-static void unload(struct sig_vol *);
 
 /* Initialize this interface */
 void SigmetRaw_VolInit(void)
 {
-    struct sig_vol *sv_p;
+    int n;
     static int init;
 
     if ( init ) {
 	return;
     }
     assert(N_VOLS == 256);
-    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
-	Sigmet_InitVol((struct Sigmet_Vol *)sv_p);
-	sv_p->in_use = 0;
-	memset(sv_p->vol_nm, 0, LEN);
-	sv_p->st_dev = 0;
-	sv_p->st_ino = 0;
-	sv_p->users = 0;
+    for (n = 0; n < N_VOLS; n++) {
+	vols[n] = NULL;
     }
     init = 1;
 }
@@ -75,38 +71,141 @@ void SigmetRaw_VolInit(void)
 void SigmetRaw_VolFree(void)
 {
     struct sig_vol *sv_p;
+    int n;
 
-    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
-	Sigmet_FreeVol((struct Sigmet_Vol *)sv_p);
-	sv_p->in_use = 0;
-	memset(sv_p->vol_nm, 0, LEN);
-	sv_p->st_dev = 0;
-	sv_p->st_ino = 0;
-	sv_p->users = 0;
+    for (n = 0; n < N_VOLS; n++) {
+	for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
+	    sig_vol_destroy(sv_p);
+	}
+	vols[n] = NULL;
+    }
+}
+
+/*
+   Create a new Sigmet_Vol struct. Return its address.  If something goes
+   wrong, store an error string with Err_Append and return NULL.
+   Return value should eventually be freed with call to sig_vol_destroy.
+ */
+struct sig_vol *sig_vol_new(void)
+{
+    struct sig_vol *sv_p;
+
+    if ( !(sv_p = MALLOC(sizeof(struct sig_vol))) ) {
+	Err_Append("Could not allocate memory for volume entry. ");
+	return NULL;
+    }
+    Sigmet_InitVol(&sv_p->vol);
+    memset(sv_p->vol_nm, 0, LEN);
+    sv_p->st_dev = 0;
+    sv_p->st_ino = 0;
+    sv_p->keep = 0;
+    sv_p->next = NULL;
+    return sv_p;
+};
+
+/* Free all memory associated with an addess returned by sig_vol_new. */
+void sig_vol_destroy(struct sig_vol *sv_p)
+{
+    if ( !sv_p ) {
+	return;
+    }
+    Sigmet_FreeVol(&sv_p->vol);
+    FREE(sv_p);
+}
+
+/* Create an integer hash for file with index number st_ino. */
+static int hash(ino_t st_ino)
+{
+    return (st_ino & 0x0f);
+}
+
+/*
+   Fetch device id and inode for the file named vol_nm, and store at d_p and i_p.
+   Return true if successful. If failure, return false and store an error string
+   with Err_Append.
+ */
+static int file_id(char *vol_nm, dev_t *d_p, ino_t *i_p)
+{
+    struct stat sbuf;
+
+    if ( stat(vol_nm, &sbuf) == -1 ) {
+	Err_Append("Could not get information about ");
+	Err_Append(vol_nm);
+	Err_Append(". ");
+	Err_Append(strerror(errno));
+	Err_Append(".\n");
+	return 0;
+    }
+    *d_p = sbuf.st_dev;
+    *i_p = sbuf.st_ino;
+    return 1;
+}
+
+/*
+   Find or create an entry for vol_nm in vols.  If a new sig_vol struct is
+   created in vols, the vol member is initialized with a call to Sigmet_InitVol,
+   but the volume is not read.  Return the (possibly new) entry. If something
+   goes wrong, store an error string with Err_Append and return NULL.
+ */
+static struct sig_vol *sig_vol_get(char *vol_nm)
+{
+    dev_t d;			/* Id of device containing file named vol_nm */
+    ino_t i;			/* Inode number for file named vol_nm*/
+    int n;			/* Index into vols */
+    struct sig_vol *sv_p;	/* Return value */
+
+    if ( !file_id(vol_nm, &d, &i) ) {
+	return NULL;
+    }
+    n = hash(i);
+    for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
+	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
+	    return sv_p;
+	}
+    }
+    if ( !(sv_p = sig_vol_new()) ) {
+	return NULL;
+    }
+    sv_p->next = vols[n];
+    vols[n] = sv_p;
+    return sv_p;
+}
+
+/*
+   Deallocate a sig_vol struct and remove its entry for vol_nm from vols.  Quietly
+   do nothing if there is no entry.
+ */
+static void sig_vol_rm(char *vol_nm)
+{
+    dev_t d;			/* Id of device containing file named vol_nm */
+    ino_t i;			/* Inode number for file named vol_nm*/
+    int n;			/* Index into vols */
+    struct sig_vol *sv_p;	/* Return value */
+
+    if ( !file_id(vol_nm, &d, &i) ) {
+	return;
+    }
+    n = hash(i);
+    for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
+	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
+	    sig_vol_destroy(sv_p);
+	}
     }
 }
 
 /*
    Return true if vol_nm is a good (navigable) Sigmet volume.
-   Print error messages to err (in this application) and i_err (in child process).
+   Print error messages to err.
  */
 enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 {
-    dev_t st_dev;
-    ino_t st_ino;
     struct sig_vol *sv_p;
     FILE *in;
     int rslt;
     pid_t p;
 
-    if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
-	fprintf(err, "Could not get information about %s\n%s\n",
-		vol_nm, strerror(errno));
-	return SIGMET_CB_NOFILE;
-    }
-
     /* If volume is already loaded and not truncated, it is good */
-    if ( (sv_p = get_vol(st_dev, st_ino)) && !sv_p->vol.truncated ) {
+    if ( (sv_p = sig_vol_get(vol_nm)) && !sv_p->vol.truncated ) {
 	return SIGMET_CB_SUCCESS;
     }
 
@@ -132,8 +231,6 @@ enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	struct Sigmet_Vol ** vol_pp)
 {
-    dev_t st_dev;		/* Device where vol_nm resides */
-    ino_t st_ino;		/* File system index number for vol_nm */
     struct sig_vol *sv_p;	/* Member of vols */
     struct Sigmet_Vol *vol_p;	/* Return value */
     int loaded;			/* If true, volume is loaded */
@@ -143,36 +240,24 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
 
-    if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
-	fprintf(err, "Could not get information about %s\n%s\n",
-		vol_nm, strerror(errno));
-	return SIGMET_CB_NOFILE;
-    }
-
-    /*
-       Find or make entry for the volume in vols. If entry already exists and
-       has headers, return.
-     */
-    if ( (sv_p = get_vol(st_dev, st_ino)) ) {
-	vol_p = (struct Sigmet_Vol *)sv_p;
-	if ( vol_p->has_headers ) {
-	    sv_p->users++;
-	    *vol_pp = vol_p;
-	    return SIGMET_CB_SUCCESS;
-	}
-    } else if ( !(sv_p = new_vol(st_dev, st_ino)) ) {
-	fprintf(err, "Volume table full. Could not (re)load %s\n", vol_nm);
+    if ( !(sv_p = sig_vol_get(vol_nm)) ) {
+	fprintf(err, "No entry for %s in volume table, and unable to add it.\n",
+		vol_nm);
 	return SIGMET_CB_FAIL;
     }
-    sv_p->users++;
     vol_p = (struct Sigmet_Vol *)sv_p;
 
-    /* Try to read volume headers */
+    if ( vol_p->has_headers ) {
+	*vol_pp = vol_p;
+	return SIGMET_CB_SUCCESS;
+    }
+
+    /* Try up to max_try times to read volume headers */
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	in_pid = -1;
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
 	    fprintf(err, "Could not open %s for input.\n", vol_nm);
-	    unload(sv_p);
+	    sig_vol_rm(vol_nm);
 	    return SIGMET_CB_INPUT_FAIL;
 	}
 	switch (status = Sigmet_ReadHdr(in, vol_p)) {
@@ -202,8 +287,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     }
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
-	sv_p->users--;
-	unload(sv_p);
+	sig_vol_rm(vol_nm);
 	switch (status) {
 	    case SIGMET_VOL_READ_OK:
 		/* Suppress compiler warning */
@@ -232,8 +316,6 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	struct Sigmet_Vol **vol_pp)
 {
-    dev_t st_dev;		/* Device where vol_nm resides */
-    ino_t st_ino;		/* File system index number for vol_nm */
     struct sig_vol *sv_p;	/* Member of vols */
     struct Sigmet_Vol *vol_p;	/* Return value */
     int loaded;			/* If true, volume is loaded */
@@ -243,36 +325,24 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
 
-    if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
-	fprintf(err, "Could not get information about %s\n%s\n",
-		vol_nm, strerror(errno));
-	return SIGMET_CB_NOFILE;
-    }
-
-    /*
-       Find or make entry for the volume in vols. If entry already exists and
-       has data, return.
-     */
-    if ( (sv_p = get_vol(st_dev, st_ino)) ) {
-	vol_p = (struct Sigmet_Vol *)sv_p;
-	if ( !vol_p->truncated ) {
-	    sv_p->users++;
-	    *vol_pp = vol_p;
-	    return SIGMET_CB_SUCCESS;
-	}
-    } else if ( !(sv_p = new_vol(st_dev, st_ino)) ) {
-	fprintf(err, "Volume table full. Could not (re)load %s\n", vol_nm);
+    if ( (sv_p = sig_vol_get(vol_nm)) ) {
+	fprintf(err, "No entry for %s in volume table, and unable to add it.\n",
+		vol_nm);
 	return SIGMET_CB_FAIL;
     }
-    vol_p = (struct Sigmet_Vol *)sv_p;
-    sv_p->users++;
 
-    /* Read volume */
+    vol_p = (struct Sigmet_Vol *)sv_p;
+    if ( !vol_p->truncated ) {
+	*vol_pp = vol_p;
+	return SIGMET_CB_SUCCESS;
+    }
+
+    /* Try up to max_tries times to read volume */
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
-	in_pid = -1;
+	    in_pid = -1;
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
 	    fprintf(err, "Could not open %s for input.\n", vol_nm);
-	    unload(sv_p);
+	    sig_vol_rm(vol_nm);
 	    return SIGMET_CB_INPUT_FAIL;
 	}
 	switch (Sigmet_ReadVol(in, vol_p)) {
@@ -303,8 +373,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     }
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
-	sv_p->users--;
-	unload(sv_p);
+	sig_vol_rm(vol_nm);
 	switch (status) {
 	    case SIGMET_VOL_READ_OK:
 		/* Suppress compiler warning */
@@ -325,39 +394,18 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     return SIGMET_CB_SUCCESS;
 }
 
-/* Fetch a volume from the data base.  Send error messages to err or i_err. */
-enum Sigmet_CB_Return SigmetRaw_GetVol(char *vol_nm, FILE *err, int i_err,
-	struct Sigmet_Vol **vol_pp)
-{
-    dev_t st_dev;		/* Device where vol_nm resides */
-    ino_t st_ino;		/* File system index number for vol_nm */
-    struct sig_vol *sv_p;	/* Member of vols */
-
-    if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
-	fprintf(err, "Could not get information about %s\n%s\n",
-		vol_nm, strerror(errno));
-	return SIGMET_CB_NOFILE;
-    }
-    if ( !(sv_p = get_vol(st_dev, st_ino)) || !sv_p->vol.has_headers) {
-	fprintf(err, "%s not loaded. Please load with read command.\n", vol_nm);
-	return SIGMET_CB_FAIL;
-    }
-    *vol_pp = (struct Sigmet_Vol *)sv_p;
-    return SIGMET_CB_SUCCESS;
-}
-
 /* Print list of currently loaded volumes. */
 void SigmetRaw_VolList(FILE *out)
 {
+    int n;
     struct sig_vol *sv_p;
-    struct Sigmet_Vol *vol_p;
 
-    for (sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
-	vol_p = (struct Sigmet_Vol *)sv_p;
-	if ( sv_p->in_use ) {
-	    /* File name. Number of users. Number of sweeps. */
-	    fprintf(out, "%s users=%d. sweeps=%d.\n",
-		    sv_p->vol_nm, sv_p->users, vol_p->num_sweeps_ax);
+    for (n = 0; n < N_VOLS; n++) {
+	for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
+	    fprintf(out, "%s %s. sweeps=%d.\n",
+		    sv_p->vol_nm,
+		    (sv_p->keep) ? "keep" : "free",
+		    sv_p->vol.num_sweeps_ax);
 	}
     }
 }
@@ -369,118 +417,30 @@ void SigmetRaw_VolList(FILE *out)
  */
 enum Sigmet_CB_Return SigmetRaw_Release(char *vol_nm, FILE *err)
 {
-    dev_t st_dev;
-    ino_t st_ino;
     struct sig_vol *sv_p;
 
-    if ( !file_id(vol_nm, &st_dev, &st_ino) ) {
-	fprintf(err, "Could not get information about %s\n%s\n",
-		vol_nm, strerror(errno));
-	return SIGMET_CB_NOFILE;
-    }
-    if ( (sv_p = get_vol(st_dev, st_ino)) && sv_p->users > 0 ) {
-	sv_p->users--;
+    if ( (sv_p = sig_vol_get(vol_nm)) ) {
+	sv_p->keep = 0;
     }
     return SIGMET_CB_SUCCESS;
 }
 
-/* Remove unused volumes. Return true if any volumes can be removed. */
+/* Remove unused volumes. Return number of volumes removed. */
 int SigmetRaw_Flush(void)
 {
+    int n;
     struct sig_vol *sv_p;
     int c;
 
-    for (c = 0, sv_p = vols; sv_p < vols + N_VOLS; sv_p++) {
-	if ( sv_p->in_use ) {
-	    unload(sv_p);
-	    c++;
+    for (c = 0, n = 0; n < N_VOLS; n++) {
+	for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
+	    if ( !sv_p->keep ) {
+		sig_vol_rm(sv_p->vol_nm);
+		c++;
+	    }
 	}
     }
-    return c > 0;
-}
-
-/*
-   Fetch device id and inode for the file named f, and store at d_p and i_p.
-   Return true if successful, o/w false.
- */
-static int file_id(char *vol_nm, dev_t *d_p, ino_t *i_p)
-{
-    struct stat sbuf;
-
-    if ( stat(vol_nm, &sbuf) == -1 ) {
-	return 0;
-    }
-    *d_p = sbuf.st_dev;
-    *i_p = sbuf.st_ino;
-    return 1;
-}
-
-/* Create an integer hash for file with index number st_ino on device st_dev. */
-static int hash(dev_t st_dev, ino_t st_ino)
-{
-    return ((st_dev & 0x0f) << 4) | (st_ino & 0x0f);
-}
-
-/*
-   Find or create an entry in vols for the file with index number st_ino on
-   device st_dev.  Return the entry, or NULL if the file is not in vols and
-   cannot be added.
- */
-static struct sig_vol *new_vol(dev_t st_dev, ino_t st_ino)
-{
-    int h, i;			/* Index into vols */
-
-    h = hash(st_dev, st_ino);
-
-    /*
-       Hash is not necessarily the index for the volume in vols array.
-       Walk the array until we actually reach the entry for the file.
-     */
-    for (i = h; (i + 1) % N_VOLS != h; i = (i + 1) % N_VOLS) {
-	if ( vols[i].in_use
-		&& vols[i].st_dev == st_dev
-		&& vols[i].st_ino == st_ino) {
-	    return vols + i;
-	}
-    }
-
-    /*
-       There is no entry for the file. Try to create one.
-     */
-    for (i = h; (i + 1) % N_VOLS != h; i = (i + 1) % N_VOLS) {
-	if ( !vols[i].in_use ) {
-	    vols[i].in_use = 1;
-	    vols[i].st_dev = st_dev;
-	    vols[i].st_ino = st_ino;
-	    return vols + i;
-	}
-    }
-
-    return NULL;
-}
-
-/*
-   Find an entry in vols for the file with index number st_ino on device st_dev.
-   Return the index, or -1 if the file is not in vols.
- */
-static struct sig_vol *get_vol(dev_t st_dev, ino_t st_ino)
-{
-    int h, i;			/* Index into vols */
-
-    h = hash(st_dev, st_ino);
-
-    /*
-       Hash is not necessarily the index for the volume in vols array.
-       Walk the array until we actually reach the entry for the file.
-     */
-    for (i = h; (i + 1) % N_VOLS != h; i = (i + 1) % N_VOLS) {
-	if ( vols[i].in_use
-		&& vols[i].st_dev == st_dev
-		&& vols[i].st_ino == st_ino) {
-	    return vols + i;
-	}
-    }
-    return NULL;
+    return (c > 0);
 }
 
 /*
@@ -592,26 +552,4 @@ error:
 	    close(pfd[1]);
 	}
 	return NULL;
-}
-
-/* Try to unload volume */
-static void unload(struct sig_vol *sv_p)
-{
-    struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)sv_p;
-
-    if ( !sv_p->in_use ) {
-	return;
-    }
-    if ( sv_p->users > 0 ) {
-	return;
-    }
-    if ( vol_p->has_headers ) {
-	Sigmet_FreeVol(vol_p);
-    }
-    sv_p->in_use = 0;
-    memset(sv_p->vol_nm, 0, LEN);
-    sv_p->st_dev = 0;
-    sv_p->st_ino = 0;
-    sv_p->users = 0;
-    return;
 }
