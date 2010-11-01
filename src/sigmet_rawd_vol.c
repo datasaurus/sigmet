@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.17 $ $Date: 2010/10/29 22:04:40 $
+ .	$Revision: 1.18 $ $Date: 2010/10/29 22:05:48 $
  */
 
 #include <unistd.h>
@@ -39,7 +39,8 @@ struct sig_vol {
 };
 
 /* Data base of Sigmet volumes for the application */
-#define N_VOLS 256
+#define N_VOLS 8
+#define MASK 0x07
 static struct sig_vol *vols[N_VOLS];
 
 /* Local functions and variables */
@@ -60,7 +61,7 @@ void SigmetRaw_VolInit(void)
     if ( init ) {
 	return;
     }
-    assert(N_VOLS == 256);
+    assert(N_VOLS == 8);
     for (n = 0; n < N_VOLS; n++) {
 	vols[n] = NULL;
     }
@@ -70,11 +71,12 @@ void SigmetRaw_VolInit(void)
 /* Free memory and reinitialize this interface */
 void SigmetRaw_VolFree(void)
 {
-    struct sig_vol *sv_p;
+    struct sig_vol *sv_p, *sv_p1;
     int n;
 
     for (n = 0; n < N_VOLS; n++) {
-	for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
+	for (sv_p = sv_p1 = vols[n]; sv_p; sv_p = sv_p1) {
+	    sv_p1 = sv_p->next;
 	    sig_vol_destroy(sv_p);
 	}
 	vols[n] = NULL;
@@ -116,7 +118,7 @@ void sig_vol_destroy(struct sig_vol *sv_p)
 /* Create an integer hash for file with index number st_ino. */
 static int hash(ino_t st_ino)
 {
-    return (st_ino & 0x0f);
+    return (st_ino & MASK);
 }
 
 /*
@@ -166,29 +168,39 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
     if ( !(sv_p = sig_vol_new()) ) {
 	return NULL;
     }
+    strncpy(sv_p->vol_nm, vol_nm, LEN);
+    sv_p->st_dev = d;
+    sv_p->st_ino = i;
     sv_p->next = vols[n];
     vols[n] = sv_p;
     return sv_p;
 }
 
 /*
-   Deallocate a sig_vol struct and remove its entry for vol_nm from vols.  Quietly
-   do nothing if there is no entry.
+   Deallocate a sig_vol struct and remove its entry from vols.  Quietly do nothing
+   if there is no entry.
  */
 static void sig_vol_rm(char *vol_nm)
 {
     dev_t d;			/* Id of device containing file named vol_nm */
     ino_t i;			/* Inode number for file named vol_nm*/
     int n;			/* Index into vols */
-    struct sig_vol *sv_p;	/* Return value */
+    struct sig_vol *sv_p;
+    struct sig_vol *prev;
 
     if ( !file_id(vol_nm, &d, &i) ) {
 	return;
     }
     n = hash(i);
-    for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
+    for (sv_p = vols[n], prev = NULL; sv_p; prev = sv_p, sv_p = sv_p->next) {
 	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
+	    if ( prev ) {
+		prev->next = sv_p->next;
+	    } else {
+		vols[n] = sv_p->next;
+	    }
 	    sig_vol_destroy(sv_p);
+	    break;
 	}
     }
 }
@@ -303,7 +315,6 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 		break;
 	}
     }
-    strncpy(sv_p->vol_nm, vol_nm, LEN);
     *vol_pp = vol_p;
     return SIGMET_CB_SUCCESS;
 }
@@ -390,7 +401,6 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		break;
 	}
     }
-    strncpy(sv_p->vol_nm, vol_nm, LEN);
     *vol_pp = vol_p;
     return SIGMET_CB_SUCCESS;
 }
@@ -405,7 +415,7 @@ void SigmetRaw_VolList(FILE *out)
 	for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
 	    fprintf(out, "%s %s. sweeps=%d.\n",
 		    sv_p->vol_nm,
-		    (sv_p->keep) ? "keep" : "free",
+		    (sv_p->keep) ? "Keep" : "Free",
 		    sv_p->vol.num_sweeps_ax);
 	}
     }
@@ -435,12 +445,13 @@ void SigmetRaw_Release(char *vol_nm)
 int SigmetRaw_Flush(void)
 {
     int n;
-    struct sig_vol *sv_p;
+    struct sig_vol *sv_p, *sv_p1;
     int c;
 
     for (c = 0, n = 0; n < N_VOLS; n++) {
-	for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
+	for (sv_p = sv_p1 = vols[n]; sv_p1; ) {
 	    if ( !sv_p->keep ) {
+		sv_p1 = sv_p->next;
 		sig_vol_rm(sv_p->vol_nm);
 		c++;
 	    }
