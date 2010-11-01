@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: $ $Date: $
+   .	$Revision: 1.1 $ $Date: 2010/10/28 22:24:04 $
  */
 
 #include <stdio.h>
@@ -29,12 +29,6 @@
 static int handle_signals(void);
 static void handler(int signum);
 
-/*
-   If true, signal the group to stop when handling a term signal.
-   This prevents spurious signal loops.
- */
-static volatile sig_atomic_t do_term = 1;
-
 /* Size for various strings */
 #define LEN 4096
 
@@ -54,6 +48,7 @@ void Sigmet_RawStart(int argc, char *argv[])
 				   check for existence of socket */
     int si;			/* Exit information from a user command */
     int status;			/* Exit status from a user command */
+    sigset_t set;		/* To block TERM while terminating */
 
     if ( argc == 0 ) {
 	fprintf(stderr, "sigmet_raw start: no user command given\n");
@@ -186,7 +181,13 @@ void Sigmet_RawStart(int argc, char *argv[])
 		    ucmd, WTERMSIG(si));
 	    status = EXIT_FAILURE;
 	}
-	do_term = 0;
+
+	/* Block TERM so this process does not terminate itself while terminating */
+	if ( sigemptyset(&set) == -1
+		|| sigaddset(&set, SIGTERM) == -1
+		|| sigprocmask(SIG_BLOCK, &set, NULL) == -1 ) {
+	    perror(NULL);
+	}
 	kill(0, SIGTERM);
 	exit(status);
     } else {
@@ -309,13 +310,8 @@ void handler(int signum)
 
     switch (signum) {
 	case SIGTERM:
-	    if ( do_term ) {
-		msg = "sigmet_raw start exiting on termination signal    \n";
-		break;
-	    } else {
-		do_term = 1;
-		return;
-	    }
+	    msg = "sigmet_raw start exiting on termination signal    \n";
+	    break;
 	case SIGBUS:
 	    msg = "sigmet_raw start exiting on bus error             \n";
 	    break;
