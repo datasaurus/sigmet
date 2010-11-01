@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.287 $ $Date: 2010/10/29 22:02:57 $
+ .	$Revision: 1.288 $ $Date: 2010/10/30 17:05:15 $
  */
 
 #include <limits.h>
@@ -104,6 +104,7 @@ static char *ddir;		/* Working directory for daemon */
 int main(int argc, char *argv[])
 {
     char *argv0;		/* Name of this daemon */
+    pid_t pid = getpid();
     int flags;			/* Flags for log files */
     mode_t mode;		/* Mode for files */
     struct sockaddr_un sa;	/* Socket to read command and return exit status */
@@ -122,55 +123,28 @@ int main(int argc, char *argv[])
     int i;
 
     argv0 = argv[0];
+    pid = getpid();
 
     /* Set up signal handling */
     if ( !handle_signals() ) {
-	fprintf(stderr, "%s: could not set up signal management.", argv0);
-	goto error;
+	fprintf(stderr, "%s (%d): could not set up signal management.",
+		argv0, pid);
+	exit(EXIT_FAILURE);
     }
 
     /* Usage: sigmet_rawd */
     if ( argc != 1 ) {
 	fprintf(stderr, "Usage: %s\n", argv0);
-	goto error;
+	exit(EXIT_FAILURE);
     }
-
-    /* Identify and go to working directory */
-    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	fprintf(stderr, "%s (%d): SIGMET_RAWD_DIR not set.\n", argv0, getpid());
-	goto error;
-    }
-    if ( chdir(ddir) == -1 ) {
-	perror("Could not set daemon working directory.");
-	goto error;
-    }
-    if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
-	fprintf(stderr, "%s: daemon socket %s already exists. "
-		"Is daemon already running?\n", argv0, SIGMET_RAWD_IN);
-	goto error;
-    }
-
-    /* Set up output. */
-    flags = O_CREAT | O_TRUNC | O_WRONLY;
-    mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-    if ( (i = open(SIGMET_RAWD_LOG, flags, mode)) == -1
-	    || dup2(i, STDOUT_FILENO) == -1 || close(i) == -1 ) {
-	fprintf(stderr, "%s: could not open log file.", argv0);
-	_exit(EXIT_FAILURE);
-    }
-    if ( (i = open(SIGMET_RAWD_ERR, flags, mode)) == -1
-	    || dup2(i, STDERR_FILENO) == -1 || close(i) == -1 ) {
-	fprintf(stderr, "%s: could not open error file.", argv0);
-	_exit(EXIT_FAILURE);
-    }
-    fclose(stdin);
 
     /* Initialize volume table */
     SigmetRaw_VolInit();
 
     /* Initialize other variables */
     if ( !SigmetRaw_ProjInit() ) {
-	fprintf(stderr, "%s: could not set default projection.\n", argv0);
+	fprintf(stderr, "%s (%d): could not set default projection.\n",
+		argv0, pid);
 	goto error;
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
@@ -178,32 +152,66 @@ int main(int argc, char *argv[])
 
 	status = DataType_Add(Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
 	if ( status != DATATYPE_SUCCESS ) {
-	    fprintf(stderr, "%s: could not register data type %s\n%s\n",
-		    argv0, Sigmet_DataType_Abbrv(y), Err_Get());
-	    goto error;
+	    fprintf(stderr, "%s (%d): could not register data type %s\n%s\n",
+		    argv0, pid, Sigmet_DataType_Abbrv(y), Err_Get());
+	    exit(EXIT_FAILURE);
 	}
     }
 
+    /* Identify and go to working directory */
+    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
+	fprintf(stderr, "%s (%d): SIGMET_RAWD_DIR not set.\n", argv0, pid);
+	exit(EXIT_FAILURE);
+    }
+    mode = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP;
+    if ( mkdir(ddir, mode) == -1 && errno != EEXIST) {
+	perror("Could not create daemon working directory.");
+	exit(EXIT_FAILURE);
+    }
+    if ( chdir(ddir) == -1 ) {
+	perror("Could not set daemon working directory.");
+	exit(EXIT_FAILURE);
+    }
+
     /* Create socket to communicate with clients */
+    if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
+	fprintf(stderr, "%s (%d): daemon socket %s already exists. "
+		"Is daemon already running?\n", argv0, pid, SIGMET_RAWD_IN);
+	exit(EXIT_FAILURE);
+    }
     memset(&sa, '\0', SA_UN_SZ);
     sa.sun_family = AF_UNIX;
     if ( snprintf(sa.sun_path, SA_PLEN, "%s", SIGMET_RAWD_IN) >= SA_PLEN ) {
 	fprintf(stderr, "%s (%d): could not fit %s into socket address path.\n",
-		argv0, getpid(), SIGMET_RAWD_IN);
+		argv0, pid, SIGMET_RAWD_IN);
 	goto error;
     }
     sa_p = (struct sockaddr *)&sa;
     if ((i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
 	    || bind(i_dmn, sa_p, SA_UN_SZ) == -1
 	    || listen(i_dmn, SOMAXCONN) == -1) {
-	fprintf(stderr, "%s: could not create io socket.\n%s\n",
-		time_stamp(), strerror(errno));
+	fprintf(stderr, "%s (%d): could not create io socket.\n%s\n",
+		argv0, pid, strerror(errno));
 	goto error;
     }
 
-    printf("sigmet_rawd daemon starting. Process id = %d. Socket = %s/%s\n",
-	    getpid(), ddir, sa.sun_path);
+    /* Set up log and error output. */
+    flags = O_CREAT | O_TRUNC | O_WRONLY;
+    mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+    if ( (i = open(SIGMET_RAWD_LOG, flags, mode)) == -1
+	    || dup2(i, STDOUT_FILENO) == -1 || close(i) == -1 ) {
+	fprintf(stderr, "%s (%d): could not open log file.", argv0, pid);
+	goto error;
+    }
+    if ( (i = open(SIGMET_RAWD_ERR, flags, mode)) == -1
+	    || dup2(i, STDERR_FILENO) == -1 || close(i) == -1 ) {
+	fprintf(stderr, "%s (%d): could not open error file.", argv0, pid);
+	goto error;
+    }
+    fclose(stdin);
 
+    printf("%s: sigmet_rawd daemon starting.\nProcess id = %d.\n"
+	    "Socket = %s/%s\n", time_stamp(), pid, ddir, sa.sun_path);
     fflush(stdout);
 
     /* Wait for clients */
@@ -399,16 +407,16 @@ int main(int argc, char *argv[])
     }
 
     /* Should not end up here */
-    fprintf(stderr, "%s: unexpected exit.\n%s\n",
-	    time_stamp(), strerror(errno));
+    fprintf(stderr, "%s: unexpected exit.\n", time_stamp());
+    goto error;
+    exit(EXIT_FAILURE);
+
+error:
     unlink(SIGMET_RAWD_IN);
     SigmetRaw_VolFree();
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	DataType_Rm(Sigmet_DataType_Abbrv(y));
     }
-    exit(EXIT_FAILURE);
-
-error:
     fprintf(stderr, "%s: sigmet_rawd failed.\n", time_stamp());
     exit(EXIT_FAILURE);
 }
