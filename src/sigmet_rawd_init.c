@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.288 $ $Date: 2010/10/30 17:05:15 $
+ .	$Revision: 1.289 $ $Date: 2010/11/01 21:16:01 $
  */
 
 #include <limits.h>
@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
     if ( !SigmetRaw_ProjInit() ) {
 	fprintf(stderr, "%s (%d): could not set default projection.\n",
 		argv0, pid);
-	goto error;
+	exit(EXIT_FAILURE);
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	enum DataType_Return status;
