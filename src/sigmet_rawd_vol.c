@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.20 $ $Date: 2010/11/02 18:50:28 $
+ .	$Revision: 1.21 $ $Date: 2010/11/02 18:57:03 $
  */
 
 #include <unistd.h>
@@ -254,8 +254,8 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     pid_t in_pid = -1;		/* Process providing in, if any */
 
     if ( !(sv_p = sig_vol_get(vol_nm)) ) {
-	fprintf(err, "No entry for %s in volume table, and unable to add it.\n",
-		vol_nm);
+	fprintf(err, "No entry for %s in volume table, and unable to add it.\n%s\n",
+		vol_nm, Err_Get());
 	return SIGMET_CB_FAIL;
     }
     vol_p = (struct Sigmet_Vol *)sv_p;
@@ -266,6 +266,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     }
 
     /* Try up to max_try times to read volume headers */
+    sv_p->keep = 1;
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	in_pid = -1;
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
@@ -298,6 +299,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	    waitpid(in_pid, NULL, 0);
 	}
     }
+    sv_p->keep = 0;
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
 	sig_vol_rm(vol_nm);
@@ -337,9 +339,9 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
 
-    if ( (sv_p = sig_vol_get(vol_nm)) ) {
-	fprintf(err, "No entry for %s in volume table, and unable to add it.\n",
-		vol_nm);
+    if ( !(sv_p = sig_vol_get(vol_nm)) ) {
+	fprintf(err, "No entry for %s in volume table, and unable to add it.\n%s\n",
+		vol_nm, Err_Get());
 	return SIGMET_CB_FAIL;
     }
 
@@ -348,11 +350,12 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	*vol_pp = vol_p;
 	return SIGMET_CB_SUCCESS;
     }
+    Sigmet_FreeVol(vol_p);
 
     /* Try up to max_tries times to read volume */
-    Sigmet_FreeVol(vol_p);
+    sv_p->keep = 1;
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
-	    in_pid = -1;
+	in_pid = -1;
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
 	    fprintf(err, "Could not open %s for input.\n", vol_nm);
 	    sig_vol_rm(vol_nm);
@@ -368,11 +371,13 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		/* Try to free some memory and try again */
 		fprintf(err, "Read failed. Out of memory. %s "
 			"Offloading unused volumes\n", Err_Get());
+		Sigmet_FreeVol(vol_p);
 		SigmetRaw_Flush();
 		break;
 	    case SIGMET_VOL_BAD_VOL:
 		/* Read failed. Disable this slot and return failure. */
 		fprintf(err, "Read failed, bad volume. %s\n", Err_Get());
+		Sigmet_FreeVol(vol_p);
 		try = max_try;
 		break;
 	}
@@ -384,6 +389,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	    waitpid(in_pid, NULL, 0);
 	}
     }
+    sv_p->keep = 0;
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
 	sig_vol_rm(vol_nm);
