@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.19 $ $Date: 2010/11/01 22:47:03 $
+ .	$Revision: 1.20 $ $Date: 2010/11/02 18:50:28 $
  */
 
 #include <unistd.h>
@@ -442,18 +442,23 @@ void SigmetRaw_Release(char *vol_nm)
     }
 }
 
-/* Remove unused volumes. Return number of volumes removed. */
+/* Remove unused volumes. Return true if volumes are removed. */
 int SigmetRaw_Flush(void)
 {
     int n;
-    struct sig_vol *sv_p, *sv_p1;
+    struct sig_vol *sv_p, *sv_p1, *prev;
     int c;
 
     for (c = 0, n = 0; n < N_VOLS; n++) {
-	for (sv_p = sv_p1 = vols[n]; sv_p; sv_p = sv_p1) {
+	for (sv_p = vols[n], prev = NULL; sv_p; sv_p = sv_p1) {
+	    sv_p1 = sv_p->next;
 	    if ( !sv_p->keep ) {
-		sv_p1 = sv_p->next;
-		sig_vol_rm(sv_p->vol_nm);
+		if ( prev ) {
+		    prev->next = sv_p->next;
+		} else {
+		    vols[n] = sv_p->next;
+		}
+		sig_vol_destroy(sv_p);
 		c++;
 	    }
 	}
