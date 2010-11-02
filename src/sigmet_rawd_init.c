@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.292 $ $Date: 2010/11/02 17:58:12 $
+ .	$Revision: 1.293 $ $Date: 2010/11/02 18:20:24 $
  */
 
 #include <limits.h>
@@ -2096,19 +2096,7 @@ static int handle_signals(void)
 	perror(NULL);
 	return 0;
     }
-    if ( sigaction(SIGBUS, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
     if ( sigaction(SIGFPE, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
-    if ( sigaction(SIGILL, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
-    if ( sigaction(SIGSEGV, &act, NULL) == -1 ) {
 	perror(NULL);
 	return 0;
     }
@@ -2149,17 +2137,8 @@ void handler(int signum)
 	    msg = "sigmet_rawd daemon exiting on termination signal    \n";
 	    write(STDOUT_FILENO, msg, 53);
 	    _exit(EXIT_SUCCESS);
-	case SIGBUS:
-	    msg = "sigmet_rawd daemon exiting on bus error             \n";
-	    break;
 	case SIGFPE:
 	    msg = "sigmet_rawd daemon exiting arithmetic exception     \n";
-	    break;
-	case SIGILL:
-	    msg = "sigmet_rawd daemon exiting illegal instruction      \n";
-	    break;
-	case SIGSEGV:
-	    msg = "sigmet_rawd daemon exiting invalid memory reference \n";
 	    break;
 	case SIGSYS:
 	    msg = "sigmet_rawd daemon exiting on bad system call       \n";
