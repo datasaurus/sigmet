@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.289 $ $Date: 2010/11/01 21:16:01 $
+ .	$Revision: 1.290 $ $Date: 2010/11/01 22:44:48 $
  */
 
 #include <limits.h>
@@ -232,6 +232,7 @@ int main(int argc, char *argv[])
 	int i;			/* Loop index */
 	char *c, *e;		/* Loop parameters */
 	void *t;		/* Hold return from realloc */
+	int stop = 0;		/* If true, exit program */
 
 	/* Close command stream if daemon spawns a child */
 	if ( (flags = fcntl(cl_io_fd, F_GETFD)) == -1
@@ -373,7 +374,11 @@ int main(int argc, char *argv[])
 	/* Identify command */
 	cmd0 = argv1[0];
 	cmd1 = argv1[1];
-	if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+	if ( strcmp(cmd1, "stop") == 0 ) {
+	    /* Request that daemon stop. */
+	    sstatus = SIGMET_CB_SUCCESS;
+	    stop = 1;
+	} else if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
 	    /* No command. Make error message. */
 	    sstatus = SIGMET_CB_FAIL;
 	    fprintf(err, "No option or subcommand named %s. "
@@ -404,12 +409,20 @@ int main(int argc, char *argv[])
 	    fprintf(err, "%s: could not close socket for %s (%d).\n"
 		    "%s\n", time_stamp(), cmd1, client_pid, strerror(errno) );
 	}
+
+	if (stop) {
+	    break;
+	}
     }
 
-    /* Should not end up here */
-    fprintf(stderr, "%s: unexpected exit.\n", time_stamp());
-    goto error;
-    exit(EXIT_FAILURE);
+    /* No longer waiting for clients */
+    unlink(SIGMET_RAWD_IN);
+    SigmetRaw_VolFree();
+    for (y = 0; y < SIGMET_NTYPES; y++) {
+	DataType_Rm(Sigmet_DataType_Abbrv(y));
+    }
+    fprintf(stderr, "%s: exiting.\n", time_stamp());
+    exit(EXIT_SUCCESS);
 
 error:
     unlink(SIGMET_RAWD_IN);
