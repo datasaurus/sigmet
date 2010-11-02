@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.18 $ $Date: 2010/10/29 22:05:48 $
+ .	$Revision: 1.19 $ $Date: 2010/11/01 22:47:03 $
  */
 
 #include <unistd.h>
@@ -185,14 +185,15 @@ static void sig_vol_rm(char *vol_nm)
     dev_t d;			/* Id of device containing file named vol_nm */
     ino_t i;			/* Inode number for file named vol_nm*/
     int n;			/* Index into vols */
-    struct sig_vol *sv_p;
+    struct sig_vol *sv_p, *sv_p1;
     struct sig_vol *prev;
 
     if ( !file_id(vol_nm, &d, &i) ) {
 	return;
     }
     n = hash(i);
-    for (sv_p = vols[n], prev = NULL; sv_p; prev = sv_p, sv_p = sv_p->next) {
+    for (sv_p = vols[n], prev = NULL; sv_p; prev = sv_p, sv_p = sv_p1) {
+	sv_p1 = sv_p->next;
 	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
 	    if ( prev ) {
 		prev->next = sv_p->next;
@@ -449,7 +450,7 @@ int SigmetRaw_Flush(void)
     int c;
 
     for (c = 0, n = 0; n < N_VOLS; n++) {
-	for (sv_p = sv_p1 = vols[n]; sv_p1; ) {
+	for (sv_p = sv_p1 = vols[n]; sv_p; sv_p = sv_p1) {
 	    if ( !sv_p->keep ) {
 		sv_p1 = sv_p->next;
 		sig_vol_rm(sv_p->vol_nm);
