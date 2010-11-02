@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.293 $ $Date: 2010/11/02 18:20:24 $
+ .	$Revision: 1.294 $ $Date: 2010/11/02 21:15:42 $
  */
 
 #include <limits.h>
@@ -46,7 +46,7 @@
 #define LEN 4096
 
 /* Subcommands */
-#define NCMD 24
+#define NCMD 25
 typedef enum Sigmet_CB_Return (callback)(int , char **, char *, int, FILE *,
 	int, FILE *);
 static callback pid_cb;
@@ -54,6 +54,7 @@ static callback types_cb;
 static callback setcolors_cb;
 static callback good_cb;
 static callback list_cb;
+static callback keep_cb;
 static callback release_cb;
 static callback flush_cb;
 static callback volume_headers_cb;
@@ -74,15 +75,15 @@ static callback img_name_cb;
 static callback img_cb;
 static callback dorade_cb;
 static char *cmd1v[NCMD] = {
-    "pid", "types", "colors", "good", "list", "release", "flush",
-    "volume_headers", "vol_hdr", "near_sweep", "ray_headers", "data",
-    "bin_outline", "bintvls", "radar_lon", "radar_lat", "shift_az",
+    "pid", "types", "colors", "good", "list", "keep", "release",
+    "flush", "volume_headers", "vol_hdr", "near_sweep", "ray_headers",
+    "data", "bin_outline", "bintvls", "radar_lon", "radar_lat", "shift_az",
     "proj", "img_app", "img_sz", "alpha", "img_name", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
-    pid_cb, types_cb, setcolors_cb, good_cb, list_cb, release_cb, flush_cb,
-    volume_headers_cb, vol_hdr_cb, near_sweep_cb, ray_headers_cb, data_cb,
-    bin_outline_cb, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
+    pid_cb, types_cb, setcolors_cb, good_cb, list_cb, keep_cb, release_cb,
+    flush_cb, volume_headers_cb, vol_hdr_cb, near_sweep_cb, ray_headers_cb,
+    data_cb, bin_outline_cb, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
     proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb
 };
 
@@ -570,6 +571,28 @@ static enum Sigmet_CB_Return list_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     SigmetRaw_VolList(out);
+    return SIGMET_CB_SUCCESS;
+}
+
+static enum Sigmet_CB_Return keep_cb(int argc, char *argv[], char *cl_wd,
+	int i_out, FILE *out, int i_err, FILE *err)
+{
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+    char *vol_nm_r;		/* Path to Sigmet volume from command line */
+    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+
+    if ( argc != 3 ) {
+	fprintf(err, "Usage: %s %s sigmet_volume\n", argv0, argv1);
+	return SIGMET_CB_FAIL;
+    }
+    vol_nm_r = argv[2];
+    if ( !abs_name(cl_wd, vol_nm_r, vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n%s\n",
+		argv0, argv1, vol_nm_r, Err_Get());
+	return SIGMET_CB_FAIL;
+    }
+    SigmetRaw_Keep(vol_nm);
     return SIGMET_CB_SUCCESS;
 }
 
