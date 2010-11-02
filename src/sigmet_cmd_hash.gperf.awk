@@ -6,6 +6,7 @@ BEGIN {
     printf "%%{\n"
     printf "#include <string.h>\n\n"
     printf "#include \"sigmet.h\"\n\n"
+    printf "#include \"sigmet_raw.h\"\n\n"
     printf "%%}\n"
     printf "struct cmd_entr {char *name; int i;};\n\n"
     printf "static struct cmd_entr *in_word_set"
