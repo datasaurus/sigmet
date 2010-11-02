@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.53 $ $Date: 2010/10/22 22:28:19 $
+   .	$Revision: 1.54 $ $Date: 2010/10/29 16:08:26 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -210,6 +210,7 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 		    break;
 	    }
 	}
+	FREE(vol_p->dat);
 	Sigmet_InitVol(vol_p);
     }
 }
