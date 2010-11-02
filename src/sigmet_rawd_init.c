@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.290 $ $Date: 2010/11/01 22:44:48 $
+ .	$Revision: 1.291 $ $Date: 2010/11/02 17:55:33 $
  */
 
 #include <limits.h>
@@ -421,6 +421,8 @@ int main(int argc, char *argv[])
     for (y = 0; y < SIGMET_NTYPES; y++) {
 	DataType_Rm(Sigmet_DataType_Abbrv(y));
     }
+    FREE(cl_wd);
+    FREE(cmd_ln);
     fprintf(stderr, "%s: exiting.\n", time_stamp());
     exit(EXIT_SUCCESS);
 
