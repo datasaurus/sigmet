@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.1 $ $Date: 2010/10/28 22:24:04 $
+   .	$Revision: 1.2 $ $Date: 2010/11/01 20:35:31 $
  */
 
 #include <stdio.h>
@@ -56,14 +56,20 @@ void Sigmet_RawStart(int argc, char *argv[])
     }
     ucmd = argv[0];
 
-    /* Set up signal handling */
+    /*
+       Set up minimal signal handling
+     */
+
     if ( !handle_signals() ) {
 	fprintf(stderr, "sigmet_raw start: could not set up signal "
 		"management.");
 	exit(EXIT_FAILURE);
     }
 
-    /* Identify and create daemon working directory. */
+    /*
+       Identify and create daemon working directory.
+     */
+
     if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
 	if ( snprintf(ddir_t, LEN, "%s/.sigmet_raw", getenv("HOME"))
 		> LEN ) {
@@ -83,13 +89,17 @@ void Sigmet_RawStart(int argc, char *argv[])
        Put daemon working directory into environment. The daemon and
        user command will need it.
      */
+
     if ( setenv("SIGMET_RAWD_DIR", ddir, 1) == -1 ) {
 	perror("sigmet_raw start: could not export name for daemon "
 		"working directory.\n");
 	exit(EXIT_FAILURE);
     }
 
-    /* Make name of daemon input socket and check if it exists */
+    /*
+       Identify daemon input socket. Fail if it already exists.
+     */
+
     if ( snprintf(sigmet_rawd_in, LEN, "%s/%s", ddir, SIGMET_RAWD_IN)
 	    > LEN ) {
 	fprintf(stderr, "sigmet_raw start: could not create name "
@@ -103,7 +113,10 @@ void Sigmet_RawStart(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /* Start the daemon */
+    /*
+       Start the daemon. Wait for it to make input socket.
+     */
+
     switch (dpid = fork()) {
 	case -1:
 	    /* Fail */
@@ -125,8 +138,6 @@ void Sigmet_RawStart(int argc, char *argv[])
 		    strerror(errno));
 	    _exit(EXIT_FAILURE);
     }
-
-    /* Wait for daemon to make its input socket */
     for (try = 3; try > 0; try--) {
 	if ( access(sigmet_rawd_in, R_OK) == 0 ) {
 	    break;
@@ -141,7 +152,10 @@ void Sigmet_RawStart(int argc, char *argv[])
 	_exit(EXIT_FAILURE);
     }
 
-    /* Run the user command */
+    /*
+       Start the user command
+     */
+
     switch (upid = fork()) {
 	case -1:
 	    perror("sigmet_raw start: could not fork user command");
@@ -161,7 +175,10 @@ void Sigmet_RawStart(int argc, char *argv[])
 	    _exit(EXIT_FAILURE);
     }
 
-    /* Wait for a child to exit */
+    /*
+       Wait for a child, either the daemon, or the user command to exit.
+     */
+
     if ( (chpid = wait(&si)) == -1 ) {
 	perror("sigmet_raw start: unable to wait for children");
 	kill(0, SIGTERM);
@@ -182,12 +199,16 @@ void Sigmet_RawStart(int argc, char *argv[])
 	    status = EXIT_FAILURE;
 	}
 
-	/* Block TERM so this process does not terminate itself while terminating */
+	/*
+	   Block TERM so TERM signal to group does not go to this process.
+	 */
+
 	if ( sigemptyset(&set) == -1
 		|| sigaddset(&set, SIGTERM) == -1
 		|| sigprocmask(SIG_BLOCK, &set, NULL) == -1 ) {
 	    perror(NULL);
 	}
+
 	kill(0, SIGTERM);
 	exit(status);
     } else {
@@ -216,6 +237,7 @@ void Sigmet_RawStart(int argc, char *argv[])
    Rochkind, Marc J., "Advanced UNIX Programming, Second Edition",
    2004, Addison-Wesley, Boston.
  */
+
 int handle_signals(void)
 {
     sigset_t set;
@@ -229,6 +251,7 @@ int handle_signals(void)
 	perror(NULL);
 	return 0;
     }
+
     memset(&act, 0, sizeof(struct sigaction));
     if ( sigfillset(&act.sa_mask) == -1 ) {
 	perror(NULL);
@@ -288,6 +311,7 @@ int handle_signals(void)
 	perror(NULL);
 	return 0;
     }
+
     if ( sigemptyset(&set) == -1 ) {
 	perror(NULL);
 	return 0;
