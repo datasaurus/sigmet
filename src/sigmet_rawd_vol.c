@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.24 $ $Date: 2010/11/03 19:04:08 $
+ .	$Revision: 1.25 $ $Date: 2010/11/03 20:47:34 $
  */
 
 #include <unistd.h>
@@ -230,7 +230,7 @@ enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
     rslt = Sigmet_GoodVol(in) ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
     fclose(in);
     if ( p != -1 ) {
-	waitpid(p, NULL, 0);
+	waitpid(p, NULL, WNOHANG);
     }
     return rslt;
 }
@@ -291,12 +291,9 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 		try = max_try;
 		break;
 	}
-	while (fgetc(in) != EOF) {
-	    continue;
-	}
 	fclose(in);
 	if (in_pid != -1) {
-	    waitpid(in_pid, NULL, 0);
+	    waitpid(in_pid, NULL, WNOHANG);
 	}
     }
     sv_p->keep = 0;
@@ -383,12 +380,9 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		try = max_try;
 		break;
 	}
-	while (fgetc(in) != EOF) {
-	    continue;
-	}
 	fclose(in);
 	if (in_pid != -1) {
-	    waitpid(in_pid, NULL, 0);
+	    waitpid(in_pid, NULL, WNOHANG);
 	}
     }
     sv_p->keep = 0;
