@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.25 $ $Date: 2010/11/03 20:47:34 $
+ .	$Revision: 1.26 $ $Date: 2010/11/03 21:04:46 $
  */
 
 #include <unistd.h>
@@ -501,7 +501,8 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		goto error;
 	    case 0:
 		/* Child process - gzip.  Send child stdout to pipe. */
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
+			|| close(pfd[0]) == -1 ) {
 		    fprintf(err, "gzip process failed\n%s\n", strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
@@ -536,7 +537,8 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		goto error;
 	    case 0:
 		/* Child process - bzip2.  Send child stdout to pipe. */
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1 ) {
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
+			|| close(pfd[0]) == -1 ) {
 		    fprintf(err, "could not set up bzip2 process");
 		    _exit(EXIT_FAILURE);
 		}
