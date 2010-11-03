@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.23 $ $Date: 2010/11/03 15:07:45 $
+ .	$Revision: 1.24 $ $Date: 2010/11/03 19:04:08 $
  */
 
 #include <unistd.h>
@@ -454,23 +454,27 @@ void SigmetRaw_Release(char *vol_nm)
 int SigmetRaw_Flush(void)
 {
     int n;
-    struct sig_vol *sv_p, *sv_p1, *prev;
+    struct sig_vol *sv_p, *prev;
     int c;
 
     for (c = 0, n = 0; n < N_VOLS; n++) {
-	for (sv_p = vols[n], prev = NULL; sv_p; prev = sv_p, sv_p = sv_p1) {
-	    sv_p1 = sv_p->next;
-	    if ( !sv_p->keep ) {
-		if ( prev ) {
-		    prev->next = sv_p->next;
+	for (sv_p = vols[n]; sv_p; ) {
+	    if ( sv_p->keep ) {
+		prev = sv_p;
+		sv_p = sv_p->next;
+	    } else {
+		if ( sv_p == vols[n] ) {
+		    vols[n] = prev = sv_p->next;
 		} else {
-		    vols[n] = sv_p->next;
+		    prev->next = sv_p->next;
 		}
 		sig_vol_destroy(sv_p);
+		sv_p = prev ? prev->next : NULL;
 		c++;
 	    }
 	}
     }
+
     return (c > 0);
 }
 
