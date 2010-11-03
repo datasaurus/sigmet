@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.21 $ $Date: 2010/11/02 18:57:03 $
+ .	$Revision: 1.22 $ $Date: 2010/11/02 21:16:31 $
  */
 
 #include <unistd.h>
@@ -371,8 +371,10 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		/* Try to free some memory and try again */
 		fprintf(err, "Read failed. Out of memory. %s "
 			"Offloading unused volumes\n", Err_Get());
-		Sigmet_FreeVol(vol_p);
-		SigmetRaw_Flush();
+		if ( !SigmetRaw_Flush() ) {
+		    fprintf(err, "Could not offload any volumes\n");
+		    try = max_try;
+		}
 		break;
 	    case SIGMET_VOL_BAD_VOL:
 		/* Read failed. Disable this slot and return failure. */
@@ -456,7 +458,7 @@ int SigmetRaw_Flush(void)
     int c;
 
     for (c = 0, n = 0; n < N_VOLS; n++) {
-	for (sv_p = vols[n], prev = NULL; sv_p; sv_p = sv_p1) {
+	for (sv_p = vols[n], prev = NULL; sv_p; prev = sv_p, sv_p = sv_p1) {
 	    sv_p1 = sv_p->next;
 	    if ( !sv_p->keep ) {
 		if ( prev ) {
