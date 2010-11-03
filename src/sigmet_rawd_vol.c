@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.26 $ $Date: 2010/11/03 21:04:46 $
+ .	$Revision: 1.27 $ $Date: 2010/11/03 21:48:03 $
  */
 
 #include <unistd.h>
@@ -230,7 +230,7 @@ enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
     rslt = Sigmet_GoodVol(in) ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
     fclose(in);
     if ( p != -1 ) {
-	waitpid(p, NULL, WNOHANG);
+	waitpid(p, NULL, 0);
     }
     return rslt;
 }
@@ -293,7 +293,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	}
 	fclose(in);
 	if (in_pid != -1) {
-	    waitpid(in_pid, NULL, WNOHANG);
+	    waitpid(in_pid, NULL, 0);
 	}
     }
     sv_p->keep = 0;
@@ -382,7 +382,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	}
 	fclose(in);
 	if (in_pid != -1) {
-	    waitpid(in_pid, NULL, WNOHANG);
+	    waitpid(in_pid, NULL, 0);
 	}
     }
     sv_p->keep = 0;
@@ -457,13 +457,15 @@ int SigmetRaw_Flush(void)
 		prev = sv_p;
 		sv_p = sv_p->next;
 	    } else {
+		struct sig_vol *to_destroy = sv_p;
+
 		if ( sv_p == vols[n] ) {
 		    vols[n] = prev = sv_p->next;
 		} else {
 		    prev->next = sv_p->next;
 		}
-		sig_vol_destroy(sv_p);
-		sv_p = prev ? prev->next : NULL;
+		sv_p = sv_p->next;
+		sig_vol_destroy(to_destroy);
 		c++;
 	    }
 	}
