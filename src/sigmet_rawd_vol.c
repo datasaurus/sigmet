@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.22 $ $Date: 2010/11/02 21:16:31 $
+ .	$Revision: 1.23 $ $Date: 2010/11/03 15:07:45 $
  */
 
 #include <unistd.h>
@@ -118,7 +118,7 @@ void sig_vol_destroy(struct sig_vol *sv_p)
 /* Create an integer hash for file with index number st_ino. */
 static int hash(ino_t st_ino)
 {
-    return (st_ino & MASK);
+    return (int)(st_ino & MASK);
 }
 
 /*
@@ -361,7 +361,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	    sig_vol_rm(vol_nm);
 	    return SIGMET_CB_INPUT_FAIL;
 	}
-	switch (Sigmet_ReadVol(in, vol_p)) {
+	switch (status = Sigmet_ReadVol(in, vol_p)) {
 	    case SIGMET_VOL_READ_OK:
 	    case SIGMET_VOL_INPUT_FAIL:
 		/* Success or partial success. Break out. */
