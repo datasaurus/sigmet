@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.2 $ $Date: 2010/11/01 20:35:31 $
+   .	$Revision: 1.3 $ $Date: 2010/11/02 18:49:42 $
  */
 
 #include <stdio.h>
@@ -32,7 +32,7 @@ static void handler(int signum);
 /* Size for various strings */
 #define LEN 4096
 
-void Sigmet_RawStart(int argc, char *argv[])
+void SigmetRaw_Start(int argc, char *argv[])
 {
     char *ucmd;			/* User command to run as a child process */
     char *ddir, ddir_t[LEN];	/* Daemon working directory */

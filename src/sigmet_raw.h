@@ -7,7 +7,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.15 $ $Date: 2010/10/29 18:50:58 $
+   .	$Revision: 1.16 $ $Date: 2010/10/29 22:06:23 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -32,8 +32,8 @@ enum Sigmet_CB_Return {
 /* Maximum number of arguments */
 #define SIGMET_RAWD_ARGCX	512
 
-int Sigmet_RawCmd(const char *);
-void Sigmet_RawStart(int, char **);
+int SigmetRaw_Cmd(const char *);
+void SigmetRaw_Start(int, char **);
 int SigmetRaw_ProjInit(void);
 int SigmetRaw_SetProj(int, char **);
 projPJ SigmetRaw_GetProj(void);

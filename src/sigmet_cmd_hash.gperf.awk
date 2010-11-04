@@ -19,7 +19,7 @@ BEGIN {
 }
 END {
     printf "%%%%\n"
-    printf "int Sigmet_RawCmd(const char *a)\n";
+    printf "int SigmetRaw_Cmd(const char *a)\n";
     printf "{\n"
     printf "    struct cmd_entr *y;\n"
     printf "    return ( a && (y = in_word_set(a, (unsigned int)strlen(a))) )"

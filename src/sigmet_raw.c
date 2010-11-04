@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.57 $ $Date: 2010/10/26 20:35:14 $
+   .	$Revision: 1.58 $ $Date: 2010/10/28 22:23:44 $
  */
 
 #include <limits.h>
@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 	goto error;
     }
     if ( strcmp(argv[1], "start") == 0 ) {
-	Sigmet_RawStart(argc - 2, argv + 2);
+	SigmetRaw_Start(argc - 2, argv + 2);
     }
     if ( argc > SIGMET_RAWD_ARGCX ) {
 	fprintf(stderr, "%s: cannot parse %d arguments. Maximum argument "

@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.294 $ $Date: 2010/11/02 21:15:42 $
+ .	$Revision: 1.295 $ $Date: 2010/11/02 21:40:41 $
  */
 
 #include <limits.h>
@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
 	    /* Request that daemon stop. */
 	    sstatus = SIGMET_CB_SUCCESS;
 	    stop = 1;
-	} else if ( (i = Sigmet_RawCmd(cmd1)) == -1) {
+	} else if ( (i = SigmetRaw_Cmd(cmd1)) == -1) {
 	    /* No command. Make error message. */
 	    sstatus = SIGMET_CB_FAIL;
 	    fprintf(err, "No option or subcommand named %s. "
