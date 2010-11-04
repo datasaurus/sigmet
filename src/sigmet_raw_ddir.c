@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.3 $ $Date: 2010/11/04 18:29:46 $
+ .	$Revision: 1.4 $ $Date: 2010/11/04 18:36:31 $
  */
 
 #include <stdlib.h>
@@ -129,7 +129,7 @@ char *SigmetRaw_GetSock(void)
 	if ( !(dsock = MALLOC(l)) ) {
 	    return NULL;
 	}
-	if ( snprintf(dsock, l, "%s/%s", ddir, SIGMET_RAWD_IN ) > l ) {
+	if ( snprintf(dsock, l, "%s/%s", ddir_t, SIGMET_RAWD_IN ) > l ) {
 	    return NULL;
 	}
 	return dsock;
