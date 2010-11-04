@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.1 $ $Date: 2010/11/04 15:59:20 $
+ .	$Revision: 1.2 $ $Date: 2010/11/04 16:13:06 $
  */
 
 #include <stdlib.h>
@@ -19,11 +19,18 @@
 #include "alloc.h"
 #include "sigmet_raw.h"
 
-#define LEN 4096
+/* Daemon socket */
+static char *dsock;
+
+/* Daemon working directory */
 static char *ddir;
+
+/* Default path length */
+#define LEN 4096
 
 /*
    Identify and create the daemon working directory.
+   Identify but do NOT create daemon socket.
    If something goes wrong, exit the program.
  */
 
@@ -53,17 +60,35 @@ void SigmetRaw_MkDDir(void)
 			strerror(errno));
 		exit(EXIT_FAILURE);
 	    }
+	    l++;
 	}
-	if ( !(ddir = MALLOC(++l)) ) {
-	    fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
-		    "working directory.\n", l);
-	    exit(EXIT_FAILURE);
+	if ( !(ddir = MALLOC(l)) ) {
+	    l = LEN;
+	    if ( !(ddir = MALLOC(l)) ) {
+		fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
+			"working directory.\n", l);
+		exit(EXIT_FAILURE);
+	    }
 	}
 	if ( snprintf(ddir, l, "%s/.sigmet_raw", getenv("HOME")) > l ) {
-	    fprintf(stderr, "sigmet_raw start: could not create name "
-		    "for daemon working directory.\n");
+	    fprintf(stderr, "Could not create name for daemon working "
+		    "directory.\n");
 	    exit(EXIT_FAILURE);
 	}
+    }
+
+    /*
+       Create absolute path name for daemon socket.
+     */
+
+    if ( !(dsock = MALLOC(l)) ) {
+	fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
+		"working directory.\n", l);
+	exit(EXIT_FAILURE);
+    }
+    if ( snprintf(dsock, l, "%s/%s", ddir, SIGMET_RAWD_IN ) > l ) {
+	fprintf(stderr, "Could not create name for daemon socket.\n");
+	exit(EXIT_FAILURE);
     }
 
     /*
@@ -87,4 +112,30 @@ void SigmetRaw_MkDDir(void)
 char *SigmetRaw_GetDDir(void)
 {
     return ddir ? ddir : getenv("SIGMET_RAWD_DIR");
+}
+
+/*
+   Return path to daemon socket, or NULL if it cannot be determined.
+   Caller should not modify return value.
+ */
+
+char *SigmetRaw_GetSock(void)
+{
+    size_t l;
+    char *ddir_t;
+
+    if ( dsock ) {
+	return dsock;
+    } else if ( (ddir_t = SigmetRaw_GetDDir()) ) {
+	l = strlen(ddir_t) + 1 + strlen(SIGMET_RAWD_IN) + 1;
+	if ( !(dsock = MALLOC(l)) ) {
+	    return NULL;
+	}
+	if ( snprintf(dsock, l, "%s/%s", ddir, SIGMET_RAWD_IN ) > l ) {
+	    return NULL;
+	}
+	return dsock;
+    } else {
+	return NULL;
+    }
 }

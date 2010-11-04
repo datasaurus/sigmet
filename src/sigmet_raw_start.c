@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.4 $ $Date: 2010/11/04 14:43:58 $
+   .	$Revision: 1.5 $ $Date: 2010/11/04 15:58:27 $
  */
 
 #include <stdio.h>
@@ -36,7 +36,7 @@ void SigmetRaw_Start(int argc, char *argv[])
 {
     char *ucmd;			/* User command to run as a child process */
     char *ddir;			/* Daemon working directory */
-    char sigmet_rawd_in[LEN];	/* Daemon input socket */
+    char *dsock;		/* Name of daemon socket */
     pid_t spid = getpid();
     pid_t dpid;			/* Id for daemon */
     pid_t upid;			/* Id of user command */
@@ -87,16 +87,15 @@ void SigmetRaw_Start(int argc, char *argv[])
        Identify daemon input socket. Fail if it already exists.
      */
 
-    if ( snprintf(sigmet_rawd_in, LEN, "%s/%s", ddir, SIGMET_RAWD_IN)
-	    > LEN ) {
-	fprintf(stderr, "sigmet_raw start: could not create name "
-		"for daemon input socket.\n");
+    if ( !(dsock = SigmetRaw_GetSock()) ) {
+	fprintf(stderr, "sigmet_raw start: could not determine path to"
+		"daemon input socket.\n");
 	exit(EXIT_FAILURE);
     }
-    if ( access(sigmet_rawd_in, R_OK) == 0 ) {
+    if ( access(dsock, R_OK) == 0 ) {
 	fprintf(stderr, "sigmet_raw start: daemon input socket %s "
 		"exists. Is %s daemon already running?\n",
-		sigmet_rawd_in, SIGMET_RAWD);
+		dsock, SIGMET_RAWD);
 	exit(EXIT_FAILURE);
     }
 
@@ -122,7 +121,7 @@ void SigmetRaw_Start(int argc, char *argv[])
 	    _exit(EXIT_FAILURE);
     }
     for (try = 3; try > 0; try--) {
-	if ( access(sigmet_rawd_in, R_OK) == 0 ) {
+	if ( access(dsock, R_OK) == 0 ) {
 	    break;
 	} else {
 	    sleep(1);
@@ -130,7 +129,7 @@ void SigmetRaw_Start(int argc, char *argv[])
     }
     if ( try == 0 ) {
 	fprintf(stderr, "sigmet_raw start: could not find daemon "
-		"input socket %s .\n", sigmet_rawd_in);
+		"input socket %s .\n", dsock);
 	kill(0, SIGTERM);
 	_exit(EXIT_FAILURE);
     }

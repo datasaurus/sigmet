@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.59 $ $Date: 2010/11/04 14:43:58 $
+   .	$Revision: 1.60 $ $Date: 2010/11/04 15:58:27 $
  */
 
 #include <limits.h>
@@ -49,6 +49,7 @@ int main(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *ddir;			/* Name of daemon working directory */
+    char *dsock;		/* Name of daemon socket */
     char cwd[LINE_MAX];		/* Current working directory */
     size_t cwd_l;		/* strlen(cwd) */
     struct sockaddr_un sa;	/* Address of socket that connects with daemon */
@@ -119,9 +120,13 @@ int main(int argc, char *argv[])
     /* Connect to daemon via socket in daemon directory */
     memset(&sa, '\0', SA_UN_SZ);
     sa.sun_family = AF_UNIX;
-    if ( snprintf(sa.sun_path, SA_PLEN, "%s/%s", ddir, SIGMET_RAWD_IN) > SA_PLEN ) {
+    if ( !(dsock = SigmetRaw_GetSock()) ) {
+	fprintf(stderr, "%s (%d): could not identify daemon socket.\n", argv0, pid);
+	goto error;
+    }
+    if ( snprintf(sa.sun_path, SA_PLEN, "%s/%s", ddir, dsock) > SA_PLEN ) {
 	fprintf(stderr, "%s (%d): could not fit %s into socket address path.\n",
-		argv0, pid, SIGMET_RAWD_IN);
+		argv0, pid, dsock);
 	goto error;
     }
     if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
