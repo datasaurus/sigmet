@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.2 $ $Date: 2010/11/04 16:13:06 $
+ .	$Revision: 1.3 $ $Date: 2010/11/04 18:29:46 $
  */
 
 #include <stdlib.h>
@@ -49,26 +49,24 @@ void SigmetRaw_MkDDir(void)
        use a default.
      */
 
-    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	errno = 0;
-	if ( (l = pathconf("/", _PC_PATH_MAX)) == -1 ) {
-	    if ( errno == 0 ) {
-		l = LEN;
-	    } else {
-		fprintf(stderr, "Could not determine maximum path length for "
-			"system while setting daemon working directory.\n%s\n",
-			strerror(errno));
-		exit(EXIT_FAILURE);
-	    }
-	    l++;
-	}
-	if ( !(ddir = MALLOC(l)) ) {
+    errno = 0;
+    if ( (l = pathconf("/", _PC_PATH_MAX)) == -1 ) {
+	if ( errno == 0 ) {
 	    l = LEN;
-	    if ( !(ddir = MALLOC(l)) ) {
-		fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
-			"working directory.\n", l);
-		exit(EXIT_FAILURE);
-	    }
+	} else {
+	    fprintf(stderr, "Could not determine maximum path length for "
+		    "system while setting daemon working directory.\n%s\n",
+		    strerror(errno));
+	    exit(EXIT_FAILURE);
+	}
+	l++;
+    }
+
+    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
+	if ( !(ddir = MALLOC(l)) ) {
+	    fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
+		    "working directory.\n", l);
+	    exit(EXIT_FAILURE);
 	}
 	if ( snprintf(ddir, l, "%s/.sigmet_raw", getenv("HOME")) > l ) {
 	    fprintf(stderr, "Could not create name for daemon working "
