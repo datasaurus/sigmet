@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.5 $ $Date: 2010/11/04 15:58:27 $
+   .	$Revision: 1.6 $ $Date: 2010/11/04 18:29:11 $
  */
 
 #include <stdio.h>
@@ -36,15 +36,12 @@ void SigmetRaw_Start(int argc, char *argv[])
 {
     char *ucmd;			/* User command to run as a child process */
     char *ddir;			/* Daemon working directory */
-    char *dsock;		/* Name of daemon socket */
     pid_t spid = getpid();
     pid_t dpid;			/* Id for daemon */
     pid_t upid;			/* Id of user command */
     pid_t pgid = spid;		/* Process group id, for this process,
 				   user command, and daemon */
     pid_t chpid;		/* Id of a child process */
-    int try;			/* Number of times user command will
-				   check for existence of socket */
     int si;			/* Exit information from a user command */
     int status;			/* Exit status from a user command */
     sigset_t set;		/* To block TERM while terminating */
@@ -84,22 +81,6 @@ void SigmetRaw_Start(int argc, char *argv[])
     }
 
     /*
-       Identify daemon input socket. Fail if it already exists.
-     */
-
-    if ( !(dsock = SigmetRaw_GetSock()) ) {
-	fprintf(stderr, "sigmet_raw start: could not determine path to"
-		"daemon input socket.\n");
-	exit(EXIT_FAILURE);
-    }
-    if ( access(dsock, R_OK) == 0 ) {
-	fprintf(stderr, "sigmet_raw start: daemon input socket %s "
-		"exists. Is %s daemon already running?\n",
-		dsock, SIGMET_RAWD);
-	exit(EXIT_FAILURE);
-    }
-
-    /*
        Start the daemon. Wait for it to make input socket.
      */
 
@@ -119,19 +100,6 @@ void SigmetRaw_Start(int argc, char *argv[])
 	    fprintf(stderr, "Could not start %s\n%s\n", SIGMET_RAWD,
 		    strerror(errno));
 	    _exit(EXIT_FAILURE);
-    }
-    for (try = 3; try > 0; try--) {
-	if ( access(dsock, R_OK) == 0 ) {
-	    break;
-	} else {
-	    sleep(1);
-	}
-    }
-    if ( try == 0 ) {
-	fprintf(stderr, "sigmet_raw start: could not find daemon "
-		"input socket %s .\n", dsock);
-	kill(0, SIGTERM);
-	_exit(EXIT_FAILURE);
     }
 
     /*
