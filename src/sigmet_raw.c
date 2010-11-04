@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.60 $ $Date: 2010/11/04 15:58:27 $
+   .	$Revision: 1.61 $ $Date: 2010/11/04 18:28:11 $
  */
 
 #include <limits.h>
@@ -118,17 +118,13 @@ int main(int argc, char *argv[])
     }
 
     /* Connect to daemon via socket in daemon directory */
-    memset(&sa, '\0', SA_UN_SZ);
-    sa.sun_family = AF_UNIX;
     if ( !(dsock = SigmetRaw_GetSock()) ) {
 	fprintf(stderr, "%s (%d): could not identify daemon socket.\n", argv0, pid);
 	goto error;
     }
-    if ( snprintf(sa.sun_path, SA_PLEN, "%s/%s", ddir, dsock) > SA_PLEN ) {
-	fprintf(stderr, "%s (%d): could not fit %s into socket address path.\n",
-		argv0, pid, dsock);
-	goto error;
-    }
+    memset(&sa, '\0', SA_UN_SZ);
+    sa.sun_family = AF_UNIX;
+    strncpy(sa.sun_path, dsock, SA_PLEN);
     if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create socket to connect with daemon\n"
 		"%s\n", argv0, pid, strerror(errno));
