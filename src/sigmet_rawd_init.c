@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.296 $ $Date: 2010/11/04 14:43:58 $
+ .	$Revision: 1.297 $ $Date: 2010/11/04 15:58:27 $
  */
 
 #include <limits.h>
@@ -99,7 +99,6 @@ static void handler(int);
 /* Abbreviations */
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
 #define SA_PLEN (sizeof(sa.sun_path))
-
 
 int main(int argc, char *argv[])
 {
