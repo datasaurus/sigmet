@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.58 $ $Date: 2010/10/28 22:23:44 $
+   .	$Revision: 1.59 $ $Date: 2010/11/04 14:43:58 $
  */
 
 #include <limits.h>
@@ -87,9 +87,9 @@ int main(int argc, char *argv[])
     }
 
     /* Identify daemon working directory */
-    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	fprintf(stderr, "%s (%d): SIGMET_RAWD_DIR not set. Could not identify "
-		"daemon working directory.\n", argv0, pid);
+    if ( !(ddir = SigmetRaw_GetDDir()) ) {
+	fprintf(stderr, "%s (%d): could not identify daemon working directory.\n",
+		argv0, pid);
 	exit(EXIT_FAILURE);
     }
 

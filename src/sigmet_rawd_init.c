@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.295 $ $Date: 2010/11/02 21:40:41 $
+ .	$Revision: 1.296 $ $Date: 2010/11/04 14:43:58 $
  */
 
 #include <limits.h>
@@ -100,12 +100,12 @@ static void handler(int);
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
 #define SA_PLEN (sizeof(sa.sun_path))
 
-static char *ddir;		/* Working directory for daemon */
 
 int main(int argc, char *argv[])
 {
     char *argv0;		/* Name of this daemon */
     pid_t pid = getpid();
+    char *ddir;			/* Working directory for daemon */
     int flags;			/* Flags for log files */
     mode_t mode;		/* Mode for files */
     struct sockaddr_un sa;	/* Socket to read command and return exit status */
@@ -159,18 +159,11 @@ int main(int argc, char *argv[])
 	}
     }
 
-    /* Identify and go to working directory */
-    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	fprintf(stderr, "%s (%d): SIGMET_RAWD_DIR not set.\n", argv0, pid);
-	exit(EXIT_FAILURE);
-    }
-    mode = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP;
-    if ( mkdir(ddir, mode) == -1 && errno != EEXIST) {
-	perror("Could not create daemon working directory.");
-	exit(EXIT_FAILURE);
-    }
+    /* Identify and go to daemon working directory */
+    SigmetRaw_MkDDir();
+    ddir = SigmetRaw_GetDDir();
     if ( chdir(ddir) == -1 ) {
-	perror("Could not set daemon working directory.");
+	perror("Could not change to daemon working directory.");
 	exit(EXIT_FAILURE);
     }
 

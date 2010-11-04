@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.3 $ $Date: 2010/11/02 18:49:42 $
+   .	$Revision: 1.4 $ $Date: 2010/11/04 14:43:58 $
  */
 
 #include <stdio.h>
@@ -35,9 +35,8 @@ static void handler(int signum);
 void SigmetRaw_Start(int argc, char *argv[])
 {
     char *ucmd;			/* User command to run as a child process */
-    char *ddir, ddir_t[LEN];	/* Daemon working directory */
+    char *ddir;			/* Daemon working directory */
     char sigmet_rawd_in[LEN];	/* Daemon input socket */
-    mode_t m;			/* File permissions */
     pid_t spid = getpid();
     pid_t dpid;			/* Id for daemon */
     pid_t upid;			/* Id of user command */
@@ -70,20 +69,8 @@ void SigmetRaw_Start(int argc, char *argv[])
        Identify and create daemon working directory.
      */
 
-    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
-	if ( snprintf(ddir_t, LEN, "%s/.sigmet_raw", getenv("HOME"))
-		> LEN ) {
-	    fprintf(stderr, "sigmet_raw start: could not create name "
-		    "for daemon working directory.\n");
-	    exit(EXIT_FAILURE);
-	}
-	ddir = ddir_t;
-    }
-    m = S_IRUSR | S_IWUSR | S_IXUSR;
-    if ( mkdir(ddir, m) == -1 && errno != EEXIST ) {
-	perror("Could not create daemon working directory.");
-	exit(EXIT_FAILURE);
-    }
+    SigmetRaw_MkDDir();
+    ddir = SigmetRaw_GetDDir();
 
     /*
        Put daemon working directory into environment. The daemon and
@@ -127,10 +114,6 @@ void SigmetRaw_Start(int argc, char *argv[])
 	    if ( setpgid(0, pgid) == -1 ) {
 		fprintf(stderr, "%s could not attach to process "
 			"group.\n%s\n", SIGMET_RAWD, strerror(errno));
-		_exit(EXIT_FAILURE);
-	    }
-	    if ( chdir(ddir) == -1 ) {
-		perror("Could not change to daemon working directory.");
 		_exit(EXIT_FAILURE);
 	    }
 	    execlp(SIGMET_RAWD, SIGMET_RAWD, (char *)NULL);
