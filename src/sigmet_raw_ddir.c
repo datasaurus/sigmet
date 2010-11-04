@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: $ $Date: $
+ .	$Revision: 1.1 $ $Date: 2010/11/04 15:59:20 $
  */
 
 #include <stdlib.h>
@@ -29,8 +29,13 @@ static char *ddir;
 
 void SigmetRaw_MkDDir(void)
 {
+    static int init;
     long l;
     mode_t mode;
+
+    if ( init ) {
+	return;
+    }
 
     /*
        If SIGMET_RAWD_DIR environment variable is set, use it. Otherwise,
@@ -70,6 +75,8 @@ void SigmetRaw_MkDDir(void)
 	perror("Could not create daemon working directory.");
 	exit(EXIT_FAILURE);
     }
+
+    init = 1;
 }
 
 /*
