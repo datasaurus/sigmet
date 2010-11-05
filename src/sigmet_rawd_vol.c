@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.28 $ $Date: 2010/11/03 23:36:14 $
+ .	$Revision: 1.29 $ $Date: 2010/11/05 16:55:48 $
  */
 
 #include <unistd.h>
@@ -71,12 +71,12 @@ void SigmetRaw_VolInit(void)
 /* Free memory and reinitialize this interface */
 void SigmetRaw_VolFree(void)
 {
-    struct sig_vol *sv_p, *sv_p1;
+    struct sig_vol *sv_p, *next;
     int n;
 
     for (n = 0; n < N_VOLS; n++) {
-	for (sv_p = sv_p1 = vols[n]; sv_p; sv_p = sv_p1) {
-	    sv_p1 = sv_p->next;
+	for (sv_p = next = vols[n]; sv_p; sv_p = next) {
+	    next = sv_p->next;
 	    sig_vol_destroy(sv_p);
 	}
 	vols[n] = NULL;
@@ -185,15 +185,15 @@ static void sig_vol_rm(char *vol_nm)
     dev_t d;			/* Id of device containing file named vol_nm */
     ino_t i;			/* Inode number for file named vol_nm*/
     int n;			/* Index into vols */
-    struct sig_vol *sv_p, *sv_p1;
+    struct sig_vol *sv_p, *next;
     struct sig_vol *prev;
 
     if ( !file_id(vol_nm, &d, &i) ) {
 	return;
     }
     n = hash(i);
-    for (sv_p = vols[n], prev = NULL; sv_p; prev = sv_p, sv_p = sv_p1) {
-	sv_p1 = sv_p->next;
+    for (sv_p = vols[n], prev = NULL; sv_p; prev = sv_p, sv_p = next) {
+	next = sv_p->next;
 	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
 	    if ( prev ) {
 		prev->next = sv_p->next;
