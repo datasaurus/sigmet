@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.36 $ $Date: 2010/10/28 22:23:16 $
+   .	$Revision: 1.37 $ $Date: 2010/10/29 18:50:58 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -459,6 +459,8 @@ struct Sigmet_Vol {
     double **ray_az1;				/* Azimuth at end of ray, radians,
 						   dimensioned [sweep][ray] */
     union Sigmet_DatArr *dat;			/* Data, dimensioned [type] */
+    size_t size;				/* Number of bytes of memory this
+						   structure is using */
 };
 
 enum Sigmet_DataType Sigmet_DataType(char *);
