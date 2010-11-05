@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.27 $ $Date: 2010/11/03 21:48:03 $
+ .	$Revision: 1.28 $ $Date: 2010/11/03 23:36:14 $
  */
 
 #include <unistd.h>
@@ -416,10 +416,12 @@ void SigmetRaw_VolList(FILE *out)
 
     for (n = 0; n < N_VOLS; n++) {
 	for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
-	    fprintf(out, "%s %s. sweeps=%d.\n",
+	    fprintf(out, "%s %s. %d out of %d sweeps. %8.4f MB.\n",
 		    sv_p->vol_nm,
 		    (sv_p->keep) ? "Keep" : "Free",
-		    sv_p->vol.num_sweeps_ax);
+		    sv_p->vol.num_sweeps_ax,
+		    sv_p->vol.ih.ic.num_sweeps,
+		    sv_p->vol.size / 1048576.0);
 	}
     }
 }
