@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.54 $ $Date: 2010/10/29 16:08:26 $
+   .	$Revision: 1.55 $ $Date: 2010/11/02 21:41:11 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -151,6 +151,7 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 	= vol_p->ray_az0 = vol_p->ray_az1 = NULL;
     vol_p->dat = NULL;
     vol_p->truncated = 1;
+    vol_p->size = sizeof(struct Sigmet_Vol);
     return;
 }
 
@@ -625,6 +626,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
+    vol_p->size += num_sweeps * sizeof(int);
 
     vol_p->sweep_time = (double *)CALLOC(num_sweeps, sizeof(double));
     if ( !vol_p->sweep_time ) {
@@ -632,6 +634,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
+    vol_p->size += num_sweeps * sizeof(double);
 
     vol_p->sweep_angle = (double *)CALLOC(num_sweeps, sizeof(double));
     if ( !vol_p->sweep_angle ) {
@@ -639,6 +642,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
+    vol_p->size += num_sweeps * sizeof(double);
 
     vol_p->ray_ok = calloc2i(num_sweeps, num_rays);
     if ( !vol_p->ray_ok ) {
@@ -646,6 +650,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
+    vol_p->size += num_sweeps * num_rays * sizeof(int);
 
     vol_p->ray_time = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_time ) {
@@ -653,6 +658,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
+    vol_p->size += num_sweeps * num_rays * sizeof(double);
 
     vol_p->ray_num_bins = calloc2i(num_sweeps, num_rays);
     if ( !vol_p->ray_num_bins ) {
@@ -660,6 +666,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
+    vol_p->size += num_sweeps * num_rays * sizeof(int);
 
     vol_p->ray_tilt0 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_tilt0 ) {
@@ -667,6 +674,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
+    vol_p->size += num_sweeps * num_rays * sizeof(double);
 
     vol_p->ray_tilt1 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_tilt1 ) {
@@ -674,6 +682,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
+    vol_p->size += num_sweeps * num_rays * sizeof(double);
 
     vol_p->ray_az0 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_az0 ) {
@@ -681,6 +690,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
+    vol_p->size += num_sweeps * num_rays * sizeof(double);
 
     vol_p->ray_az1 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_az1 ) {
@@ -688,8 +698,10 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
+    vol_p->size += num_sweeps * num_rays * sizeof(double);
 
     vol_p->dat = CALLOC(num_types, sizeof(union Sigmet_DatArr));
+    vol_p->size += num_types + sizeof(union Sigmet_DatArr);
     if ( !vol_p->dat ) {
 	Err_Append("Could not allocate data array (data type dimension). ");
 	status = SIGMET_VOL_MEM_FAIL;
@@ -727,6 +739,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    status = SIGMET_VOL_MEM_FAIL;
 		    goto error;
 		}
+		vol_p->size += num_sweeps * num_rays * num_bins;
 		break;
 	    case DB_DBT2:
 	    case DB_DBZ2:
@@ -747,7 +760,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    status = SIGMET_VOL_MEM_FAIL;
 		    goto error;
 		}
-		break;
+		vol_p->size += num_sweeps * num_rays * num_bins * 2;
 		break;
 	}
     }
