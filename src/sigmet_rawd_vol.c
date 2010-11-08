@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.29 $ $Date: 2010/11/05 16:55:48 $
+ .	$Revision: 1.30 $ $Date: 2010/11/05 19:49:12 $
  */
 
 #include <unistd.h>
@@ -28,17 +28,36 @@
 
 #define LEN 1024
 
+/* Maximum total size allowed for all volumes, in bytes */
+static size_t max_size = 536870912;
+
 /* A Sigmet volume struct and data to manage it. */
 struct sig_vol {
     struct Sigmet_Vol vol;		/* Sigmet volume struct. See sigmet.h */
     char vol_nm[LEN];			/* file that provided the volume */
     dev_t st_dev;			/* Device that provided vol */
     ino_t st_ino;			/* I-number of file that provided vol */
+    int h;				/* hash(vol_nm) */
     int keep;				/* If true, do not delete this volume */
-    struct sig_vol *next;		/* Next volume in linked list */
+    struct sig_vol *tprev, *tnext;	/* Previous and next volume in a linked
+					   list (bucket) in vols */
+    struct sig_vol *uprev, *unext;	/* Previous and next volumes in usage
+					   linked list. When a volume is
+					   accessed, it is placed at the tail of
+					   this list. If the process needs
+					   memory, it removes volumes from the
+					   head of the usage list. */
 };
 
-/* Data base of Sigmet volumes for the application */
+/* Head and tail of the usage linked list */
+static struct sig_vol *uhead, *utail;
+
+/*
+   Table of Sigmet volumes for the application. Each element is a linked list of
+   volumes with a common hash (see the hash function defined below). The volumes
+   are linked by their tprev and tnext members.
+ */
+
 #define N_VOLS 8
 #define MASK 0x07
 static struct sig_vol *vols[N_VOLS];
@@ -46,11 +65,15 @@ static struct sig_vol *vols[N_VOLS];
 /* Local functions and variables */
 static struct sig_vol *sig_vol_new(void);
 static void sig_vol_destroy(struct sig_vol *);
+static void tunlink(struct sig_vol *);
+static void uunlink(struct sig_vol *sv_p);
+static void uappend(struct sig_vol *sv_p);
 static int hash(ino_t);
 static int file_id(char *, dev_t *, ino_t *);
 static struct sig_vol *sig_vol_get(char *vol_nm);
 static void sig_vol_rm(char *vol_nm);
 static FILE *vol_open(const char *, pid_t *, int, FILE *);
+static size_t vol_size(void);
 
 /* Initialize this interface */
 void SigmetRaw_VolInit(void)
@@ -71,12 +94,12 @@ void SigmetRaw_VolInit(void)
 /* Free memory and reinitialize this interface */
 void SigmetRaw_VolFree(void)
 {
-    struct sig_vol *sv_p, *next;
+    struct sig_vol *sv_p, *tnext;
     int n;
 
     for (n = 0; n < N_VOLS; n++) {
-	for (sv_p = next = vols[n]; sv_p; sv_p = next) {
-	    next = sv_p->next;
+	for (sv_p = tnext = vols[n]; sv_p; sv_p = tnext) {
+	    tnext = sv_p->tnext;
 	    sig_vol_destroy(sv_p);
 	}
 	vols[n] = NULL;
@@ -97,11 +120,13 @@ struct sig_vol *sig_vol_new(void)
 	return NULL;
     }
     Sigmet_InitVol(&sv_p->vol);
-    memset(sv_p->vol_nm, 0, LEN);
+    memset(sv_p->vol_nm, '\0', LEN);
     sv_p->st_dev = 0;
     sv_p->st_ino = 0;
+    sv_p->h = -1;
     sv_p->keep = 0;
-    sv_p->next = NULL;
+    sv_p->tprev = sv_p->tnext = NULL;
+    sv_p->uprev = sv_p->unext = NULL;
     return sv_p;
 };
 
@@ -113,6 +138,67 @@ void sig_vol_destroy(struct sig_vol *sv_p)
     }
     Sigmet_FreeVol(&sv_p->vol);
     FREE(sv_p);
+}
+
+/* Unlink a volume from vols */
+static void tunlink(struct sig_vol *sv_p)
+{
+    int h;
+
+    if ( !sv_p ) {
+	return;
+    }
+    if ( sv_p->tprev ) {
+	sv_p->tprev->tnext = sv_p->tnext;
+    }
+    if ( sv_p->tnext ) {
+	sv_p->tnext->tprev = sv_p->tprev;
+    }
+    h = sv_p->h;
+    if ( sv_p == vols[h] ) {
+	vols[h] = sv_p->tnext;
+    }
+    sv_p->tprev = sv_p->tnext = NULL;
+}
+
+/* Unlink a volume from the usage list */
+static void uunlink(struct sig_vol *sv_p)
+{
+    if ( !sv_p ) {
+	return;
+    }
+    if ( sv_p->uprev ) {
+	sv_p->uprev->unext = sv_p->unext;
+    }
+    if ( sv_p->unext ) {
+	sv_p->unext->uprev = sv_p->uprev;
+    }
+    if ( sv_p == uhead ) {
+	uhead = sv_p->unext;
+	if ( uhead ) {
+	    uhead->uprev = NULL;
+	}
+    }
+    if ( sv_p == utail ) {
+	utail = sv_p->uprev;
+    }
+    sv_p->uprev = sv_p->unext = NULL;
+}
+
+/* Append a volume to the usage list */
+static void uappend(struct sig_vol *sv_p)
+{
+    if ( !sv_p ) {
+	return;
+    }
+    if ( utail ) {
+	utail->unext = sv_p;
+    }
+    sv_p->uprev = utail;
+    utail = sv_p;
+    if ( !uhead ) {
+	uhead = sv_p;
+    }
 }
 
 /* Create an integer hash for file with index number st_ino. */
@@ -153,15 +239,24 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
 {
     dev_t d;			/* Id of device containing file named vol_nm */
     ino_t i;			/* Inode number for file named vol_nm*/
-    int n;			/* Index into vols */
+    int h;			/* Index into vols */
     struct sig_vol *sv_p;	/* Return value */
 
     if ( !file_id(vol_nm, &d, &i) ) {
 	return NULL;
     }
-    n = hash(i);
-    for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
+
+    /*
+       Search for the volume in vols. If present, move it to the end of the usage
+       list and return its address. If absent, create an new entry in vols, append
+       it to the end of the usage list, and return its address.
+     */
+
+    h = hash(i);
+    for (sv_p = vols[h]; sv_p; sv_p = sv_p->tnext) {
 	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
+	    uunlink(sv_p);
+	    uappend(sv_p);
 	    return sv_p;
 	}
     }
@@ -171,8 +266,13 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
     strncpy(sv_p->vol_nm, vol_nm, LEN);
     sv_p->st_dev = d;
     sv_p->st_ino = i;
-    sv_p->next = vols[n];
-    vols[n] = sv_p;
+    sv_p->h = h;
+    if ( vols[h] ) {
+	vols[h]->tprev = sv_p;
+    }
+    sv_p->tnext = vols[h];
+    vols[h] = sv_p;
+    uappend(sv_p);
     return sv_p;
 }
 
@@ -184,22 +284,18 @@ static void sig_vol_rm(char *vol_nm)
 {
     dev_t d;			/* Id of device containing file named vol_nm */
     ino_t i;			/* Inode number for file named vol_nm*/
-    int n;			/* Index into vols */
-    struct sig_vol *sv_p, *next;
-    struct sig_vol *prev;
+    int h;			/* Index into vols */
+    struct sig_vol *sv_p, *tnext;
 
     if ( !file_id(vol_nm, &d, &i) ) {
 	return;
     }
-    n = hash(i);
-    for (sv_p = vols[n], prev = NULL; sv_p; prev = sv_p, sv_p = next) {
-	next = sv_p->next;
+    h = hash(i);
+    for (sv_p = vols[h]; sv_p; sv_p = tnext) {
+	tnext = sv_p->tnext;
 	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
-	    if ( prev ) {
-		prev->next = sv_p->next;
-	    } else {
-		vols[n] = sv_p->next;
-	    }
+	    tunlink(sv_p);
+	    uunlink(sv_p);
 	    sig_vol_destroy(sv_p);
 	    break;
 	}
@@ -282,7 +378,11 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	    case SIGMET_VOL_MEM_FAIL:
 		/* Try to free some memory and try again */
 		fprintf(err, "Out of memory. Offloading unused volumes\n");
-		SigmetRaw_Flush();
+		max_size = vol_size() * 3 / 4;
+		if ( SigmetRaw_Flush() == 0 ) {
+		    fprintf(err, "Could not offload any volumes\n");
+		    try = max_try;
+		}
 		break;
 	    case SIGMET_VOL_INPUT_FAIL:
 	    case SIGMET_VOL_BAD_VOL:
@@ -368,7 +468,8 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		/* Try to free some memory and try again */
 		fprintf(err, "Read failed. Out of memory. %s "
 			"Offloading unused volumes\n", Err_Get());
-		if ( !SigmetRaw_Flush() ) {
+		max_size = vol_size() * 3 / 4;
+		if ( SigmetRaw_Flush() == 0 ) {
 		    fprintf(err, "Could not offload any volumes\n");
 		    try = max_try;
 		}
@@ -415,7 +516,7 @@ void SigmetRaw_VolList(FILE *out)
     struct sig_vol *sv_p;
 
     for (n = 0; n < N_VOLS; n++) {
-	for (sv_p = vols[n]; sv_p; sv_p = sv_p->next) {
+	for (sv_p = vols[n]; sv_p; sv_p = sv_p->tnext) {
 	    fprintf(out, "%s %s. %d out of %d sweeps. %8.4f MB.\n",
 		    sv_p->vol_nm,
 		    (sv_p->keep) ? "Keep" : "Free",
@@ -446,34 +547,22 @@ void SigmetRaw_Release(char *vol_nm)
     }
 }
 
-/* Remove unused volumes. Return true if volumes are removed. */
+/* Remove unused volumes. Return number of volumes removed. */
 int SigmetRaw_Flush(void)
 {
-    int n;
-    struct sig_vol *sv_p, *prev;
     int c;
+    struct sig_vol *sv_p, *unext;
 
-    for (c = 0, n = 0; n < N_VOLS; n++) {
-	for (sv_p = vols[n]; sv_p; ) {
-	    if ( sv_p->keep ) {
-		prev = sv_p;
-		sv_p = sv_p->next;
-	    } else {
-		struct sig_vol *to_destroy = sv_p;
-
-		if ( sv_p == vols[n] ) {
-		    vols[n] = prev = sv_p->next;
-		} else {
-		    prev->next = sv_p->next;
-		}
-		sv_p = sv_p->next;
-		sig_vol_destroy(to_destroy);
-		c++;
-	    }
+    for (sv_p = uhead, c = 0; sv_p && vol_size() > max_size ; sv_p = unext) {
+	unext = sv_p->unext;
+	if ( !sv_p->keep ) {
+	    tunlink(sv_p);
+	    uunlink(sv_p);
+	    sig_vol_destroy(sv_p);
+	    c++;
 	}
     }
-
-    return (c > 0);
+    return c;
 }
 
 /*
@@ -587,4 +676,16 @@ error:
 	    close(pfd[1]);
 	}
 	return NULL;
+}
+
+/* Compute total size of currently loaded sigmet volumes */
+static size_t vol_size(void)
+{
+    size_t sz;
+    struct sig_vol *sv_p;
+
+    for (sz = 0, sv_p = uhead; sv_p; sv_p = sv_p->unext) {
+	sz += sv_p->vol.size;
+    }
+    return sz;
 }
