@@ -7,7 +7,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.18 $ $Date: 2010/11/04 15:58:27 $
+   .	$Revision: 1.19 $ $Date: 2010/11/04 18:28:40 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -55,5 +55,6 @@ void SigmetRaw_Keep(char *);
 void SigmetRaw_Release(char *);
 void SigmetRaw_VolList(FILE *);
 int SigmetRaw_Flush(void);
+size_t SigmetRaw_MaxSize(size_t);
 
 #endif

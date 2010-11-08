@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.32 $ $Date: 2010/11/08 16:40:30 $
+ .	$Revision: 1.33 $ $Date: 2010/11/08 16:42:09 $
  */
 
 #include <unistd.h>
@@ -563,6 +563,15 @@ int SigmetRaw_Flush(void)
 	}
     }
     return c;
+}
+
+/* Get or set max size */
+size_t SigmetRaw_MaxSize(size_t sz)
+{
+    if ( sz > 0 ) {
+	max_size = sz;
+    }
+    return max_size;
 }
 
 /*
