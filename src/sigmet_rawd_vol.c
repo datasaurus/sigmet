@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.33 $ $Date: 2010/11/08 16:42:09 $
+ .	$Revision: 1.34 $ $Date: 2010/11/08 17:03:14 $
  */
 
 #include <unistd.h>
@@ -415,6 +415,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 		break;
 	}
     }
+    SigmetRaw_Flush();
     *vol_pp = vol_p;
     return SIGMET_CB_SUCCESS;
 }
@@ -505,6 +506,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		break;
 	}
     }
+    SigmetRaw_Flush();
     *vol_pp = vol_p;
     return SIGMET_CB_SUCCESS;
 }
