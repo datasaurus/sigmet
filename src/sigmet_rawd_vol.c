@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.35 $ $Date: 2010/11/08 17:11:57 $
+ .	$Revision: 1.36 $ $Date: 2010/11/08 18:07:55 $
  */
 
 #include <unistd.h>
@@ -539,6 +539,28 @@ void SigmetRaw_Release(char *vol_nm)
     if ( (sv_p = sig_vol_get(vol_nm)) ) {
 	sv_p->keep = 0;
     }
+}
+
+/* Delete a volume */
+int SigmetRaw_Delete(char *vol_nm)
+{
+    dev_t d;			/* Id of device containing file named vol_nm */
+    ino_t i;			/* Inode number for file named vol_nm*/
+    int h;			/* Index into vols */
+    struct sig_vol *sv_p;	/* Volume to delete */
+
+    if ( !hash(vol_nm, &d, &i, &h) ) {
+	return 0;
+    }
+    for (sv_p = vols[h]; sv_p; sv_p = sv_p->tnext) {
+	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
+	    uunlink(sv_p);
+	    tunlink(sv_p);
+	    sig_vol_free(sv_p);
+	    return 1;
+	}
+    }
+    return 0;
 }
 
 /* Remove unused volumes. Return number of volumes removed. */
