@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.30 $ $Date: 2010/11/05 19:49:12 $
+ .	$Revision: 1.31 $ $Date: 2010/11/08 16:38:26 $
  */
 
 #include <unistd.h>
@@ -111,7 +111,7 @@ void SigmetRaw_VolFree(void)
    wrong, store an error string with Err_Append and return NULL.
    Return value should eventually be freed with call to sig_vol_destroy.
  */
-struct sig_vol *sig_vol_new(void)
+static struct sig_vol *sig_vol_new(void)
 {
     struct sig_vol *sv_p;
 
@@ -131,7 +131,7 @@ struct sig_vol *sig_vol_new(void)
 };
 
 /* Free all memory associated with an addess returned by sig_vol_new. */
-void sig_vol_destroy(struct sig_vol *sv_p)
+static void sig_vol_destroy(struct sig_vol *sv_p)
 {
     if ( !sv_p ) {
 	return;
