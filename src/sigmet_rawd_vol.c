@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.31 $ $Date: 2010/11/08 16:38:26 $
+ .	$Revision: 1.32 $ $Date: 2010/11/08 16:40:30 $
  */
 
 #include <unistd.h>
@@ -64,7 +64,7 @@ static struct sig_vol *vols[N_VOLS];
 
 /* Local functions and variables */
 static struct sig_vol *sig_vol_new(void);
-static void sig_vol_destroy(struct sig_vol *);
+static void sig_vol_free(struct sig_vol *);
 static void tunlink(struct sig_vol *);
 static void uunlink(struct sig_vol *sv_p);
 static void uappend(struct sig_vol *sv_p);
@@ -100,7 +100,7 @@ void SigmetRaw_VolFree(void)
     for (n = 0; n < N_VOLS; n++) {
 	for (sv_p = tnext = vols[n]; sv_p; sv_p = tnext) {
 	    tnext = sv_p->tnext;
-	    sig_vol_destroy(sv_p);
+	    sig_vol_free(sv_p);
 	}
 	vols[n] = NULL;
     }
@@ -109,7 +109,7 @@ void SigmetRaw_VolFree(void)
 /*
    Create a new Sigmet_Vol struct. Return its address.  If something goes
    wrong, store an error string with Err_Append and return NULL.
-   Return value should eventually be freed with call to sig_vol_destroy.
+   Return value should eventually be freed with call to sig_vol_free.
  */
 static struct sig_vol *sig_vol_new(void)
 {
@@ -131,7 +131,7 @@ static struct sig_vol *sig_vol_new(void)
 };
 
 /* Free all memory associated with an addess returned by sig_vol_new. */
-static void sig_vol_destroy(struct sig_vol *sv_p)
+static void sig_vol_free(struct sig_vol *sv_p)
 {
     if ( !sv_p ) {
 	return;
@@ -296,7 +296,7 @@ static void sig_vol_rm(char *vol_nm)
 	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
 	    tunlink(sv_p);
 	    uunlink(sv_p);
-	    sig_vol_destroy(sv_p);
+	    sig_vol_free(sv_p);
 	    break;
 	}
     }
@@ -558,7 +558,7 @@ int SigmetRaw_Flush(void)
 	if ( !sv_p->keep ) {
 	    tunlink(sv_p);
 	    uunlink(sv_p);
-	    sig_vol_destroy(sv_p);
+	    sig_vol_free(sv_p);
 	    c++;
 	}
     }
