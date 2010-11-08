@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.4 $ $Date: 2010/11/04 18:36:31 $
+ .	$Revision: 1.5 $ $Date: 2010/11/04 18:50:02 $
  */
 
 #include <stdlib.h>
@@ -27,6 +27,12 @@ static char *ddir;
 
 /* Default path length */
 #define LEN 4096
+
+void cleanup(void)
+{
+    FREE(dsock);
+    FREE(ddir);
+}
 
 /*
    Identify and create the daemon working directory.
@@ -100,6 +106,7 @@ void SigmetRaw_MkDDir(void)
     }
 
     init = 1;
+    atexit(cleanup);
 }
 
 /*
