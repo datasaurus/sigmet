@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.34 $ $Date: 2010/11/08 17:03:14 $
+ .	$Revision: 1.35 $ $Date: 2010/11/08 17:11:57 $
  */
 
 #include <unistd.h>
@@ -37,7 +37,7 @@ struct sig_vol {
     char vol_nm[LEN];			/* file that provided the volume */
     dev_t st_dev;			/* Device that provided vol */
     ino_t st_ino;			/* I-number of file that provided vol */
-    int h;				/* hash(vol_nm) */
+    int h;				/* hash for vol_nm */
     int keep;				/* If true, do not delete this volume */
     struct sig_vol *tprev, *tnext;	/* Previous and next volume in a linked
 					   list (bucket) in vols */
@@ -68,8 +68,7 @@ static void sig_vol_free(struct sig_vol *);
 static void tunlink(struct sig_vol *);
 static void uunlink(struct sig_vol *sv_p);
 static void uappend(struct sig_vol *sv_p);
-static int hash(ino_t);
-static int file_id(char *, dev_t *, ino_t *);
+static int hash(char *, dev_t *, ino_t *, int *);
 static struct sig_vol *sig_vol_get(char *vol_nm);
 static void sig_vol_rm(char *vol_nm);
 static FILE *vol_open(const char *, pid_t *, int, FILE *);
@@ -201,18 +200,12 @@ static void uappend(struct sig_vol *sv_p)
     }
 }
 
-/* Create an integer hash for file with index number st_ino. */
-static int hash(ino_t st_ino)
-{
-    return (int)(st_ino & MASK);
-}
-
 /*
-   Fetch device id and inode for the file named vol_nm, and store at d_p and i_p.
-   Return true if successful. If failure, return false and store an error string
-   with Err_Append.
+   Fetch device id and inode for the file named vol_nm, and store at d_p and
+   i_p.  Store a hash for the file at h_p.  Return true if successful. If
+   something goes wrong, return false and store an error string with Err_Append.
  */
-static int file_id(char *vol_nm, dev_t *d_p, ino_t *i_p)
+static int hash(char *vol_nm, dev_t *d_p, ino_t *i_p, int *h_p)
 {
     struct stat sbuf;
 
@@ -226,6 +219,7 @@ static int file_id(char *vol_nm, dev_t *d_p, ino_t *i_p)
     }
     *d_p = sbuf.st_dev;
     *i_p = sbuf.st_ino;
+    *h_p =  (int)(sbuf.st_ino & MASK);
     return 1;
 }
 
@@ -242,9 +236,6 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
     int h;			/* Index into vols */
     struct sig_vol *sv_p;	/* Return value */
 
-    if ( !file_id(vol_nm, &d, &i) ) {
-	return NULL;
-    }
 
     /*
        Search for the volume in vols. If present, move it to the end of the usage
@@ -252,7 +243,9 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
        it to the end of the usage list, and return its address.
      */
 
-    h = hash(i);
+    if ( !hash(vol_nm, &d, &i, &h) ) {
+	return NULL;
+    }
     for (sv_p = vols[h]; sv_p; sv_p = sv_p->tnext) {
 	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
 	    uunlink(sv_p);
@@ -287,10 +280,9 @@ static void sig_vol_rm(char *vol_nm)
     int h;			/* Index into vols */
     struct sig_vol *sv_p, *tnext;
 
-    if ( !file_id(vol_nm, &d, &i) ) {
+    if ( !hash(vol_nm, &d, &i, &h) ) {
 	return;
     }
-    h = hash(i);
     for (sv_p = vols[h]; sv_p; sv_p = tnext) {
 	tnext = sv_p->tnext;
 	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
