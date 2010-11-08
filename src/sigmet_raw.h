@@ -7,7 +7,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.19 $ $Date: 2010/11/04 18:28:40 $
+   .	$Revision: 1.20 $ $Date: 2010/11/08 17:02:32 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -53,6 +53,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *, FILE *, int, struct Sigmet_Vol *
 enum Sigmet_CB_Return SigmetRaw_ReadVol(char *, FILE *, int, struct Sigmet_Vol **);
 void SigmetRaw_Keep(char *);
 void SigmetRaw_Release(char *);
+int SigmetRaw_Delete(char *);
 void SigmetRaw_VolList(FILE *);
 int SigmetRaw_Flush(void);
 size_t SigmetRaw_MaxSize(size_t);
