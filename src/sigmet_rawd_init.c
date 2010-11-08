@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.297 $ $Date: 2010/11/04 15:58:27 $
+ .	$Revision: 1.298 $ $Date: 2010/11/04 18:35:08 $
  */
 
 #include <limits.h>
@@ -46,7 +46,7 @@
 #define LEN 4096
 
 /* Subcommands */
-#define NCMD 25
+#define NCMD 26
 typedef enum Sigmet_CB_Return (callback)(int , char **, char *, int, FILE *,
 	int, FILE *);
 static callback pid_cb;
@@ -57,6 +57,7 @@ static callback list_cb;
 static callback keep_cb;
 static callback release_cb;
 static callback flush_cb;
+static callback max_size_cb;
 static callback volume_headers_cb;
 static callback vol_hdr_cb;
 static callback near_sweep_cb;
@@ -76,15 +77,17 @@ static callback img_cb;
 static callback dorade_cb;
 static char *cmd1v[NCMD] = {
     "pid", "types", "colors", "good", "list", "keep", "release",
-    "flush", "volume_headers", "vol_hdr", "near_sweep", "ray_headers",
-    "data", "bin_outline", "bintvls", "radar_lon", "radar_lat", "shift_az",
-    "proj", "img_app", "img_sz", "alpha", "img_name", "img", "dorade"
+    "flush", "max_size", "volume_headers", "vol_hdr", "near_sweep",
+    "ray_headers", "data", "bin_outline", "bintvls", "radar_lon",
+    "radar_lat", "shift_az", "proj", "img_app", "img_sz", "alpha",
+    "img_name", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, types_cb, setcolors_cb, good_cb, list_cb, keep_cb, release_cb,
-    flush_cb, volume_headers_cb, vol_hdr_cb, near_sweep_cb, ray_headers_cb,
-    data_cb, bin_outline_cb, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
-    proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb
+    flush_cb, max_size_cb, volume_headers_cb, vol_hdr_cb, near_sweep_cb,
+    ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb, radar_lon_cb,
+    radar_lat_cb, shift_az_cb, proj_cb, img_app_cb, img_sz_cb, alpha_cb,
+    img_name_cb, img_cb, dorade_cb
 };
 
 /* Convenience functions */
@@ -615,6 +618,34 @@ static enum Sigmet_CB_Return flush_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     return SigmetRaw_Flush() ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
+}
+
+/* Get or set maximum allocation, in bytes, for volumes */
+static enum Sigmet_CB_Return max_size_cb(int argc, char *argv[], char *cl_wd,
+	int i_out, FILE *out, int i_err, FILE *err)
+{
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+    char *max_size_s;
+    size_t sz;
+
+    if ( argc == 2 ) {
+	fprintf(out, "%lu\n", (unsigned long)SigmetRaw_MaxSize(0));
+	return SIGMET_CB_SUCCESS;
+    } else if ( argc == 3) {
+	max_size_s = argv[2];
+	if ( sscanf(max_size_s, "%lu", &sz) != 1 ) {
+	    fprintf(err, "%s %s: maximum size must be a positive integer\n",
+		    argv0, argv1);
+	    return SIGMET_CB_FAIL;
+	}
+	fprintf(out, "%lu\n", (unsigned long)SigmetRaw_MaxSize(sz));
+	return SIGMET_CB_SUCCESS;
+    } else {
+	fprintf(err, "Usage: %s %s [new_size]\n", argv0, argv1);
+	return SIGMET_CB_FAIL;
+    }
+    return SIGMET_CB_SUCCESS;
 }
 
 static enum Sigmet_CB_Return volume_headers_cb(int argc, char *argv[], char *cl_wd,
