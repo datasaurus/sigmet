@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.7 $ $Date: 2010/11/04 18:56:03 $
+   .	$Revision: 1.8 $ $Date: 2010/11/09 17:44:34 $
  */
 
 #include <stdio.h>
@@ -28,9 +28,6 @@
 /* Local signal handlers */
 static int handle_signals(void);
 static void handler(int signum);
-
-/* Size for various strings */
-#define LEN 4096
 
 void SigmetRaw_Start(int argc, char *argv[])
 {
