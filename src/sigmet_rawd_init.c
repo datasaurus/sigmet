@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.299 $ $Date: 2010/11/08 17:03:39 $
+ .	$Revision: 1.300 $ $Date: 2010/11/08 18:09:23 $
  */
 
 #include <limits.h>
@@ -184,9 +184,9 @@ int main(int argc, char *argv[])
 	goto error;
     }
     sa_p = (struct sockaddr *)&sa;
-    if ((i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
+    if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1
 	    || bind(i_dmn, sa_p, SA_UN_SZ) == -1
-	    || listen(i_dmn, SOMAXCONN) == -1) {
+	    || listen(i_dmn, SOMAXCONN) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create io socket.\n%s\n",
 		argv0, pid, strerror(errno));
 	goto error;
@@ -407,7 +407,7 @@ int main(int argc, char *argv[])
 		    "%s\n", time_stamp(), cmd1, client_pid, strerror(errno) );
 	}
 
-	if (stop) {
+	if ( stop ) {
 	    break;
 	}
     }
@@ -440,7 +440,7 @@ static char *time_stamp(void)
     time_t now;
 
     now = time(NULL);
-    if (strftime(ts, LEN, "%Y/%m/%d %H:%M:%S %Z", localtime(&now))) {
+    if ( strftime(ts, LEN, "%Y/%m/%d %H:%M:%S %Z", localtime(&now)) ) {
 	return ts;
     } else {
 	return "";
@@ -483,7 +483,7 @@ static enum Sigmet_CB_Return pid_cb(int argc, char *argv[], char *cl_wd, int i_o
     char *argv0 = argv[0];
     char *argv1 = argv[1];
 
-    if (argc != 2) {
+    if ( argc != 2 ) {
 	fprintf(err, "Usage: %s %s\n", argv0, argv1);
 	return SIGMET_CB_FAIL;
     }
@@ -498,7 +498,7 @@ static enum Sigmet_CB_Return types_cb(int argc, char *argv[], char *cl_wd,
     char *argv1 = argv[1];
     int y;
 
-    if (argc != 2) {
+    if ( argc != 2 ) {
 	fprintf(err, "Usage: %s %s\n", argv0, argv1);
 	return SIGMET_CB_FAIL;
     }
@@ -519,7 +519,7 @@ static enum Sigmet_CB_Return setcolors_cb(int argc, char *argv[], char *cl_wd,
     int status;
 
     /* Parse command line */
-    if (argc != 4) {
+    if ( argc != 4 ) {
 	fprintf(err, "Usage: %s %s type colors_file\n", argv0, argv1);
 	return SIGMET_CB_FAIL;
     }
@@ -906,26 +906,26 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 
     y = s = r = b = all;
     type = DB_ERROR;
-    if (argc > 3 && (type = Sigmet_DataType(argv[2])) == DB_ERROR) {
+    if ( argc > 3 && (type = Sigmet_DataType(argv[2])) == DB_ERROR ) {
 	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, argv[2]);
 	return SIGMET_CB_FAIL;
     }
-    if (argc > 4 && sscanf(argv[3], "%d", &s) != 1) {
+    if ( argc > 4 && sscanf(argv[3], "%d", &s) != 1 ) {
 	fprintf(err, "%s %s: expected integer for sweep index, got %s\n",
 		argv0, argv1, argv[3]);
 	return SIGMET_CB_FAIL;
     }
-    if (argc > 5 && sscanf(argv[4], "%d", &r) != 1) {
+    if ( argc > 5 && sscanf(argv[4], "%d", &r) != 1 ) {
 	fprintf(err, "%s %s: expected integer for ray index, got %s\n",
 		argv0, argv1, argv[4]);
 	return SIGMET_CB_FAIL;
     }
-    if (argc > 6 && sscanf(argv[5], "%d", &b) != 1) {
+    if ( argc > 6 && sscanf(argv[5], "%d", &b) != 1 ) {
 	fprintf(err, "%s %s: expected integer for bin index, got %s\n",
 		argv0, argv1, argv[5]);
 	return SIGMET_CB_FAIL;
     }
-    if (argc > 7) {
+    if ( argc > 7 ) {
 	fprintf(err, "Usage: %s %s [type] [sweep] [ray] sigmet_volume\n",
 		argv0, argv1);
 	return SIGMET_CB_FAIL;
@@ -941,18 +941,18 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	    return status;
     }
 
-    if (type != DB_ERROR) {
+    if ( type != DB_ERROR ) {
 	/*
 	   User has specified a data type.  Search for it in the volume,
 	   and set y to the specified type (instead of all).
 	 */
 	abbrv = Sigmet_DataType_Abbrv(type);
 	for (y = 0; y < vol_p->num_types; y++) {
-	    if (type == vol_p->types[y]) {
+	    if ( type == vol_p->types[y] ) {
 		break;
 	    }
 	}
-	if (y == vol_p->num_types) {
+	if ( y == vol_p->num_types ) {
 	    fprintf(err, "%s %s: data type %s not in %s\n",
 		    argv0, argv1, abbrv, vol_nm);
 	    return SIGMET_CB_FAIL;
@@ -963,19 +963,19 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, s, vol_nm);
 	return SIGMET_CB_FAIL;
     }
-    if (r != all && r >= (int)vol_p->ih.ic.num_rays) {
+    if ( r != all && r >= (int)vol_p->ih.ic.num_rays ) {
 	fprintf(err, "%s %s: ray index %d out of range for %s\n",
 		argv0, argv1, r, vol_nm);
 	return SIGMET_CB_FAIL;
     }
-    if (b != all && b >= vol_p->ih.tc.tri.num_bins_out) {
+    if ( b != all && b >= vol_p->ih.tc.tri.num_bins_out ) {
 	fprintf(err, "%s %s: bin index %d out of range for %s\n",
 		argv0, argv1, b, vol_nm);
 	return SIGMET_CB_FAIL;
     }
 
     /* Write */
-    if (y == all && s == all && r == all && b == all) {
+    if ( y == all && s == all && r == all && b == all ) {
 	for (y = 0; y < vol_p->num_types; y++) {
 	    type = vol_p->types[y];
 	    abbrv = Sigmet_DataType_Abbrv(type);
@@ -988,7 +988,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 		    fprintf(out, "ray %d: ", r);
 		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
 			d = Sigmet_VolDat(vol_p, y, s, r, b);
-			if (Sigmet_IsData(d)) {
+			if ( Sigmet_IsData(d) ) {
 			    fprintf(out, "%f ", d);
 			} else {
 			    fprintf(out, "nodat ");
@@ -998,7 +998,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 		}
 	    }
 	}
-    } else if (s == all && r == all && b == all) {
+    } else if ( s == all && r == all && b == all ) {
 	for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 	    fprintf(out, "%s. sweep %d\n", abbrv, s);
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
@@ -1008,7 +1008,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 		fprintf(out, "ray %d: ", r);
 		for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
 		    d = Sigmet_VolDat(vol_p, y, s, r, b);
-		    if (Sigmet_IsData(d)) {
+		    if ( Sigmet_IsData(d) ) {
 			fprintf(out, "%f ", d);
 		    } else {
 			fprintf(out, "nodat ");
@@ -1017,7 +1017,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 		fprintf(out, "\n");
 	    }
 	}
-    } else if (r == all && b == all) {
+    } else if ( r == all && b == all ) {
 	fprintf(out, "%s. sweep %d\n", abbrv, s);
 	for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	    if ( !vol_p->ray_ok[s][r] ) {
@@ -1026,7 +1026,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	    fprintf(out, "ray %d: ", r);
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
 		d = Sigmet_VolDat(vol_p, y, s, r, b);
-		if (Sigmet_IsData(d)) {
+		if ( Sigmet_IsData(d) ) {
 		    fprintf(out, "%f ", d);
 		} else {
 		    fprintf(out, "nodat ");
@@ -1034,12 +1034,12 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	    }
 	    fprintf(out, "\n");
 	}
-    } else if (b == all) {
-	if (vol_p->ray_ok[s][r]) {
+    } else if ( b == all ) {
+	if ( vol_p->ray_ok[s][r] ) {
 	    fprintf(out, "%s. sweep %d, ray %d: ", abbrv, s, r);
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
 		d = Sigmet_VolDat(vol_p, y, s, r, b);
-		if (Sigmet_IsData(d)) {
+		if ( Sigmet_IsData(d) ) {
 		    fprintf(out, "%f ", d);
 		} else {
 		    fprintf(out, "nodat ");
@@ -1048,10 +1048,10 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	    fprintf(out, "\n");
 	}
     } else {
-	if (vol_p->ray_ok[s][r]) {
+	if ( vol_p->ray_ok[s][r] ) {
 	    fprintf(out, "%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
 	    d = Sigmet_VolDat(vol_p, y, s, r, b);
-	    if (Sigmet_IsData(d)) {
+	    if ( Sigmet_IsData(d) ) {
 		fprintf(out, "%f ", d);
 	    } else {
 		fprintf(out, "nodat ");
@@ -1078,7 +1078,7 @@ static enum Sigmet_CB_Return bin_outline_cb(int argc, char *argv[], char *cl_wd,
     double corners[8];
     double c;
 
-    if (argc != 7) {
+    if ( argc != 7 ) {
 	fprintf(err, "Usage: %s %s sweep ray bin unit sigmet_volume\n",
 		argv0, argv1);
 	return SIGMET_CB_FAIL;
@@ -1098,17 +1098,17 @@ static enum Sigmet_CB_Return bin_outline_cb(int argc, char *argv[], char *cl_wd,
 	    return status;
     }
 
-    if (sscanf(s_s, "%d", &s) != 1) {
+    if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(err, "%s %s: expected integer for sweep index, got %s\n",
 		argv0, argv1, s_s);
 	return SIGMET_CB_FAIL;
     }
-    if (sscanf(r_s, "%d", &r) != 1) {
+    if ( sscanf(r_s, "%d", &r) != 1 ) {
 	fprintf(err, "%s %s: expected integer for ray index, got %s\n",
 		argv0, argv1, r_s);
 	return SIGMET_CB_FAIL;
     }
-    if (sscanf(b_s, "%d", &b) != 1) {
+    if ( sscanf(b_s, "%d", &b) != 1 ) {
 	fprintf(err, "%s %s: expected integer for bin index, got %s\n",
 		argv0, argv1, b_s);
 	return SIGMET_CB_FAIL;
@@ -1129,12 +1129,12 @@ static enum Sigmet_CB_Return bin_outline_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, s, vol_nm);
 	return SIGMET_CB_FAIL;
     }
-    if (r >= vol_p->ih.ic.num_rays) {
+    if ( r >= vol_p->ih.ic.num_rays ) {
 	fprintf(err, "%s %s: ray index %d out of range for %s\n",
 		argv0, argv1, r, vol_nm);
 	return SIGMET_CB_FAIL;
     }
-    if (b >= vol_p->ih.tc.tri.num_bins_out) {
+    if ( b >= vol_p->ih.tc.tri.num_bins_out ) {
 	fprintf(err, "%s %s: bin index %d out of range for %s\n",
 		argv0, argv1, b, vol_nm);
 	return SIGMET_CB_FAIL;
@@ -1188,7 +1188,7 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
     }
-    if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
+    if ( (type_t = Sigmet_DataType(abbrv)) == DB_ERROR ) {
 	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
@@ -1210,11 +1210,11 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
 
     /* Make sure volume, type, and sweep are valid */
     for (y = 0; y < vol_p->num_types; y++) {
-	if (type_t == vol_p->types[y]) {
+	if ( type_t == vol_p->types[y] ) {
 	    break;
 	}
     }
-    if (y == vol_p->num_types) {
+    if ( y == vol_p->num_types ) {
 	fprintf(err, "%s %s: data type %s not in %s\n",
 		argv0, argv1, abbrv, vol_nm);
 	return SIGMET_CB_FAIL;
@@ -1552,7 +1552,7 @@ static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
     }
-    if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
+    if ( (type_t = Sigmet_DataType(abbrv)) == DB_ERROR ) {
 	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
@@ -1568,11 +1568,11 @@ static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
 
     /* Make sure volume, type, and sweep are valid */
     for (y = 0; y < vol_p->num_types; y++) {
-	if (type_t == vol_p->types[y]) {
+	if ( type_t == vol_p->types[y] ) {
 	    break;
 	}
     }
-    if (y == vol_p->num_types) {
+    if ( y == vol_p->num_types ) {
 	fprintf(err, "%s %s: data type %s not in %s\n",
 		argv0, argv1, abbrv, vol_nm);
 	return SIGMET_CB_FAIL;
@@ -1700,7 +1700,7 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 		argv0, argv1, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
     }
-    if ((type_t = Sigmet_DataType(abbrv)) == DB_ERROR) {
+    if ( (type_t = Sigmet_DataType(abbrv)) == DB_ERROR ) {
 	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
@@ -1723,11 +1723,11 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 
     /* Make sure volume, type, and sweep are valid */
     for (y = 0; y < vol_p->num_types; y++) {
-	if (type_t == vol_p->types[y]) {
+	if ( type_t == vol_p->types[y] ) {
 	    break;
 	}
     }
-    if (y == vol_p->num_types) {
+    if ( y == vol_p->num_types ) {
 	fprintf(err, "%s %s: data type %s not in %s\n",
 		argv0, argv1, abbrv, vol_nm);
 	return SIGMET_CB_FAIL;
@@ -1826,7 +1826,7 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 		argv0, argv1, Err_Get());
 	return SIGMET_CB_FAIL;
     }
-    if (snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) >= LEN) {
+    if ( snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) >= LEN ) {
 	fprintf(err, "%s %s: could not make image file name. "
 		"%s/%s.png too long.\n", argv0, argv1, cl_wd, base_nm);
 	return SIGMET_CB_FAIL;
@@ -2020,7 +2020,7 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     fprintf(out, "%s\n", img_fl_nm);
     return SIGMET_CB_SUCCESS;
 error:
-    if (img_out) {
+    if ( img_out ) {
 	if ( fclose(img_out) == EOF ) {
 	    fprintf(err, "%s: could not close pipe to %d "
 		    "for image file %s.\n%s\n",
