@@ -1,13 +1,14 @@
 /*
    -	sigmet_raw_start.c --
-   -		Callback for "sigmet_raw start ..."
+   -		Callback for "sigmet_raw start ...".
+   -		See sigmet_raw (1).
    -
    .	Copyright (c) 2010 Gordon D. Carrie
    .	All rights reserved.
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.8 $ $Date: 2010/11/09 17:44:34 $
+   .	$Revision: 1.9 $ $Date: 2010/11/09 17:45:57 $
  */
 
 #include <stdio.h>
@@ -22,10 +23,8 @@
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
-/* Daemon program name */
 #define SIGMET_RAWD "sigmet_rawd"
 
-/* Local signal handlers */
 static int handle_signals(void);
 static void handler(int signum);
 
@@ -50,11 +49,6 @@ void SigmetRaw_Start(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
     ucmd = argv[0];
-
-    /*
-       Set up minimal signal handling
-     */
-
     if ( !handle_signals() ) {
 	fprintf(stderr, "sigmet_raw start: could not set up signal "
 		"management.");
@@ -62,20 +56,22 @@ void SigmetRaw_Start(int argc, char *argv[])
     }
 
     /*
-       Identify and create daemon working directory.
+       Identify daemon working directory and socket.  Put daemon working
+       directory path into environment. The daemon and user command will
+       inherit the environment and will need the SIGMET_RAWD_DIR environment
+       variable to communicate.
      */
 
     SigmetRaw_MkDDir();
     ddir = SigmetRaw_GetDDir();
-
-    /*
-       Put daemon working directory into environment. The daemon and
-       user command will need it.
-     */
-
     if ( setenv("SIGMET_RAWD_DIR", ddir, 1) == -1 ) {
 	perror("sigmet_raw start: could not export name for daemon "
 		"working directory.\n");
+	exit(EXIT_FAILURE);
+    }
+    if ( !(dsock = SigmetRaw_GetSock()) ) {
+	fprintf(stderr, "sigmet_raw start: could not determine path to"
+		"daemon input socket.\n");
 	exit(EXIT_FAILURE);
     }
 
@@ -85,25 +81,19 @@ void SigmetRaw_Start(int argc, char *argv[])
 
     switch (dpid = fork()) {
 	case -1:
-	    /* Fail */
 	    perror("sigmet_raw start: could not fork daemon");
+	    exit(EXIT_FAILURE);
 	    break;
 	case 0:
-	    /* Child process - daemon */
 	    if ( setpgid(0, pgid) == -1 ) {
-		fprintf(stderr, "%s could not attach to process "
-			"group.\n%s\n", SIGMET_RAWD, strerror(errno));
+		fprintf(stderr, "sigmet_raw start: %s could not attach to "
+			"process group.\n%s\n", SIGMET_RAWD, strerror(errno));
 		_exit(EXIT_FAILURE);
 	    }
 	    execlp(SIGMET_RAWD, SIGMET_RAWD, (char *)NULL);
-	    fprintf(stderr, "Could not start %s\n%s\n", SIGMET_RAWD,
-		    strerror(errno));
+	    fprintf(stderr, "sigmet_raw start: could not start %s\n%s\n",
+		    SIGMET_RAWD, strerror(errno));
 	    _exit(EXIT_FAILURE);
-    }
-    if ( !(dsock = SigmetRaw_GetSock()) ) {
-	fprintf(stderr, "sigmet_raw start: could not determine path to"
-		"daemon input socket.\n");
-	exit(EXIT_FAILURE);
     }
     for (try = 3; try > 0; try--) {
 	if ( access(dsock, R_OK) == 0 ) {
@@ -127,14 +117,11 @@ void SigmetRaw_Start(int argc, char *argv[])
 	    perror("sigmet_raw start: could not fork user command");
 	    break;
 	case 0:
-	    /* Child process - user command from command line */
 	    if ( setpgid(0, pgid) == -1 ) {
 		fprintf(stderr, "%s could not attach to process "
 			"group.\n%s\n", ucmd, strerror(errno));
 		_exit(EXIT_FAILURE);
 	    }
-
-	    /* Execute the user command */
 	    execvp(ucmd, argv);
 	    fprintf(stderr, "Could not start %s\n%s\n",
 		    ucmd, strerror(errno));
@@ -142,7 +129,7 @@ void SigmetRaw_Start(int argc, char *argv[])
     }
 
     /*
-       Wait for a child, either the daemon, or the user command to exit.
+       Wait for a child, either the daemon or the user command to exit.
      */
 
     if ( (chpid = wait(&si)) == -1 ) {
@@ -174,7 +161,6 @@ void SigmetRaw_Start(int argc, char *argv[])
 		|| sigprocmask(SIG_BLOCK, &set, NULL) == -1 ) {
 	    perror(NULL);
 	}
-
 	kill(0, SIGTERM);
 	exit(status);
     } else {
