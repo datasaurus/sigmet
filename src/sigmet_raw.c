@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.63 $ $Date: 2010/11/09 17:58:35 $
+   .	$Revision: 1.64 $ $Date: 2010/11/09 20:19:53 $
  */
 
 #include <limits.h>
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
 	       Daemon has sent standard output
 	     */
 
-	    if ((ll = read(i_out, buf, LINE_MAX)) == -1) {
+	    if ( (ll = read(i_out, buf, LINE_MAX)) == -1 ) {
 		fprintf(stderr, "%s (%d): could not get standard output from "
 			"daemon\n%s\n", argv0, pid, strerror(errno));
 		goto error;
@@ -277,7 +277,7 @@ int main(int argc, char *argv[])
 	       Daemon has sent error output
 	     */
 
-	    if ((ll = read(i_err, buf, LINE_MAX)) == -1) {
+	    if ( (ll = read(i_err, buf, LINE_MAX)) == -1 ) {
 		fprintf(stderr, "%s (%d): could not get error output from "
 			"daemon\n%s\n", argv0, pid, strerror(errno));
 		goto error;
