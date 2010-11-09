@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.37 $ $Date: 2010/11/08 18:08:30 $
+ .	$Revision: 1.38 $ $Date: 2010/11/09 19:13:15 $
  */
 
 #include <unistd.h>
@@ -240,8 +240,8 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
     strcpy(sv_p->vol_nm, vol_nm);
     sv_p->st_dev = d;
     sv_p->st_ino = i;
-    sv_p->h = -1;
-    sv_p->keep = h;
+    sv_p->h = h;
+    sv_p->keep = 0;
     sv_p->tprev = NULL;
     sv_p->tnext = vols[h];
     if ( vols[h] ) {
