@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.300 $ $Date: 2010/11/08 18:09:23 $
+ .	$Revision: 1.301 $ $Date: 2010/11/09 20:25:25 $
  */
 
 #include <limits.h>
@@ -38,14 +38,25 @@
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
-/* Where to put output and error messages */
+/*
+   Names of files for daemon output and error messages
+ */
+
 #define SIGMET_RAWD_LOG "sigmet.log"
 #define SIGMET_RAWD_ERR "sigmet.err"
 
-/* Size for various strings */
+/*
+   Size for various strings
+ */
+
 #define LEN 4096
 
-/* Subcommands */
+/*
+   Callbacks for the subcommands. Subcommand is the word on the command
+   line (sent to the socket) after "sigmet_raw". The callback is the
+   subcommand name with a "_cb" suffix.
+ */
+
 #define NCMD 27
 typedef enum Sigmet_CB_Return (callback)(int , char **, char *, int, FILE *,
 	int, FILE *);
@@ -91,18 +102,18 @@ static callback *cb1v[NCMD] = {
     alpha_cb, img_name_cb, img_cb, dorade_cb
 };
 
-/* Convenience functions */
+#define SA_UN_SZ (sizeof(struct sockaddr_un))
+#define SA_PLEN (sizeof(sa.sun_path))
+
+/*
+   Convenience functions
+ */
+
 static char *time_stamp(void);
 static int abs_name(char *, char *, char *, size_t);
 static int img_name(struct Sigmet_Vol *, char *, int, char *);
-
-/* Signal handling functions */
 static int handle_signals(void);
 static void handler(int);
-
-/* Abbreviations */
-#define SA_UN_SZ (sizeof(struct sockaddr_un))
-#define SA_PLEN (sizeof(sa.sun_path))
 
 int main(int argc, char *argv[])
 {
@@ -128,24 +139,20 @@ int main(int argc, char *argv[])
 
     argv0 = argv[0];
     pid = getpid();
-
-    /* Set up signal handling */
     if ( !handle_signals() ) {
 	fprintf(stderr, "%s (%d): could not set up signal management.",
 		argv0, pid);
 	exit(EXIT_FAILURE);
     }
-
-    /* Usage: sigmet_rawd */
     if ( argc != 1 ) {
 	fprintf(stderr, "Usage: %s\n", argv0);
 	exit(EXIT_FAILURE);
     }
 
-    /* Initialize volume table */
+    /*
+       Initialize internal interfaces and data structures
+     */
     SigmetRaw_VolInit();
-
-    /* Initialize other variables */
     if ( !SigmetRaw_ProjInit() ) {
 	fprintf(stderr, "%s (%d): could not set default projection.\n",
 		argv0, pid);
@@ -162,15 +169,17 @@ int main(int argc, char *argv[])
 	}
     }
 
-    /* Identify and go to daemon working directory */
+    /*
+       Identify and create daemon working directory. Make it current
+       working directory. Create a socket to recieve client requests.
+     */
+
     SigmetRaw_MkDDir();
     ddir = SigmetRaw_GetDDir();
     if ( chdir(ddir) == -1 ) {
 	perror("Could not change to daemon working directory.");
 	exit(EXIT_FAILURE);
     }
-
-    /* Create socket to communicate with clients */
     if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
 	fprintf(stderr, "%s (%d): daemon socket %s already exists. "
 		"Is daemon already running?\n", argv0, pid, SIGMET_RAWD_IN);
@@ -192,7 +201,10 @@ int main(int argc, char *argv[])
 	goto error;
     }
 
-    /* Set up log and error output. */
+    /*
+       Set up log and error output.
+     */
+
     flags = O_CREAT | O_TRUNC | O_WRONLY;
     mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
     if ( (i = open(SIGMET_RAWD_LOG, flags, mode)) == -1
@@ -207,11 +219,14 @@ int main(int argc, char *argv[])
     }
     fclose(stdin);
 
+    /*
+       Wait for clients until "stop" subcommand is received or this process
+       is signaled.
+     */
+
     printf("%s: sigmet_rawd daemon starting.\nProcess id = %d.\n"
 	    "Socket = %s/%s\n", time_stamp(), pid, ddir, sa.sun_path);
     fflush(stdout);
-
-    /* Wait for clients */
     while ( (cl_io_fd = accept(i_dmn, NULL, 0)) != -1 ) {
 	int argc1;		/* Number of arguments in received command line */
 	char *argv1[SIGMET_RAWD_ARGCX];
@@ -231,7 +246,10 @@ int main(int argc, char *argv[])
 	void *t;		/* Hold return from realloc */
 	int stop = 0;		/* If true, exit program */
 
-	/* Close command stream if daemon spawns a child */
+	/*
+	   Close socket stream on fork
+	 */
+
 	if ( (flags = fcntl(cl_io_fd, F_GETFD)) == -1
 		|| fcntl(cl_io_fd, F_SETFD, flags | FD_CLOEXEC) == -1 ) {
 	    fprintf(stderr, "%s: could not set flags on connection to client.\n"
@@ -240,15 +258,17 @@ int main(int argc, char *argv[])
 	    continue;
 	}
 
-	/* Read client process id */
+	/*
+	   From socket stream, read client process id, client working directory,
+	   argument count, command line length, and arguments
+	 */
+
 	if ( read(cl_io_fd, &client_pid, sizeof(pid_t)) == -1 ) {
 	    fprintf(stderr, "%s: failed to read client process id.\n%s\n",
 		    time_stamp(), strerror(errno));
 	    close(cl_io_fd);
 	    continue;
 	}
-
-	/* Read client working directory */
 	if ( read(cl_io_fd, &cl_wd_l, sizeof(size_t)) == -1 ) {
 	    fprintf(stderr, "%s: failed to read client working directory for "
 		    "process %d.\n%s\n",
@@ -282,8 +302,6 @@ int main(int argc, char *argv[])
 	    close(cl_io_fd);
 	    continue;
 	}
-
-	/* Read argument count */
 	if ( read(cl_io_fd, &argc1, sizeof(int)) == -1 ) {
 	    fprintf(stderr, "%s: failed to read length of command line "
 		    "for process %d.\n%s\n",
@@ -298,8 +316,6 @@ int main(int argc, char *argv[])
 	    close(cl_io_fd);
 	    continue;
 	}
-
-	/* Read command line */
 	if ( read(cl_io_fd, &cmd_ln_l, sizeof(size_t)) == -1 ) {
 	    fprintf(stderr, "%s: failed to read length of command line "
 		    "for process %d.\n", time_stamp(), client_pid);
@@ -325,7 +341,10 @@ int main(int argc, char *argv[])
 	    continue;
 	}
 
-	/* Break command line into arguments */
+	/*
+	   Break command line into arguments at nul boundaries.
+	 */
+
 	for (a = 0, argv1[a] = c = cmd_ln, e = c + cmd_ln_l;
 		c < e && a < argc1;
 		c++) {
@@ -339,7 +358,12 @@ int main(int argc, char *argv[])
 	    continue;
 	}
 
-	/* Open fifos to client */
+	/*
+	   Open fifos to client. Client should have already created them.
+	   Output fifo is named as process id with ".1" suffix.
+	   Error fifo is named as process id with ".2" suffix.
+	 */
+
 	if ( snprintf(out_nm, LEN, "%d.1", client_pid) >= LEN ) {
 	    fprintf(stderr, "%s: could not create name for result pipe for "
 		    "process %d.\n", time_stamp(), client_pid);
@@ -368,15 +392,18 @@ int main(int argc, char *argv[])
 	    continue;
 	}
 
-	/* Identify command */
+	/*
+	   Identify subcommand. If subcommand is "stop", set the stop
+	   flag, which will enable a break at end of loop body.
+	   Otherwise, invoke the subcommand's callback.
+	 */
+
 	cmd0 = argv1[0];
 	cmd1 = argv1[1];
 	if ( strcmp(cmd1, "stop") == 0 ) {
-	    /* Request that daemon stop. */
 	    sstatus = SIGMET_CB_SUCCESS;
 	    stop = 1;
 	} else if ( (i = SigmetRaw_Cmd(cmd1)) == -1) {
-	    /* No command. Make error message. */
 	    sstatus = SIGMET_CB_FAIL;
 	    fprintf(err, "No option or subcommand named %s. "
 		    "Subcommand must be one of: ", cmd1);
@@ -385,14 +412,19 @@ int main(int argc, char *argv[])
 	    }
 	    fprintf(err, "\n");
 	} else {
-	    /* Found command. Run it. */
 	    sstatus = (cb1v[i])(argc1, argv1, cl_wd, i_out, out, i_err, err);
 	    if ( sstatus != SIGMET_CB_SUCCESS ) {
 		fprintf(err, "%s\n", Err_Get());
 	    }
 	}
 
-	/* Send result and clean up */
+	/*
+	   Callback, if any, is done. Close fifo's. Client will delete them.
+	   Send callback exit status of through the daemon socket and close
+	   the client side of the socket. Break out of loop if subcommand
+	   is "stop".
+	 */
+
 	if ( fclose(out) == EOF || fclose(err) == EOF ) {
 	    fprintf(stderr, "%s: could not close client error streams "
 		    "for process %d\n%s\n",
@@ -412,7 +444,10 @@ int main(int argc, char *argv[])
 	}
     }
 
-    /* No longer waiting for clients */
+    /*
+       Out of loop. No longer waiting for clients.
+     */
+
     unlink(SIGMET_RAWD_IN);
     SigmetRaw_VolFree();
     for (y = 0; y < SIGMET_NTYPES; y++) {
@@ -433,7 +468,11 @@ error:
     exit(EXIT_FAILURE);
 }
 
-/* Get a character string with the current time */
+/*
+   This convenience function returns a character string with the current time
+   in it. Caller should not modify the return value.
+ */
+
 static char *time_stamp(void)
 {
     static char ts[LEN];
@@ -448,10 +487,12 @@ static char *time_stamp(void)
 }
 
 /*
-   Make rel absolute. If it is relative, append it to root, which must be absolute.
-   Store resulting name in abs, which should have space for l characters.
-   Return 1 on success. If failure, print an error message to err and return 0.
+   Make pathname rel absolute. If rel is relative, append it to root, which
+   must be an absolute pathname (starts with "/").  Store resulting name in abs,
+   which should have space for l characters.  Return 1 on success. If something
+   goes wrong, print an error message to err and return 0.
  */
+
 static int abs_name(char *root, char *rel, char *abs, size_t l)
 {
     int status;
@@ -635,14 +676,12 @@ static enum Sigmet_CB_Return delete_cb(int argc, char *argv[], char *cl_wd,
     return SigmetRaw_Delete(vol_nm) ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
 }
 
-/* This command removes unused volumes */
 static enum Sigmet_CB_Return flush_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     return SigmetRaw_Flush() ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
 }
 
-/* Get or set maximum allocation, in bytes, for volumes */
 static enum Sigmet_CB_Return max_size_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
@@ -1246,7 +1285,6 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_CB_SUCCESS;
 }
 
-/* Change radar longitude to given value, which must be given in degrees */
 static enum Sigmet_CB_Return radar_lon_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
@@ -1286,7 +1324,6 @@ static enum Sigmet_CB_Return radar_lon_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_CB_SUCCESS;
 }
 
-/* Change radar latitude to given value, which must be given in degrees */
 static enum Sigmet_CB_Return radar_lat_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
@@ -1326,7 +1363,6 @@ static enum Sigmet_CB_Return radar_lat_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_CB_SUCCESS;
 }
 
-/* Change ray azimuths to given value, which must be given in degrees */
 static enum Sigmet_CB_Return shift_az_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
@@ -1336,7 +1372,7 @@ static enum Sigmet_CB_Return shift_az_cb(int argc, char *argv[], char *cl_wd,
     char vol_nm[LEN];		/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;	/* Volume structure */
     enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadVol */
-    char *daz_s;		/* Amount to add to each azimuth, deg, in argv */
+    char *daz_s;		/* Amount to add to each azimuth, degrees */
     double daz;			/* Amount to add to each azimuth, radians */
     double idaz;		/* Amount to add to each azimuth, binary angle */
     int s, r;			/* Loop indeces */
@@ -1408,13 +1444,12 @@ static enum Sigmet_CB_Return proj_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_CB_SUCCESS;
 }
 
-/* Specify image width in pixels */
 static enum Sigmet_CB_Return img_sz_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    unsigned w_pxl, h_pxl;
+    unsigned w_pxl, h_pxl;	/* New image width and height, in pixels */
 
     if ( argc == 2 ) {
 	SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
@@ -1452,13 +1487,12 @@ static enum Sigmet_CB_Return img_sz_cb(int argc, char *argv[], char *cl_wd,
     }
 }
 
-/* Identify image generator */
 static enum Sigmet_CB_Return img_app_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *img_app_s;
+    char *img_app_s;		/* Path name of image generator */
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s img_app\n", argv0, argv1);
@@ -1473,7 +1507,6 @@ static enum Sigmet_CB_Return img_app_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_CB_SUCCESS;
 }
 
-/* Specify image alpha channel */
 static enum Sigmet_CB_Return alpha_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
@@ -1497,11 +1530,13 @@ static enum Sigmet_CB_Return alpha_cb(int argc, char *argv[], char *cl_wd,
 }
 
 /*
-   Print name of the image that img_cb would create for volume vol_p,
-   type abbrv, sweep s to buf, which must have space for LEN characters,
-   including nul.  Returned name has no suffix (e.g. "png" or "kml").
-   If something goes wrong, fill buf with nul's and return 0.
+   This convenience function prints the name of the image file that img_cb
+   would create for volume vol_p, data type abbrv, sweep s to buf, which must
+   have space for LEN characters, including nul.  Returned name has no suffix
+   (i.e. no "png" or "kml").  Return 1 on sucess. If something goes wrong, fill
+   buf with nul's, store and error string with Err_Append, and return 0.
  */
+
 static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf)
 {
     int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
@@ -1523,7 +1558,6 @@ static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s, char *buf)
     return 1;
 }
 
-/* Print the name of the image that img would create */
 static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
@@ -2120,6 +2154,7 @@ error:
        Rochkind, Marc J., "Advanced UNIX Programming, Second Edition",
        2004, Addison-Wesley, Boston.
  */
+
 static int handle_signals(void)
 {
     sigset_t set;
@@ -2192,14 +2227,15 @@ static int handle_signals(void)
     return 1;
 }
 
-/* For exit signals, print an error message if possible */
+/*
+   For exit signals, delete the socket and print an error message.
+ */
+
 void handler(int signum)
 {
     char *msg;
 
     unlink(SIGMET_RAWD_IN);
-
-    /* Print information about signal and exit. */
     switch (signum) {
 	case SIGTERM:
 	    msg = "sigmet_rawd daemon exiting on termination signal    \n";
