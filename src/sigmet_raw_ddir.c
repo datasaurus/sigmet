@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.7 $ $Date: 2010/11/09 16:34:36 $
+ .	$Revision: 1.8 $ $Date: 2010/11/09 16:35:29 $
  */
 
 #include <stdlib.h>
@@ -24,9 +24,6 @@ static char *dsock;
 
 /* Daemon working directory */
 static char *ddir;
-
-/* Default path length */
-#define LEN 4096
 
 static void cleanup(void);
 
