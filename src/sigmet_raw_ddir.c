@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.6 $ $Date: 2010/11/08 19:47:49 $
+ .	$Revision: 1.7 $ $Date: 2010/11/09 16:34:36 $
  */
 
 #include <stdlib.h>
@@ -28,7 +28,9 @@ static char *ddir;
 /* Default path length */
 #define LEN 4096
 
-void cleanup(void)
+static void cleanup(void);
+
+static void cleanup(void)
 {
     FREE(dsock);
     FREE(ddir);
