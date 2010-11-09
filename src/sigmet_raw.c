@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.62 $ $Date: 2010/11/04 18:47:38 $
+   .	$Revision: 1.63 $ $Date: 2010/11/09 17:58:35 $
  */
 
 #include <limits.h>
@@ -27,18 +27,22 @@
 #include "alloc.h"
 #include "sigmet_raw.h"
 
-/* Abbreviations */
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
 #define SA_PLEN (sizeof(sa.sun_path))
 
 /*
-   Names of fifos that communicate with daemon. (These variables are global because
-   signal handlers need them)
+   Names of fifos that will receive standard output and error output from
+   the sigmet_rawd daemon. (These variables are global because signal
+   handlers need them)
  */
-static char out_nm[LINE_MAX];	/* Receive standard output from daemon */
-static char err_nm[LINE_MAX];	/* Receive error output from daemon */
 
-/* Local functions */
+static char out_nm[LINE_MAX];
+static char err_nm[LINE_MAX];
+
+/*
+   Local signal handlers.
+ */
+
 static int handle_signals(void);
 static void handler(int signum);
 
@@ -84,14 +88,15 @@ int main(int argc, char *argv[])
 	goto error;
     }
 
-    /* Identify daemon working directory */
+    /*
+       Create input and output fifo's in daemon working directory.
+     */
+
     if ( !(ddir = SigmetRaw_GetDDir()) ) {
 	fprintf(stderr, "%s (%d): could not identify daemon working directory.\n",
 		argv0, pid);
 	exit(EXIT_FAILURE);
     }
-
-    /* Create input and output fifo's */
     m = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
     if ( snprintf(out_nm, LINE_MAX, "%s/%d.1", ddir, pid) > LINE_MAX ) {
 	fprintf(stderr, "%s (%d): could not create name for result pipe.\n",
@@ -114,7 +119,10 @@ int main(int argc, char *argv[])
 	goto error;
     }
 
-    /* Connect to daemon via socket in daemon directory */
+    /*
+       Connect to daemon via socket in daemon directory
+     */
+
     if ( !(dsock = SigmetRaw_GetSock()) ) {
 	fprintf(stderr, "%s (%d): could not identify daemon socket.\n", argv0, pid);
 	goto error;
@@ -134,20 +142,25 @@ int main(int argc, char *argv[])
 	goto error;
     }
 
-    /* Identify current working directory */
+    /*
+       Send server input to socket.  Server intput consists of:
+	   Id of this process.
+	   Path length of current working directory for this process.
+	   Current working directory for this process.
+	   Argument count.
+	   Command line length.
+	   Arguments.
+     */
+
     if ( !getcwd(cwd, LINE_MAX - 1) ) {
 	fprintf(stderr, "%s (%d): could not store current working directory\n%s.\n",
 		argv0, pid, strerror(errno));
 	goto error;
     }
     cwd_l = strlen(cwd);
-
-    /* Determine length of command line */
     for (cmd_ln_l = 0, a = argv; *a; a++) {
-	cmd_ln_l += strlen(*a) + 1;	/* Add argument length + 1 (for nul) */
+	cmd_ln_l += strlen(*a) + 1;
     }
-
-    /* Send command to server */
     if ( fwrite(&pid, sizeof(pid_t), 1, dmn) != 1 ) {
 	fprintf(stderr, "%s (%d): could not send process id to daemon\n%s\n",
 		argv0, pid, strerror(errno));
@@ -186,8 +199,8 @@ int main(int argc, char *argv[])
     fflush(dmn);
 
     /*
-       Get standard output and errors from fifos. Get exit status
-       (single byte 0 or 1) from i_dmn.
+       Get standard output and errors from fifos.
+       Get exit status (single byte 0 or 1) from i_dmn.
      */
 
     if ( (i_out = open(out_nm, O_RDONLY)) == -1 ) {
@@ -221,7 +234,9 @@ int main(int argc, char *argv[])
 	    goto error;
 	}
 	if ( i_out != -1 && FD_ISSET(i_out, &read_set) ) {
-	    /* Daemon has sent standard output */
+	    /*
+	       Daemon has sent standard output
+	     */
 
 	    if ((ll = read(i_out, buf, LINE_MAX)) == -1) {
 		fprintf(stderr, "%s (%d): could not get standard output from "
@@ -229,7 +244,9 @@ int main(int argc, char *argv[])
 		goto error;
 	    }
 	    if ( ll == 0 ) {
-		/* No more standard output */
+		/*
+		   Zero bytes read => no more standard output from daemon.
+		 */
 
 		FD_CLR(i_out, &set);
 		if ( i_out == fd_hwm ) {
@@ -244,7 +261,10 @@ int main(int argc, char *argv[])
 		i_out = -1;
 		fflush(stdout);
 	    } else {
-		/* Print the standard output */
+		/*
+		   Non-empty standard output from daemon. Forward to stdout
+		   for this process.
+		 */
 
 		if ( (fwrite(buf, 1, ll, stdout)) != ll ) {
 		    fprintf(stderr, "%s (%d): failed to write standard output.\n",
@@ -253,7 +273,9 @@ int main(int argc, char *argv[])
 		}
 	    }
 	} else if ( i_err != -1 && FD_ISSET(i_err, &read_set) ) {
-	    /* Daemon has sent error output */
+	    /*
+	       Daemon has sent error output
+	     */
 
 	    if ((ll = read(i_err, buf, LINE_MAX)) == -1) {
 		fprintf(stderr, "%s (%d): could not get error output from "
@@ -261,7 +283,9 @@ int main(int argc, char *argv[])
 		goto error;
 	    }
 	    if ( ll == 0 ) {
-		/* No more error output */
+		/*
+		   Zero bytes read => no more error output from daemon.
+		 */
 
 		FD_CLR(i_err, &set);
 		if ( i_err == fd_hwm ) {
@@ -275,7 +299,10 @@ int main(int argc, char *argv[])
 		i_err = -1;
 		fflush(stderr);
 	    } else {
-		/* Print the error output */
+		/* 
+		   Non-empty error output from daemon. Forward to stderr
+		   for this process.
+		 */
 
 		if ( (fwrite(buf, 1, ll, stderr)) != ll ) {
 		    fprintf(stderr, "%s (%d): failed to write error output.\n",
@@ -284,7 +311,10 @@ int main(int argc, char *argv[])
 		}
 	    }
 	} else if ( i_dmn != -1 && FD_ISSET(i_dmn, &read_set) ) {
-	    /* Daemon has sent return status for a command. Clean up and exit */
+	    /*
+	       Daemon is done with this command and has send return status.
+	       Clean up and return the status as exit status of this process.
+	     */
 
 	    if ( (ll = read(i_dmn, &sstatus, sizeof(enum Sigmet_CB_Return))) == -1
 		    || ll == 0 ) {
@@ -308,7 +338,6 @@ int main(int argc, char *argv[])
 	}
     }
 
-    /* Unreachable */
     return EXIT_FAILURE;
 
 error:
@@ -337,6 +366,7 @@ error:
    Rochkind, Marc J., "Advanced UNIX Programming, Second Edition",
    2004, Addison-Wesley, Boston.
  */
+
 int handle_signals(void)
 {
     sigset_t set;
@@ -356,7 +386,10 @@ int handle_signals(void)
 	return 0;
     }
 
-    /* Signals to ignore */
+    /*
+       Signals to ignore
+     */
+
     act.sa_handler = SIG_IGN;
     if ( sigaction(SIGHUP, &act, NULL) == -1 ) {
 	perror(NULL);
@@ -375,7 +408,10 @@ int handle_signals(void)
 	return 0;
     }
 
-    /* Generic action for termination signals */
+    /*
+       Generic action for termination signals
+     */
+
     act.sa_handler = handler;
     if ( sigaction(SIGTERM, &act, NULL) == -1 ) {
 	perror(NULL);
@@ -421,18 +457,16 @@ int handle_signals(void)
     return 1;
 }
 
-/* For exit signals, print an error message if possible */
+/*
+   For exit signals, close fifo's and print an error message if possible.
+ */
+
 void handler(int signum)
 {
     char *msg;
 
-    /*
-       Close fifo's
-     */
     unlink(out_nm);
     unlink(err_nm);
-
-    /* Print information about signal and exit. */
     switch (signum) {
 	case SIGTERM:
 	    msg = "sigmet_raw command exiting on termination signal    \n";
