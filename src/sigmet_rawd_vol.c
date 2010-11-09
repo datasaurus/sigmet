@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.36 $ $Date: 2010/11/08 18:07:55 $
+ .	$Revision: 1.37 $ $Date: 2010/11/08 18:08:30 $
  */
 
 #include <unistd.h>
@@ -26,15 +26,13 @@
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
-#define LEN 1024
-
 /* Maximum total size allowed for all volumes, in bytes */
 static size_t max_size = 536870912;
 
 /* A Sigmet volume struct and data to manage it. */
 struct sig_vol {
     struct Sigmet_Vol vol;		/* Sigmet volume struct. See sigmet.h */
-    char vol_nm[LEN];			/* file that provided the volume */
+    char *vol_nm;			/* file that provided the volume */
     dev_t st_dev;			/* Device that provided vol */
     ino_t st_ino;			/* I-number of file that provided vol */
     int h;				/* hash for vol_nm */
@@ -63,7 +61,6 @@ static struct sig_vol *uhead, *utail;
 static struct sig_vol *vols[N_VOLS];
 
 /* Local functions and variables */
-static struct sig_vol *sig_vol_new(void);
 static void sig_vol_free(struct sig_vol *);
 static void tunlink(struct sig_vol *);
 static void uunlink(struct sig_vol *sv_p);
@@ -105,37 +102,14 @@ void SigmetRaw_VolFree(void)
     }
 }
 
-/*
-   Create a new Sigmet_Vol struct. Return its address.  If something goes
-   wrong, store an error string with Err_Append and return NULL.
-   Return value should eventually be freed with call to sig_vol_free.
- */
-static struct sig_vol *sig_vol_new(void)
-{
-    struct sig_vol *sv_p;
-
-    if ( !(sv_p = MALLOC(sizeof(struct sig_vol))) ) {
-	Err_Append("Could not allocate memory for volume entry. ");
-	return NULL;
-    }
-    Sigmet_InitVol(&sv_p->vol);
-    memset(sv_p->vol_nm, '\0', LEN);
-    sv_p->st_dev = 0;
-    sv_p->st_ino = 0;
-    sv_p->h = -1;
-    sv_p->keep = 0;
-    sv_p->tprev = sv_p->tnext = NULL;
-    sv_p->uprev = sv_p->unext = NULL;
-    return sv_p;
-};
-
-/* Free all memory associated with an addess returned by sig_vol_new. */
+/* Free all memory associated with an addess returned by sig_vol_get. */
 static void sig_vol_free(struct sig_vol *sv_p)
 {
     if ( !sv_p ) {
 	return;
     }
     Sigmet_FreeVol(&sv_p->vol);
+    FREE(sv_p->vol_nm);
     FREE(sv_p);
 }
 
@@ -253,18 +227,28 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
 	    return sv_p;
 	}
     }
-    if ( !(sv_p = sig_vol_new()) ) {
+    if ( !(sv_p = MALLOC(sizeof(struct sig_vol))) ) {
+	Err_Append("Could not allocate memory for volume entry. ");
 	return NULL;
     }
-    strncpy(sv_p->vol_nm, vol_nm, LEN);
+    if ( !(sv_p->vol_nm = MALLOC(strlen(vol_nm) + 1)) ) {
+	Err_Append("Could not allocate memory for volume entry. ");
+	FREE(sv_p);
+	return NULL;
+    }
+    Sigmet_InitVol(&sv_p->vol);
+    strcpy(sv_p->vol_nm, vol_nm);
     sv_p->st_dev = d;
     sv_p->st_ino = i;
-    sv_p->h = h;
+    sv_p->h = -1;
+    sv_p->keep = h;
+    sv_p->tprev = NULL;
+    sv_p->tnext = vols[h];
     if ( vols[h] ) {
 	vols[h]->tprev = sv_p;
     }
-    sv_p->tnext = vols[h];
     vols[h] = sv_p;
+    sv_p->uprev = sv_p->unext = NULL;
     uappend(sv_p);
     return sv_p;
 }
