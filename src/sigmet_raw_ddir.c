@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.5 $ $Date: 2010/11/04 18:50:02 $
+ .	$Revision: 1.6 $ $Date: 2010/11/08 19:47:49 $
  */
 
 #include <stdlib.h>
@@ -43,40 +43,44 @@ void cleanup(void)
 void SigmetRaw_MkDDir(void)
 {
     static int init;
-    long l;
+    size_t l;
     mode_t mode;
+    char *ddir_e = getenv("SIGMET_RAWD_DIR");
+    char *hdir = getenv("HOME");
 
     if ( init ) {
 	return;
     }
+    if ( !hdir ) {
+	fprintf(stderr, "HOME not set.\n");
+	exit(EXIT_FAILURE);
+    }
 
     /*
        If SIGMET_RAWD_DIR environment variable is set, use it. Otherwise,
-       use a default.
+       set daemon working directory to a default.
      */
 
-    errno = 0;
-    if ( (l = pathconf("/", _PC_PATH_MAX)) == -1 ) {
-	if ( errno == 0 ) {
-	    l = LEN;
-	} else {
-	    fprintf(stderr, "Could not determine maximum path length for "
-		    "system while setting daemon working directory.\n%s\n",
-		    strerror(errno));
-	    exit(EXIT_FAILURE);
-	}
-	l++;
-    }
-
-    if ( !(ddir = getenv("SIGMET_RAWD_DIR")) ) {
+    if ( ddir_e ) {
+	l = strlen(ddir_e) + 1;
 	if ( !(ddir = MALLOC(l)) ) {
 	    fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
 		    "working directory.\n", l);
 	    exit(EXIT_FAILURE);
 	}
-	if ( snprintf(ddir, l, "%s/.sigmet_raw", getenv("HOME")) > l ) {
-	    fprintf(stderr, "Could not create name for daemon working "
-		    "directory.\n");
+	if ( snprintf(ddir, l, "%s", ddir_e) > l ) {
+	    perror("Could not create name for daemon working directory.");
+	    exit(EXIT_FAILURE);
+	}
+    } else {
+	l = strlen(hdir) + strlen("/.sigmet_raw") + 1;
+	if ( !(ddir = MALLOC(l)) ) {
+	    fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
+		    "working directory.\n", l);
+	    exit(EXIT_FAILURE);
+	}
+	if ( snprintf(ddir, l, "%s/.sigmet_raw", hdir) > l ) {
+	    perror("Could not create name for daemon working directory.");
 	    exit(EXIT_FAILURE);
 	}
     }
@@ -85,13 +89,14 @@ void SigmetRaw_MkDDir(void)
        Create absolute path name for daemon socket.
      */
 
+    l = strlen(ddir) + strlen("/") + strlen(SIGMET_RAWD_IN) + 1;
     if ( !(dsock = MALLOC(l)) ) {
 	fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
 		"working directory.\n", l);
 	exit(EXIT_FAILURE);
     }
     if ( snprintf(dsock, l, "%s/%s", ddir, SIGMET_RAWD_IN ) > l ) {
-	fprintf(stderr, "Could not create name for daemon socket.\n");
+	perror("Could not create name for daemon socket.");
 	exit(EXIT_FAILURE);
     }
 
