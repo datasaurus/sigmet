@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.6 $ $Date: 2010/11/04 18:29:11 $
+   .	$Revision: 1.7 $ $Date: 2010/11/04 18:56:03 $
  */
 
 #include <stdio.h>
@@ -36,6 +36,7 @@ void SigmetRaw_Start(int argc, char *argv[])
 {
     char *ucmd;			/* User command to run as a child process */
     char *ddir;			/* Daemon working directory */
+    char *dsock;		/* Daemon socket */
     pid_t spid = getpid();
     pid_t dpid;			/* Id for daemon */
     pid_t upid;			/* Id of user command */
@@ -45,6 +46,7 @@ void SigmetRaw_Start(int argc, char *argv[])
     int si;			/* Exit information from a user command */
     int status;			/* Exit status from a user command */
     sigset_t set;		/* To block TERM while terminating */
+    int try;			/* Count down while waiting for daemon socket */
 
     if ( argc == 0 ) {
 	fprintf(stderr, "sigmet_raw start: no user command given\n");
@@ -100,6 +102,23 @@ void SigmetRaw_Start(int argc, char *argv[])
 	    fprintf(stderr, "Could not start %s\n%s\n", SIGMET_RAWD,
 		    strerror(errno));
 	    _exit(EXIT_FAILURE);
+    }
+    if ( !(dsock = SigmetRaw_GetSock()) ) {
+	fprintf(stderr, "sigmet_raw start: could not determine path to"
+		"daemon input socket.\n");
+	exit(EXIT_FAILURE);
+    }
+    for (try = 3; try > 0; try--) {
+	if ( access(dsock, R_OK) == 0 ) {
+	    break;
+	} else {
+	    sleep(1);
+	}
+    }
+    if ( try == 0 ) {
+	fprintf(stderr, "sigmet_raw start: could not find daemon "
+		"input socket %s .\n", dsock);
+	exit(EXIT_FAILURE);
     }
 
     /*
