@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.61 $ $Date: 2010/11/04 18:28:11 $
+   .	$Revision: 1.62 $ $Date: 2010/11/04 18:47:38 $
  */
 
 #include <limits.h>
@@ -26,9 +26,6 @@
 #include <sys/select.h>
 #include "alloc.h"
 #include "sigmet_raw.h"
-
-/* Size for various strings */
-#define LEN 4096
 
 /* Abbreviations */
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
