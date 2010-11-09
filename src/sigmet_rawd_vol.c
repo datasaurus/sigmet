@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.38 $ $Date: 2010/11/09 19:13:15 $
+ .	$Revision: 1.39 $ $Date: 2010/11/09 21:33:05 $
  */
 
 #include <unistd.h>
@@ -27,7 +27,7 @@
 #include "sigmet_raw.h"
 
 /* Maximum total size allowed for all volumes, in bytes */
-static size_t max_size = 536870912;
+static size_t max_size = 402653184;
 
 /* A Sigmet volume struct and data to manage it. */
 struct sig_vol {
@@ -56,8 +56,8 @@ static struct sig_vol *uhead, *utail;
    are linked by their tprev and tnext members.
  */
 
-#define N_VOLS 8
-#define MASK 0x07
+#define N_VOLS 1024
+#define MASK 0x3ff
 static struct sig_vol *vols[N_VOLS];
 
 /* Local functions and variables */
@@ -80,7 +80,7 @@ void SigmetRaw_VolInit(void)
     if ( init ) {
 	return;
     }
-    assert(N_VOLS == 8);
+    assert(N_VOLS == MASK + 1);
     for (n = 0; n < N_VOLS; n++) {
 	vols[n] = NULL;
     }
