@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.41 $ $Date: 2010/11/10 20:56:15 $
+ .	$Revision: 1.42 $ $Date: 2010/11/10 21:37:04 $
  */
 
 #include <unistd.h>
@@ -89,8 +89,8 @@ static void sig_vol_free(struct sig_vol *);
 static void tunlink(struct sig_vol *);
 static void uunlink(struct sig_vol *sv_p);
 static void uappend(struct sig_vol *sv_p);
-static int hash(char *, dev_t *, ino_t *, int *);
 static void sig_vol_rm(char *vol_nm);
+static int hash(char *, dev_t *, ino_t *, int *);
 static FILE *vol_open(const char *, pid_t *, int, FILE *);
 
 /*
@@ -373,8 +373,9 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 
     /*
        Find or create and entry for vol_nm in vols. If there is an entry
-       and the vol member has header, return.
+       and the vol member has headers, return.
      */
+
     if ( !(sv_p = sig_vol_get(vol_nm)) ) {
 	fprintf(err, "No entry for %s in volume table, and unable to add it.\n%s\n",
 		vol_nm, Err_Get());
@@ -391,7 +392,8 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
        headers.  Try up to max_try times to read volume headers. If there
        is an allocation failure while reading, reduce max_vol_size and
        offload expendable volumes with a call to SigmetRaw_Flush. Temporarily
-       setting the "keep" member keeps this volume from being flushed.
+       setting the "keep" member keeps this volume from being flushed while
+       Sigmet_ReadHdr is using it.
      */
 
     sv_p->keep = 1;
@@ -449,10 +451,11 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 }
 
 /*
-   Fetch a volume from the data base, loading it if necessary.
-   User count for the volume's entry is incremented. Send error messages to
-   err or i_err.
+   Fetch headers and data for the volume stored in Sigmet raw product file
+   vol_nm.  If vol_nm is absent from vols, or not loaded, this function loads
+   the volume headers and data. Send error messages to err or i_err.
  */
+
 enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	struct Sigmet_Vol **vol_pp)
 {
@@ -464,6 +467,11 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     enum Sigmet_ReadStatus status; /* Result of a read call */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
+
+    /*
+       Find or create and entry for vol_nm in vols. If there is an entry
+       and the vol member has headers and data (is not truncated), return.
+     */
 
     if ( !(sv_p = sig_vol_get(vol_nm)) ) {
 	fprintf(err, "No entry for %s in volume table, and unable to add it.\n%s\n",
@@ -478,7 +486,15 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     }
     Sigmet_FreeVol(vol_p);
 
-    /* Try up to max_tries times to read volume */
+    /*
+       There is an entry for vol_nm in vols, but the vol member does not have
+       data.  Try up to max_try times to read the volume. If there
+       is an allocation failure while reading, reduce max_vol_size and
+       offload expendable volumes with a call to SigmetRaw_Flush. Temporarily
+       setting the "keep" member keeps this volume from being flushed while
+       Sigmet_ReadVol is using it.
+     */
+
     sv_p->keep = 1;
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	in_pid = -1;
@@ -490,11 +506,9 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	switch (status = Sigmet_ReadVol(in, vol_p)) {
 	    case SIGMET_VOL_READ_OK:
 	    case SIGMET_VOL_INPUT_FAIL:
-		/* Success or partial success. Break out. */
 		loaded = 1;
 		break;
 	    case SIGMET_VOL_MEM_FAIL:
-		/* Try to free some memory and try again */
 		fprintf(err, "Read failed. Out of memory. %s "
 			"Offloading unused volumes\n", Err_Get());
 		max_vol_size = vol_size() * 3 / 4;
@@ -504,7 +518,6 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		}
 		break;
 	    case SIGMET_VOL_BAD_VOL:
-		/* Read failed. Disable this slot and return failure. */
 		fprintf(err, "Read failed, bad volume. %s\n", Err_Get());
 		Sigmet_FreeVol(vol_p);
 		try = max_try;
@@ -520,7 +533,6 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	sig_vol_rm(vol_nm);
 	switch (status) {
 	    case SIGMET_VOL_READ_OK:
-		/* Suppress compiler warning */
 		break;
 	    case SIGMET_VOL_MEM_FAIL:
 		return SIGMET_CB_MEM_FAIL;
@@ -539,7 +551,10 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     return SIGMET_CB_SUCCESS;
 }
 
-/* Print list of currently loaded volumes. */
+/*
+   Print list of currently loaded volumes.
+ */
+
 void SigmetRaw_VolList(FILE *out)
 {
     int n;
@@ -557,7 +572,10 @@ void SigmetRaw_VolList(FILE *out)
     }
 }
 
-/* Indicate that a volume no longer must be kept */
+/*
+   Indicate that a volume no longer must be kept
+ */
+
 void SigmetRaw_Keep(char *vol_nm)
 {
     struct sig_vol *sv_p;
@@ -567,7 +585,10 @@ void SigmetRaw_Keep(char *vol_nm)
     }
 }
 
-/* Indicate that a volume no longer must be kept */
+/*
+   Indicate that a volume no longer must be kept
+ */
+
 void SigmetRaw_Release(char *vol_nm)
 {
     struct sig_vol *sv_p;
@@ -577,7 +598,10 @@ void SigmetRaw_Release(char *vol_nm)
     }
 }
 
-/* Delete a volume */
+/*
+   Delete a volume
+ */
+
 int SigmetRaw_Delete(char *vol_nm)
 {
     dev_t d;			/* Id of device containing file named vol_nm */
@@ -599,7 +623,10 @@ int SigmetRaw_Delete(char *vol_nm)
     return 0;
 }
 
-/* Remove unused volumes. Return number of volumes removed. */
+/*
+   Remove unused volumes. Return number of volumes removed.
+ */
+
 int SigmetRaw_Flush(void)
 {
     int c;
