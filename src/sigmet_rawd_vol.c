@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.43 $ $Date: 2010/11/10 21:44:25 $
+ .	$Revision: 1.44 $ $Date: 2010/11/10 21:52:28 $
  */
 
 #include <unistd.h>
@@ -599,13 +599,21 @@ int SigmetRaw_Delete(char *vol_nm)
 }
 
 /*
-   Remove unused volumes. Return number of volumes removed.
+   Remove expendable volumes. A volume is expendable if it's "keep" member is
+   not set. Return number of volumes removed.
  */
 
 int SigmetRaw_Flush(void)
 {
     int c;
     struct sig_vol *sv_p, *unext;
+
+    /*
+       Remove volumes from the head of the usage list until
+       vol_size <= max_vol_size. When volumes are accessed,
+       they are moved to the tail, so the most recently
+       accessed volumes are the least likely to be deleted.
+     */
 
     for (sv_p = uhead, c = 0;
 	    sv_p && vol_size() > max_vol_size;
@@ -621,7 +629,25 @@ int SigmetRaw_Flush(void)
     return c;
 }
 
-/* Get or set max size */
+/*
+   Compute total size of currently loaded sigmet volumes
+ */
+
+static size_t vol_size(void)
+{
+    size_t sz;
+    struct sig_vol *sv_p;
+
+    for (sz = 0, sv_p = uhead; sv_p; sv_p = sv_p->unext) {
+	sz += sv_p->vol.size;
+    }
+    return sz;
+}
+
+/*
+   Get or set max_vol_size
+ */
+
 size_t SigmetRaw_MaxSize(size_t sz)
 {
     if ( sz > 0 ) {
@@ -649,7 +675,10 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
     *pid_p = -1;
     sfx = strrchr(vol_nm, '.');
     if ( sfx && strcmp(sfx, ".gz") == 0 ) {
-	/* If filename ends with ".gz", read from gunzip pipe */
+	/*
+	   If filename ends with ".gz", read from gunzip pipe
+	 */
+
 	if ( pipe(pfd) == -1 ) {
 	    fprintf(err, "Could not create pipe for gzip\n%s\n", strerror(errno));
 	    goto error;
@@ -660,7 +689,11 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		fprintf(err, "Could not spawn gzip\n");
 		goto error;
 	    case 0:
-		/* Child process - gzip.  Send child stdout to pipe. */
+		/*
+		   Child process - gzip.  Send child stdout to pipe and child
+		   stderr to i_err.
+		 */
+
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
 			|| close(pfd[0]) == -1 ) {
 		    fprintf(err, "gzip process failed\n%s\n", strerror(errno));
@@ -674,7 +707,10 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	    default:
-		/* This process.  Read output from gzip. */
+		/*
+		   This process.  Read output from gzip.
+		 */
+
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
 		    fprintf(err, "Could not read gzip process\n%s\n",
 			    strerror(errno));
@@ -685,7 +721,10 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		}
 	}
     } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
-	/* If filename ends with ".bz2", read from bunzip2 pipe */
+	/*
+	   If filename ends with ".bz2", read from bunzip2 pipe
+	 */
+
 	if ( pipe(pfd) == -1 ) {
 	    fprintf(err, "Could not create pipe for bzip2\n%s\n", strerror(errno));
 	    goto error;
@@ -696,7 +735,11 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		fprintf(err, "Could not spawn bzip2\n");
 		goto error;
 	    case 0:
-		/* Child process - bzip2.  Send child stdout to pipe. */
+		/*
+		   Child process - bzip2.  Send child stdout to pipe and child
+		   stderr to i_err.
+		 */
+
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
 			|| close(pfd[0]) == -1 ) {
 		    fprintf(err, "could not set up bzip2 process");
@@ -710,7 +753,10 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
 		_exit(EXIT_FAILURE);
 	    default:
-		/* This process.  Read output from bzip2. */
+		/*
+		   This process.  Read output from bzip2.
+		 */
+
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
 		    fprintf(err, "Could not read bzip2 process\n%s\n",
 			    strerror(errno));
@@ -721,38 +767,29 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		}
 	}
     } else if ( !(in = fopen(vol_nm, "r")) ) {
-	/* Uncompressed file */
+	/*
+	   Uncompressed file
+	 */
+
 	fprintf(err, "Could not open %s\n%s\n", vol_nm, strerror(errno));
 	return NULL;
     }
     return in;
 
 error:
-	if ( ch_pid != -1 ) {
-	    kill(ch_pid, SIGTERM);
-	    ch_pid = -1;
-	}
-	if ( in ) {
-	    fclose(in);
-	    pfd[0] = -1;
-	}
-	if ( pfd[0] != -1 ) {
-	    close(pfd[0]);
-	}
-	if ( pfd[1] != -1 ) {
-	    close(pfd[1]);
-	}
-	return NULL;
-}
-
-/* Compute total size of currently loaded sigmet volumes */
-static size_t vol_size(void)
-{
-    size_t sz;
-    struct sig_vol *sv_p;
-
-    for (sz = 0, sv_p = uhead; sv_p; sv_p = sv_p->unext) {
-	sz += sv_p->vol.size;
+    if ( ch_pid != -1 ) {
+	kill(ch_pid, SIGTERM);
+	ch_pid = -1;
     }
-    return sz;
+    if ( in ) {
+	fclose(in);
+	pfd[0] = -1;
+    }
+    if ( pfd[0] != -1 ) {
+	close(pfd[0]);
+    }
+    if ( pfd[1] != -1 ) {
+	close(pfd[1]);
+    }
+    return NULL;
 }
