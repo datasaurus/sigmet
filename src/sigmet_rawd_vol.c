@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.45 $ $Date: 2010/11/10 22:03:42 $
+ .	$Revision: 1.46 $ $Date: 2010/11/10 22:19:01 $
  */
 
 #include <unistd.h>
@@ -384,8 +384,8 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	    case SIGMET_VOL_MEM_FAIL:
 		fprintf(err, "Out of memory. Offloading unused volumes\n");
 		max_vol_size = vol_size() * 3 / 4;
-		if ( SigmetRaw_Flush() == 0 ) {
-		    fprintf(err, "Could not offload any volumes\n");
+		if ( !SigmetRaw_Flush() ) {
+		    fprintf(err, "Could not offload sufficient volumes\n");
 		    try = max_try;
 		}
 		break;
@@ -417,7 +417,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 		break;
 	}
     }
-    if ( vol_size() > max_vol_size && SigmetRaw_Flush() == 0 ) {
+    if ( vol_size() > max_vol_size && !SigmetRaw_Flush() ) {
 	fprintf(err, "Reading %s puts memory use beyond limit and unable "
 		"to flush.\n", vol_nm);
 	SigmetRaw_Delete(vol_nm);
@@ -490,8 +490,8 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		fprintf(err, "Read failed. Out of memory. %s "
 			"Offloading unused volumes\n", Err_Get());
 		max_vol_size = vol_size() * 3 / 4;
-		if ( SigmetRaw_Flush() == 0 ) {
-		    fprintf(err, "Could not offload any volumes\n");
+		if ( !SigmetRaw_Flush() ) {
+		    fprintf(err, "Could not offload sufficient volumes\n");
 		    try = max_try;
 		}
 		break;
@@ -523,7 +523,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		break;
 	}
     }
-    if ( vol_size() > max_vol_size && SigmetRaw_Flush() == 0 ) {
+    if ( vol_size() > max_vol_size && !SigmetRaw_Flush() ) {
 	fprintf(err, "Reading %s puts memory use beyond limit and unable "
 		"to flush.\n", vol_nm);
 	SigmetRaw_Delete(vol_nm);
@@ -610,12 +610,11 @@ int SigmetRaw_Delete(char *vol_nm)
 
 /*
    Remove expendable volumes. A volume is expendable if it's "keep" member is
-   not set. Return number of volumes removed.
+   not set. Return true if total volume size is less than or equal to limit.
  */
 
 int SigmetRaw_Flush(void)
 {
-    int c;
     struct sig_vol *sv_p, *unext;
 
     /*
@@ -625,18 +624,15 @@ int SigmetRaw_Flush(void)
        accessed volumes are the least likely to be deleted.
      */
 
-    for (sv_p = uhead, c = 0;
-	    sv_p && vol_size() > max_vol_size;
-	    sv_p = unext) {
+    for (sv_p = uhead; sv_p && vol_size() > max_vol_size; sv_p = unext) {
 	unext = sv_p->unext;
 	if ( !sv_p->keep ) {
 	    tunlink(sv_p);
 	    uunlink(sv_p);
 	    sig_vol_free(sv_p);
-	    c++;
 	}
     }
-    return c;
+    return vol_size() <= max_vol_size;
 }
 
 /*
