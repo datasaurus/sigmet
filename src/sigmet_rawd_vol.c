@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.40 $ $Date: 2010/11/09 21:37:07 $
+ .	$Revision: 1.41 $ $Date: 2010/11/10 20:56:15 $
  */
 
 #include <unistd.h>
@@ -425,7 +425,6 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	    waitpid(in_pid, NULL, 0);
 	}
     }
-    sv_p->keep = 0;
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
 	sig_vol_rm(vol_nm);
@@ -444,6 +443,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	}
     }
     SigmetRaw_Flush();
+    sv_p->keep = 0;
     *vol_pp = vol_p;
     return SIGMET_CB_SUCCESS;
 }
@@ -515,7 +515,6 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	    waitpid(in_pid, NULL, 0);
 	}
     }
-    sv_p->keep = 0;
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
 	sig_vol_rm(vol_nm);
@@ -535,6 +534,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	}
     }
     SigmetRaw_Flush();
+    sv_p->keep = 0;
     *vol_pp = vol_p;
     return SIGMET_CB_SUCCESS;
 }
