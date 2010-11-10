@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.9 $ $Date: 2010/11/09 17:45:57 $
+   .	$Revision: 1.10 $ $Date: 2010/11/09 17:56:56 $
  */
 
 #include <stdio.h>
@@ -139,9 +139,10 @@ void SigmetRaw_Start(int argc, char *argv[])
     }
     if ( chpid == upid ) {
 	/*
-	   Exiting child is the user command - normal exit. Clean up,
-	   stop the daemon, and return the user command's exit status
-	   as the status of "sigmet_raw start ..."
+	   Exiting child is the user command => normal exit. Clean up and
+	   stop the daemon by sending it a TERM signal. Block TERM while
+	   signaling so this process does not signal itself.  Return the
+	   user command's exit status as the status of "sigmet_raw start ..."
 	 */
 
 	if ( WIFEXITED(si) ) {
@@ -151,11 +152,6 @@ void SigmetRaw_Start(int argc, char *argv[])
 		    ucmd, WTERMSIG(si));
 	    status = EXIT_FAILURE;
 	}
-
-	/*
-	   Block TERM so TERM signal to group does not go to this process.
-	 */
-
 	if ( sigemptyset(&set) == -1
 		|| sigaddset(&set, SIGTERM) == -1
 		|| sigprocmask(SIG_BLOCK, &set, NULL) == -1 ) {
@@ -210,7 +206,10 @@ int handle_signals(void)
 	return 0;
     }
 
-    /* Signals to ignore */
+    /*
+       Signals to ignore
+     */
+
     act.sa_handler = SIG_IGN;
     if ( sigaction(SIGHUP, &act, NULL) == -1 ) {
 	perror(NULL);
@@ -229,7 +228,10 @@ int handle_signals(void)
 	return 0;
     }
 
-    /* Generic action for termination signals */
+    /*
+       Generic action for termination signals
+     */
+
     act.sa_handler = handler;
     if ( sigaction(SIGTERM, &act, NULL) == -1 ) {
 	perror(NULL);
@@ -280,6 +282,7 @@ int handle_signals(void)
    For exit signals, print an error message, and terminate rest of
    process group
  */
+
 void handler(int signum)
 {
     char *msg;
