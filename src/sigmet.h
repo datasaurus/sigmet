@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.37 $ $Date: 2010/10/29 18:50:58 $
+   .	$Revision: 1.38 $ $Date: 2010/11/05 16:53:16 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -30,10 +30,6 @@
 
 /* Length of a record in a Sigmet raw file */
 #define REC_LEN 6144
-
-/* "Value" when there is not data */
-#define NODAT FLT_MAX
-#define ISNODAT(x) (x == FLT_MAX)
 
 /* These constants identify the Sigmet data types */
 #define SIGMET_NTYPES 29
