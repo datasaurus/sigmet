@@ -1,13 +1,14 @@
 /*
    -	sigmet_dorade.c --
    -		Translate Sigmet data into DORADE.
+   -		See sigmet (3).
    -
    .	Copyright (c) 2010 Gordon D. Carrie
    .	All rights reserved.
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.5 $ $Date: 2010/10/20 17:05:50 $
+   .	$Revision: 1.6 $ $Date: 2010/10/22 22:28:19 $
  */
 
 #include <string.h>
@@ -19,12 +20,6 @@
 #include "geog_lib.h"
 #include "dorade_lib.h"
 
-/*
-   Copy metadata and data from sweep s of the Sigmet volume at vol_p to
-   the DORADE sweep at swp_p.
-   swp_p should have been initialized with Dorade_Sweep_Init.
-   Leave error for Err_Get() and return 0 on failure.
- */
 int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 {
     double epoch;				/* 1970/01/01 */
@@ -35,14 +30,18 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     int num_parms, num_rays, num_cells;		/* Convenience */
 
     /*
-       soloii equivalents for certain Sigmet data types.
+       This array specifies soloii equivalents for certain Sigmet data types.
        Index soloii_abbrv with Sigmet_DataType enumerator to determine equivalent
        abbreviation, e.g. soloii_abbrv[DB_DBT] is "ZT" => use "ZT" in sweep files
        instead of "DB_DBT".
      */
+
     static char *soloii_abbrv[SIGMET_NTYPES] = {NULL, "ZT", "DZ", "VR", "SW", NULL};
 
-    /* Convenience variables point into swp_p */
+    /*
+       Convenience variables point into swp_p
+     */
+
     struct Dorade_SSWB *sswb_p;
     struct Dorade_Sensor *sensor_p;
     struct Dorade_RADD *radd_p;
@@ -59,14 +58,20 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	goto error;
     }
 
-    /* Populate comm block */
+    /*
+       Populate comm block
+     */
+
     if ( snprintf(swp_p->comm.comment, 500, "Sigmet volume sweep %d, task %s", 
 		s, vol_p->ph.pc.task_name) >= 500 ) {
 	Err_Append("Could not set COMM block. String too big.");
 	goto error;
     }
 
-    /* Populate sswb block */
+    /*
+       Populate sswb block
+     */
+
     sswb_p = &swp_p->sswb;
     epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0.0);
     sswb_p->i_start_time = (vol_p->sweep_time[s] - epoch) * 86400 + 0.5;
@@ -74,7 +79,10 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     num_parms = sswb_p->num_parms = vol_p->num_types;
     strncpy(sswb_p->radar_name, vol_p->ih.ic.su_site_name, 8);
 
-    /* Populate vold block */
+    /*
+       Populate vold block
+     */
+
     swp_p->vold.volume_num = 1;
     swp_p->vold.maximum_bytes = 65500;
     if ( !Tm_JulToCal(vol_p->sweep_time[s], &year, &mon, &day, &hr, &min, &sec) ) {
@@ -90,10 +98,16 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     strncpy(swp_p->vold.gen_facility, vol_p->ih.ic.su_site_name, 8);
     swp_p->vold.num_sensors = 1;
 
-    /* Populate sensor block: radd parm1 parm2 ... parmN celvORcsfd cfac */
+    /*
+       Populate sensor block: radd parm1 parm2 ... parmN celvORcsfd cfac
+     */
+
     sensor_p = &swp_p->sensor;
 
-    /* Populate radd block */
+    /*
+       Populate radd block
+     */
+
     radd_p = &sensor_p->radd;
     strncpy(radd_p->radar_name, vol_p->ih.ic.su_site_name, 8);
     radd_p->radar_const
@@ -108,13 +122,13 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     switch (vol_p->ih.tc.tni.scan_mode) {
 	case PPI_S:
 	case PPI_C:
-	    radd_p->scan_mode = 1;	/* ppi */
+	    radd_p->scan_mode = 1;			/* ppi */
 	    break;
 	case RHI:
-	    radd_p->scan_mode = 3;	/* rhi */
+	    radd_p->scan_mode = 3;			/* rhi */
 	    break;
 	case MAN_SCAN:
-	    radd_p->scan_mode = 6;	/* manual */
+	    radd_p->scan_mode = 6;			/* manual */
 	    break;
 	case FILE_SCAN:
 	    radd_p->scan_mode = DORADE_BAD_I;
@@ -152,13 +166,17 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     radd_p->pulse_width = 0.01 * vol_p->ih.tc.tdi.pulse_w;
     strncpy(radd_p->site_name, vol_p->ih.ic.su_site_name, 20);
 
-    /* Populate parm blocks */
+    /*
+       Populate parm blocks
+     */
+
     if ( !(sensor_p->parm = CALLOC(num_parms, sizeof(struct Dorade_PARM))) ) {
 	Err_Append("Could not allocate array of parameter descriptors. ");
     }
     for (p = 0; p < num_parms; p++) {
-	enum Sigmet_DataType y;	/* Sigmet data type at offset p */
-	char *abbrv;		/* Data type abbreviation, e.g. "DZ" or "DB_ZDR" */
+	enum Sigmet_DataType y;			/* Sigmet data type at p */
+	char *abbrv;				/* Data type abbreviation,
+						   e.g. "DZ" or "DB_ZDR" */
 
 	parm_p = sensor_p->parm + p;
 	Dorade_PARM_Init(parm_p);
@@ -234,6 +252,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
        Populate csfd block. Assume cell geometry for last parameter applies
        to all.
      */
+
     sensor_p->cell_geo_t = CSFD;
     csfd_p = &sensor_p->cell_geo.csfd;
     csfd_p->num_segments = 1;
@@ -241,9 +260,14 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     csfd_p->spacing[0] = parm_p->meters_between_cells;
     csfd_p->num_cells[0] = num_cells;
 
-    /* Note: Sigmet volume does not have "correction factors", so skip CFAC */
+    /*
+       Sigmet volume does not have "correction factors", so skip CFAC
+     */
 
-    /* Populate struct Dorade_SWIB swib block */
+    /*
+       Populate struct Dorade_SWIB swib block
+     */
+
     swib_p = &swp_p->swib;
     strncpy(swib_p->radar_name, sswb_p->radar_name, 8);
     swib_p->sweep_num = 1;
@@ -266,7 +290,10 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     };
     swib_p->fixed_angle = vol_p->sweep_angle[s] * DEG_PER_RAD;
 
-    /* Populate struct Dorade_Ray_Hdr *ray_hdr array */
+    /*
+       Populate struct Dorade_Ray_Hdr *ray_hdr array
+     */
+
     if ( !(swp_p->ray_hdr = CALLOC(num_rays, sizeof(struct Dorade_Ray_Hdr))) ) {
 	Err_Append("Could not allocate space for ray headers. ");
 	goto error;
@@ -276,7 +303,10 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	ryib_p = &ray_hdr_p->ryib;
 	asib_p = &ray_hdr_p->asib;
 
-	/* Initialize ryib block */
+	/*
+	   Initialize ryib block
+	 */
+
 	ryib_p->sweep_num = s;
 	ryib_p->julian_day = -999;
 	ryib_p->hour = -999;
@@ -288,7 +318,10 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	ryib_p->peak_power = -999.0;
 	ryib_p->ray_status = 2;
 
-	/* Initialize asib block */
+	/*
+	   Initialize asib block
+	 */
+
 	asib_p->longitude = -999.0;
 	asib_p->latitude = -999.0;
 	asib_p->altitude_msl = -999.0;
@@ -306,7 +339,10 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	ryib_p = &ray_hdr_p->ryib;
 	asib_p = &ray_hdr_p->asib;
 
-	/* Populate ryib block */
+	/*
+	   Populate ryib block
+	 */
+
 	ryib_p->sweep_num = s;
 	if ( !Tm_JulToCal(vol_p->ray_time[s][r],
 		    &year, &mon, &day, &hr, &min, &sec) ) {
@@ -328,14 +364,20 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	ryib_p->peak_power = 0.001 * vol_p->ih.tc.tmi.power;
 	ryib_p->ray_status = vol_p->ray_ok[s][r] ? 0 : 2;
 
-	/* Populate asib block. Assume stationary ground radar */
+	/*
+	   Populate asib block. Assume stationary ground radar
+	 */
+
 	asib_p->longitude = radd_p->radar_longitude;
 	asib_p->latitude = radd_p->radar_latitude;
 	asib_p->altitude_msl = radd_p->radar_altitude;
 	asib_p->altitude_agl = 0.001 * vol_p->ih.ic.radar_ht;
     }
 
-    /* Populate int ***dat array */
+    /*
+       Populate int dat array.
+     */
+
     if ( !Dorade_Sweep_AllocDat(swp_p, num_parms, num_rays, num_cells) ) {
 	Err_Append("Could not allocate data array. ");
 	goto error;

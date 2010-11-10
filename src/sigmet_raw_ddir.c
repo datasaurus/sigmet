@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.8 $ $Date: 2010/11/09 16:35:29 $
+ .	$Revision: 1.9 $ $Date: 2010/11/09 16:36:23 $
  */
 
 #include <stdlib.h>
@@ -19,14 +19,20 @@
 #include "alloc.h"
 #include "sigmet_raw.h"
 
-/* Daemon socket */
+
+/*
+   Pathnames for daemon working directory and daemon socket.
+ */
+
+static char *ddir;
 static char *dsock;
 
-/* Daemon working directory */
-static char *ddir;
+/*
+   Call this function at exit to prevent memory diagnostics from reporting
+   spurious leaks.
+ */
 
 static void cleanup(void);
-
 static void cleanup(void)
 {
     FREE(dsock);
@@ -36,6 +42,7 @@ static void cleanup(void)
 /*
    Identify and create the daemon working directory.
    Identify but do NOT create daemon socket.
+   This function allocates ddir and dsock.
    If something goes wrong, exit the program.
  */
 
