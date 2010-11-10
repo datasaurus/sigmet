@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.42 $ $Date: 2010/11/10 21:37:04 $
+ .	$Revision: 1.43 $ $Date: 2010/11/10 21:44:25 $
  */
 
 #include <unistd.h>
@@ -89,7 +89,6 @@ static void sig_vol_free(struct sig_vol *);
 static void tunlink(struct sig_vol *);
 static void uunlink(struct sig_vol *sv_p);
 static void uappend(struct sig_vol *sv_p);
-static void sig_vol_rm(char *vol_nm);
 static int hash(char *, dev_t *, ino_t *, int *);
 static FILE *vol_open(const char *, pid_t *, int, FILE *);
 
@@ -298,32 +297,6 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
 }
 
 /*
-   Deallocate the sig_vol struct associated with vol_nm and remove its entry
-   from vols.  Quietly do nothing if there is no entry for vol_nm in vols.
- */
-
-static void sig_vol_rm(char *vol_nm)
-{
-    dev_t d;			/* Id of device containing file named vol_nm */
-    ino_t i;			/* Inode number for file named vol_nm*/
-    int h;			/* Index into vols */
-    struct sig_vol *sv_p, *tnext;
-
-    if ( !hash(vol_nm, &d, &i, &h) ) {
-	return;
-    }
-    for (sv_p = vols[h]; sv_p; sv_p = tnext) {
-	tnext = sv_p->tnext;
-	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
-	    tunlink(sv_p);
-	    uunlink(sv_p);
-	    sig_vol_free(sv_p);
-	    break;
-	}
-    }
-}
-
-/*
    Return true if vol_nm is a good (navigable) Sigmet volume.
    Print error messages to err.
  */
@@ -401,7 +374,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	in_pid = -1;
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
 	    fprintf(err, "Could not open %s for input.\n", vol_nm);
-	    sig_vol_rm(vol_nm);
+	    SigmetRaw_Delete(vol_nm);
 	    return SIGMET_CB_INPUT_FAIL;
 	}
 	switch (status = Sigmet_ReadHdr(in, vol_p)) {
@@ -429,7 +402,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     }
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
-	sig_vol_rm(vol_nm);
+	SigmetRaw_Delete(vol_nm);
 	switch (status) {
 	    case SIGMET_VOL_READ_OK:
 		break;
@@ -500,7 +473,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	in_pid = -1;
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
 	    fprintf(err, "Could not open %s for input.\n", vol_nm);
-	    sig_vol_rm(vol_nm);
+	    SigmetRaw_Delete(vol_nm);
 	    return SIGMET_CB_INPUT_FAIL;
 	}
 	switch (status = Sigmet_ReadVol(in, vol_p)) {
@@ -530,7 +503,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     }
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
-	sig_vol_rm(vol_nm);
+	SigmetRaw_Delete(vol_nm);
 	switch (status) {
 	    case SIGMET_VOL_READ_OK:
 		break;
@@ -599,7 +572,9 @@ void SigmetRaw_Release(char *vol_nm)
 }
 
 /*
-   Delete a volume
+   Deallocate the sig_vol struct associated with vol_nm and remove its entry
+   from vols.  Return true if an entry for vol_nm is found and deleted,
+   otherwise return false.
  */
 
 int SigmetRaw_Delete(char *vol_nm)
