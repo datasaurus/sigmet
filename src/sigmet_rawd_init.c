@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.301 $ $Date: 2010/11/09 20:25:25 $
+ .	$Revision: 1.302 $ $Date: 2010/11/09 20:58:43 $
  */
 
 #include <limits.h>
@@ -152,6 +152,7 @@ int main(int argc, char *argv[])
     /*
        Initialize internal interfaces and data structures
      */
+
     SigmetRaw_VolInit();
     if ( !SigmetRaw_ProjInit() ) {
 	fprintf(stderr, "%s (%d): could not set default projection.\n",
@@ -555,11 +556,10 @@ static enum Sigmet_CB_Return setcolors_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *abbrv;		/* Data type abbreviation */
-    char *clr_fl_nm;		/* File with colors */
+    char *abbrv;			/* Data type abbreviation */
+    char *clr_fl_nm;			/* File with colors */
     int status;
 
-    /* Parse command line */
     if ( argc != 4 ) {
 	fprintf(err, "Usage: %s %s type colors_file\n", argv0, argv1);
 	return SIGMET_CB_FAIL;
@@ -588,8 +588,8 @@ static enum Sigmet_CB_Return good_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv0, argv1);
@@ -616,8 +616,8 @@ static enum Sigmet_CB_Return keep_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv0, argv1);
@@ -638,8 +638,8 @@ static enum Sigmet_CB_Return release_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv0, argv1);
@@ -660,8 +660,8 @@ static enum Sigmet_CB_Return delete_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv0, argv1);
@@ -714,8 +714,8 @@ static enum Sigmet_CB_Return volume_headers_cb(int argc, char *argv[], char *cl_
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;	/* Volume structure */
     enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadHdr */
 
@@ -741,10 +741,10 @@ static enum Sigmet_CB_Return vol_hdr_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadHdr */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadHdr */
     int y;
     double wavlen, prf, vel_ua;
     enum Sigmet_Multi_PRF mp;
@@ -814,12 +814,12 @@ static enum Sigmet_CB_Return near_sweep_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *ang_s;		/* Sweep angle, degrees, from command line */
+    char *ang_s;			/* Sweep angle, degrees */
     double ang, da;
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadVol */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
     int s, nrst;
 
     if ( argc != 4 ) {
@@ -864,10 +864,10 @@ static enum Sigmet_CB_Return ray_headers_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadVol */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
     int s, r;
 
     if ( argc != 3 ) {
@@ -921,10 +921,10 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadVol */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
     int s, y, r, b;
     char *abbrv;
     double d;
@@ -985,6 +985,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	   User has specified a data type.  Search for it in the volume,
 	   and set y to the specified type (instead of all).
 	 */
+
 	abbrv = Sigmet_DataType_Abbrv(type);
 	for (y = 0; y < vol_p->num_types; y++) {
 	    if ( type == vol_p->types[y] ) {
@@ -1013,7 +1014,10 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	return SIGMET_CB_FAIL;
     }
 
-    /* Write */
+    /*
+       Done parsing. Start writing.
+     */
+
     if ( y == all && s == all && r == all && b == all ) {
 	for (y = 0; y < vol_p->num_types; y++) {
 	    type = vol_p->types[y];
@@ -1106,13 +1110,13 @@ static enum Sigmet_CB_Return bin_outline_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadVol */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
     char *s_s, *r_s, *b_s, *u_s;
-    int use_rad = 1;		/* If true, use radians */
-    int use_deg = 0;		/* If true, use degrees */
+    int use_rad = 1;			/* If true, use radians */
+    int use_deg = 0;			/* If true, use degrees */
     int s, r, b;
     double corners[8];
     double c;
@@ -1200,21 +1204,20 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
-    struct Sigmet_Vol *vol_p;	/* Volume structure */
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadVol */
-    char *s_s;			/* Sweep index, as a string */
-    char *abbrv;		/* Data type abbreviation */
-    enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
-    int y, s, r, b;		/* Indeces: data type, sweep, ray, bin */
-    unsigned char n_clrs;	/* number of colors for the data type */
-    double *bnds;		/* bounds[type_t] */
-    unsigned char n_bnds;	/* number of bounds = n_clrs + 1 */
-    int n;			/* Index from bnds */
-    double d;			/* Data value */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
+    struct Sigmet_Vol *vol_p;		/* Volume structure */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
+    char *s_s;				/* Sweep index, as a string */
+    char *abbrv;			/* Data type abbreviation */
+    enum Sigmet_DataType type_t;	/* Sigmet data type */
+    int y, s, r, b;			/* data type, sweep, ray, bin */
+    unsigned char n_clrs;		/* number of colors for the data type */
+    double *bnds;			/* bounds[type_t] */
+    unsigned char n_bnds;		/* number of bounds = n_clrs + 1 */
+    int n;				/* Index from bnds */
+    double d;				/* Data value */
 
-    /* Parse command line */
     if ( argc != 5 ) {
 	fprintf(err, "Usage: %s %s type sweep sigmet_volume\n", argv0, argv1);
 	return SIGMET_CB_FAIL;
@@ -1247,7 +1250,10 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
 	    return status;
     }
 
-    /* Make sure volume, type, and sweep are valid */
+    /*
+       Validate.
+     */
+
     for (y = 0; y < vol_p->num_types; y++) {
 	if ( type_t == vol_p->types[y] ) {
 	    break;
@@ -1269,7 +1275,10 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
 	return SIGMET_CB_FAIL;
     }
 
-    /* Determine which interval from bounds each bin value is in and print. */
+    /*
+       Determine which interval from bounds each bin value is in and print.
+     */
+
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_ok[s][r] ) {
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
@@ -1290,14 +1299,13 @@ static enum Sigmet_CB_Return radar_lon_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
-    struct Sigmet_Vol *vol_p;	/* Volume structure */
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadHdr */
-    char *lon_s;		/* New longitude, degrees, in argv */
-    double lon;			/* New longitude, degrees */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
+    struct Sigmet_Vol *vol_p;		/* Volume structure */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadHdr */
+    char *lon_s;			/* New longitude, degrees, in argv */
+    double lon;				/* New longitude, degrees */
 
-    /* Parse command line */
     if ( argc != 4 ) {
 	fprintf(err, "Usage: %s %s new_lon sigmet_volume\n", argv0, argv1);
 	return SIGMET_CB_FAIL;
@@ -1329,14 +1337,13 @@ static enum Sigmet_CB_Return radar_lat_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
-    struct Sigmet_Vol *vol_p;	/* Volume structure */
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadHdr */
-    char *lat_s;		/* New latitude, degrees, in argv */
-    double lat;			/* New latitude, degrees */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
+    struct Sigmet_Vol *vol_p;		/* Volume structure */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadHdr */
+    char *lat_s;			/* New latitude, degrees, in argv */
+    double lat;				/* New latitude, degrees */
 
-    /* Parse command line */
     if ( argc != 4 ) {
 	fprintf(err, "Usage: %s %s new_lat sigmet_volume\n", argv0, argv1);
 	return SIGMET_CB_FAIL;
@@ -1368,16 +1375,15 @@ static enum Sigmet_CB_Return shift_az_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
-    struct Sigmet_Vol *vol_p;	/* Volume structure */
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadVol */
-    char *daz_s;		/* Amount to add to each azimuth, degrees */
-    double daz;			/* Amount to add to each azimuth, radians */
-    double idaz;		/* Amount to add to each azimuth, binary angle */
-    int s, r;			/* Loop indeces */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
+    struct Sigmet_Vol *vol_p;		/* Volume structure */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
+    char *daz_s;			/* Degrees to add to each azimuth */
+    double daz;				/* Radians to add to each azimuth */
+    double idaz;			/* Binary angle to add to each azimuth */
+    int s, r;				/* Loop indeces */
 
-    /* Parse command line */
     if ( argc != 4 ) {
 	fprintf(err, "Usage: %s %s dz sigmet_volume\n", argv0, argv1);
 	return SIGMET_CB_FAIL;
@@ -1449,7 +1455,7 @@ static enum Sigmet_CB_Return img_sz_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    unsigned w_pxl, h_pxl;	/* New image width and height, in pixels */
+    unsigned w_pxl, h_pxl;		/* New image width and height, pixels */
 
     if ( argc == 2 ) {
 	SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
@@ -1492,7 +1498,7 @@ static enum Sigmet_CB_Return img_app_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *img_app_s;		/* Path name of image generator */
+    char *img_app_s;			/* Path name of image generator */
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s img_app\n", argv0, argv1);
@@ -1563,17 +1569,16 @@ static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
-    struct Sigmet_Vol *vol_p;	/* Volume structure */
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadHdr */
-    char *s_s;			/* Sweep index, as a string */
-    char *abbrv;		/* Data type abbreviation */
-    enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
-    int y, s;			/* Indeces: data type, sweep */
-    char img_fl_nm[LEN];	/* Name of image file */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
+    struct Sigmet_Vol *vol_p;		/* Volume structure */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadHdr */
+    char *s_s;				/* Sweep index, as a string */
+    char *abbrv;			/* Data type abbreviation */
+    enum Sigmet_DataType type_t;	/* Sigmet data type. */
+    int y, s;				/* Indeces: data type, sweep */
+    char img_fl_nm[LEN];		/* Name of image file */
 
-    /* Parse command line */
     if ( argc != 5 ) {
 	fprintf(err, "Usage: %s %s type sweep sigmet_volume\n", argv0, argv1);
 	return SIGMET_CB_FAIL;
@@ -1600,7 +1605,10 @@ static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
 	    return status;
     }
 
-    /* Make sure volume, type, and sweep are valid */
+    /*
+       Validate
+     */
+
     for (y = 0; y < vol_p->num_types; y++) {
 	if ( type_t == vol_p->types[y] ) {
 	    break;
@@ -1622,7 +1630,10 @@ static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
 	return SIGMET_CB_FAIL;
     }
 
-    /* Print name of output file */
+    /*
+       Print name of output file
+     */
+
     if ( !img_name(vol_p, abbrv, s, img_fl_nm) ) {
 	fprintf(err, "%s %s: could not make image file name\n%s\n",
 		argv0, argv1, Err_Get());
@@ -1638,59 +1649,66 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
-    struct Sigmet_Vol *vol_p;	/* Volume structure */
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadVol */
-    char *s_s;			/* Sweep index, as a string */
-    char *abbrv;		/* Data type abbreviation */
-    enum Sigmet_DataType type_t;/* Sigmet data type enumerator. See sigmet (3) */
-    int y, s, r, b;		/* Indeces: data type, sweep, ray, bin */
-    double left;		/* Map coordinate of left side */
-    double rght;		/* Map coordinate of right side */
-    double btm;			/* Map coordinate of bottom */
-    double top;			/* Map coordinate of top */
-    struct DataType_Color *clrs; /* colors array */
-    unsigned char n_clrs;	/* Number of colors = number of bounds - 1 */
-    double *bnds;		/* bounds for each color */
-    unsigned char n_bnds;	/* number of bounds = n_clrs + 1 */
-    double d;			/* Data value */
-    projUV radar;		/* Radar location lon-lat or x-y */
-    projUV edge;		/* Point on the edge of the display area, needed
-				   to compute display bounds */
-    double cnrs_ll[8];		/* Corners of a gate, lon-lat */
-    double *ll;			/* Element from cnrs_ll */
-    double ray_len;		/* Ray length, meters or great circle radians */
-    double west, east;		/* Display area longitude limits */
-    double south, north;	/* Display area latitude limits */
-    projPJ pj;			/* Geographic projection */
-    projUV cnrs_uv[4];		/* Corners of a gate, lon-lat or x-y */
-    projUV *uv;			/* Element from cnrs_uv */
-    int n;			/* Loop index */
-    int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
-    double sec;			/* Sweep second */
-    char base_nm[LEN]; 		/* Output file name */
-    unsigned w_pxl, h_pxl;	/* Width and height of image, in display units */
-    double alpha;		/* Image alpha channel */
-    char img_fl_nm[LEN]; 	/* Image output file name */
-    size_t img_fl_nm_l;		/* strlen(img_fl_nm) */
-    int flags;                  /* Image file creation flags */
-    mode_t mode;                /* Image file permissions */
-    int i_img_fl;		/* Image file descriptor, not used */
-    char *img_app;		/* External application to draw image */
-    char kml_fl_nm[LEN];	/* KML output file name */
-    FILE *kml_fl;		/* KML file */
-    pid_t img_pid = -1;		/* Process id for image generator */
-    FILE *img_out = NULL;	/* Where to send outlines to draw */
-    struct XDRX_Stream xout;	/* XDR stream for img_out */
-    jmp_buf err_jmp;		/* Handle output errors with setjmp, longjmp */
-    char *item = NULL;		/* Item being written. Needed for error message. */
-    pid_t p;			/* Return from waitpid */
-    int si;			/* Exit status of image generator */
-    int pfd[2];			/* Pipe for data */
-    double px_per_m;		/* Display units per map unit */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
+    struct Sigmet_Vol *vol_p;		/* Volume structure */
+    enum Sigmet_CB_Return status; 	/* Result of SigmetRaw_ReadVol */
+    char *s_s;				/* Sweep index, as a string */
+    char *abbrv;			/* Data type abbreviation */
+    enum Sigmet_DataType type_t;	/* Sigmet data type */
+    int y, s, r, b;			/* Indeces: data type, sweep, ray, bin */
+    double left;			/* Map coordinate of left side */
+    double rght;			/* Map coordinate of right side */
+    double btm;				/* Map coordinate of bottom */
+    double top;				/* Map coordinate of top */
+    struct DataType_Color *clrs; 	/* colors array */
+    unsigned char n_clrs;		/* Number colors = number bounds - 1 */
+    double *bnds;			/* bounds for each color */
+    unsigned char n_bnds;		/* number of bounds = n_clrs + 1 */
+    double d;				/* Data value */
+    projUV radar;			/* Radar location lon-lat or x-y */
+    projUV edge;			/* Point on the edge of the display area,
+					   needed to compute display bounds */
+    double cnrs_ll[8];			/* Corners of a gate, lon-lat */
+    double *ll;				/* Element from cnrs_ll */
+    double ray_len;			/* Ray length, meters or great circle
+					   radians */
+    double west, east;			/* Display area longitude limits */
+    double south, north;		/* Display area latitude limits */
+    projPJ pj;				/* Geographic projection */
+    projUV cnrs_uv[4];			/* Corners of a gate, lon-lat or x-y */
+    projUV *uv;				/* Element from cnrs_uv */
+    int n;				/* Loop index */
+    int yr, mo, da, h, mi;		/* Sweep year, month, day, hour, minute */
+    double sec;				/* Sweep second */
+    char base_nm[LEN]; 			/* Output file name */
+    unsigned w_pxl, h_pxl;		/* Width and height of image, in display
+					   units */
+    double alpha;			/* Image alpha channel */
+    char img_fl_nm[LEN]; 		/* Image output file name */
+    size_t img_fl_nm_l;			/* strlen(img_fl_nm) */
+    int flags;                  	/* Image file creation flags */
+    mode_t mode;                	/* Image file permissions */
+    int i_img_fl;			/* Image file descriptor, not used */
+    char *img_app;			/* External application to draw image */
+    char kml_fl_nm[LEN];		/* KML output file name */
+    FILE *kml_fl;			/* KML file */
+    pid_t img_pid = -1;			/* Process id for image generator */
+    FILE *img_out = NULL;		/* Where to send outlines to draw */
+    struct XDRX_Stream xout;		/* XDR stream for img_out */
+    jmp_buf err_jmp;			/* Handle output errors with setjmp,
+					   longjmp */
+    char *item = NULL;			/* Item being written. Needed for error
+					   message. */
+    pid_t p;				/* Return from waitpid */
+    int si;				/* Exit status of image generator */
+    int pfd[2];				/* Pipe for data */
+    double px_per_m;			/* Display units per map unit */
 
-    /* KML template for positioning result */
+    /*
+       This format string creates a KML file.
+     */
+
     char kml_tmpl[] = 
 	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 	"<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
@@ -1721,7 +1739,6 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 	return SIGMET_CB_FAIL;
     }
 
-    /* Parse command line */
     if ( argc != 5 ) {
 	fprintf(err, "Usage: %s %s type sweep sigmet_volume\n", argv0, argv1);
 	return SIGMET_CB_FAIL;
@@ -1755,7 +1772,10 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 	    return status;
     }
 
-    /* Make sure volume, type, and sweep are valid */
+    /*
+       Validate
+     */
+
     for (y = 0; y < vol_p->num_types; y++) {
 	if ( type_t == vol_p->types[y] ) {
 	    break;
@@ -1797,7 +1817,10 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 	    + (vol_p->ih.tc.tri.num_bins_out + 1) * vol_p->ih.tc.tri.step_out);
     ray_len = ray_len * M_PI / (180.0 * 60.0 * 1852.0);
 
-    /* Left (west) side */
+    /*
+       Left (west) side
+     */
+
     GeogStep(radar.u, radar.v, 270.0 * RAD_PER_DEG, ray_len, &west, &d);
     edge.u = west;
     edge.v = d;
@@ -1809,7 +1832,10 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     }
     left = edge.u;
 
-    /* Right (east) side */
+    /*
+       Right (east) side
+     */
+
     GeogStep(radar.u, radar.v, 90.0 * RAD_PER_DEG, ray_len, &east, &d);
     edge.u = east;
     edge.v = d;
@@ -1821,7 +1847,10 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     }
     rght = edge.u;
 
-    /* Bottom (south) side */
+    /*
+       Bottom (south) side
+     */
+
     GeogStep(radar.u, radar.v, 180.0 * RAD_PER_DEG, ray_len, &d, &south);
     edge.u = d;
     edge.v = south;
@@ -1833,7 +1862,10 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     }
     btm = edge.v;
 
-    /* Top (north) side */
+    /*
+       Top (north) side
+     */
+
     GeogStep(radar.u, radar.v, 0.0, ray_len, &d, &north);
     edge.u = d;
     edge.v = north;
@@ -1854,7 +1886,10 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
     px_per_m = w_pxl / (rght - left);
 
-    /* Create image file. Fail if it exists */
+    /*
+       Attempt to create image file. Fail if it exists.
+     */
+
     if ( !img_name(vol_p, abbrv, s, base_nm) ) {
 	fprintf(err, "%s %s: could not make image file name\n%s\n",
 		argv0, argv1, Err_Get());
@@ -1879,18 +1914,21 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
         return SIGMET_CB_FAIL;
     }
 
-    /* Launch the external drawing application and create a pipe to it. */
+    /*
+       Launch the external drawing application and create a pipe to it.
+     */
+
     if ( pipe(pfd) == -1 ) {
-	fprintf(err, "%s %s: could not connect to image drawing application\n%s\n",
-		argv0, argv1, strerror(errno));
+	fprintf(err, "%s %s: could not connect to image drawing application\n"
+		"%s\n", argv0, argv1, strerror(errno));
 	unlink(img_fl_nm);
 	return SIGMET_CB_FAIL;
     }
     img_pid = fork();
     switch (img_pid) {
 	case -1:
-	    fprintf(err, "%s %s: could not spawn image drawing application\n%s\n",
-		    argv0, argv1, strerror(errno));
+	    fprintf(err, "%s %s: could not spawn image drawing application\n"
+		    "%s\n", argv0, argv1, strerror(errno));
 	    unlink(img_fl_nm);
 	    return SIGMET_CB_FAIL;
 	case 0:
@@ -1914,8 +1952,10 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 	    _exit(EXIT_FAILURE);
 	default:
 	    /*
-	       This process.  Send polygon to write side of pipe, a.k.a. img_out.
+	       This process.  Send polygons to write side of pipe,
+	       a.k.a. img_out.
 	     */
+
 	    if ( close(pfd[0]) == -1 || !(img_out = fdopen(pfd[1], "w"))) {
 		fprintf(err, "%s %s: could not write to image drawing "
 			"application\n%s\n", argv0, argv1, strerror(errno));
@@ -1926,23 +1966,30 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     }
     XDRX_StdIO_Create(&xout, img_out, XDR_ENCODE);
 
-    /* Come back here if write to image generator fails */
+    /*
+       Come back here if write to image generator fails.
+       The XDRX functions require this block.
+       XDRX_OK means setjmp is returning for the first time.
+       XDRX_EOF is not used.
+       XDRX_ERR means an attempt to write to the image application failed.
+     */
+
     switch (setjmp(err_jmp)) {
 	case XDRX_OK:
-	    /* Initializing */
 	    break;
 	case XDRX_ERR:
-	    /* Fail */
 	    fprintf(err, "%s %s: could not write %s for image %s\n%s\n",
 		    argv0, argv1, item, img_fl_nm, Err_Get());
 	    goto error;
 	    break;
 	case XDRX_EOF:
-	    /* Not used */
 	    break;
     }
 
-    /* Send global information about the image to drawing process */
+    /*
+       Send global information about the image to drawing process
+     */
+
     img_fl_nm_l = strlen(img_fl_nm);
     item = "image file name";
     XDRX_Put_UInt(img_fl_nm_l, &xout, err_jmp);
@@ -1965,17 +2012,24 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 	XDRX_Put_UInt(clrs[n].blue, &xout, err_jmp);
     }
 
-    /* Determine which interval from bounds each bin value is in. */
+    /*
+       Loop through bins for each ray for sweep s.
+       Determine which interval from bnds each bin value is in.
+       If the bin value is in an interval to display, send the
+       bin outline to the image drawing application.
+     */
+
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_ok[s][r] ) {
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
 		d = Sigmet_VolDat(vol_p, y, s, r, b);
-		if ( Sigmet_IsData(d) && (n = BISearch(d, bnds, n_bnds)) != -1 ) {
-		    int undef = 0;	/* If true, gate is outside map */
-		    size_t npts = 4;	/* Number of vertices */
+		if ( Sigmet_IsData(d)
+			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
+		    int undef = 0;		/* If true, outside map */
+		    size_t npts = 4;		/* Number of vertices */
 
 		    if ( !Sigmet_BinOutl(vol_p, s, r, b, cnrs_ll) ) {
-			Err_Get();	/* Flush */
+			Err_Get();		/* Flush */
 			continue;
 		    }
 		    for (ll = cnrs_ll, uv = cnrs_uv; uv < cnrs_uv + 4; uv++) {
@@ -2032,7 +2086,10 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 		(p == -1) ? strerror(errno) : "Unknown error.");
     }
 
-    /* Make kml file and return */
+    /*
+       Image file is done. Make kml file.
+     */
+
     if ( snprintf(kml_fl_nm, LEN, "%s/%s.kml", cl_wd, base_nm) >= LEN ) {
 	fprintf(err, "%s %s: could not make kml file name for %s\n",
 		argv0, argv1, img_fl_nm);
@@ -2070,13 +2127,14 @@ static enum Sigmet_CB_Return dorade_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *vol_nm_r;		/* Path to Sigmet volume from command line */
-    char vol_nm[LEN];		/* Absolute path to Sigmet volume */
-    int s;			/* Index of desired sweep, or -1 for all */
-    char *s_s;			/* String representation of s */
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
+    int s;				/* Index of desired sweep,
+					   or -1 for all */
+    char *s_s;				/* String representation of s */
     int all = -1;
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadVol */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
     struct Dorade_Sweep swp;
 
     if ( argc == 3 ) {
@@ -2174,7 +2232,10 @@ static int handle_signals(void)
 	return 0;
     }
 
-    /* Signals to ignore */
+    /*
+       Signals to ignore
+     */
+
     act.sa_handler = SIG_IGN;
     if ( sigaction(SIGHUP, &act, NULL) == -1 ) {
 	perror(NULL);
@@ -2193,7 +2254,10 @@ static int handle_signals(void)
 	return 0;
     }
 
-    /* Generic action for termination signals */
+    /*
+       Generic action for termination signals
+     */
+
     act.sa_handler = handler;
     if ( sigaction(SIGTERM, &act, NULL) == -1 ) {
 	perror(NULL);
