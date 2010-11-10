@@ -8,9 +8,9 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.39 $ $Date: 2010/11/10 16:03:16 $
+   .	$Revision: 1.40 $ $Date: 2010/11/10 16:05:35 $
    .
-   .	Reference: IRIS Programmer's Manual, September 2002.
+   .	Reference: IRIS Programmer's Manual, February 2009.
  */
 
 #ifndef SIGMET_H_
@@ -28,7 +28,10 @@
 #define RAD_PER_DEG	0.01745329251994329576
 #define DEG_PER_RAD	57.29577951308232087648
 
-/* These constants identify the Sigmet data types */
+/*
+   These constants identify the Sigmet data types
+ */
+
 #define SIGMET_NTYPES 29
 enum Sigmet_DataType {
     DB_XHDR,	DB_DBT,		DB_DBZ,		DB_VEL,		DB_WIDTH,
@@ -39,10 +42,15 @@ enum Sigmet_DataType {
     DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_ERROR
 };
 
-/* Multi PRF mode flags */
+/*
+   Multi PRF mode flags
+ */
+
 enum Sigmet_Multi_PRF {ONE_ONE, TWO_THREE, THREE_FOUR, FOUR_FIVE};
 
-/* Volume scan modes.  Refer to task_scan_info struct in IRIS Programmer's Manual */
+/*
+   Volume scan modes.  Refer to task_scan_info struct in IRIS Programmer's Manual
+ */
 enum Sigmet_ScanMode {PPI_S = 1, RHI, MAN_SCAN, PPI_C, FILE_SCAN};
 
 /*
@@ -50,7 +58,9 @@ enum Sigmet_ScanMode {PPI_S = 1, RHI, MAN_SCAN, PPI_C, FILE_SCAN};
    Ref. IRIS Programmer's Manual
  */
 
-/* Year, month, day, second */
+/*
+   Time as represented in various Sigmet raw headers.
+ */
 struct Sigmet_YMDS_Time {
     int sec;		/* Seconds since midnight */
     unsigned msec;	/* Milliseconds */
@@ -67,7 +77,11 @@ struct Sigmet_Structure_Header {
     int flags;
 };
 
-/* For raw volume, product_specific_info is raw_psi_struct */
+/*
+   For raw volume, product_specific_info is raw_psi_struct
+   See IRIS Programmer's Manual, 3.2.26.
+ */
+
 struct Sigmet_Product_Specific_Info {
     unsigned data_type_mask;
     int rng_last_bin;
@@ -389,7 +403,11 @@ struct Sigmet_Ingest_Header {
     struct Sigmet_Task_Configuration tc;
 };
 
-/* Data array, dimensioned [sweep][ray][bin] */
+/*
+   Data array, dimensioned [sweep][ray][bin]. Type used depends on
+   Sigmet data type. U1BYT and U2BYT are declared in type_nbit.h.
+ */
+
 union Sigmet_DatArr {
     U1BYT ***d1;				/* 1 byte data */
     U2BYT ***d2;				/* 2 byte data */
@@ -405,17 +423,24 @@ union Sigmet_DatArr {
    Units for members taken directly from the Sigmet volume are as indicated
    in the IRIS Programmer Manual (i.e. nothing is converted during input).
    Units for derived members are as indicated.  In particular, angles from
-   the volume are unsigned integer binary angles.
+   the volume are unsigned integer binary angles (cf. IRIS Programmer's Manual,
+   3.1).
  */
 
 struct Sigmet_Vol {
 
-    /* Volume headers */
+    /*
+       Volume headers
+     */
+
     int has_headers;				/* true => struct has headers */
     struct Sigmet_Product_Hdr ph;		/* Record #1 */
     struct Sigmet_Ingest_Header ih;		/* Record #2 */
 
-    /* Ray headers and data */
+    /*
+       Ray headers and data
+     */
+
     int xhdr;					/* true => use extended headers */
     int num_types;				/* Number of data types */
     enum Sigmet_DataType types[SIGMET_NTYPES];	/* Data types */
@@ -456,6 +481,10 @@ struct Sigmet_Vol {
 						   structure is using */
 };
 
+/*
+   These functions manipulate data values.
+ */
+
 enum Sigmet_DataType Sigmet_DataType(char *);
 char *Sigmet_DataType_Abbrv(enum Sigmet_DataType);
 char *Sigmet_DataType_Descr(enum Sigmet_DataType);
@@ -467,9 +496,17 @@ double Sigmet_Bin2Rad(unsigned short);
 unsigned long Sigmet_RadBin4(double);
 unsigned long Sigmet_RadBin2(double);
 
-/* Return codes from Sigmet_ReadHdr and Sigmet_ReadVol */
+/*
+   Values of this type are returned by Sigmet_ReadHdr and Sigmet_ReadVol.
+   They indicate whether reading succeeded, or if not, how it failed.
+ */
+
 enum Sigmet_ReadStatus {SIGMET_VOL_READ_OK, SIGMET_VOL_INPUT_FAIL,
     SIGMET_VOL_BAD_VOL, SIGMET_VOL_MEM_FAIL};
+
+/*
+   These functions access Sigmet raw product files.
+ */
 
 void Sigmet_InitVol(struct Sigmet_Vol *);
 void Sigmet_FreeVol(struct Sigmet_Vol *);
