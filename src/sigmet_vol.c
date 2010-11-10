@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.55 $ $Date: 2010/11/02 21:41:11 $
+   .	$Revision: 1.56 $ $Date: 2010/11/05 16:54:03 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -25,6 +25,9 @@
 #include "type_nbit.h"
 #include "geog_lib.h"
 #include "sigmet.h"
+
+/* Length of a record in a Sigmet raw file */
+#define REC_LEN 6144
 
 /* Header sizes in data record */
 #define SZ_RAW_PROD_BHDR 12
