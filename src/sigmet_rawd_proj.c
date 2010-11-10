@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: $ $Date: $
+ .	$Revision: 1.1 $ $Date: 2010/08/18 19:35:53 $
  */
 
 /*
@@ -24,7 +24,6 @@
 static projPJ pj;
 static char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" };
 
-/* Initialize this interface */
 int SigmetRaw_ProjInit(void)
 {
     if ( !(pj = pj_init(2, dflt_proj)) ) {
