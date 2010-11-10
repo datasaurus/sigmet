@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.44 $ $Date: 2010/11/10 21:52:28 $
+ .	$Revision: 1.45 $ $Date: 2010/11/10 22:03:42 $
  */
 
 #include <unistd.h>
@@ -417,7 +417,12 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 		break;
 	}
     }
-    SigmetRaw_Flush();
+    if ( vol_size() > max_vol_size && SigmetRaw_Flush() == 0 ) {
+	fprintf(err, "Reading %s puts memory use beyond limit and unable "
+		"to flush.\n", vol_nm);
+	SigmetRaw_Delete(vol_nm);
+	return SIGMET_CB_FAIL;
+    }
     sv_p->keep = 0;
     *vol_pp = vol_p;
     return SIGMET_CB_SUCCESS;
@@ -518,7 +523,12 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		break;
 	}
     }
-    SigmetRaw_Flush();
+    if ( vol_size() > max_vol_size && SigmetRaw_Flush() == 0 ) {
+	fprintf(err, "Reading %s puts memory use beyond limit and unable "
+		"to flush.\n", vol_nm);
+	SigmetRaw_Delete(vol_nm);
+	return SIGMET_CB_FAIL;
+    }
     sv_p->keep = 0;
     *vol_pp = vol_p;
     return SIGMET_CB_SUCCESS;
