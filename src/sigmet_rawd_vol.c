@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.39 $ $Date: 2010/11/09 21:33:05 $
+ .	$Revision: 1.40 $ $Date: 2010/11/09 21:37:07 $
  */
 
 #include <unistd.h>
@@ -26,10 +26,11 @@
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
-/* Maximum total size allowed for all volumes, in bytes */
-static size_t max_size = 402653184;
+/*
+   Structures of this type store a Sigmet volume with additonal data
+   that sigmet_rawd needs to manage it.
+ */
 
-/* A Sigmet volume struct and data to manage it. */
 struct sig_vol {
     struct Sigmet_Vol vol;		/* Sigmet volume struct. See sigmet.h */
     char *vol_nm;			/* file that provided the volume */
@@ -47,31 +48,55 @@ struct sig_vol {
 					   head of the usage list. */
 };
 
-/* Head and tail of the usage linked list */
+/*
+   max_vol_size stores the maximum total size allowed for all volumes,
+   in bytes. vol_size() computes the current size of all volumes. If
+   vol_size() > max_vol_size, it is time to offload expendable volumes.
+ */
+
+static size_t max_vol_size = 402653184;
+static size_t vol_size(void);
+
+/*
+   Head and tail of the usage linked list. All volumes are in this list.
+   When a volume is accessed, it is moved to the tail. When sigmet_rawd
+   offloads volumes, it removes uhead until vol_size <= max_vol_size.
+   This approach assumes that volumes that have not been accessed recently
+   are more expendable.
+ */
+
 static struct sig_vol *uhead, *utail;
 
 /*
-   Table of Sigmet volumes for the application. Each element is a linked list of
-   volumes with a common hash (see the hash function defined below). The volumes
-   are linked by their tprev and tnext members.
+   vols is a hash table of currently loaded Sigmet volumes. Each element is
+   a linked list of volumes with a common hash (see the hash function defined
+   below). The volumes in each bucket are linked by their tprev and tnext
+   members.  The hash function applies MASK to the volume file's index number
+   to obtain an index into vols. N_VOLS must be a power of two for this to
+   work.
  */
 
 #define N_VOLS 1024
 #define MASK 0x3ff
 static struct sig_vol *vols[N_VOLS];
 
-/* Local functions and variables */
+/*
+   Other functions.
+ */
+
+static struct sig_vol *sig_vol_get(char *vol_nm);
 static void sig_vol_free(struct sig_vol *);
 static void tunlink(struct sig_vol *);
 static void uunlink(struct sig_vol *sv_p);
 static void uappend(struct sig_vol *sv_p);
 static int hash(char *, dev_t *, ino_t *, int *);
-static struct sig_vol *sig_vol_get(char *vol_nm);
 static void sig_vol_rm(char *vol_nm);
 static FILE *vol_open(const char *, pid_t *, int, FILE *);
-static size_t vol_size(void);
 
-/* Initialize this interface */
+/*
+   Initialize this interface
+ */
+
 void SigmetRaw_VolInit(void)
 {
     int n;
@@ -87,7 +112,10 @@ void SigmetRaw_VolInit(void)
     init = 1;
 }
 
-/* Free memory and reinitialize this interface */
+/*
+   Free memory and reinitialize this interface.
+ */
+
 void SigmetRaw_VolFree(void)
 {
     struct sig_vol *sv_p, *tnext;
@@ -102,7 +130,10 @@ void SigmetRaw_VolFree(void)
     }
 }
 
-/* Free all memory associated with an addess returned by sig_vol_get. */
+/*
+   Free all memory associated with an addess returned by sig_vol_get.
+ */
+
 static void sig_vol_free(struct sig_vol *sv_p)
 {
     if ( !sv_p ) {
@@ -113,7 +144,10 @@ static void sig_vol_free(struct sig_vol *sv_p)
     FREE(sv_p);
 }
 
-/* Unlink a volume from vols */
+/*
+   Unlink a volume from vols
+ */
+
 static void tunlink(struct sig_vol *sv_p)
 {
     int h;
@@ -134,7 +168,10 @@ static void tunlink(struct sig_vol *sv_p)
     sv_p->tprev = sv_p->tnext = NULL;
 }
 
-/* Unlink a volume from the usage list */
+/*
+   Unlink a volume from the usage list
+ */
+
 static void uunlink(struct sig_vol *sv_p)
 {
     if ( !sv_p ) {
@@ -158,7 +195,10 @@ static void uunlink(struct sig_vol *sv_p)
     sv_p->uprev = sv_p->unext = NULL;
 }
 
-/* Append a volume to the usage list */
+/*
+   Append a volume to the usage list
+ */
+
 static void uappend(struct sig_vol *sv_p)
 {
     if ( !sv_p ) {
@@ -179,6 +219,7 @@ static void uappend(struct sig_vol *sv_p)
    i_p.  Store a hash for the file at h_p.  Return true if successful. If
    something goes wrong, return false and store an error string with Err_Append.
  */
+
 static int hash(char *vol_nm, dev_t *d_p, ino_t *i_p, int *h_p)
 {
     struct stat sbuf;
@@ -200,9 +241,12 @@ static int hash(char *vol_nm, dev_t *d_p, ino_t *i_p, int *h_p)
 /*
    Find or create an entry for vol_nm in vols.  If a new sig_vol struct is
    created in vols, the vol member is initialized with a call to Sigmet_InitVol,
-   but the volume is not read.  Return the (possibly new) entry. If something
-   goes wrong, store an error string with Err_Append and return NULL.
+   but the volume is not read.  Return the (possibly new) entry. Memory
+   associated with the return value should eventually be freed with a call to
+   sig_vol_free.  If something goes wrong, store an error string with
+   Err_Append and return NULL.
  */
+
 static struct sig_vol *sig_vol_get(char *vol_nm)
 {
     dev_t d;			/* Id of device containing file named vol_nm */
@@ -212,9 +256,9 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
 
 
     /*
-       Search for the volume in vols. If present, move it to the end of the usage
-       list and return its address. If absent, create an new entry in vols, append
-       it to the end of the usage list, and return its address.
+       Search for the volume in vols. If present, move it to the end of the
+       usage list and return its address. If absent, create an new entry in
+       vols, append it to the end of the usage list, and return its address.
      */
 
     if ( !hash(vol_nm, &d, &i, &h) ) {
@@ -254,9 +298,10 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
 }
 
 /*
-   Deallocate a sig_vol struct and remove its entry from vols.  Quietly do nothing
-   if there is no entry.
+   Deallocate the sig_vol struct associated with vol_nm and remove its entry
+   from vols.  Quietly do nothing if there is no entry for vol_nm in vols.
  */
+
 static void sig_vol_rm(char *vol_nm)
 {
     dev_t d;			/* Id of device containing file named vol_nm */
@@ -282,6 +327,7 @@ static void sig_vol_rm(char *vol_nm)
    Return true if vol_nm is a good (navigable) Sigmet volume.
    Print error messages to err.
  */
+
 enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 {
     struct sig_vol *sv_p;
@@ -308,11 +354,11 @@ enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 }
 
 /*
-   Fetch a volume with headers from the data base, loading it if necessary.
-   If function loads it, only load headers.
-   User count for the volume's entry is incremented. Send error messages to
-   err or i_err.
+   Fetch headers for the volume stored in Sigmet raw product file vol_nm.
+   If vol_nm is absent from vols, or not loaded, this function loads
+   the volume headers, but not data. Send error messages to err or i_err.
  */
+
 enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	struct Sigmet_Vol ** vol_pp)
 {
@@ -325,19 +371,29 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
 
+    /*
+       Find or create and entry for vol_nm in vols. If there is an entry
+       and the vol member has header, return.
+     */
     if ( !(sv_p = sig_vol_get(vol_nm)) ) {
 	fprintf(err, "No entry for %s in volume table, and unable to add it.\n%s\n",
 		vol_nm, Err_Get());
 	return SIGMET_CB_FAIL;
     }
     vol_p = (struct Sigmet_Vol *)sv_p;
-
     if ( vol_p->has_headers ) {
 	*vol_pp = vol_p;
 	return SIGMET_CB_SUCCESS;
     }
 
-    /* Try up to max_try times to read volume headers */
+    /*
+       There is an entry for vol_nm in vols, but the vol member does not have
+       headers.  Try up to max_try times to read volume headers. If there
+       is an allocation failure while reading, reduce max_vol_size and
+       offload expendable volumes with a call to SigmetRaw_Flush. Temporarily
+       setting the "keep" member keeps this volume from being flushed.
+     */
+
     sv_p->keep = 1;
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	in_pid = -1;
@@ -348,13 +404,11 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	}
 	switch (status = Sigmet_ReadHdr(in, vol_p)) {
 	    case SIGMET_VOL_READ_OK:
-		/* Success. Break out. */
 		loaded = 1;
 		break;
 	    case SIGMET_VOL_MEM_FAIL:
-		/* Try to free some memory and try again */
 		fprintf(err, "Out of memory. Offloading unused volumes\n");
-		max_size = vol_size() * 3 / 4;
+		max_vol_size = vol_size() * 3 / 4;
 		if ( SigmetRaw_Flush() == 0 ) {
 		    fprintf(err, "Could not offload any volumes\n");
 		    try = max_try;
@@ -362,7 +416,6 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 		break;
 	    case SIGMET_VOL_INPUT_FAIL:
 	    case SIGMET_VOL_BAD_VOL:
-		/* Read failed. Disable this slot and return failure. */
 		fprintf(err, "%s\n", Err_Get());
 		try = max_try;
 		break;
@@ -378,7 +431,6 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	sig_vol_rm(vol_nm);
 	switch (status) {
 	    case SIGMET_VOL_READ_OK:
-		/* Suppress compiler warning */
 		break;
 	    case SIGMET_VOL_MEM_FAIL:
 		return SIGMET_CB_MEM_FAIL;
@@ -445,7 +497,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		/* Try to free some memory and try again */
 		fprintf(err, "Read failed. Out of memory. %s "
 			"Offloading unused volumes\n", Err_Get());
-		max_size = vol_size() * 3 / 4;
+		max_vol_size = vol_size() * 3 / 4;
 		if ( SigmetRaw_Flush() == 0 ) {
 		    fprintf(err, "Could not offload any volumes\n");
 		    try = max_try;
@@ -553,7 +605,9 @@ int SigmetRaw_Flush(void)
     int c;
     struct sig_vol *sv_p, *unext;
 
-    for (sv_p = uhead, c = 0; sv_p && vol_size() > max_size ; sv_p = unext) {
+    for (sv_p = uhead, c = 0;
+	    sv_p && vol_size() > max_vol_size;
+	    sv_p = unext) {
 	unext = sv_p->unext;
 	if ( !sv_p->keep ) {
 	    tunlink(sv_p);
@@ -569,18 +623,20 @@ int SigmetRaw_Flush(void)
 size_t SigmetRaw_MaxSize(size_t sz)
 {
     if ( sz > 0 ) {
-	max_size = sz;
+	max_vol_size = sz;
     }
-    return max_size;
+    return max_vol_size;
 }
 
 /*
-   Open volume file vol_nm.  If vol_nm suffix suggests a compressed file, open a
-   pipe to a decompression process.
-   Return file handle, or NULL if failure. Put id for decompress process at pid_p,
-   or -1 if no such process (i.e. vol_nm is a plain file).
-   Send error messages to err (in this function) or i_err (in child).
+   Open volume file vol_nm.  If vol_nm suffix indicates a compressed file, open
+   a pipe to a decompression process.  Return a file handle to the file or
+   decompression process, or NULL if failure. If return value is output from a
+   decompression process, put the process id at pid_p. Set *pid_p to -1 if
+   there is no decompression process (i.e. vol_nm is a plain file).  Send error
+   messages to err (in this function) or i_err (in child).
  */
+
 static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 {
     FILE *in = NULL;		/* Return value */
