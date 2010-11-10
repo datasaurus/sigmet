@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.38 $ $Date: 2010/11/05 16:53:16 $
+   .	$Revision: 1.39 $ $Date: 2010/11/10 16:03:16 $
    .
    .	Reference: IRIS Programmer's Manual, September 2002.
  */
@@ -27,9 +27,6 @@
 #define	PI_2		1.57079632679489661923
 #define RAD_PER_DEG	0.01745329251994329576
 #define DEG_PER_RAD	57.29577951308232087648
-
-/* Length of a record in a Sigmet raw file */
-#define REC_LEN 6144
 
 /* These constants identify the Sigmet data types */
 #define SIGMET_NTYPES 29
