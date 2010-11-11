@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.26 $ $Date: 2010/08/31 21:32:19 $
+.\" $Revision: 1.27 $ $Date: 2010/09/02 20:40:21 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -12,15 +12,14 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 .SH SYNOPSIS
 .nf
 \fBexport\fP \fBSIGMET_RAWD_DIR=\fP\fIdirectory\fP 
+\fBsigmet_rawd &\fP
 \fBsigmet_raw\fP \fBstart\fP \fIcommand ...\fP
 \fBsigmet_raw\fP \fBpid\fP
 \fBsigmet_raw\fP \fBtypes\fP
 \fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
-\fBsigmet_raw\fP \fBhread\fP \fIvolume_file\fP
-\fBsigmet_raw\fP \fBread\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBlist\fP
-\fBsigmet_raw\fP \fBrelease\fP \fIvolume_file\fP
-\fBsigmet_raw\fP \fBflush\fP
+\fBsigmet_raw\fP \fBkeep\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBdelete\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBvolume_headers\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBvol_hdr\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBnear_sweep\fP
@@ -37,38 +36,78 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_raw\fP \fBimg_sz\fP \fIn\fP
 \fBsigmet_raw\fP \fBalpha\fP \fIa\fP
 \fBsigmet_raw\fP \fBimg_name\fP [\fItype\fP] [\fIs\fP] \fIvolume_file\fP
-\fBsigmet_raw\fP \fBimg\fP
+\fBsigmet_raw\fP \fBimg\fP \fItype\fP \fIs\fP \fIvolume_file\fP
+\fBsigmet_raw\fP \fBdorade\fP [\fIs\fP] \fIvolume_file\fP
 .fi
 .SH DESCRIPTION
-\fBsigmet_raw\fP reads, stores, and manipulates data from Sigmet raw product
-volumes. Its behavior is determined by the subcommand on the command line.
-The following subcommands are recognized:
+The \fBsigmet_rawd\fP daemon reads, stores, and manipulates data from Sigmet
+raw product volumes. The \fBsigmet_raw\fP client command accesses and controls
+\fBsigmet_rawd\fP. The daemon keeps Sigmet volumes in memory, along
+with information needed to access and manipulate them. It does not interact
+with any terminal or other user interface. People and scripts control the daemon
+with the \fBsigmet_raw\fP command.
+.PP
+When a \fBsigmet_raw\fP client requires action on a new volume, \fBsigmet_rawd\fP
+automatically loads it and presents the data to the client. It keeps the volume
+in memory, speeding subsequent \fBsigmet_raw\fP calls which refer to the same
+volume.  When \fBsigmet_rawd\fP needs memory, it automatically deletes expendable
+volumes.  A volume is expendable if it has not been modified in memory. The
+descriptions below indicate which subcommands modify volumes in memory. If the
+daemon has reached its memory limit and cannot delete volumes because none are
+expendable, then \fBsigmet_raw\fP calls that require new volumes will fail until
+memory is freed with one or more calls to \fBsigmet_raw\ delete\fP.
+.SH INVOCATION
+There are two methods for launching and using \fBsigmet_rawd\fP.
 .TP
-\fBsigmet_raw\fP \fBstart\fP \fIcommand ...\fP
-This command must be run before any of the other commands listed below will
-work. It starts a background daemon, named \fBsigmet_rawd\fP, that stores and
-manages Sigmet volumes. Then it creates an environment needed to access the
-daemon, and then it executes unix command \fIcommand\fP.  \fIcommand\fP can be an
-interactive shell, e.g.  \fBsigmet_raw start bash -l\fP, or a shell script.
-If \fIcommand\fP is an interactive shell, the prompt will return to the
-usual prompt for the shell, and the user can type in commands.  Invocations of
-\fBsigmet_raw\fP on the command line or in the script will use the
-daemon to store and fetch data from Sigmet volumes. The daemon automatically exits
-when \fIcommand\fP exits, either because the user logs out, or the script finishes.
+\fBexport SIGMET_RAWD_DIR=\fP\fIdir\fP; \fBsigmet_rawd &\fP
+This method just launches a \fBsigmet_rawd\fP daemon. When it starts, the daemon
+creates a directory named \fIdir\fP and populates it with log file
+\fBsigmet.log\fP, error file \fBsigmet.err\fP, and socket \fBsigmet.in\fP. The
+daemon then listens to the socket for requests from \fBsigmet_raw\fP clients.
 
-The daemon keeps files in a directory specified by environment variable
-\fBSIGMET_RAWD_DIR\fP, or $\fBHOME/.sigmet_raw\fP if \fBSIGMET_RAWD_DIR\fP is not
-set.
+If \fIdir\fP does not exist, \fBsigmet_rawd\fP creates it. If \fIdir\fP already
+exists with socket \fIdir\fP\fB/sigmet.in\fP, \fBsigmet_rawd\fP assumes a running
+daemon is using the socket and exits. If \fIdir\fP exists without a socket, the
+new daemon creates a new socket and uses it. Logs left by any previous daemons are
+overwritten. \fBsigmet_rawd\fP deletes its socket, but not the logs or directory,
+during normal exit.  If \fBSIGMET_RAWD_DIR\fP is not set, it defaults to
+\fB$HOME/.sigmet_raw\fP.
+
+Before calling \fBsigmet_raw\fP, a script or user must set or inherit a
+\fBSIGMET_RAWD_DIR\fP environment variable that specifies the working directory
+of a running daemon.
+
+The daemon will run until it receives a termination signal. The preferred signal
+is TERM, usually sent as "\fBkill\ -TERM\fP\ \fIpid\fP", or just
+"\fBkill\fP\ \fIpid\fP". Clean up will fail if a hard kill, e.g. \fB-ABRT\fP
+or \fB-9\fP is used.  If the user logs out, or a script exits, the daemon will
+continue in the background, possibly forever, which may not be desirable. Users
+and scripts that just need one daemon while running should invoke the daemon with
+\fBsigmet_raw\ start\fP, described next, which automates set up, clean up, and exit.
+.TP
+\fBexport SIGMET_RAWD_DIR=\fP\fIdir\fP; \fBsigmet_raw\fP \fBstart\fP \fIcommand ...\fP
+This form launches \fBsigmet_rawd\fP in the background and launches
+\fIcommand\ ...\fP in the foreground, with environment variable
+\fBSIGMET_RAWD_DIR\fP set as indicated.
+If \fBSIGMET_RAWD_DIR\fP is not set, \fBsigmet_raw\ start\fP sets it to
+\fB$HOME/.sigmet_raw\fP before running \fIcommand\fP.  \fIcommand\fP can be an
+interactive shell, e.g.  \fBsigmet_raw\ start\ bash\ -l\fP, or a shell script.
+If \fIcommand\fP is an interactive shell, the prompt will return to a shell
+prompt, and the user can type in commands.  Invocations of \fBsigmet_raw\fP on the
+command line or in the script will use the specified daemon.
 
 Invocations of \fBsigmet_raw\fP in other shells can use the same daemon if their
-\fBSIGMET_RAWD_DIR\fP is set to the path used by a given instance of
-\fBsigmet_raw start\fP.
+environments have the same value for \fBSIGMET_RAWD_DIR\fP.
 
-Log messages go to \fBsigmet.log\fP, and error messages go to \fBsigmet.err\fP in
-the daemon directory.
+The daemon automatically cleans up and exits when \fIcommand\fP exits, either
+because the user logs out, or the script finishes.
+.SH SUBCOMMANDS
+The \fBsigmet_raw\fP takes action determined by the subcommand (second word on the
+command line). The following forms are recognized. Type, sweep, ray, and bin
+indeces start with \fB0\fP.
 .TP
 \fBsigmet_raw\fP \fBpid\fP
-Prints the daemons process id.
+Prints the daemon's process id.
 .TP
 \fBsigmet_raw\fP \fBtypes\fP
 Prints a list of Sigmet data types.  Output lines have form:
@@ -84,67 +123,29 @@ No output is printed.  This command returns 0 if it succeeds and the volume is
 good, 1 if \fIvolume_file\fP does not exist, 2 if it cannot read
 \fIvolume_file\fP, and 3 if \fIvolume_file\fP is not a good volume.
 .TP
-\fBsigmet_raw\fP \fBhread\fP \fIvolume_file\fP
-Tells the daemon to read headers from \fIvolume_file\fP, which must be the path
-of a Sigmet raw product file.  Headers, but no data, will be stored in memory for
-subsequent calls to \fBsigmet_raw\fP.  Calls that use the volume will identify it
-by the file that provided it. Paths given later do not have to perfectly match
-\fIvolume_file\fP, they just have to identify the same file.
-(Links and relative paths are handled correctly.)
-Each call to \fBhread\fP increments a user count associated with the volume.
-The daemon will not delete a volume with a positive user count.  The user
-count should eventually be decreased with a call to \fBrelease\fP.
-If a volume is already in storage, the daemon will not normally read it again.
-It will only increment the user count. 
-If the daemon runs out of memory while loading a volume, it will flush unused
-volumes and try again.
-This command returns 0 if it succeeds, 1 if \fIvolume_file\fP does not exist,
-2 if the daemon cannot read \fIvolume_file\fP, 3 if the daemon runs out of
-memory, and 4 for any other error.
-.TP
-\fBsigmet_raw\fP \fBread\fP \fIvolume_file\fP
-Tells the daemon to read \fIvolume_file\fP, which must be the path of a Sigmet raw
-product file.  Contents of the volume will be stored in memory for subsequent
-calls to \fBsigmet_raw\fP.  Calls that use the volume will identify it by the file
-that provided it. Paths given later do not have to perfectly match
-\fIvolume_file\fP, they just have to identify the same file.
-(Links and relative paths are handled correctly.)
-Each call to \fBread\fP increments a user count associated with the volume.
-The daemon will not delete a volume with a positive user count.  The user
-count should eventually be decreased with a call to \fBrelease\fP.
-If a volume is already in storage, the daemon will not normally read it again.
-It will only increment the user count. The daemon will attempt to re-read the
-volume if it is loaded but truncated - missing sweeps. This could happen if
-the volume is being written by a slow network connection, or if the radar
-operator issued a "stop now" command before the Sigmet task completed.  The
-\fBtruncated\fP header member obtained with
-\fBsigmet_raw\fP\ \fBvolume_headers\fP indicates whether a loaded volume is
-truncated.
-If the daemon runs out of memory while loading a volume, it will flush unused
-volumes and try again.
-This command returns 0 if it succeeds, 1 if \fIvolume_file\fP does not exist,
-2 if the daemon cannot read \fIvolume_file\fP, 3 if the daemon runs out of
-memory, and 4 for any other error.
-.TP
 \fBsigmet_raw\fP \fBlist\fP
-Prints a list of currently loaded volumes, their user counts, and whether they
-are complete or truncated.
+Prints a list of currently loaded volumes, along with their keep status, sweep
+count, and size.
+If keep status is "\fBFree\fP", the volume is expendable, and the daemon
+will unload it if it needs memory.
+If keep status is "\fBKeep\fP", the daemon will keep the volume until it is
+deleted with a call to \fBsigmet_raw\ delete\fP.
+Sweep count gives the number of sweeps loaded and the number indicated in the
+volume file headers. The number loaded will be less if headers but not data
+are loaded, or if the volume is incomplete.
 .TP
-\fBsigmet_raw\fP \fBrelease\fP \fIvolume_file\fP
-Decrements the user count associated with the Sigmet volume obtained from
-\fIvolume_file\fP. When user count reaches \fB0\fP, storage associated with
-the volume becomes available for new volumes.  Every call to
-\fBsigmet_raw\fP\ \fBread\fP should have a corresponding call to
-\fBsigmet_raw\fP\ \fBrelease\fP
+\fBsigmet_raw\fP \fBkeep\fP \fIvolume_file\fP
+Tells the daemon not to delete the volume obtained from \fIvolume_file\fP.
+After this call, the volume is no longer expendable. It should eventually be
+unloaded with a call to \fBsigmet_raw\ delete\fP.
 .TP
-\fBsigmet_raw\fP \fBflush\fP
-Removes unused volumes from memory.  This command returns 0 if it removes
-any volumes.
+\fBsigmet_raw\fP \fBdelete\fP \fIvolume_file\fP
+Unloads the volume obtained from \fIvolume_file\fP. All changes are lost. If
+the volume is reloaded later, it will have the original headers and data from
+\fIvolume_file\fP.
 .TP
 \fBsigmet_raw\fP \fBvolume_headers\fP \fIvolume_file\fP
-Prints volume headers for
-the volume obtained from \fIvolume_file\fP, which should have been loaded with a
-call to \fBsigmet_raw\fP\ \fBread\fP.
+Prints volume headers for the volume obtained from \fIvolume_file\fP.
 Ray headers and data are not printed.  Output lines have form:
 .sp 1
 .ti +4
@@ -157,8 +158,15 @@ levels, it would look like
 .ti +4
 \fI<struct1>.<struct2>.member\fP.
 .sp 1
+This format is easy to search and manipulate, but painful to look at. For
+a prettier list, use something like:
+.sp 1
+\fBsigmet_raw\fP \fBvolume_headers\fP \fIvolume_file\fP \fB\\
+.br
+| awk -F\\| '{printf "%s = %s\\n %s\\n\\n", $2, $1, $3}'\fP
+.sp 1
 Be aware that the same member might reside in several structure
-hierarchies.  See the IRIS Programmer's Manual for details.
+hierarchies. See the IRIS Programmer's Manual for details.
 .TP
 \fBsigmet_raw\fP \fBvol_hdr\fP \fIvolume_file\fP
 Prints a short list of commonly used volume headers.  Output will look like:
@@ -179,46 +187,38 @@ Prints a short list of commonly used volume headers.  Output will look like:
 .TP
 \fBsigmet_raw\fP \fBnear_sweep\fP \fIangle\fP \fIvolume_file\fP
 Prints the index of the sweep whose fixed angle is nearest \fIangle\fP degrees
-in the volume from \fIvolume_file\fP, which should have been loaded with a
-call to \fBsigmet_raw\fP\ \fBread\fP.
+in the volume from \fIvolume_file\fP.
 .TP
 \fBsigmet_raw\fP \fBray_headers\fP \fIvolume_file\fP
 Prints ray times, azimuths, and tilts for
-the volume obtained from \fIvolume_file\fP, which should have been loaded with a
-call to \fBsigmet_raw\fP\ \fBread\fP.
+the volume obtained from \fIvolume_file\fP.
 Volume headers and data are not printed.
 .TP
 \fBsigmet_raw\fP \fBdata\fP \fIvolume_file\fP
 Prints an ASCII stream of all volume data for 
-the volume obtained from \fIvolume_file\fP, which should have been loaded with a
-call to \fBsigmet_raw\fP\ \fBread\fP.
+the volume obtained from \fIvolume_file\fP.
 Headers are not printed.
 .TP
 \fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIvolume_file\fP
 Prints an ASCII stream of data for data type \fItype\fP for
-the volume obtained from \fIvolume_file\fP, which should have been loaded with a
-call to \fBsigmet_raw\fP\ \fBread\fP.
+the volume obtained from \fIvolume_file\fP.
 .TP
 \fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIvolume_file\fP
 Prints an ASCII stream of data for data type \fItype\fP, sweep \fIs\fP.
-for the volume obtained from \fIvolume_file\fP, which should have been loaded with a
-call to \fBsigmet_raw\fP\ \fBread\fP.
+for the volume obtained from \fIvolume_file\fP.
 .TP
 \fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIvolume_file\fP
 Prints an ASCII stream of data for data type \fItype\fP, sweep \fIs\fP, ray \fIr\fP
-for the volume obtained from \fIvolume_file\fP, which should have been loaded with
-a call to \fBsigmet_raw\fP\ \fBread\fP.
+for the volume obtained from \fIvolume_file\fP.
 .TP
 \fBsigmet_raw\fP \fBdata\fP \fItype\fP \fIs\fP \fIr\fP \fIb\fP \fIvolume_file\fP
 Prints an ASCII stream of data for data type \fItype\fP, sweep \fIs\fP,
 ray \fIr\fP, bin \fIb\fP for
-the volume obtained from \fIvolume_file\fP, which should have been loaded with a
-call to \fBsigmet_raw\fP\ \fBread\fP.
+the volume obtained from \fIvolume_file\fP.
 .TP
 \fBsigmet_raw\fP \fBbin_outline\fP \fIs\fP \fIr\fP \fIb\fP \fIunit\fP \fIvolume_file\fP
 Prints the corners of bin \fIs\fP \fIr\fP \fIb\fP for
-the volume obtained from \fIvolume_file\fP, which should have been loaded with a
-call to \fBsigmet_raw\fP\ \fBread\fP.
+the volume obtained from \fIvolume_file\fP.
 The corners will be printed as
 "\fIlon1\ lat1 lon2\ lat2 lon3\ lat3 lon4\ lat4\fP".
 Angle unit will be radians if \fIunit\fP is \fBradian\fP.
@@ -251,11 +251,9 @@ corrupt, 2 if the daemon runs out of memory, and 3 for any other error.
 \fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIvolume_file\fP
 Assigns bins (gates) for data type \fItype\fP, sweep \fIs\fP, in the volume from
 \fIvolume_file\fP, to intervals in the current sequence of data bounds.
-The volume in \fIvolume_file\fP should have been loaded with a call to
-\fBsigmet_raw\fP\ \fBread\fP.  The data bounds for the data type should have
-been set with a call to \fBbounds\fP.
-For each bin with a data value in the current bounds
-sequence, there will be one line in standard output, of form:
+The data bounds for the data type should have been set with a call to \fBbounds\fP.
+For each bin with a data value in the current bounds sequence, there will be one
+line in standard output, of form:
 .nf
 i: r b
 .fi
@@ -264,12 +262,19 @@ where \fIi\fP specifies an index from the sequence of data bounds, and \fIr\fP a
 .TP
 \fBsigmet_raw\fP \fBradar_lon\fP \fIlon\fP \fIvolume_file\fP
 Sets radar longitude to \fIlon\fP degrees.
+After this call, the volume is no longer expendable. It should eventually be
+unloaded with a call to \fBsigmet_raw\ delete\fP.
 .TP
 \fBsigmet_raw\fP \fBradar_lat\fP \fIlat\fP \fIvolume_file\fP
 Sets radar latitude to \fIlat\fP degrees.
+After this call, the volume is no longer expendable. It should eventually be
+unloaded with a call to \fBsigmet_raw\ delete\fP.
 .TP
 \fBsigmet_raw\fP \fBshift_az\fP \fIangle\fP \fIvolume_file\fP
-Adds \fIangle\fP degrees to all azimuths in the volume obtained from \fIvolume_file\fP.
+Adds \fIangle\fP degrees to all azimuths in the volume obtained from
+\fIvolume_file\fP.
+After this call, the volume is no longer expendable. It should eventually be
+unloaded with a call to \fBsigmet_raw\ delete\fP.
 .TP
 \fBsigmet_raw\fP \fBproj\fP \fIargs ...\fP
 Sets the cartographic projection. \fIargs ...\fP should define a cartographic
@@ -316,20 +321,26 @@ Alpha value can range from \fB0.0\fP (transparent) to \fB1.0\fP (opaque).
 .TP
 \fBsigmet_raw\fP \fBimg_name\fP \fItype\fP \fIs\fP \fIvolume_file\fP
 Prints the name of the file which the \fBimg\fP subcommand will create for data
-type \fItype\fP, sweep \fIs\fP in the volume obtained from \fIvolume_file\fP,
-which should have been loaded with a call to \fBsigmet_raw\fP\ \fBread\fP.
+type \fItype\fP, sweep \fIs\fP in the volume obtained from \fIvolume_file\fP.
 .TP
 \fBsigmet_raw\fP \fBimg\fP \fItype\fP \fIs\fP \fIvolume_file\fP
 Makes an image for data type \fItype\fP, sweep \fIs\fP in the volume obtained
-from \fIvolume_file\fP, which should have been loaded with a call to
-\fBsigmet_raw\fP\ \fBread\fP. This command fails if the image file
-already exists.
+from \fIvolume_file\fP.  This command fails if the image file already exists.
+.TP
+\fBsigmet_raw\fP \fBdorade\fP [\fIs\fP] \fIvolume_file\fP
+Creates DORADE sweep files in the current directory from data in \fIvolume_file\fP.
+If \fIs\fP is an integer, this command only makes a sweep file that sweep. If
+\fIs\fP is absent, or "\fBall\fP", this command makes sweep files for the entire
+volume.
 .SH SEE ALSO
-sigmet (3), IRIS Programmer's Manual (http://sigmet.com)
+sigmet (3), proj (1), pj_init (3), xdr (3)
 .br
-proj (1), pj_init (3), Cartographic Projection Procedures for the UNIX
-Environment --A User's Manual, (Evenden, 1990, Open-file report 90-284).
+IRIS Programmer's Manual
 .br
-xdr (3), RFC4506
+ftp://ftp.sigmet.com/outgoing/manuals/program/3data.pdf
+.br
+RFC4506
+.br
+Cartographic Projection Procedures for the UNIX Environment --A User's Manual, (Evenden, 1990, Open-file report 90-284).
 .SH AUTHOR
 Gordon Carrie (dev0@trekix.net)
