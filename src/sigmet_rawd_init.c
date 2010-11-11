@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.302 $ $Date: 2010/11/09 20:58:43 $
+ .	$Revision: 1.303 $ $Date: 2010/11/10 17:39:04 $
  */
 
 #include <limits.h>
@@ -1328,6 +1328,7 @@ static enum Sigmet_CB_Return radar_lon_cb(int argc, char *argv[], char *cl_wd,
     }
     lon = GeogLonR(lon * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
     vol_p->ih.ic.longitude = Sigmet_RadBin4(lon);
+    SigmetRaw_Keep(vol_nm);
 
     return SIGMET_CB_SUCCESS;
 }
@@ -1366,6 +1367,7 @@ static enum Sigmet_CB_Return radar_lat_cb(int argc, char *argv[], char *cl_wd,
     }
     lat = GeogLonR(lat * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
     vol_p->ih.ic.latitude = Sigmet_RadBin4(lat);
+    SigmetRaw_Keep(vol_nm);
 
     return SIGMET_CB_SUCCESS;
 }
