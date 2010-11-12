@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.15 $ $Date: 2010/10/22 22:28:19 $
+   .	$Revision: 1.16 $ $Date: 2010/11/10 16:25:32 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -26,7 +26,7 @@
 #define TWO_32 ((double)((unsigned)0xFFFFFFFF) + 1.0)
 
 /*
-   Short names for Sigmet data types.  Index with enum Sigmet_DataType.
+   Short names for Sigmet data types.  Index with enum Sigmet_DataTypeN.
  */
 
 static char *abbrv[SIGMET_NTYPES] = {
@@ -39,7 +39,7 @@ static char *abbrv[SIGMET_NTYPES] = {
 };
 
 /*
-   Descriptors for Sigmet data types. Index with enum Sigmet_DataType.
+   Descriptors for Sigmet data types. Index with enum Sigmet_DataTypeN.
  */
 
 static char *descr[SIGMET_NTYPES] = {
@@ -94,12 +94,12 @@ unsigned long Sigmet_RadBin2(double a)
     return a * TWO_16 / (2 * PI);
 }
 
-char * Sigmet_DataType_Abbrv(enum Sigmet_DataType y)
+char * Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN y)
 {
     return (y < SIGMET_NTYPES) ? abbrv[y] : NULL;
 }
 
-char * Sigmet_DataType_Descr(enum Sigmet_DataType y)
+char * Sigmet_DataType_Descr(enum Sigmet_DataTypeN y)
 {
     return (y < SIGMET_NTYPES) ? descr[y] : NULL;
 }

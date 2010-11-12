@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.56 $ $Date: 2010/11/05 16:54:03 $
+   .	$Revision: 1.57 $ $Date: 2010/11/10 16:06:04 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -133,6 +133,8 @@ static U1BYT *** calloc3_u1(long, long, long);
 static void free3_u1(U1BYT ***);
 static U2BYT *** calloc3_u2(long, long, long);
 static void free3_u2(U2BYT ***);
+static float *** calloc3_f(long, long, long);
+static void free3_f(float ***);
 
 void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 {
@@ -143,8 +145,8 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
     }
     memset(vol_p, 0, sizeof(struct Sigmet_Vol));
     vol_p->num_types = SIGMET_NTYPES;
+    vol_p->types = NULL;
     for (n = 0; n < SIGMET_NTYPES; n++) {
-	vol_p->types[n] = DB_XHDR;
 	vol_p->types_fl[n] = DB_XHDR;
     }
     vol_p->sweep_ok = NULL;
@@ -177,7 +179,7 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
     free2d(vol_p->ray_az1);
     if ( vol_p->dat ) {
 	for (y = 0; y < vol_p->num_types; y++) {
-	    switch (vol_p->types[y]) {
+	    switch (vol_p->types[y].sig_type) {
 		case DB_XHDR:
 		case DB_ERROR:
 		    break;
@@ -211,12 +213,15 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 		case DB_LDRH2:
 		case DB_LDRV2:
 		    free3_u2(vol_p->dat[y].d2);
+		case DB_FLOAT:
+		    free3_f(vol_p->dat[y].f);
 		    break;
 	    }
 	}
 	FREE(vol_p->dat);
-	Sigmet_InitVol(vol_p);
     }
+    FREE(vol_p->types);
+    Sigmet_InitVol(vol_p);
 }
 
 enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
@@ -237,7 +242,7 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
      */
     int num_types_fl;
     int num_types;
-    enum Sigmet_DataType type;
+    enum Sigmet_DataTypeN type;
 
     /*
        These masks are placed against the data type mask in the task dsp info
@@ -255,7 +260,22 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 
     Sigmet_FreeVol(vol_p);
 
-    /* record 1, <product_header> */
+    /*
+       Initialize types with enough space for the Sigmet defined types.
+       (User types might be added later.)
+     */
+
+    vol_p->types = CALLOC(SIGMET_NTYPES, sizeof(struct Sigmet_DataType));
+    if ( !vol_p->types ) {
+	Err_Append("Could not allocate space for volume types array. ");
+	status = SIGMET_VOL_MEM_FAIL;
+	goto error;
+    }
+
+    /*
+       record 1, <product_header>
+     */
+
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 	Err_Append("Could not read record 1 of Sigmet volume.  ");
 	status = SIGMET_VOL_INPUT_FAIL;
@@ -295,7 +315,8 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	    if (type == DB_XHDR) {
 		vol_p->xhdr = 1;
 	    } else {
-		vol_p->types[num_types] = type;
+		vol_p->types[num_types].sig_type = type;
+		vol_p->types[num_types].abbrv = Sigmet_DataType_Abbrv(type);
 		num_types++;
 	    }
 	    vol_p->types_fl[num_types_fl] = type;
@@ -329,9 +350,9 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
     for (y = 0; y < vol_p->num_types; y++) {
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
 	fprintf(out, "%s " FS " %s " FS " %s\n",
-		Sigmet_DataType_Abbrv(vol_p->types[y]),
+		Sigmet_DataType_Abbrv(vol_p->types[y].sig_type),
 		elem_nm,
-		Sigmet_DataType_Descr(vol_p->types[y]));
+		Sigmet_DataType_Descr(vol_p->types[y].sig_type));
     }
     fprintf(out, "%d " FS " %s " FS " %s\n",
 	    vol_p->truncated, "truncated", "If true, volume is truncated");
@@ -366,12 +387,14 @@ int Sigmet_GoodVol(FILE *f)
     unsigned msec;
 
     unsigned numWds;			/* Number of words in a run of data */
-    enum Sigmet_DataType type;
+    enum Sigmet_DataTypeN type;
+    struct Sigmet_DataType types[SIGMET_NTYPES]; /* Static types array */
     int s, r;				/* Sweep, ray indeces */
     int i, n;				/* Temporary values */
 
     s = type = r = 0;
     Sigmet_InitVol(&vol);
+    vol.types = types;
 
     /* record 1, <product_header> */
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
@@ -407,7 +430,7 @@ int Sigmet_GoodVol(FILE *f)
 	    if (type == DB_XHDR) {
 		vol.xhdr = 1;
 	    } else {
-		vol.types[num_types] = type;
+		vol.types[num_types].sig_type = type;
 		num_types++;
 	    }
 	    vol.types_fl[num_types_fl] = type;
@@ -711,7 +734,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	goto error;
     }
     for (y = 0; y < vol_p->num_types; y++) {
-	switch (vol_p->types[y]) {
+	switch (vol_p->types[y].sig_type) {
 	    case DB_XHDR:
 		Err_Append("Volume in memory is corrupt. Bogus extended header "
 			"\"type\" in data array.");
@@ -764,6 +787,12 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins * 2;
+		break;
+	    case DB_FLOAT:
+		Err_Append("Volume in memory is corrupt. Bogus float \"type\" "
+			"in data array.");
+		status = SIGMET_VOL_BAD_VOL;
+		goto error;
 		break;
 	}
     }
@@ -983,6 +1012,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			}
 			break;
 		    case DB_ERROR:
+		    case DB_FLOAT:
 			Err_Append("Volume has unknown data type.  ");
 			status = SIGMET_VOL_BAD_VOL;
 			goto error;
@@ -1037,7 +1067,7 @@ int Sigmet_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 /* Fetch a value from a Sigmet volume */
 double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 {
-    enum Sigmet_DataType type;
+    enum Sigmet_DataTypeN type;
     unsigned i;
     double wav_len;
     unsigned e;		/* 4 bit exponent */
@@ -1052,7 +1082,7 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    || !vol_p->ray_num_bins || b >= vol_p->ray_num_bins[s][r] ) {
 	return Sigmet_NoData();
     }
-    type = vol_p->types[y];
+    type = vol_p->types[y].sig_type;
     switch (type) {
 	case DB_XHDR:
 	    return Sigmet_NoData();
@@ -1138,6 +1168,8 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    i = vol_p->dat[y].d2[s][r][b];
 	    return (i == 0 || i > 65535)
 		? Sigmet_NoData() : 360.0 / 65534.0 * (i - 1.0);
+	case DB_FLOAT:
+	    return vol_p->dat[y].f[s][r][b];
     }
     return Sigmet_NoData();
 }
@@ -2895,3 +2927,68 @@ static void free3_u2(U2BYT ***dat)
 	FREE(dat);
     }
 }
+
+/*
+   Allocate a 3 dimensional array of floats.  Return the array. If something
+   goes wrong, post an error message with Err_Append and return NULL.
+ */
+static float ***calloc3_f(long kmax, long jmax, long imax)
+{
+    float ***dat;
+    long k, j;
+    size_t kk, jj, ii;
+
+    /* Make sure casting to size_t does not overflow anything. */
+    if ( kmax <= 0 || jmax <= 0 || imax <= 0 ) {
+	Err_Append("Array dimensions must be positive.\n");
+	return NULL;
+    }
+    kk = (size_t)kmax;
+    jj = (size_t)jmax;
+    ii = (size_t)imax;
+    if ( (kk * jj) / kk != jj || (kk * jj * ii) / (kk * jj) != ii) {
+	Err_Append("Dimensions too big for pointer arithmetic.\n");
+	return NULL;
+    }
+
+    dat = (float ***)CALLOC(kk + 2, sizeof(float **));
+    if ( !dat ) {
+	Err_Append("Could not allocate 3rd dimension.\n");
+	return NULL;
+    }
+    dat[0] = (float **)CALLOC(kk * jj + 1, sizeof(float *));
+    if ( !dat[0] ) {
+	FREE(dat);
+	Err_Append("Could not allocate 2nd dimension.\n");
+	return NULL;
+    }
+    dat[0][0] = (float *)CALLOC(kk * jj * ii + 1, sizeof(float));
+    if ( !dat[0][0] ) {
+	FREE(dat[0]);
+	FREE(dat);
+	Err_Append("Could not allocate 1st dimension.\n");
+	return NULL;
+    }
+    for (k = 1; k <= kmax; k++) {
+	dat[k] = dat[k - 1] + jmax;
+    }
+    for (j = 1; j <= kmax * jmax; j++) {
+	dat[0][j] = dat[0][j - 1] + imax;
+    }
+    return dat;
+}
+
+/* Free array created by calloc3_f */
+static void free3_f(float ***dat)
+{
+    if (dat) {
+	if (dat[0]) {
+	    if (dat[0][0]) {
+		FREE(dat[0][0]);
+	    }
+	    FREE(dat[0]);
+	}
+	FREE(dat);
+    }
+}
+

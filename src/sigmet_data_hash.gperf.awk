@@ -18,7 +18,7 @@ BEGIN {
 }
 END {
     printf "%%%%\n"
-    printf "enum Sigmet_DataType Sigmet_DataType(char *a)\n";
+    printf "enum Sigmet_DataTypeN Sigmet_DataTypeN(char *a)\n";
     printf "{\n"
     printf "    struct type_entr *y;\n"
     printf "    return (y = in_word_set(a, (unsigned int)strlen(a)))"

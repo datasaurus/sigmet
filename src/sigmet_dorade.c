@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.6 $ $Date: 2010/10/22 22:28:19 $
+   .	$Revision: 1.7 $ $Date: 2010/11/10 17:04:21 $
  */
 
 #include <string.h>
@@ -31,9 +31,9 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 
     /*
        This array specifies soloii equivalents for certain Sigmet data types.
-       Index soloii_abbrv with Sigmet_DataType enumerator to determine equivalent
-       abbreviation, e.g. soloii_abbrv[DB_DBT] is "ZT" => use "ZT" in sweep files
-       instead of "DB_DBT".
+       Index soloii_abbrv with Sigmet_DataTypeN enumerator to determine
+       equivalent abbreviation, e.g. soloii_abbrv[DB_DBT] is "ZT" => use "ZT"
+       in sweep files instead of "DB_DBT".
      */
 
     static char *soloii_abbrv[SIGMET_NTYPES] = {NULL, "ZT", "DZ", "VR", "SW", NULL};
@@ -174,13 +174,13 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	Err_Append("Could not allocate array of parameter descriptors. ");
     }
     for (p = 0; p < num_parms; p++) {
-	enum Sigmet_DataType y;			/* Sigmet data type at p */
+	enum Sigmet_DataTypeN y;		/* Sigmet data type at p */
 	char *abbrv;				/* Data type abbreviation,
 						   e.g. "DZ" or "DB_ZDR" */
 
 	parm_p = sensor_p->parm + p;
 	Dorade_PARM_Init(parm_p);
-	y = vol_p->types[p];
+	y = vol_p->types[p].sig_type;
 	abbrv = (soloii_abbrv[y]) ? soloii_abbrv[y] : Sigmet_DataType_Abbrv(y);
 	strncpy(parm_p->parameter_name, abbrv, 8);
 	strncpy(parm_p->param_description, Sigmet_DataType_Descr(y), 40);
@@ -227,6 +227,9 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 		break;
 	    case DB_RAINRATE2:
 		strncpy(parm_p->param_units, "mm/hr", 8);
+		break;
+	    case DB_FLOAT:
+		strncpy(parm_p->param_units, vol_p->types[p].unit, 8);
 		break;
 	}
 
