@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.16 $ $Date: 2010/11/10 16:25:32 $
+   .	$Revision: 1.17 $ $Date: 2010/11/12 22:20:10 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -74,6 +74,19 @@ static char *descr[SIGMET_NTYPES] = {
     "Error"
 };
 
+/*
+   Units for Sigmet data types.  Index with enum Sigmet_DataTypeN.
+ */
+
+static char *unit[SIGMET_NTYPES] = {
+    "No unit",	"dBZ",		"dBZ",		"m/s",		"m/s",
+    "dBZ",	"dBZ",		"dBZ",		"dBZ",		"m/s",
+    "m/s",	"dBZ",		"mm/hr",	"No unit",	"No unit",
+    "degrees",	"m/s",		"No unit",	"No unit",	"No unit",
+    "dBZ",	"m/s",		"No unit",	"degrees",	"No unit",
+    "No unit",	"No unit",	"No unit", 	"No unit"
+};
+
 double Sigmet_Bin4Rad(unsigned long a)
 {
     return (double)a / TWO_32 * 2 * PI;
@@ -102,6 +115,11 @@ char * Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN y)
 char * Sigmet_DataType_Descr(enum Sigmet_DataTypeN y)
 {
     return (y < SIGMET_NTYPES) ? descr[y] : NULL;
+}
+
+char * Sigmet_DataType_Unit(enum Sigmet_DataTypeN y)
+{
+    return (y < SIGMET_NTYPES) ? unit[y] : NULL;
 }
 
 double Sigmet_NoData(void)
