@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.40 $ $Date: 2010/11/10 16:05:35 $
+   .	$Revision: 1.41 $ $Date: 2010/11/10 16:15:48 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -29,17 +29,35 @@
 #define DEG_PER_RAD	57.29577951308232087648
 
 /*
-   These constants identify the Sigmet data types
+   These constants identify the Sigmet data types. Names are from IRIS
+   Programmer's Manual Section 3.3.
+   In addition:
+   DB_FLOAT means float value. Use as is, type has no integer to float function.
+   DB_ERROR means unknown or failure.
  */
 
-#define SIGMET_NTYPES 29
-enum Sigmet_DataType {
+#define SIGMET_NTYPES 30
+enum Sigmet_DataTypeN {
     DB_XHDR,	DB_DBT,		DB_DBZ,		DB_VEL,		DB_WIDTH,
     DB_ZDR,	DB_DBZC,	DB_DBT2,	DB_DBZ2,	DB_VEL2,
     DB_WIDTH2,	DB_ZDR2,	DB_RAINRATE2,	DB_KDP,		DB_KDP2,
     DB_PHIDP,	DB_VELC,	DB_SQI,		DB_RHOHV,	DB_RHOHV2,
     DB_DBZC2,	DB_VELC2,	DB_SQI2,	DB_PHIDP2,	DB_LDRH,
-    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_ERROR
+    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_FLOAT,	DB_ERROR
+};
+
+/*
+   A Sigmet data type enumerator, and associated abbreviation.
+   Associations for Sigmet data types from IRIS Programmer's Manual Section 3.3
+   are hard coded in sigmet_data.c. This structure is needed for additional,
+   user defined data types, which are DB_FLOAT with some user supplied
+   abbreviation.
+ */
+
+struct Sigmet_DataType {
+    enum Sigmet_DataTypeN sig_type;
+    char *abbrv;
+    char *unit;
 };
 
 /*
@@ -411,6 +429,7 @@ struct Sigmet_Ingest_Header {
 union Sigmet_DatArr {
     U1BYT ***d1;				/* 1 byte data */
     U2BYT ***d2;				/* 2 byte data */
+    float ***f;					/* Float values */
 };
 
 /*
@@ -441,10 +460,16 @@ struct Sigmet_Vol {
        Ray headers and data
      */
 
-    int xhdr;					/* true => use extended headers */
+    int xhdr;					/* true => extended headers */
     int num_types;				/* Number of data types */
-    enum Sigmet_DataType types[SIGMET_NTYPES];	/* Data types */
-    enum Sigmet_DataType types_fl[SIGMET_NTYPES];/* Data types */
+    struct Sigmet_DataType *types;		/* Data types in the volume.
+						   This includes Sigmet data
+						   types and user defined types,
+						   but not DB_XHDR */
+    enum Sigmet_DataTypeN
+	types_fl[SIGMET_NTYPES];		/* Data types in raw product
+						   file. This means Sigmet
+						   types, including DB_XDR. */
     int truncated;				/* If true, volume does not
 						   have data for the number
 						   of sweeps and rays given
@@ -485,9 +510,9 @@ struct Sigmet_Vol {
    These functions manipulate data values.
  */
 
-enum Sigmet_DataType Sigmet_DataType(char *);
-char *Sigmet_DataType_Abbrv(enum Sigmet_DataType);
-char *Sigmet_DataType_Descr(enum Sigmet_DataType);
+enum Sigmet_DataTypeN Sigmet_DataTypeN(char *);
+char *Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN);
+char *Sigmet_DataType_Descr(enum Sigmet_DataTypeN);
 double Sigmet_NoData(void);
 int Sigmet_IsData(double);
 int Sigmet_IsNoData(double);
