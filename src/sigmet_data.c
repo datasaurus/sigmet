@@ -1,6 +1,7 @@
 /*
-   -	sigDataType.c --
-   -		This file defines functions that manipulate Sigmet data.
+   -	sigmet_data.c --
+   -		This file defines functions that provide information about
+   -		data types described in the IRIS Programmer's Manual.
    -		See sigmet (3).
    -
    .	Copyright (c) 2010 Gordon D. Carrie
@@ -8,9 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.17 $ $Date: 2010/11/12 22:20:10 $
-   .
-   .	Reference: IRIS Programmers Manual
+   .	$Revision: 1.18 $ $Date: 2010/11/12 22:50:08 $
  */
 
 #include <stdlib.h>
