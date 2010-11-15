@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.41 $ $Date: 2010/11/10 16:15:48 $
+   .	$Revision: 1.42 $ $Date: 2010/11/12 22:17:48 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -513,6 +513,7 @@ struct Sigmet_Vol {
 enum Sigmet_DataTypeN Sigmet_DataTypeN(char *);
 char *Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN);
 char *Sigmet_DataType_Descr(enum Sigmet_DataTypeN);
+char *Sigmet_DataType_Unit(enum Sigmet_DataTypeN);
 double Sigmet_NoData(void);
 int Sigmet_IsData(double);
 int Sigmet_IsNoData(double);
