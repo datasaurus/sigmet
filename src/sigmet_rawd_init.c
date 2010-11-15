@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.304 $ $Date: 2010/11/11 16:50:44 $
+ .	$Revision: 1.305 $ $Date: 2010/11/12 22:20:10 $
  */
 
 #include <limits.h>
@@ -57,7 +57,7 @@
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 27
+#define NCMD 26
 typedef enum Sigmet_CB_Return (callback)(int , char **, char *, int, FILE *,
 	int, FILE *);
 static callback pid_cb;
@@ -68,7 +68,6 @@ static callback list_cb;
 static callback keep_cb;
 static callback release_cb;
 static callback delete_cb;
-static callback flush_cb;
 static callback max_size_cb;
 static callback volume_headers_cb;
 static callback vol_hdr_cb;
@@ -89,14 +88,14 @@ static callback img_cb;
 static callback dorade_cb;
 static char *cmd1v[NCMD] = {
     "pid", "types", "colors", "good", "list", "keep", "release",
-    "delete", "flush", "max_size", "volume_headers", "vol_hdr",
+    "delete", "max_size", "volume_headers", "vol_hdr",
     "near_sweep", "ray_headers", "data", "bin_outline", "bintvls",
     "radar_lon", "radar_lat", "shift_az", "proj", "img_app", "img_sz",
     "alpha", "img_name", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, types_cb, setcolors_cb, good_cb, list_cb, keep_cb, release_cb,
-    delete_cb, flush_cb, max_size_cb, volume_headers_cb, vol_hdr_cb,
+    delete_cb, max_size_cb, volume_headers_cb, vol_hdr_cb,
     near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb,
     radar_lon_cb, radar_lat_cb, shift_az_cb, proj_cb, img_app_cb, img_sz_cb,
     alpha_cb, img_name_cb, img_cb, dorade_cb
@@ -684,12 +683,6 @@ static enum Sigmet_CB_Return delete_cb(int argc, char *argv[], char *cl_wd,
 	return SIGMET_CB_FAIL;
     }
     return SigmetRaw_Delete(vol_nm) ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
-}
-
-static enum Sigmet_CB_Return flush_cb(int argc, char *argv[], char *cl_wd,
-	int i_out, FILE *out, int i_err, FILE *err)
-{
-    return SigmetRaw_Flush() ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
 }
 
 static enum Sigmet_CB_Return max_size_cb(int argc, char *argv[], char *cl_wd,
