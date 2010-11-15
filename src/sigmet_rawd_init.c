@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.305 $ $Date: 2010/11/12 22:20:10 $
+ .	$Revision: 1.306 $ $Date: 2010/11/15 16:47:45 $
  */
 
 #include <limits.h>
@@ -163,8 +163,6 @@ int main(int argc, char *argv[])
 
 	switch (y) {
 	    case DB_XHDR:
-	    case DB_FLOAT:
-	    case DB_ERROR:
 		break;
 	    default:
 		status = DataType_Add(

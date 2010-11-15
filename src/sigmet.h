@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.42 $ $Date: 2010/11/12 22:17:48 $
+   .	$Revision: 1.43 $ $Date: 2010/11/15 17:52:24 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -36,7 +36,7 @@
    DB_ERROR means unknown or failure.
  */
 
-#define SIGMET_NTYPES 30
+#define SIGMET_NTYPES 28
 enum Sigmet_DataTypeN {
     DB_XHDR,	DB_DBT,		DB_DBZ,		DB_VEL,		DB_WIDTH,
     DB_ZDR,	DB_DBZC,	DB_DBT2,	DB_DBZ2,	DB_VEL2,

@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.18 $ $Date: 2010/11/12 22:50:08 $
+   .	$Revision: 1.19 $ $Date: 2010/11/15 17:58:52 $
  */
 
 #include <stdlib.h>
@@ -29,12 +29,13 @@
  */
 
 static char *abbrv[SIGMET_NTYPES] = {
-    "DB_XHDR",	"DB_DBT",	"DB_DBZ",	"DB_VEL",	"DB_WIDTH",
-    "DB_ZDR",	"DB_DBZC",	"DB_DBT2",	"DB_DBZ2",	"DB_VEL2",
-    "DB_WIDTH2","DB_ZDR2",	"DB_RAINRATE2",	"DB_KDP",	"DB_KDP2",
-    "DB_PHIDP",	"DB_VELC",	"DB_SQI",	"DB_RHOHV",	"DB_RHOHV2",
-    "DB_DBZC2",	"DB_VELC2",	"DB_SQI2",	"DB_PHIDP2",	"DB_LDRH",
-    "DB_LDRH2",	"DB_LDRV",	"DB_LDRV2", 	"DB_ERROR"
+    "DB_XHDR",		"DB_DBT",	"DB_DBZ",	"DB_VEL",
+    "DB_WIDTH",		"DB_ZDR",	"DB_DBZC",	"DB_DBT2",
+    "DB_DBZ2",		"DB_VEL2",	"DB_WIDTH2",	"DB_ZDR2",
+    "DB_RAINRATE2",	"DB_KDP",	"DB_KDP2",	"DB_PHIDP",
+    "DB_VELC",		"DB_SQI",	"DB_RHOHV",	"DB_RHOHV2",
+    "DB_DBZC2",		"DB_VELC2",	"DB_SQI2",	"DB_PHIDP2",
+    "DB_LDRH",		"DB_LDRH2",	"DB_LDRV",	"DB_LDRV2"
 };
 
 /*
@@ -70,7 +71,6 @@ static char *descr[SIGMET_NTYPES] = {
     "Horizontal linear depolarization ratio (2 byte)",
     "Vertical linear depolarization ratio (1 byte)",
     "Vertical linear depolarization ratio (2 byte)",
-    "Error"
 };
 
 /*
@@ -78,12 +78,13 @@ static char *descr[SIGMET_NTYPES] = {
  */
 
 static char *unit[SIGMET_NTYPES] = {
-    "No unit",	"dBZ",		"dBZ",		"m/s",		"m/s",
-    "dBZ",	"dBZ",		"dBZ",		"dBZ",		"m/s",
-    "m/s",	"dBZ",		"mm/hr",	"No unit",	"No unit",
-    "degrees",	"m/s",		"No unit",	"No unit",	"No unit",
-    "dBZ",	"m/s",		"No unit",	"degrees",	"No unit",
-    "No unit",	"No unit",	"No unit", 	"No unit"
+    "none",		"dBZ",		"dBZ",		"m/s",
+    "m/s",		"dBZ",		"dBZ",		"dBZ",
+    "dBZ",		"m/s",		"m/s",		"dBZ",
+    "mm/hr",		"none",		"none",		"degrees",
+    "m/s",		"none",		"none",		"none",
+    "dBZ",		"m/s",		"none",		"degrees",
+    "none",		"none",		"none",		"none",
 };
 
 double Sigmet_Bin4Rad(unsigned long a)
