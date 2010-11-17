@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.8 $ $Date: 2010/11/12 22:20:10 $
+   .	$Revision: 1.9 $ $Date: 2010/11/17 16:14:04 $
  */
 
 #include <string.h>
@@ -184,55 +184,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	abbrv = (soloii_abbrv[y]) ? soloii_abbrv[y] : Sigmet_DataType_Abbrv(y);
 	strncpy(parm_p->parameter_name, abbrv, 8);
 	strncpy(parm_p->param_description, Sigmet_DataType_Descr(y), 40);
-	switch (y) {
-	    case DB_ERROR:
-		Err_Append("Bad volume (unknown data type DB_ERROR)");
-		goto error;
-	    case DB_XHDR:
-		Err_Append("Bad volume (extended headers stored inadvertently)");
-		goto error;
-	    case DB_KDP:
-	    case DB_KDP2:
-	    case DB_SQI:
-	    case DB_SQI2:
-	    case DB_RHOHV:
-	    case DB_RHOHV2:
-	    case DB_LDRH:
-	    case DB_LDRH2:
-	    case DB_LDRV:
-	    case DB_LDRV2:
-		strncpy(parm_p->param_units, "No unit", 8);
-		break;
-	    case DB_DBT:
-	    case DB_DBZ:
-	    case DB_ZDR:
-	    case DB_DBZC:
-	    case DB_DBT2:
-	    case DB_DBZ2:
-	    case DB_ZDR2:
-	    case DB_DBZC2:
-		strncpy(parm_p->param_units, "dB", 8);
-		break;
-	    case DB_VEL:
-	    case DB_WIDTH:
-	    case DB_VEL2:
-	    case DB_WIDTH2:
-	    case DB_VELC:
-	    case DB_VELC2:
-		strncpy(parm_p->param_units, "m/s", 8);
-		break;
-	    case DB_PHIDP:
-	    case DB_PHIDP2:
-		strncpy(parm_p->param_units, "degrees", 8);
-		break;
-	    case DB_RAINRATE2:
-		strncpy(parm_p->param_units, "mm/hr", 8);
-		break;
-	    case DB_DBL:
-		strncpy(parm_p->param_units, vol_p->types[p].unit, 8);
-		break;
-	}
-
+	strncpy(parm_p->param_units, Sigmet_DataType_Unit(y), 40);
 	parm_p->xmitted_freq = 1.0e-9 * 2.9979e8 / wave_len;
 	parm_p->recvr_bandwidth = 1.0e-3 * vol_p->ih.tc.tci.bandwidth;
 	parm_p->pulse_width = vol_p->ih.tc.tdi.pulse_w * 0.01 * 1.0e-6 * 2.9979e8;
