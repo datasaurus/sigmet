@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.307 $ $Date: 2010/11/15 20:09:54 $
+ .	$Revision: 1.308 $ $Date: 2010/11/15 21:31:58 $
  */
 
 #include <limits.h>
@@ -164,8 +164,8 @@ int main(int argc, char *argv[])
 	    case DB_XHDR:
 		break;
 	    default:
-		status = DataType_Add(
-			Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
+		status = DataType_Add( Sigmet_DataType_Abbrv(y),
+			Sigmet_DataType_Descr(y), Sigmet_DataType_Unit(y));
 		if ( status != DATATYPE_SUCCESS ) {
 		    fprintf(stderr, "%s (%d): could not register data type "
 			    "%s\n%s\n", argv0, pid, Sigmet_DataType_Abbrv(y),
