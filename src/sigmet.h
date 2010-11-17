@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.44 $ $Date: 2010/11/15 20:09:54 $
+   .	$Revision: 1.45 $ $Date: 2010/11/17 16:13:14 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -29,11 +29,12 @@
 #define DEG_PER_RAD	57.29577951308232087648
 
 /*
-   These constants identify the Sigmet data types. Names are from IRIS
-   Programmer's Manual Section 3.3.
-   In addition:
-   DB_DBL means double value. Use as is, type has no conversion from integer to
+   The IRIS Programmer's Manual (section 3.3) defines SIGMET_NTYPES data types.
+   The Sigmet_DataTypeN enumerator indexes these types, plus generic and pseudo-
+   types.
+   DB_DBL means double value. Use as is. Type has no conversion from integer to
    floating point measurement.
+   DB_SKIP means do not use. Place holder.
    DB_ERROR means unknown or failure.
  */
 
@@ -44,7 +45,8 @@ enum Sigmet_DataTypeN {
     DB_WIDTH2,	DB_ZDR2,	DB_RAINRATE2,	DB_KDP,		DB_KDP2,
     DB_PHIDP,	DB_VELC,	DB_SQI,		DB_RHOHV,	DB_RHOHV2,
     DB_DBZC2,	DB_VELC2,	DB_SQI2,	DB_PHIDP2,	DB_LDRH,
-    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_DBL,		DB_ERROR
+    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_DBL,		DB_SKIP,
+    DB_ERROR
 };
 
 /*
@@ -509,7 +511,9 @@ struct Sigmet_Vol {
 };
 
 /*
-   These functions manipulate data values.
+   These functions provide information about built in Sigmet data types.
+   They do NOT provide information about additional (DB_DBL) or bogus types.
+   Use the DataType interface for additional types.
  */
 
 enum Sigmet_DataTypeN Sigmet_DataTypeN(char *);
