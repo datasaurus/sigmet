@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.45 $ $Date: 2010/11/17 16:13:14 $
+   .	$Revision: 1.46 $ $Date: 2010/11/17 17:06:58 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -61,7 +61,6 @@ enum Sigmet_DataTypeN {
 struct Sigmet_DataType {
     enum Sigmet_DataTypeN sig_type;
     char *abbrv;
-    char *unit;
 };
 
 /*
