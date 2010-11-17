@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.308 $ $Date: 2010/11/15 21:31:58 $
+ .	$Revision: 1.309 $ $Date: 2010/11/17 17:40:59 $
  */
 
 #include <limits.h>
@@ -545,14 +545,43 @@ static enum Sigmet_CB_Return types_cb(int argc, char *argv[], char *cl_wd,
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     int y;
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
+    struct Sigmet_Vol *vol_p;		/* Volume structure */
+    enum Sigmet_CB_Return status; 	/* Result of SigmetRaw_ReadHdr */
+    struct Sigmet_DataType *type_p;
 
-    if ( argc != 2 ) {
-	fprintf(err, "Usage: %s %s\n", argv0, argv1);
-	return SIGMET_CB_FAIL;
-    }
-    for (y = 0; y < SIGMET_NTYPES; y++) {
-	fprintf(out, "%s | %s\n",
-		Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
+    if ( argc == 2 ) {
+	for (y = 0; y < SIGMET_NTYPES; y++) {
+	    fprintf(out, "%s | %s\n",
+		    Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
+	}
+    } else {
+	vol_nm_r = argv[2];
+	if ( !abs_name(cl_wd, vol_nm_r, vol_nm, LEN) ) {
+	    fprintf(err, "%s %s: Bad volume name %s\n%s\n",
+		    argv0, argv1, vol_nm_r, Err_Get());
+	    return SIGMET_CB_FAIL;
+	}
+	status = SigmetRaw_ReadHdr(vol_nm, err, i_err, &vol_p);
+	if ( status != SIGMET_CB_SUCCESS ) {
+	    return SIGMET_CB_FAIL;
+	}
+	for (type_p = vol_p->types;
+		type_p < vol_p->types + vol_p->num_types;
+		type_p++) {
+	    char *abbrv, *descr;
+
+	    if ( type_p->sig_type == DB_SKIP ) {
+		continue;
+	    }
+	    abbrv = type_p->abbrv;
+	    if ( !(descr = DataType_GetDescr(abbrv)) ) {
+		fprintf(err, "%s %s: unknown type %s\n", argv0, argv1, abbrv);
+		return SIGMET_CB_FAIL;
+	    }
+	    fprintf(out, "%s | %s\n", abbrv, descr);
+	}
     }
     return SIGMET_CB_SUCCESS;
 }
