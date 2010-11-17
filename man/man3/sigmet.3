@@ -4,10 +4,10 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.9 $ $Date: 2010/08/27 15:45:30 $
+.\" $Revision: 1.10 $ $Date: 2010/09/24 22:19:15 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
-Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_InitVol, Sigmet_FreeVol, Sigmet_GoodVol, Sigmet_ReadHdr, Sigmet_PrintHdr, Sigmet_ReadVol, Sigmet_BadRay, Sigmet_BinOutl \- read Sigmet raw data
+Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_Unit, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_InitVol, Sigmet_FreeVol, Sigmet_GoodVol, Sigmet_ReadHdr, Sigmet_PrintHdr, Sigmet_ReadVol, Sigmet_BadRay, Sigmet_BinOutl, Sigmet_ToDorade \- read Sigmet raw data
 .SH VERSION
 1
 .SH SYNOPSIS
@@ -16,6 +16,7 @@ Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_NoData, Si
 \fBenum Sigmet_DataType Sigmet_DataType(char\fP *\fIa\fP\fB);\fP
 \fBchar *Sigmet_DataType_Abbrv(enum Sigmet_DataType\fP \fIy\fP\fB);\fP
 \fBchar *Sigmet_DataType_Descr(enum Sigmet_DataType\fP \fIy\fP\fB);\fP
+\fBchar *Sigmet_DataType_Unit(enum Sigmet_DataType\fP \fIy\fP\fB);\fP
 \fBfloat Sigmet_NoData(void\fP\fB);\fP
 \fBint Sigmet_IsData(float\fP \fIv\fP\fB);\fP
 \fBint Sigmet_IsNoData(float\fP \fIv\fP\fB);\fP
@@ -25,14 +26,15 @@ Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_NoData, Si
 \fBdouble Sigmet_Bin2Rad(unsigned short\fP \fIb\fP\fB);\fP
 \fBunsigned long Sigmet_RadBin4(double\fP \fIa\fP\fB);\fP
 \fBunsigned long Sigmet_RadBin2(double\fP \fIa\fP\fB);\fP
-\fBvoid Sigmet_InitVol(struct Sigmet_Vol\fP *\fIsigPtr\fP\fB);\fP
-\fBvoid Sigmet_FreeVol(struct Sigmet_Vol\fP *\fIsigPtr\fP\fB);\fP
+\fBvoid Sigmet_InitVol(struct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
+\fBvoid Sigmet_FreeVol(struct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
 \fBint Sigmet_GoodVol(FILE\fP *\fIf\fP\fB);\fP
-\fBenum Sigmet_ReadStatus Sigmet_ReadHdr(FILE\fP *\fIf, \fBstruct Sigmet_Vol\fP *\fIsigPtr\fP\fB);\fP
+\fBenum Sigmet_ReadStatus Sigmet_ReadHdr(FILE\fP *\fIf, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
 \fBvoid Sigmet_PrintHdr(FILE *, struct Sigmet_Vol *);
-\fBenum Sigmet_ReadStatus Sigmet_ReadVol(FILE\fP *\fIf\fP, \fBstruct Sigmet_Vol\fP *\fIsigPtr\fP\fB);\fP
-\fBint Sigmet_BadRay(struct Sigmet_Vol\fP *\fIsigPtr\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP\fB);\fP
-\fBint Sigmet_BinOutl(struct Sigmet_Vol\fP *\fIsigPtr\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP, \fBint\fP \fIb\fP, \fBdouble\fP *\fIll\fP\fB);\fP
+\fBenum Sigmet_ReadStatus Sigmet_ReadVol(FILE\fP *\fIf\fP, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
+\fBint Sigmet_BadRay(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP\fB);\fP
+\fBint Sigmet_BinOutl(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP, \fBint\fP \fIb\fP, \fBdouble\fP *\fIll\fP\fB);\fP
+\fBint Sigmet_ToDorade(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBstruct Dorade_Sweep *\fIswp_p\fP\fB);\fP
 .fi
 .SH DESCRIPTION
 These functions read and access data obtained from Sigmet raw product
@@ -60,8 +62,8 @@ to short abbreviation \fIa\fP, or \fBDB_ERROR\fP if there is none.
 .PP
 \fBSigmet_DataType_Abbrv\fP returns a short abbreviation describing
 type \fIy\fP.  \fBSigmet_DataType_Descr\fP returns a longer
-description.  Return values of these functions should not be modified
-by the user.
+description.  \fBSigmet_DataType_Unit\fP returns a physical unit. Return values
+of these functions should not be modified by the user.
 .PP
 \fBSigmet_NoData\fP returns a value indicating missing of invalid data.
 \fBSigmet_IsData\fP returns true if \fIv\fP is not the return value from
@@ -89,11 +91,11 @@ Data from Sigmet raw product volumes are stored in structures of
 type \fBstruct\ Sigmet_Vol\fP, which is declared in \fBsigmet.h\fP.
 .PP
 \fBSigmet_InitVol\fP initializes a Sigmet volume structure at
-\fIsigPtr\fP, whose previous contents are assumed to be garbage.
-Upon return, \fIsigPtr\fP can be safely passed to \fBSigmet_FreeVol\fP.
+\fIvol_p\fP, whose previous contents are assumed to be garbage.
+Upon return, \fIvol_p\fP can be safely passed to \fBSigmet_FreeVol\fP.
 .PP
 \fBSigmet_FreeVol\fP frees memory associated with a Sigmet volume
-structure at \fIsigPtr\fP and reinitializes the structure.
+structure at \fIvol_p\fP and reinitializes the structure.
 .PP
 \fBSigmet_GoodVol\fP returns true if the file at \fIf\fP\fB is a readable
 Sigmet raw product volume.
@@ -113,8 +115,8 @@ whether the function succeeded, or how it failed. The return value will be one o
 .fi
 .PP
 \fBSigmet_ReadHdr\fP reads and stores volume headers for a Sigmet raw product
-file from stream \fIf\fP into the volume structure at \fIsigPtr\fP.
-\fIf\fP should be at the start of a raw product file.  \fIsigPtr\fP
+file from stream \fIf\fP into the volume structure at \fIvol_p\fP.
+\fIf\fP should be at the start of a raw product file.  \fIvol_p\fP
 should have been initialized at least once with a call to \fBSigmet_InitVol\fP.
 Upon entry, \fBSigmet_ReadHdr\fP will free the contents of \fIf\fP with a call
 to \fBSigmet_FreeVol\fP.  This function only reads volume headers. Sweep headers
@@ -123,20 +125,20 @@ and rays are left in their bogus initialized state.
 should be \fBSIGMET_READ_OK\fP.
 If the return value is \fBSIGMET_INPUT_FAIL\fP, \fBSIGMET_BAD_VOL\fP, or
 \fBSIGMET_MEM_FAIL\fP, the function stores nothing, it re-initializes the
-structure at \fIsigPtr\fP with a call to \fBSigmet_InitVol\fP, and it leaves
+structure at \fIvol_p\fP with a call to \fBSigmet_InitVol\fP, and it leaves
 an error message that can be retrieved with \fBerr_get\fP.
 .PP
 \fBSigmet_ReadVol\fP reads and stores a Sigmet raw product
-file from stream \fIf\fP into the volume structure at \fIsigPtr\fP.
-\fIf\fP should be at the start of a raw product file.  \fIsigPtr\fP
+file from stream \fIf\fP into the volume structure at \fIvol_p\fP.
+\fIf\fP should be at the start of a raw product file.  \fIvol_p\fP
 should have already been initialized with a call to \fBSigmet_InitVol\fP.
 Upon entry, \fBSigmet_ReadHdr\fP will free the contents of \fIf\fP with a call
 to \fBSigmet_FreeVol\fP.  \fBSigmet_ReadVol\fP returns a read status enumerator
 described above.  If the return value is \fBSIGMET_READ_OK\fP or
-\fBSIGMET_INPUT_FAIL\fP, some of all of the volume is stored at \fIsigPtr\fP.
+\fBSIGMET_INPUT_FAIL\fP, some of all of the volume is stored at \fIvol_p\fP.
 Memory allocated should eventually be freed with a call to \fISigmet_FreeVol\fP.
 If the return value is \fBSIGMET_BAD_VOL\fP or \fBSIGMET_MEM_FAIL\fP, it
-re-initializes the structure at \fIsigPtr\fP with a call to \fBSigmet_InitVol\fP.
+re-initializes the structure at \fIvol_p\fP with a call to \fBSigmet_InitVol\fP.
 If something goes wrong (return value is not \fBSIGMET_READ_OK\fP) it leaves an
 error message which can be retrieved with \fBerr_get\fP.
 .PP
@@ -156,16 +158,22 @@ Hierarchies are printed with form:
 .fi
 
 .PP
-\fBSigmet_BadRay\fP returns true if the ray in \fIsigPtr\fP at index
+\fBSigmet_BadRay\fP returns true if the ray in \fIvol_p\fP at index
 \fIs\fP, \fIr\fP is unusable.
 .PP
 \fBSigmet_BinOutl\fP computes the geographic coordinates of the bin for sweep
-\fIs\fP, ray \fIr\fP, bin \fIb\fP in the Sigmet volume at \fIsigPtr\fP.  The
+\fIs\fP, ray \fIr\fP, bin \fIb\fP in the Sigmet volume at \fIvol_p\fP.  The
 coordinates are placed into array \fIll\fP as (\fIlon1 lat1 lon2 lat2 lon3 lat3
 lon4 lat4\fP), denoting the corners of the bin.  Array \fIll\fP should point to
 space for eight double values.  \fBSigmet_BinOutl\fP returns true if it succeeds.
 If something goes wrong it returns false, leaving an error message which can be
 retrieved with \fBerr_get\fP.
+.PP
+\fBSigmet_ToDorade\fP transfers information from sweep \fIs\fP of the Sigmet
+volume at \fIvol_p\fP to the DORADE sweep structure at \fIswp_p\fP. The DORADE
+sweep should have been initialized with a call to \fBDorade_Sweep_Init\fP.
+\fBSigmet_ToDorade\fP returns true if it succeeds.  If something goes wrong it
+returns false, leaving an error message which can be retrieved with \fBerr_get\fP.
 .SH KEYWORDS
 radar sigmet data
 .SH AUTHOR
