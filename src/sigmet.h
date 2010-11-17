@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.43 $ $Date: 2010/11/15 17:52:24 $
+   .	$Revision: 1.44 $ $Date: 2010/11/15 20:09:54 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -32,7 +32,8 @@
    These constants identify the Sigmet data types. Names are from IRIS
    Programmer's Manual Section 3.3.
    In addition:
-   DB_FLOAT means float value. Use as is, type has no integer to float function.
+   DB_DBL means double value. Use as is, type has no conversion from integer to
+   floating point measurement.
    DB_ERROR means unknown or failure.
  */
 
@@ -43,14 +44,15 @@ enum Sigmet_DataTypeN {
     DB_WIDTH2,	DB_ZDR2,	DB_RAINRATE2,	DB_KDP,		DB_KDP2,
     DB_PHIDP,	DB_VELC,	DB_SQI,		DB_RHOHV,	DB_RHOHV2,
     DB_DBZC2,	DB_VELC2,	DB_SQI2,	DB_PHIDP2,	DB_LDRH,
-    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_FLOAT,	DB_ERROR
+    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_DBL,		DB_ERROR
 };
 
 /*
-   A Sigmet data type enumerator, and associated abbreviation.
-   Associations for Sigmet data types from IRIS Programmer's Manual Section 3.3
+   Structures of this type store a Sigmet data type enumerator, and associated
+   abbreviation.
+   Abbreviations for Sigmet data types from IRIS Programmer's Manual Section 3.3
    are hard coded in sigmet_data.c. This structure is needed for additional,
-   user defined data types, which are DB_FLOAT with some user supplied
+   user defined data types, which are DB_DBL with some user supplied
    abbreviation.
  */
 
@@ -429,7 +431,7 @@ struct Sigmet_Ingest_Header {
 union Sigmet_DatArr {
     U1BYT ***d1;				/* 1 byte data */
     U2BYT ***d2;				/* 2 byte data */
-    float ***f;					/* Float values */
+    double ***dbl;				/* Floating point values */
 };
 
 /*

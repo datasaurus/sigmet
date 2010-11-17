@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.57 $ $Date: 2010/11/10 16:06:04 $
+   .	$Revision: 1.58 $ $Date: 2010/11/12 22:20:10 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -133,8 +133,8 @@ static U1BYT *** calloc3_u1(long, long, long);
 static void free3_u1(U1BYT ***);
 static U2BYT *** calloc3_u2(long, long, long);
 static void free3_u2(U2BYT ***);
-static float *** calloc3_f(long, long, long);
-static void free3_f(float ***);
+static double *** calloc3_dbl(long, long, long);
+static void free3_dbl(double ***);
 
 void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 {
@@ -213,8 +213,8 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 		case DB_LDRH2:
 		case DB_LDRV2:
 		    free3_u2(vol_p->dat[y].d2);
-		case DB_FLOAT:
-		    free3_f(vol_p->dat[y].f);
+		case DB_DBL:
+		    free3_dbl(vol_p->dat[y].dbl);
 		    break;
 	    }
 	}
@@ -788,7 +788,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins * 2;
 		break;
-	    case DB_FLOAT:
+	    case DB_DBL:
 		Err_Append("Volume in memory is corrupt. Bogus float \"type\" "
 			"in data array.");
 		status = SIGMET_VOL_BAD_VOL;
@@ -1012,7 +1012,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			}
 			break;
 		    case DB_ERROR:
-		    case DB_FLOAT:
+		    case DB_DBL:
 			Err_Append("Volume has unknown data type.  ");
 			status = SIGMET_VOL_BAD_VOL;
 			goto error;
@@ -1168,8 +1168,8 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    i = vol_p->dat[y].d2[s][r][b];
 	    return (i == 0 || i > 65535)
 		? Sigmet_NoData() : 360.0 / 65534.0 * (i - 1.0);
-	case DB_FLOAT:
-	    return vol_p->dat[y].f[s][r][b];
+	case DB_DBL:
+	    return vol_p->dat[y].dbl[s][r][b];
     }
     return Sigmet_NoData();
 }
@@ -2932,9 +2932,9 @@ static void free3_u2(U2BYT ***dat)
    Allocate a 3 dimensional array of floats.  Return the array. If something
    goes wrong, post an error message with Err_Append and return NULL.
  */
-static float ***calloc3_f(long kmax, long jmax, long imax)
+static double ***calloc3_dbl(long kmax, long jmax, long imax)
 {
-    float ***dat;
+    double ***dat;
     long k, j;
     size_t kk, jj, ii;
 
@@ -2951,18 +2951,18 @@ static float ***calloc3_f(long kmax, long jmax, long imax)
 	return NULL;
     }
 
-    dat = (float ***)CALLOC(kk + 2, sizeof(float **));
+    dat = (double ***)CALLOC(kk + 2, sizeof(double **));
     if ( !dat ) {
 	Err_Append("Could not allocate 3rd dimension.\n");
 	return NULL;
     }
-    dat[0] = (float **)CALLOC(kk * jj + 1, sizeof(float *));
+    dat[0] = (double **)CALLOC(kk * jj + 1, sizeof(double *));
     if ( !dat[0] ) {
 	FREE(dat);
 	Err_Append("Could not allocate 2nd dimension.\n");
 	return NULL;
     }
-    dat[0][0] = (float *)CALLOC(kk * jj * ii + 1, sizeof(float));
+    dat[0][0] = (double *)CALLOC(kk * jj * ii + 1, sizeof(double));
     if ( !dat[0][0] ) {
 	FREE(dat[0]);
 	FREE(dat);
@@ -2978,8 +2978,8 @@ static float ***calloc3_f(long kmax, long jmax, long imax)
     return dat;
 }
 
-/* Free array created by calloc3_f */
-static void free3_f(float ***dat)
+/* Free array created by calloc3_dbl */
+static void free3_dbl(double ***dat)
 {
     if (dat) {
 	if (dat[0]) {
@@ -2991,4 +2991,3 @@ static void free3_f(float ***dat)
 	FREE(dat);
     }
 }
-

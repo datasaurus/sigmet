@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.7 $ $Date: 2010/11/10 17:04:21 $
+   .	$Revision: 1.8 $ $Date: 2010/11/12 22:20:10 $
  */
 
 #include <string.h>
@@ -228,7 +228,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	    case DB_RAINRATE2:
 		strncpy(parm_p->param_units, "mm/hr", 8);
 		break;
-	    case DB_FLOAT:
+	    case DB_DBL:
 		strncpy(parm_p->param_units, vol_p->types[p].unit, 8);
 		break;
 	}
