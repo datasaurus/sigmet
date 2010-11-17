@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.58 $ $Date: 2010/11/12 22:20:10 $
+   .	$Revision: 1.59 $ $Date: 2010/11/17 16:14:51 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -181,6 +181,7 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 	for (y = 0; y < vol_p->num_types; y++) {
 	    switch (vol_p->types[y].sig_type) {
 		case DB_XHDR:
+		case DB_SKIP:
 		case DB_ERROR:
 		    break;
 		case DB_DBT:
@@ -741,6 +742,8 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		status = SIGMET_VOL_BAD_VOL;
 		goto error;
 		break;
+	    case DB_SKIP:
+		break;
 	    case DB_ERROR:
 		Err_Append("Volume in memory is corrupt. Bogus error \"type\" "
 			"in data array.");
@@ -1012,6 +1015,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			}
 			break;
 		    case DB_ERROR:
+		    case DB_SKIP:
 		    case DB_DBL:
 			Err_Append("Volume has unknown data type.  ");
 			status = SIGMET_VOL_BAD_VOL;
@@ -1085,7 +1089,7 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
     type = vol_p->types[y].sig_type;
     switch (type) {
 	case DB_XHDR:
-	    return Sigmet_NoData();
+	case DB_SKIP:
 	case DB_ERROR:
 	    return Sigmet_NoData();
 	case DB_DBT:
