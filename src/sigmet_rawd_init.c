@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.309 $ $Date: 2010/11/17 17:40:59 $
+ .	$Revision: 1.310 $ $Date: 2010/11/17 21:50:29 $
  */
 
 #include <limits.h>
@@ -549,12 +549,12 @@ static enum Sigmet_CB_Return types_cb(int argc, char *argv[], char *cl_wd,
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
     enum Sigmet_CB_Return status; 	/* Result of SigmetRaw_ReadHdr */
-    struct Sigmet_DataType *type_p;
+    struct Sigmet_VolDataType *type_p;
 
     if ( argc == 2 ) {
 	for (y = 0; y < SIGMET_NTYPES; y++) {
-	    fprintf(out, "%s | %s\n",
-		    Sigmet_DataType_Abbrv(y), Sigmet_DataType_Descr(y));
+	    fprintf(out, "%s | %s | %s\n", Sigmet_DataType_Abbrv(y),
+		    Sigmet_DataType_Descr(y), Sigmet_DataType_Unit(y));
 	}
     } else {
 	vol_nm_r = argv[2];
@@ -570,17 +570,23 @@ static enum Sigmet_CB_Return types_cb(int argc, char *argv[], char *cl_wd,
 	for (type_p = vol_p->types;
 		type_p < vol_p->types + vol_p->num_types;
 		type_p++) {
-	    char *abbrv, *descr;
+	    char *abbrv, *descr, *unit;
 
 	    if ( type_p->sig_type == DB_SKIP ) {
 		continue;
 	    }
 	    abbrv = type_p->abbrv;
 	    if ( !(descr = DataType_GetDescr(abbrv)) ) {
-		fprintf(err, "%s %s: unknown type %s\n", argv0, argv1, abbrv);
+		fprintf(err, "%s %s: could not get long description for %s\n",
+			argv0, argv1, abbrv);
 		return SIGMET_CB_FAIL;
 	    }
-	    fprintf(out, "%s | %s\n", abbrv, descr);
+	    if ( !(unit = DataType_GetUnit(abbrv)) ) {
+		fprintf(err, "%s %s: could not get unit for %s\n",
+			argv0, argv1, abbrv);
+		return SIGMET_CB_FAIL;
+	    }
+	    fprintf(out, "%s | %s | %s\n", abbrv, descr, unit);
 	}
     }
     return SIGMET_CB_SUCCESS;
