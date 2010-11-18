@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.46 $ $Date: 2010/11/17 17:06:58 $
+   .	$Revision: 1.47 $ $Date: 2010/11/17 18:40:49 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -50,17 +50,19 @@ enum Sigmet_DataTypeN {
 };
 
 /*
-   Structures of this type store a Sigmet data type enumerator, and associated
-   abbreviation.
-   Abbreviations for Sigmet data types from IRIS Programmer's Manual Section 3.3
-   are hard coded in sigmet_data.c. This structure is needed for additional,
-   user defined data types, which are DB_DBL with some user supplied
-   abbreviation.
+   This struct stores a Sigmet data type enumerator, and associated abbreviation.
+   If the data type is from IRIS Programmer's Manual, sig_type will be one of
+   the first SIGMET_NTYPES values from the Sigmet_DataTypeN enumerator and
+   abbrv will be the value returned by Sigmet_DataType_Abbrv.  If the data
+   type is user defined, sig_type will be DB_DBL and user must supply an
+   value for abbrv. y is an index from a volume types array. It is needed
+   if the type is retrieved from the volume types table.
  */
 
-struct Sigmet_DataType {
+struct Sigmet_VolDataType {
     enum Sigmet_DataTypeN sig_type;
     char *abbrv;
+    int y;
 };
 
 /*
@@ -465,7 +467,7 @@ struct Sigmet_Vol {
 
     int xhdr;					/* true => extended headers */
     int num_types;				/* Number of data types */
-    struct Sigmet_DataType *types;		/* Data types in the volume.
+    struct Sigmet_VolDataType *types;		/* Data types in the volume.
 						   This includes Sigmet data
 						   types and user defined types,
 						   but not DB_XHDR */

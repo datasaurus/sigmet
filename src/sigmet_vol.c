@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.59 $ $Date: 2010/11/17 16:14:51 $
+   .	$Revision: 1.60 $ $Date: 2010/11/17 17:42:23 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -266,7 +266,7 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
        (User types might be added later.)
      */
 
-    vol_p->types = CALLOC(SIGMET_NTYPES, sizeof(struct Sigmet_DataType));
+    vol_p->types = CALLOC(SIGMET_NTYPES, sizeof(struct Sigmet_VolDataType));
     if ( !vol_p->types ) {
 	Err_Append("Could not allocate space for volume types array. ");
 	status = SIGMET_VOL_MEM_FAIL;
@@ -389,7 +389,7 @@ int Sigmet_GoodVol(FILE *f)
 
     unsigned numWds;			/* Number of words in a run of data */
     enum Sigmet_DataTypeN type;
-    struct Sigmet_DataType types[SIGMET_NTYPES]; /* Static types array */
+    struct Sigmet_VolDataType types[SIGMET_NTYPES];
     int s, r;				/* Sweep, ray indeces */
     int i, n;				/* Temporary values */
 
