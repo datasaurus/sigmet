@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.9 $ $Date: 2010/11/17 16:14:04 $
+   .	$Revision: 1.10 $ $Date: 2010/11/17 16:30:52 $
  */
 
 #include <string.h>
@@ -174,17 +174,18 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	Err_Append("Could not allocate array of parameter descriptors. ");
     }
     for (p = 0; p < num_parms; p++) {
-	enum Sigmet_DataTypeN y;		/* Sigmet data type at p */
+	enum Sigmet_DataTypeN sig_type;		/* Sigmet data type at p */
 	char *abbrv;				/* Data type abbreviation,
 						   e.g. "DZ" or "DB_ZDR" */
 
 	parm_p = sensor_p->parm + p;
 	Dorade_PARM_Init(parm_p);
-	y = vol_p->types[p].sig_type;
-	abbrv = (soloii_abbrv[y]) ? soloii_abbrv[y] : Sigmet_DataType_Abbrv(y);
+	sig_type = vol_p->types[p].sig_type;
+	abbrv = (soloii_abbrv[sig_type])
+	    ? soloii_abbrv[sig_type] : Sigmet_DataType_Abbrv(sig_type);
 	strncpy(parm_p->parameter_name, abbrv, 8);
-	strncpy(parm_p->param_description, Sigmet_DataType_Descr(y), 40);
-	strncpy(parm_p->param_units, Sigmet_DataType_Unit(y), 40);
+	strncpy(parm_p->param_description, Sigmet_DataType_Descr(sig_type), 40);
+	strncpy(parm_p->param_units, Sigmet_DataType_Unit(sig_type), 40);
 	parm_p->xmitted_freq = 1.0e-9 * 2.9979e8 / wave_len;
 	parm_p->recvr_bandwidth = 1.0e-3 * vol_p->ih.tc.tci.bandwidth;
 	parm_p->pulse_width = vol_p->ih.tc.tdi.pulse_w * 0.01 * 1.0e-6 * 2.9979e8;
