@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.60 $ $Date: 2010/11/17 17:42:23 $
+   .	$Revision: 1.61 $ $Date: 2010/11/18 19:41:45 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -146,6 +146,7 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
     memset(vol_p, 0, sizeof(struct Sigmet_Vol));
     vol_p->num_types = SIGMET_NTYPES;
     vol_p->types = NULL;
+    Hash_Init(&vol_p->types_tbl, 0);
     for (n = 0; n < SIGMET_NTYPES; n++) {
 	vol_p->types_fl[n] = DB_XHDR;
     }
@@ -163,6 +164,7 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 {
     int y;
+    struct Sigmet_VolDataType *type_p;
 
     if (!vol_p) {
 	return;
@@ -221,7 +223,15 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 	}
 	FREE(vol_p->dat);
     }
+    if ( vol_p->types ) {
+	for (type_p = vol_p->types;
+		type_p < vol_p->types + vol_p->num_types;
+		type_p++) {
+	    FREE(type_p->abbrv);
+	}
+    }
     FREE(vol_p->types);
+    Hash_Clear(&vol_p->types_tbl);
     Sigmet_InitVol(vol_p);
 }
 
@@ -231,19 +241,22 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     enum Sigmet_ReadStatus status;
 
     /*
-       num_types_fl will receive the number of types in the f.
-       types_fl array will store type identifiers from the file.
+       yf will increment as bits are found in the volume type mask.
+       vol_p->types_fl array will store type identifiers from the file.
 
-       num_types will receive the number of types in the volume.
-       vol_p->types array will store type identifiers from the file.
+       y will receive the number of types in the volume, excluding the
+       extended header type.
+       vol_p->types array will store type identifiers that end up in vol_p.
 
-       If the volume uses extended headers, num_types_fl = num_types+1,
+       If the volume uses extended headers, yf = y + 1,
        and types_fl will have one more element than vol_p->types.
        The extra type is the "extended header type".
      */
-    int num_types_fl;
-    int num_types;
-    enum Sigmet_DataTypeN type;
+
+    int y, yf;
+    enum Sigmet_DataTypeN sig_type;
+    struct Sigmet_VolDataType *type_p;
+    char *abbrv;
 
     /*
        These masks are placed against the data type mask in the task dsp info
@@ -269,6 +282,16 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->types = CALLOC(SIGMET_NTYPES, sizeof(struct Sigmet_VolDataType));
     if ( !vol_p->types ) {
 	Err_Append("Could not allocate space for volume types array. ");
+	status = SIGMET_VOL_MEM_FAIL;
+	goto error;
+    }
+    for (type_p = vol_p->types; type_p < vol_p->types + SIGMET_NTYPES; type_p++) {
+	type_p->sig_type = DB_SKIP;
+	type_p->abbrv = NULL;
+	type_p->y = -1;
+    }
+    if ( !Hash_Init(&vol_p->types_tbl, SIGMET_NTYPES / 2) ) {
+	Err_Append("Could not allocate space for volume types table. ");
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
@@ -310,22 +333,42 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
        Loop through the bits in the data type mask. 
        If bit is set, add the corresponding type to types array.
      */
+
     data_type_mask = vol_p->ih.tc.tdi.curr_data_mask.mask_word_0;
-    for (type = 0, num_types_fl = num_types = 0; type < SIGMET_NTYPES; type++) {
-	if (data_type_mask & type_masks[type]) {
-	    if (type == DB_XHDR) {
+    for (sig_type = 0, yf = y = 0; sig_type < SIGMET_NTYPES; sig_type++) {
+	if (data_type_mask & type_masks[sig_type]) {
+	    if (sig_type == DB_XHDR) {
 		vol_p->xhdr = 1;
 	    } else {
-		vol_p->types[num_types].sig_type = type;
-		vol_p->types[num_types].abbrv = Sigmet_DataType_Abbrv(type);
-		num_types++;
+		size_t sz;
+
+		type_p = vol_p->types + y;
+		abbrv = Sigmet_DataType_Abbrv(sig_type);
+		type_p->sig_type = sig_type;
+		sz = strlen(abbrv) + 1;
+		if ( !(type_p->abbrv = MALLOC(sz)) ) {
+		    Err_Append("Failed to allocate memory while adding ");
+		    Err_Append(abbrv);
+		    Err_Append(" to volume types table. ");
+		    status = SIGMET_VOL_MEM_FAIL;
+		    goto error;
+		}
+		strcpy(type_p->abbrv, abbrv);
+		type_p->y = y;
+		if ( !Hash_Add(&vol_p->types_tbl, abbrv, type_p) ) {
+		    Err_Append("Could not add ");
+		    Err_Append(abbrv);
+		    Err_Append(" to volume types table. ");
+		    status = SIGMET_VOL_MEM_FAIL;
+		    goto error;
+		}
+		y++;
 	    }
-	    vol_p->types_fl[num_types_fl] = type;
-	    num_types_fl++;
+	    vol_p->types_fl[yf] = sig_type;
+	    yf++;
 	}
     }
-    vol_p->num_types = num_types;
-
+    vol_p->num_types = y;
     vol_p->has_headers = 1;
     return SIGMET_VOL_READ_OK;
 

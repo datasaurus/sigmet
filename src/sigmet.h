@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.47 $ $Date: 2010/11/17 18:40:49 $
+   .	$Revision: 1.48 $ $Date: 2010/11/18 19:38:37 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -21,6 +21,7 @@
 #include <float.h>
 #include <stdio.h>
 #include "type_nbit.h"
+#include "hash.h"
 #include "dorade_lib.h"
 
 #define	PI		3.1415926535897932384
@@ -471,6 +472,8 @@ struct Sigmet_Vol {
 						   This includes Sigmet data
 						   types and user defined types,
 						   but not DB_XHDR */
+    struct Hash_Tbl types_tbl;			/* Map abbreviations to elements
+						   in types array */
     enum Sigmet_DataTypeN
 	types_fl[SIGMET_NTYPES];		/* Data types in raw product
 						   file. This means Sigmet

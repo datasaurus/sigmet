@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.310 $ $Date: 2010/11/17 21:50:29 $
+ .	$Revision: 1.311 $ $Date: 2010/11/18 19:40:18 $
  */
 
 #include <limits.h>
@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
     struct sockaddr_un sa;	/* Socket to read command and return exit status */
     struct sockaddr *sa_p;	/* &sa or &d_err_sa, for call to bind */
     int i_dmn;			/* File descriptors for daemon socket */
-    int y;			/* Loop index */
+    int sig_type;		/* Loop index */
     int cl_io_fd;		/* File descriptor to read client command
 				   and send results */
     pid_t client_pid = -1;	/* Client process id */
@@ -157,19 +157,20 @@ int main(int argc, char *argv[])
 		argv0, pid);
 	exit(EXIT_FAILURE);
     }
-    for (y = 0; y < SIGMET_NTYPES; y++) {
+    for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
 	enum DataType_Return status;
 
-	switch (y) {
+	switch (sig_type) {
 	    case DB_XHDR:
 		break;
 	    default:
-		status = DataType_Add( Sigmet_DataType_Abbrv(y),
-			Sigmet_DataType_Descr(y), Sigmet_DataType_Unit(y));
+		status = DataType_Add( Sigmet_DataType_Abbrv(sig_type),
+			Sigmet_DataType_Descr(sig_type),
+			Sigmet_DataType_Unit(sig_type));
 		if ( status != DATATYPE_SUCCESS ) {
 		    fprintf(stderr, "%s (%d): could not register data type "
-			    "%s\n%s\n", argv0, pid, Sigmet_DataType_Abbrv(y),
-			    Err_Get());
+			    "%s\n%s\n", argv0, pid,
+			    Sigmet_DataType_Abbrv(sig_type), Err_Get());
 		    exit(EXIT_FAILURE);
 		}
 		break;
@@ -457,8 +458,8 @@ int main(int argc, char *argv[])
 
     unlink(SIGMET_RAWD_IN);
     SigmetRaw_VolFree();
-    for (y = 0; y < SIGMET_NTYPES; y++) {
-	DataType_Rm(Sigmet_DataType_Abbrv(y));
+    for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
+	DataType_Rm(Sigmet_DataType_Abbrv(sig_type));
     }
     FREE(cl_wd);
     FREE(cmd_ln);
@@ -468,8 +469,8 @@ int main(int argc, char *argv[])
 error:
     unlink(SIGMET_RAWD_IN);
     SigmetRaw_VolFree();
-    for (y = 0; y < SIGMET_NTYPES; y++) {
-	DataType_Rm(Sigmet_DataType_Abbrv(y));
+    for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
+	DataType_Rm(Sigmet_DataType_Abbrv(sig_type));
     }
     fprintf(stderr, "%s: sigmet_rawd failed.\n", time_stamp());
     exit(EXIT_FAILURE);
@@ -544,7 +545,7 @@ static enum Sigmet_CB_Return types_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    int y;
+    int sig_type;
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
@@ -552,9 +553,10 @@ static enum Sigmet_CB_Return types_cb(int argc, char *argv[], char *cl_wd,
     struct Sigmet_VolDataType *type_p;
 
     if ( argc == 2 ) {
-	for (y = 0; y < SIGMET_NTYPES; y++) {
-	    fprintf(out, "%s | %s | %s\n", Sigmet_DataType_Abbrv(y),
-		    Sigmet_DataType_Descr(y), Sigmet_DataType_Unit(y));
+	for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
+	    fprintf(out, "%s | %s | %s\n", Sigmet_DataType_Abbrv(sig_type),
+		    Sigmet_DataType_Descr(sig_type),
+		    Sigmet_DataType_Unit(sig_type));
 	}
     } else {
 	vol_nm_r = argv[2];
@@ -941,26 +943,24 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
     int s, y, r, b;
     char *abbrv;
     double d;
-    enum Sigmet_DataTypeN type;
+    enum Sigmet_DataTypeN sig_type;
+    struct Sigmet_VolDataType *type_p;
     int all = -1;
-
-    abbrv = Sigmet_DataType_Abbrv(DB_ERROR);
 
     /*
        Identify input and desired output
        Possible forms:
 	   data	vol_nm		(argc = 3)
-	   data y vol_nm	(argc = 4)
-	   data y s vol_nm	(argc = 5)
-	   data y s r vol_nm	(argc = 6)
-	   data y s r b vol_nm	(argc = 7)
+	   data type vol_nm	(argc = 4)
+	   data type s vol_nm	(argc = 5)
+	   data type s r vol_nm	(argc = 6)
+	   data type s r b vol_nm	(argc = 7)
      */
 
     y = s = r = b = all;
-    type = DB_ERROR;
-    if ( argc > 3 && (type = Sigmet_DataTypeN(argv[2])) == DB_ERROR ) {
-	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, argv[2]);
-	return SIGMET_CB_FAIL;
+    sig_type = DB_ERROR;
+    if ( argc > 3 ) {
+	abbrv = argv[2];
     }
     if ( argc > 4 && sscanf(argv[3], "%d", &s) != 1 ) {
 	fprintf(err, "%s %s: expected integer for sweep index, got %s\n",
@@ -993,24 +993,15 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	    return status;
     }
 
-    if ( type != DB_ERROR ) {
-	/*
-	   User has specified a data type.  Search for it in the volume,
-	   and set y to the specified type (instead of all).
-	 */
+    /*
+       Validate.
+     */
 
-	abbrv = Sigmet_DataType_Abbrv(type);
-	for (y = 0; y < vol_p->num_types; y++) {
-	    if ( type == vol_p->types[y].sig_type ) {
-		break;
-	    }
-	}
-	if ( y == vol_p->num_types ) {
-	    fprintf(err, "%s %s: data type %s not in %s\n",
-		    argv0, argv1, abbrv, vol_nm);
-	    return SIGMET_CB_FAIL;
-	}
+    if ( !(type_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
+	return SIGMET_CB_FAIL;
     }
+    y = type_p->y;
     if ( s != all && s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
@@ -1033,8 +1024,8 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 
     if ( y == all && s == all && r == all && b == all ) {
 	for (y = 0; y < vol_p->num_types; y++) {
-	    type = vol_p->types[y].sig_type;
-	    abbrv = Sigmet_DataType_Abbrv(type);
+	    sig_type = vol_p->types[y].sig_type;
+	    abbrv = Sigmet_DataType_Abbrv(sig_type);
 	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 		fprintf(out, "%s. sweep %d\n", abbrv, s);
 		for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
@@ -1223,10 +1214,10 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
     enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
-    enum Sigmet_DataTypeN type_t;	/* Sigmet data type */
+    struct Sigmet_VolDataType *type_p;	/* Sigmet data type */
     int y, s, r, b;			/* data type, sweep, ray, bin */
     unsigned char n_clrs;		/* number of colors for the data type */
-    double *bnds;			/* bounds[type_t] */
+    double *bnds;			/* bounds for the type */
     unsigned char n_bnds;		/* number of bounds = n_clrs + 1 */
     int n;				/* Index from bnds */
     double d;				/* Data value */
@@ -1241,10 +1232,6 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
     if ( !abs_name(cl_wd, vol_nm_r, vol_nm, LEN) ) {
 	fprintf(err, "%s %s: Bad volume name %s\n%s\n",
 		argv0, argv1, vol_nm_r, Err_Get());
-	return SIGMET_CB_FAIL;
-    }
-    if ( (type_t = Sigmet_DataTypeN(abbrv)) == DB_ERROR ) {
-	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
     if ( DataType_GetColors(abbrv, &n_clrs, NULL, &bnds) != DATATYPE_SUCCESS ) {
@@ -1267,16 +1254,11 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
        Validate.
      */
 
-    for (y = 0; y < vol_p->num_types; y++) {
-	if ( type_t == vol_p->types[y].sig_type ) {
-	    break;
-	}
-    }
-    if ( y == vol_p->num_types ) {
-	fprintf(err, "%s %s: data type %s not in %s\n",
-		argv0, argv1, abbrv, vol_nm);
+    if ( !(type_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
+    y = type_p->y;
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
@@ -1590,7 +1572,7 @@ static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
     enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadHdr */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
-    enum Sigmet_DataTypeN type_t;	/* Sigmet data type. */
+    struct Sigmet_VolDataType *type_p;	/* Sigmet data type. */
     int y, s;				/* Indeces: data type, sweep */
     char img_fl_nm[LEN];		/* Name of image file */
 
@@ -1606,16 +1588,12 @@ static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
     }
-    if ( (type_t = Sigmet_DataTypeN(abbrv)) == DB_ERROR ) {
-	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
-	return SIGMET_CB_FAIL;
-    }
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(err, "%s %s: expected integer for sweep index, got %s\n",
 		argv0, argv1, s_s);
 	return SIGMET_CB_FAIL;
     }
-    status = SigmetRaw_ReadHdr(vol_nm, err, i_err, &vol_p);
+    status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p);
     if ( status != SIGMET_CB_SUCCESS ) {
 	    return status;
     }
@@ -1624,23 +1602,13 @@ static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
        Validate
      */
 
-    for (y = 0; y < vol_p->num_types; y++) {
-	if ( type_t == vol_p->types[y].sig_type ) {
-	    break;
-	}
-    }
-    if ( y == vol_p->num_types ) {
-	fprintf(err, "%s %s: data type %s not in %s\n",
-		argv0, argv1, abbrv, vol_nm);
+    if ( !(type_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
+    y = type_p->y;
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
-		argv0, argv1, s, vol_nm);
-	return SIGMET_CB_FAIL;
-    }
-    if ( !vol_p->sweep_ok[s] ) {
-	fprintf(err, "%s %s: sweep %d not valid in %s\n",
 		argv0, argv1, s, vol_nm);
 	return SIGMET_CB_FAIL;
     }
@@ -1670,7 +1638,7 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     enum Sigmet_CB_Return status; 	/* Result of SigmetRaw_ReadVol */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
-    enum Sigmet_DataTypeN type_t;	/* Sigmet data type */
+    struct Sigmet_VolDataType *type_p;	/* Member of vol_p->types */
     int y, s, r, b;			/* Indeces: data type, sweep, ray, bin */
     double left;			/* Map coordinate of left side */
     double rght;			/* Map coordinate of right side */
@@ -1766,10 +1734,6 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 		argv0, argv1, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
     }
-    if ( (type_t = Sigmet_DataTypeN(abbrv)) == DB_ERROR ) {
-	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
-	return SIGMET_CB_FAIL;
-    }
     if ( DataType_GetColors(abbrv, &n_clrs, &clrs, &bnds) != DATATYPE_SUCCESS
 	    || n_clrs == 0 || !clrs || !bnds ) {
 	fprintf(err, "%s %s: colors and bounds not set for %s\n",
@@ -1791,16 +1755,11 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
        Validate
      */
 
-    for (y = 0; y < vol_p->num_types; y++) {
-	if ( type_t == vol_p->types[y].sig_type ) {
-	    break;
-	}
-    }
-    if ( y == vol_p->num_types ) {
-	fprintf(err, "%s %s: data type %s not in %s\n",
-		argv0, argv1, abbrv, vol_nm);
+    if ( !(type_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
+    y = type_p->y;
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
