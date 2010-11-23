@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.311 $ $Date: 2010/11/18 19:40:18 $
+ .	$Revision: 1.312 $ $Date: 2010/11/19 05:31:44 $
  */
 
 #include <limits.h>
@@ -57,11 +57,12 @@
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 25
+#define NCMD 26
 typedef enum Sigmet_CB_Return (callback)(int , char **, char *, int, FILE *,
 	int, FILE *);
 static callback pid_cb;
 static callback types_cb;
+static callback new_data_type_cb;
 static callback setcolors_cb;
 static callback good_cb;
 static callback list_cb;
@@ -86,18 +87,18 @@ static callback img_name_cb;
 static callback img_cb;
 static callback dorade_cb;
 static char *cmd1v[NCMD] = {
-    "pid", "types", "colors", "good", "list", "keep", "delete",
-    "max_size", "volume_headers", "vol_hdr", "near_sweep", "ray_headers",
-    "data", "bin_outline", "bintvls", "radar_lon", "radar_lat",
-    "shift_az", "proj", "img_app", "img_sz", "alpha", "img_name", "img",
-    "dorade"
+    "pid", "types", "new_data_type", "colors", "good", "list", "keep",
+    "delete", "max_size", "volume_headers", "vol_hdr", "near_sweep",
+    "ray_headers", "data", "bin_outline", "bintvls", "radar_lon",
+    "radar_lat", "shift_az", "proj", "img_app", "img_sz", "alpha",
+    "img_name", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
-    pid_cb, types_cb, setcolors_cb, good_cb, list_cb, keep_cb, delete_cb,
-    max_size_cb, volume_headers_cb, vol_hdr_cb, near_sweep_cb, ray_headers_cb,
-    data_cb, bin_outline_cb, bintvls_cb, radar_lon_cb, radar_lat_cb,
-    shift_az_cb, proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb,
-    dorade_cb
+    pid_cb, types_cb, new_data_type_cb, setcolors_cb, good_cb, list_cb, keep_cb,
+    delete_cb, max_size_cb, volume_headers_cb, vol_hdr_cb, near_sweep_cb,
+    ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb, radar_lon_cb,
+    radar_lat_cb, shift_az_cb, proj_cb, img_app_cb, img_sz_cb, alpha_cb,
+    img_name_cb, img_cb, dorade_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -458,9 +459,6 @@ int main(int argc, char *argv[])
 
     unlink(SIGMET_RAWD_IN);
     SigmetRaw_VolFree();
-    for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
-	DataType_Rm(Sigmet_DataType_Abbrv(sig_type));
-    }
     FREE(cl_wd);
     FREE(cmd_ln);
     fprintf(stderr, "%s: exiting.\n", time_stamp());
@@ -469,9 +467,6 @@ int main(int argc, char *argv[])
 error:
     unlink(SIGMET_RAWD_IN);
     SigmetRaw_VolFree();
-    for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
-	DataType_Rm(Sigmet_DataType_Abbrv(sig_type));
-    }
     fprintf(stderr, "%s: sigmet_rawd failed.\n", time_stamp());
     exit(EXIT_FAILURE);
 }
@@ -540,12 +535,39 @@ static enum Sigmet_CB_Return pid_cb(int argc, char *argv[], char *cl_wd, int i_o
     return SIGMET_CB_SUCCESS;
 }
 
+static enum Sigmet_CB_Return new_data_type_cb(int argc, char *argv[],
+	char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
+{
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+    char *name, *desc, *unit;
+
+    if ( argc != 5 ) {
+	fprintf(err, "Usage: %s %s new_data_type name descriptor unit\n",
+		argv0, argv1);
+	return SIGMET_CB_FAIL;
+    }
+    name = argv[2];
+    desc = argv[3];
+    unit = argv[4];
+    switch (DataType_Add(name, desc, unit)) {
+	case DATATYPE_MEM_FAIL:
+	    return SIGMET_CB_MEM_FAIL;
+	case DATATYPE_FAIL:
+	case DATATYPE_INPUT_FAIL:
+	    return SIGMET_CB_FAIL;
+	case DATATYPE_SUCCESS:
+	    return SIGMET_CB_SUCCESS;
+    }
+    return SIGMET_CB_SUCCESS;
+}
+
 static enum Sigmet_CB_Return types_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    int sig_type;
+    char *abbrv, *descr, *unit;
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
@@ -553,10 +575,23 @@ static enum Sigmet_CB_Return types_cb(int argc, char *argv[], char *cl_wd,
     struct Sigmet_VolDataType *type_p;
 
     if ( argc == 2 ) {
-	for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
-	    fprintf(out, "%s | %s | %s\n", Sigmet_DataType_Abbrv(sig_type),
-		    Sigmet_DataType_Descr(sig_type),
-		    Sigmet_DataType_Unit(sig_type));
+	size_t n;
+	char **abbrvs = DataType_Abbrvs(&n), **a;
+
+	if ( abbrvs ) {
+	    for (a = abbrvs; a < abbrvs + n; a++) {
+		if ( !(descr = DataType_GetDescr(*a)) ) {
+		    fprintf(err, "%s %s: could not get long description for "
+			    "%s\n", argv0, argv1, *a);
+		    return SIGMET_CB_FAIL;
+		}
+		if ( !(unit = DataType_GetUnit(*a)) ) {
+		    fprintf(err, "%s %s: could not get unit for %s\n",
+			    argv0, argv1, *a);
+		    return SIGMET_CB_FAIL;
+		}
+		fprintf(out, "%s | %s | %s\n", *a, descr, unit);
+	    }
 	}
     } else {
 	vol_nm_r = argv[2];
@@ -572,7 +607,6 @@ static enum Sigmet_CB_Return types_cb(int argc, char *argv[], char *cl_wd,
 	for (type_p = vol_p->types;
 		type_p < vol_p->types + vol_p->num_types;
 		type_p++) {
-	    char *abbrv, *descr, *unit;
 
 	    if ( type_p->sig_type == DB_SKIP ) {
 		continue;
