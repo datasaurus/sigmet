@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.28 $ $Date: 2010/11/11 21:52:25 $
+.\" $Revision: 1.29 $ $Date: 2010/11/17 21:53:33 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -15,7 +15,8 @@ sigmet_rawd, sigmet_raw \- access Sigmet raw product volumes
 \fBsigmet_rawd &\fP
 \fBsigmet_raw\fP \fBstart\fP \fIcommand ...\fP
 \fBsigmet_raw\fP \fBpid\fP
-\fBsigmet_raw\fP \fBtypes\fP [\fIvolume_file\fP]
+\fBsigmet_raw\fP \fBdata_types\fP [\fIvolume_file\fP]
+\fBsigmet_raw\fP \fBnew_data_type\fP \fIdata_type\fP \fIdescription\fP \fIunit\fP
 \fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
 \fBsigmet_raw\fP \fBlist\fP
 \fBsigmet_raw\fP \fBkeep\fP \fIvolume_file\fP
@@ -109,7 +110,7 @@ indeces start with \fB0\fP.
 \fBsigmet_raw\fP \fBpid\fP
 Prints the daemon's process id.
 .TP
-\fBsigmet_raw\fP \fBtypes\fP [\fIvolume_file\fP]
+\fBsigmet_raw\fP \fBdata_types\fP [\fIvolume_file\fP]
 Prints a list of Sigmet data types.  Output lines have form:
 .sp 1
 .ti +4
@@ -118,6 +119,11 @@ Prints a list of Sigmet data types.  Output lines have form:
 See the IRIS Programmer's Manual for information about Sigmet data types.
 If optional [\fIvolume_file\fP] is given, this command lists only types in the
 volume.
+.TP
+\fBsigmet_raw\fP \fBnew_data_type\fP \fIdata_type\fP \fIdescription\fP \fIunit\fP
+Declares a new data type, identified as \fIdata_type\fP. Mandatory, although
+possibly blank, \fIdescription\fP and \fIunit\fP should give additional information
+and physical unit.
 .TP
 \fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
 This command attempts to navigate \fIvolume_file\fP, but does not store any data.
