@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.312 $ $Date: 2010/11/19 05:31:44 $
+ .	$Revision: 1.313 $ $Date: 2010/11/23 18:34:03 $
  */
 
 #include <limits.h>
@@ -61,7 +61,7 @@
 typedef enum Sigmet_CB_Return (callback)(int , char **, char *, int, FILE *,
 	int, FILE *);
 static callback pid_cb;
-static callback types_cb;
+static callback data_types_cb;
 static callback new_data_type_cb;
 static callback setcolors_cb;
 static callback good_cb;
@@ -87,18 +87,18 @@ static callback img_name_cb;
 static callback img_cb;
 static callback dorade_cb;
 static char *cmd1v[NCMD] = {
-    "pid", "types", "new_data_type", "colors", "good", "list", "keep",
-    "delete", "max_size", "volume_headers", "vol_hdr", "near_sweep",
-    "ray_headers", "data", "bin_outline", "bintvls", "radar_lon",
-    "radar_lat", "shift_az", "proj", "img_app", "img_sz", "alpha",
-    "img_name", "img", "dorade"
+    "pid", "data_types", "new_data_type", "colors", "good", "list",
+    "keep", "delete", "max_size", "volume_headers", "vol_hdr",
+    "near_sweep", "ray_headers", "data", "bin_outline", "bintvls",
+    "radar_lon", "radar_lat", "shift_az", "proj", "img_app", "img_sz",
+    "alpha", "img_name", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
-    pid_cb, types_cb, new_data_type_cb, setcolors_cb, good_cb, list_cb, keep_cb,
-    delete_cb, max_size_cb, volume_headers_cb, vol_hdr_cb, near_sweep_cb,
-    ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb, radar_lon_cb,
-    radar_lat_cb, shift_az_cb, proj_cb, img_app_cb, img_sz_cb, alpha_cb,
-    img_name_cb, img_cb, dorade_cb
+    pid_cb, data_types_cb, new_data_type_cb, setcolors_cb, good_cb, list_cb,
+    keep_cb, delete_cb, max_size_cb, volume_headers_cb, vol_hdr_cb,
+    near_sweep_cb, ray_headers_cb, data_cb, bin_outline_cb, bintvls_cb,
+    radar_lon_cb, radar_lat_cb, shift_az_cb, proj_cb, img_app_cb, img_sz_cb,
+    alpha_cb, img_name_cb, img_cb, dorade_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -562,7 +562,7 @@ static enum Sigmet_CB_Return new_data_type_cb(int argc, char *argv[],
     return SIGMET_CB_SUCCESS;
 }
 
-static enum Sigmet_CB_Return types_cb(int argc, char *argv[], char *cl_wd,
+static enum Sigmet_CB_Return data_types_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
