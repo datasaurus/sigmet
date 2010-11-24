@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.314 $ $Date: 2010/11/23 18:38:05 $
+ .	$Revision: 1.315 $ $Date: 2010/11/24 16:19:09 $
  */
 
 #include <limits.h>
@@ -766,8 +766,8 @@ static enum Sigmet_CB_Return volume_headers_cb(int argc, char *argv[], char *cl_
     char *argv1 = argv[1];
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
-    struct Sigmet_Vol *vol_p;	/* Volume structure */
-    enum Sigmet_CB_Return status; /* Result of SigmetRaw_ReadHdr */
+    struct Sigmet_Vol *vol_p;		/* Volume structure */
+    enum Sigmet_CB_Return status; 	/* Result of SigmetRaw_ReadHdr */
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv0, argv1);
@@ -997,7 +997,7 @@ static enum Sigmet_CB_Return new_field_cb(int argc, char *argv[], char *cl_wd,
     if ( status != SIGMET_CB_SUCCESS ) {
 	return status;
     }
-    if ( !Sigmet_VolAddDataType(abbrv, vol_p) ) {
+    if ( !Sigmet_VolAddDataType(abbrv, vol_p, 1) ) {
 	fprintf(err, "%s %s: could not add data type %s to %s\n%s\n",
 		argv0, argv1, abbrv, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
