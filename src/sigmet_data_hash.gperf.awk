@@ -20,8 +20,11 @@ END {
     printf "%%%%\n"
     printf "enum Sigmet_DataTypeN Sigmet_DataTypeN(char *a)\n";
     printf "{\n"
-    printf "    struct type_entr *y;\n"
+    printf "    struct type_entr *y;\n\n"
+    printf "    if ( !a ) {\n"
+    printf "        return DB_ERROR;\n"
+    printf "    }\n"
     printf "    return (y = in_word_set(a, (unsigned int)strlen(a)))"
-    printf " ? y->i : DB_ERROR;\n"
+    printf " ? y->i : DB_DBL;\n"
     printf "}\n"
 }
