@@ -4,23 +4,23 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.10 $ $Date: 2010/09/24 22:19:15 $
+.\" $Revision: 1.11 $ $Date: 2010/11/17 21:55:28 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
-Sigmet_DataType, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_Unit, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_InitVol, Sigmet_FreeVol, Sigmet_GoodVol, Sigmet_ReadHdr, Sigmet_PrintHdr, Sigmet_ReadVol, Sigmet_BadRay, Sigmet_BinOutl, Sigmet_ToDorade \- read Sigmet raw data
+Sigmet_DataTypeN, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_Unit, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_InitVol, Sigmet_FreeVol, Sigmet_GoodVol, Sigmet_ReadHdr, Sigmet_PrintHdr, Sigmet_ReadVol, Sigmet_BadRay, Sigmet_BinOutl, Sigmet_ToDorade \- read Sigmet raw data
 .SH VERSION
 1
 .SH SYNOPSIS
 .nf
 \fB#include <sigmet.h>\fP
-\fBenum Sigmet_DataType Sigmet_DataType(char\fP *\fIa\fP\fB);\fP
-\fBchar *Sigmet_DataType_Abbrv(enum Sigmet_DataType\fP \fIy\fP\fB);\fP
-\fBchar *Sigmet_DataType_Descr(enum Sigmet_DataType\fP \fIy\fP\fB);\fP
-\fBchar *Sigmet_DataType_Unit(enum Sigmet_DataType\fP \fIy\fP\fB);\fP
+\fBenum Sigmet_DataTypeN Sigmet_DataTypeN(char\fP *\fIa\fP\fB);\fP
+\fBchar *Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN\fP \fIy\fP\fB);\fP
+\fBchar *Sigmet_DataType_Descr(enum Sigmet_DataTypeN\fP \fIy\fP\fB);\fP
+\fBchar *Sigmet_DataType_Unit(enum Sigmet_DataTypeN\fP \fIy\fP\fB);\fP
 \fBfloat Sigmet_NoData(void\fP\fB);\fP
 \fBint Sigmet_IsData(float\fP \fIv\fP\fB);\fP
 \fBint Sigmet_IsNoData(float\fP \fIv\fP\fB);\fP
-\fBfloat Sigmet_DataType_ItoF(enum Sigmet_DataType\fP \fIy\fP, \fBstruct Sigmet_Vol\fP \fIv\fP,
+\fBfloat Sigmet_DataType_ItoF(enum Sigmet_DataTypeN\fP \fIy\fP, \fBstruct Sigmet_Vol\fP \fIv\fP,
 	\fBunsigned\fP \fIi\fP\fB);\fP
 \fBdouble Sigmet_Bin4Rad(unsigned long\fP \fIb\fP\fB);\fP
 \fBdouble Sigmet_Bin2Rad(unsigned short\fP \fIb\fP\fB);\fP
@@ -45,20 +45,27 @@ A Sigmet data type is identified by an integer constant which must
 be member of:
 
 .nf
-enum Sigmet_DataType {
+enum Sigmet_DataTypeN {
     DB_XHDR,    DB_DBT,         DB_DBZ,         DB_VEL,         DB_WIDTH,
     DB_ZDR,     DB_DBZC,        DB_DBT2,        DB_DBZ2,        DB_VEL2,
     DB_WIDTH2,  DB_ZDR2,        DB_RAINRATE2,   DB_KDP,         DB_KDP2,
     DB_PHIDP,   DB_VELC,        DB_SQI,         DB_RHOHV,       DB_RHOHV2,
     DB_DBZC2,   DB_VELC2,       DB_SQI2,        DB_PHIDP2,      DB_LDRH,
-    DB_LDRH2,   DB_LDRV,        DB_LDRV2,       DB_ERROR
+    DB_LDRH2,   DB_LDRV,        DB_LDRV2,       DB_DBL,		DB_SKIP,
+    DB_ERROR
 };
 .fi
 
+The first 28 types (DB_XHDR through DB_LDRV2), are defined by Sigmet.
 See the Sigmet documentation for discussion of each type.
+DB_DBL means the type is user defined. Values should be used as is. There
+is no conversion from storage value to measurement. DB_SKIP indicates a
+placeholder type. In other words, the types is not used in a volume.
+DB_ERROR indicates an error.
 .PP
 \fBSigmet_DataType\fP returns the Sigmet data type enumerator corresponding
-to short abbreviation \fIa\fP, or \fBDB_ERROR\fP if there is none.
+to short abbreviation \fIa\fP. If there is none, it returns DB_DBL, meaning
+the type is user defined, so there is no Sigmet defined conversion.
 .PP
 \fBSigmet_DataType_Abbrv\fP returns a short abbreviation describing
 type \fIy\fP.  \fBSigmet_DataType_Descr\fP returns a longer
