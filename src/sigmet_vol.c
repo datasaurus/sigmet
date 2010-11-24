@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.64 $ $Date: 2010/11/24 16:17:19 $
+   .	$Revision: 1.65 $ $Date: 2010/11/24 21:02:35 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -289,9 +289,9 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
 	Err_Append("Could not allocate space for volume types array. ");
 	return 0;
     }
-    type_init(vol_p, type_p);
     vol_p->types = type_p;
     type_p = vol_p->types + y;
+    type_init(vol_p, type_p);
     if ( !(type_p->abbrv = MALLOC(strlen(abbrv) + 1)) ) {
 	Err_Append("Could not allocate space for type abbreviation in volume "
 		"types array. ");
