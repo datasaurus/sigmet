@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.10 $ $Date: 2010/11/17 16:30:52 $
+   .	$Revision: 1.11 $ $Date: 2010/11/19 05:30:14 $
  */
 
 #include <string.h>
@@ -18,6 +18,7 @@
 #include "err_msg.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
+#include "data_types.h"
 #include "dorade_lib.h"
 
 int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
@@ -28,6 +29,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     double prf;					/* PRF from vol_p */
     int p, r, c;				/* Loop parameters */
     int num_parms, num_rays, num_cells;		/* Convenience */
+    enum Sigmet_DataTypeN sig_type;		/* Sigmet data type */
 
     /*
        This array specifies soloii equivalents for certain Sigmet data types.
@@ -174,18 +176,23 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	Err_Append("Could not allocate array of parameter descriptors. ");
     }
     for (p = 0; p < num_parms; p++) {
-	enum Sigmet_DataTypeN sig_type;		/* Sigmet data type at p */
 	char *abbrv;				/* Data type abbreviation,
 						   e.g. "DZ" or "DB_ZDR" */
 
+	sig_type = vol_p->types[p].sig_type;
+	if ( sig_type == DB_SKIP ) {
+	    continue;
+	}
 	parm_p = sensor_p->parm + p;
 	Dorade_PARM_Init(parm_p);
-	sig_type = vol_p->types[p].sig_type;
-	abbrv = (soloii_abbrv[sig_type])
-	    ? soloii_abbrv[sig_type] : Sigmet_DataType_Abbrv(sig_type);
-	strncpy(parm_p->parameter_name, abbrv, 8);
-	strncpy(parm_p->param_description, Sigmet_DataType_Descr(sig_type), 40);
-	strncpy(parm_p->param_units, Sigmet_DataType_Unit(sig_type), 40);
+	abbrv = vol_p->types[p].abbrv;
+	if ( soloii_abbrv[sig_type] ) {
+	    strncpy(parm_p->parameter_name, soloii_abbrv[sig_type], 8);
+	} else {
+	    strncpy(parm_p->parameter_name, abbrv, 8);
+	}
+	strncpy(parm_p->param_description, DataType_GetDescr(abbrv), 40);
+	strncpy(parm_p->param_units, DataType_GetUnit(abbrv), 40);
 	parm_p->xmitted_freq = 1.0e-9 * 2.9979e8 / wave_len;
 	parm_p->recvr_bandwidth = 1.0e-3 * vol_p->ih.tc.tci.bandwidth;
 	parm_p->pulse_width = vol_p->ih.tc.tdi.pulse_w * 0.01 * 1.0e-6 * 2.9979e8;
@@ -342,6 +349,10 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     for (p = 0; p < num_parms; p++) {
 	int bad_data = swp_p->sensor.parm[p].bad_data;
 
+	sig_type = vol_p->types[p].sig_type;
+	if ( sig_type == DB_SKIP ) {
+	    continue;
+	}
 	for (r = 0; r < num_rays; r++) {
 	    if ( !vol_p->ray_ok[s][r] ) {
 		for (c = 0; c < num_cells; c++) {
