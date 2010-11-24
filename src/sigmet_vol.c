@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.62 $ $Date: 2010/11/19 05:32:58 $
+   .	$Revision: 1.63 $ $Date: 2010/11/24 16:05:28 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -295,7 +295,7 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
     if ( Hash_Get(&vol_p->types_tbl, abbrv) ) {
 	Err_Append("Data type ");
 	Err_Append(abbrv);
-	Err_Append("already exists in volume. ");
+	Err_Append(" already exists in volume. ");
 	return 0;
     }
     if ( vol_p->num_types + 1 > vol_p->num_types_max ) {
