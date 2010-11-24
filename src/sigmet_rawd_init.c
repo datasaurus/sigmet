@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.315 $ $Date: 2010/11/24 16:19:09 $
+ .	$Revision: 1.316 $ $Date: 2010/11/24 19:44:59 $
  */
 
 #include <limits.h>
@@ -997,7 +997,7 @@ static enum Sigmet_CB_Return new_field_cb(int argc, char *argv[], char *cl_wd,
     if ( status != SIGMET_CB_SUCCESS ) {
 	return status;
     }
-    if ( !Sigmet_VolAddDataType(abbrv, vol_p, 1) ) {
+    if ( !Sigmet_VolAddDataType(abbrv, vol_p) ) {
 	fprintf(err, "%s %s: could not add data type %s to %s\n%s\n",
 		argv0, argv1, abbrv, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
