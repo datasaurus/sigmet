@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.48 $ $Date: 2010/11/18 19:38:37 $
+   .	$Revision: 1.49 $ $Date: 2010/11/19 05:30:47 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -472,6 +472,7 @@ struct Sigmet_Vol {
 						   This includes Sigmet data
 						   types and user defined types,
 						   but not DB_XHDR */
+    int num_types_max;				/* Allocation at types */
     struct Hash_Tbl types_tbl;			/* Map abbreviations to elements
 						   in types array */
     enum Sigmet_DataTypeN
@@ -553,6 +554,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *, struct Sigmet_Vol *);
 int Sigmet_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 double Sigmet_VNyquist(struct Sigmet_Vol *);
+int Sigmet_VolAddDataType(char *, struct Sigmet_Vol *);
 double Sigmet_VolDat(struct Sigmet_Vol *, int, int, int, int);
 int Sigmet_ToDorade(struct Sigmet_Vol *, int, struct Dorade_Sweep *);
 
