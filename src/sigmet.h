@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.49 $ $Date: 2010/11/19 05:30:47 $
+   .	$Revision: 1.50 $ $Date: 2010/11/24 16:04:43 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -472,7 +472,9 @@ struct Sigmet_Vol {
 						   This includes Sigmet data
 						   types and user defined types,
 						   but not DB_XHDR */
-    int num_types_max;				/* Allocation at types */
+    int num_types_max;				/* Number of Sigmet_VolDataType
+						   struct's can be stored at
+						   allocation at types */
     struct Hash_Tbl types_tbl;			/* Map abbreviations to elements
 						   in types array */
     enum Sigmet_DataTypeN
