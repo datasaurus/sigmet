@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.65 $ $Date: 2010/11/24 21:02:35 $
+   .	$Revision: 1.66 $ $Date: 2010/11/24 21:12:10 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -166,7 +166,6 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 {
     int y;
-    struct Sigmet_VolDataType *type_p;
 
     if (!vol_p) {
 	return;
@@ -225,10 +224,10 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 	}
 	FREE(vol_p->dat);
     }
-    for (type_p = vol_p->types;
-	    type_p < vol_p->types + vol_p->num_types;
-	    type_p++) {
-	FREE(type_p->abbrv);
+    if ( vol_p->types ) {
+	for (y = 0; y < vol_p->num_types; y++) {
+	    FREE(vol_p->types[y].abbrv);
+	}
     }
     FREE(vol_p->types);
     Hash_Clear(&vol_p->types_tbl);
@@ -260,7 +259,7 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
     size_t sz;
     union Sigmet_DatArr *dat_p;
     double ***dbl_p;
-    int y = vol_p->num_types;	/* Index for the new type */
+    int y;
     int num_sweeps, num_rays, num_bins;
 
     if ( !abbrv ) {
@@ -284,21 +283,36 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
 	Err_Append(" already exists in volume. ");
 	return 0;
     }
-    sz = (vol_p->num_types + 1) * sizeof(struct Sigmet_VolDataType);
-    if ( !(type_p = REALLOC(vol_p->types, sz)) ) {
-	Err_Append("Could not allocate space for volume types array. ");
-	return 0;
+
+    /*
+       If a member of vol_p->types has sig_type set to DB_SKIP,
+       replace it and the corresponding member of vol_p->dat with
+       the new field.  Otherwise, add another member to the vol_p->types
+       and vol_p->dat arrays.
+     */
+
+    for (y = 0; y < vol_p->num_types_max; y++) {
+	if ( vol_p->types[y].sig_type == DB_SKIP ) {
+	    break;
+	}
     }
-    vol_p->types = type_p;
+    if ( y == vol_p->num_types_max ) {
+	sz = (vol_p->num_types_max + 1) * sizeof(struct Sigmet_VolDataType);
+	if ( !(type_p = REALLOC(vol_p->types, sz)) ) {
+	    Err_Append("Could not allocate space for volume types array. ");
+	    return 0;
+	}
+	vol_p->types = type_p;
+	type_init(vol_p, type_p);
+    }
     type_p = vol_p->types + y;
-    type_init(vol_p, type_p);
     if ( !(type_p->abbrv = MALLOC(strlen(abbrv) + 1)) ) {
 	Err_Append("Could not allocate space for type abbreviation in volume "
 		"types array. ");
 	return 0;
     }
     strcpy(type_p->abbrv, abbrv);
-    type_p->sig_type = Sigmet_DataTypeN(abbrv);
+    type_p->sig_type = DB_DBL;
     type_p->y = y;
     if ( !Hash_Add(&vol_p->types_tbl, abbrv, type_p) ) {
 	Err_Append("Could not add ");
@@ -375,8 +389,7 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     Sigmet_FreeVol(vol_p);
 
     /*
-       Initialize types array with SIGMET_NTYPES members. This will make it
-       big enough to hold the standard Sigmet types.
+       Initialize types array with SIGMET_NTYPES members.
      */
 
     sz = SIGMET_NTYPES * sizeof(struct Sigmet_VolDataType);
@@ -384,11 +397,10 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	Err_Append("Could not allocate space for volume types array. ");
 	return SIGMET_VOL_MEM_FAIL;
     }
-    for (type_p = vol_p->types;
-	    type_p < vol_p->types + SIGMET_NTYPES ;
-	    type_p++) {
-	type_init(vol_p, type_p);
+    for (y = 0; y < SIGMET_NTYPES; y++) {
+	type_init(vol_p, vol_p->types + y);
     }
+    vol_p->num_types_max = SIGMET_NTYPES;
     if ( !Hash_Init(&vol_p->types_tbl, SIGMET_NTYPES * 2) ) {
 	Err_Append("Could not allocate space for volume types table. ");
 	FREE(vol_p->types);
@@ -467,13 +479,6 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	}
     }
     vol_p->num_types = y;
-    sz = vol_p->num_types * sizeof(struct Sigmet_VolDataType);
-    if ( !(type_p = REALLOC(vol_p->types, sz)) ) {
-	Err_Append("Could not allocate space for volume types array. ");
-	status = SIGMET_VOL_MEM_FAIL;
-	goto error;
-    }
-    vol_p->types = type_p;
     vol_p->has_headers = 1;
     return SIGMET_VOL_READ_OK;
 
