@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.66 $ $Date: 2010/11/24 21:12:10 $
+   .	$Revision: 1.67 $ $Date: 2010/11/26 03:42:00 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -479,6 +479,14 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	}
     }
     vol_p->num_types = y;
+    sz = vol_p->num_types * sizeof(struct Sigmet_VolDataType);
+    if ( !(type_p = REALLOC(vol_p->types, sz)) ) {
+	Err_Append("Could not allocate space for volume types array. ");
+	status = SIGMET_VOL_MEM_FAIL;
+	goto error;
+    }
+    vol_p->types = type_p;
+    vol_p->num_types_max = vol_p->num_types;
     vol_p->has_headers = 1;
     return SIGMET_VOL_READ_OK;
 
