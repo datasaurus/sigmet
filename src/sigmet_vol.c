@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.68 $ $Date: 2010/11/26 04:36:45 $
+   .	$Revision: 1.69 $ $Date: 2010/11/27 02:17:13 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -302,8 +302,26 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
 	    Err_Append("Could not allocate space for volume types array. ");
 	    return 0;
 	}
-	type_init(vol_p, type_p + y);
+	for ( ; type_p < vol_p->types + vol_p->num_types; type_p++) {
+	    if ( !Hash_Set(&vol_p->types_tbl, type_p->abbrv, type_p) ) {
+		Err_Append("Could not reset volume types table when adding ");
+		Err_Append(abbrv);
+		Err_Append(". ");
+		return 0;
+	    }
+	}
 	vol_p->types = type_p;
+	type_init(vol_p, vol_p->types + vol_p->num_types_max);
+	sz = (vol_p->num_types_max + 1) * sizeof(union Sigmet_DatArr);
+	if ( !(dat_p = REALLOC(vol_p->dat, sz)) ) {
+	    Err_Append("Allocation failed while enlarging volume data "
+		    "array. ");
+	    FREE(type_p->abbrv);
+	    type_init(vol_p, type_p);
+	    return 0;
+	}
+	vol_p->dat = dat_p;
+	vol_p->num_types_max++;
     }
     type_p = vol_p->types + y;
     if ( !(type_p->abbrv = MALLOC(strlen(abbrv) + 1)) ) {
@@ -322,15 +340,6 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
 	type_init(vol_p, type_p);
 	return 0;
     }
-    sz = (vol_p->num_types + 1) * sizeof(union Sigmet_DatArr);
-    if ( !(dat_p = REALLOC(vol_p->dat, sz)) ) {
-	Err_Append("Allocation failed while enlarging volume data "
-		"array. ");
-	FREE(type_p->abbrv);
-	type_init(vol_p, type_p);
-	return 0;
-    }
-    vol_p->dat = dat_p;
     vol_p->dat[y].dbl = NULL;
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
@@ -465,13 +474,6 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
                 }
                 strcpy(type_p->abbrv, abbrv);
                 type_p->y = y;
-                if ( !Hash_Add(&vol_p->types_tbl, abbrv, type_p) ) {
-                    Err_Append("Could not add ");
-                    Err_Append(abbrv);
-                    Err_Append(" to volume types table. ");
-                    status = SIGMET_VOL_MEM_FAIL;
-                    goto error;
-                }
                 y++;
 	    }
 	    vol_p->types_fl[yf] = sig_type;
@@ -481,11 +483,18 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->num_types = y;
     sz = vol_p->num_types * sizeof(struct Sigmet_VolDataType);
     if ( !(type_p = REALLOC(vol_p->types, sz)) ) {
-	Err_Append("Could not allocate space for volume types array. ");
+	Err_Append("Could not reallocate space for volume types array. ");
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
     vol_p->types = type_p;
+    for ( ; type_p < vol_p->types + vol_p->num_types; type_p++) {
+	if ( !Hash_Add(&vol_p->types_tbl, type_p->abbrv, type_p) ) {
+	    Err_Append("Could not initialize volume types table. ");
+	    status = SIGMET_VOL_MEM_FAIL;
+	    goto error;
+	}
+    }
     vol_p->num_types_max = vol_p->num_types;
     vol_p->has_headers = 1;
     return SIGMET_VOL_READ_OK;
