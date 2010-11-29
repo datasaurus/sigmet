@@ -22,7 +22,7 @@ END {
     printf "{\n"
     printf "    struct type_entr *y;\n\n"
     printf "    if ( !a ) {\n"
-    printf "        return DB_ERROR;\n"
+    printf "        return DB_XHDR;\n"
     printf "    }\n"
     printf "    return (y = in_word_set(a, (unsigned int)strlen(a)))"
     printf " ? y->i : DB_DBL;\n"
