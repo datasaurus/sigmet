@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.11 $ $Date: 2010/11/19 05:30:14 $
+   .	$Revision: 1.12 $ $Date: 2010/11/24 14:55:50 $
  */
 
 #include <string.h>
@@ -29,7 +29,6 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     double prf;					/* PRF from vol_p */
     int p, r, c;				/* Loop parameters */
     int num_parms, num_rays, num_cells;		/* Convenience */
-    enum Sigmet_DataTypeN sig_type;		/* Sigmet data type */
 
     /*
        This array specifies soloii equivalents for certain Sigmet data types.
@@ -178,14 +177,15 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     for (p = 0; p < num_parms; p++) {
 	char *abbrv;				/* Data type abbreviation,
 						   e.g. "DZ" or "DB_ZDR" */
+	enum Sigmet_DataTypeN sig_type;
 
-	sig_type = vol_p->types[p].sig_type;
-	if ( sig_type == DB_SKIP ) {
+	abbrv = vol_p->types[p];
+	if ( !abbrv ) {
 	    continue;
 	}
 	parm_p = sensor_p->parm + p;
 	Dorade_PARM_Init(parm_p);
-	abbrv = vol_p->types[p].abbrv;
+	sig_type = Sigmet_DataTypeN(abbrv);
 	if ( soloii_abbrv[sig_type] ) {
 	    strncpy(parm_p->parameter_name, soloii_abbrv[sig_type], 8);
 	} else {
@@ -349,8 +349,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     for (p = 0; p < num_parms; p++) {
 	int bad_data = swp_p->sensor.parm[p].bad_data;
 
-	sig_type = vol_p->types[p].sig_type;
-	if ( sig_type == DB_SKIP ) {
+	if ( !vol_p->types[p] ) {
 	    continue;
 	}
 	for (r = 0; r < num_rays; r++) {
