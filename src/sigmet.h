@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.50 $ $Date: 2010/11/24 16:04:43 $
+   .	$Revision: 1.51 $ $Date: 2010/11/26 03:35:43 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -31,12 +31,9 @@
 
 /*
    The IRIS Programmer's Manual (section 3.3) defines SIGMET_NTYPES data types.
-   The Sigmet_DataTypeN enumerator indexes these types, plus generic and pseudo-
-   types.
-   DB_DBL means double value. Use as is. Type has no conversion from integer to
-   floating point measurement.
-   DB_SKIP means do not use. Place holder.
-   DB_ERROR means unknown or failure.
+   The Sigmet_DataTypeN enumerator indexes these types, plus a non-Sigmet DB_DBL
+   type.  DB_DBL means double value. Use as is. Type has no conversion from
+   integer to floating point measurement.
  */
 
 #define SIGMET_NTYPES 28
@@ -46,24 +43,7 @@ enum Sigmet_DataTypeN {
     DB_WIDTH2,	DB_ZDR2,	DB_RAINRATE2,	DB_KDP,		DB_KDP2,
     DB_PHIDP,	DB_VELC,	DB_SQI,		DB_RHOHV,	DB_RHOHV2,
     DB_DBZC2,	DB_VELC2,	DB_SQI2,	DB_PHIDP2,	DB_LDRH,
-    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_DBL,		DB_SKIP,
-    DB_ERROR
-};
-
-/*
-   This struct stores a Sigmet data type enumerator, and associated abbreviation.
-   If the data type is from IRIS Programmer's Manual, sig_type will be one of
-   the first SIGMET_NTYPES values from the Sigmet_DataTypeN enumerator and
-   abbrv will be the value returned by Sigmet_DataType_Abbrv.  If the data
-   type is user defined, sig_type will be DB_DBL and user must supply an
-   value for abbrv. y is an index from a volume types array. It is needed
-   if the type is retrieved from the volume types table.
- */
-
-struct Sigmet_VolDataType {
-    enum Sigmet_DataTypeN sig_type;
-    char *abbrv;
-    int y;
+    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_DBL
 };
 
 /*
@@ -428,14 +408,19 @@ struct Sigmet_Ingest_Header {
 };
 
 /*
-   Data array, dimensioned [sweep][ray][bin]. Type used depends on
-   Sigmet data type. U1BYT and U2BYT are declared in type_nbit.h.
+   Data array.  If not NULL, d1, d2, or dbl is an array dimensioned
+   [sweep][ray][bin] with data values from the volume.  Choice of union
+   member depends on Sigmet data type given by type member. U1BYT and
+   U2BYT are declared in type_nbit.h.
  */
 
-union Sigmet_DatArr {
-    U1BYT ***d1;				/* 1 byte data */
-    U2BYT ***d2;				/* 2 byte data */
-    double ***dbl;				/* Floating point values */
+struct Sigmet_DatArr {
+    enum Sigmet_DataTypeN type;
+    union {
+	U1BYT ***d1;				/* 1 byte data */
+	U2BYT ***d2;				/* 2 byte data */
+	double ***dbl;				/* Floating point data */
+    } arr;
 };
 
 /*
@@ -466,15 +451,17 @@ struct Sigmet_Vol {
        Ray headers and data
      */
 
-    int xhdr;					/* true => extended headers */
+    int xhdr;					/* true => volume uses extended
+						   headers */
     int num_types;				/* Number of data types */
-    struct Sigmet_VolDataType *types;		/* Data types in the volume.
+    char **types;				/* Array of abbreviations for
+						   data types in the volume.
 						   This includes Sigmet data
 						   types and user defined types,
 						   but not DB_XHDR */
-    int num_types_max;				/* Number of Sigmet_VolDataType
-						   struct's can be stored at
-						   allocation at types */
+    int num_types_max;				/* Number of abbreviations that
+						   can be stored at allocation
+						   at types */
     struct Hash_Tbl types_tbl;			/* Map abbreviations to elements
 						   in types array */
     enum Sigmet_DataTypeN
@@ -512,7 +499,7 @@ struct Sigmet_Vol {
 						   dimensioned [sweep][ray] */
     double **ray_az1;				/* Azimuth at end of ray, radians,
 						   dimensioned [sweep][ray] */
-    union Sigmet_DatArr *dat;			/* Data, dimensioned [type] */
+    struct Sigmet_DatArr *dat;			/* Data, dimensioned [type] */
     size_t size;				/* Number of bytes of memory this
 						   structure is using */
 };

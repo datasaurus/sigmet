@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.316 $ $Date: 2010/11/24 19:44:59 $
+ .	$Revision: 1.317 $ $Date: 2010/11/24 21:12:55 $
  */
 
 #include <limits.h>
@@ -572,8 +572,8 @@ static enum Sigmet_CB_Return data_types_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
+    int y;
     enum Sigmet_CB_Return status; 	/* Result of SigmetRaw_ReadHdr */
-    struct Sigmet_VolDataType *type_p;
 
     if ( argc == 2 ) {
 	size_t n;
@@ -605,14 +605,11 @@ static enum Sigmet_CB_Return data_types_cb(int argc, char *argv[], char *cl_wd,
 	if ( status != SIGMET_CB_SUCCESS ) {
 	    return SIGMET_CB_FAIL;
 	}
-	for (type_p = vol_p->types;
-		type_p < vol_p->types + vol_p->num_types;
-		type_p++) {
-
-	    if ( type_p->sig_type == DB_SKIP ) {
+	for (y = 0; y < vol_p->num_types; y++) {
+	    abbrv = vol_p->types[y];
+	    if ( !abbrv ) {
 		continue;
 	    }
-	    abbrv = type_p->abbrv;
 	    if ( !(descr = DataType_GetDescr(abbrv)) ) {
 		fprintf(err, "%s %s: could not get long description for %s\n",
 			argv0, argv1, abbrv);
@@ -821,9 +818,13 @@ static enum Sigmet_CB_Return vol_hdr_cb(int argc, char *argv[], char *cl_wd,
 	   GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.latitude), 0.0) * DEG_PER_RAD);
     fprintf(out, "task_name=\"%s\"\n", vol_p->ph.pc.task_name);
     fprintf(out, "types=\"");
-    fprintf(out, "%s", vol_p->types[0].abbrv);
+    if ( vol_p->types[0] ) {
+	fprintf(out, "%s", vol_p->types[0]);
+    }
     for (y = 1; y < vol_p->num_types; y++) {
-	fprintf(out, " %s", vol_p->types[y].abbrv);
+	if ( vol_p->types[y] ) {
+	    fprintf(out, " %s", vol_p->types[y]);
+	}
     }
     fprintf(out, "\"\n");
     fprintf(out, "num_sweeps=%d\n", vol_p->ih.ic.num_sweeps);
@@ -1018,22 +1019,21 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
     int s, y, r, b;
     char *abbrv;
     double d;
-    enum Sigmet_DataTypeN sig_type;
-    struct Sigmet_VolDataType *type_p;
+    char **type_p;
     int all = -1;
 
     /*
        Identify input and desired output
        Possible forms:
-	   data	vol_nm		(argc = 3)
-	   data type vol_nm	(argc = 4)
-	   data type s vol_nm	(argc = 5)
-	   data type s r vol_nm	(argc = 6)
-	   data type s r b vol_nm	(argc = 7)
+	   sigmet_ray data vol_nm		(argc = 3)
+	   sigmet_ray data type vol_nm		(argc = 4)
+	   sigmet_ray data type s vol_nm	(argc = 5)
+	   sigmet_ray data type s r vol_nm	(argc = 6)
+	   sigmet_ray data type s r b vol_nm	(argc = 7)
      */
 
+    abbrv = NULL;
     y = s = r = b = all;
-    sig_type = DB_ERROR;
     if ( argc > 3 ) {
 	abbrv = argv[2];
     }
@@ -1072,11 +1072,15 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
        Validate.
      */
 
-    if ( !(type_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
-	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
-	return SIGMET_CB_FAIL;
+    if ( abbrv ) {
+	if ( (type_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	    y = type_p - vol_p->types;
+	} else {
+	    fprintf(err, "%s %s: no data type named %s\n",
+		    argv0, argv1, abbrv);
+	    return SIGMET_CB_FAIL;
+	}
     }
-    y = type_p->y;
     if ( s != all && s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
@@ -1099,24 +1103,25 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 
     if ( y == all && s == all && r == all && b == all ) {
 	for (y = 0; y < vol_p->num_types; y++) {
-	    sig_type = vol_p->types[y].sig_type;
-	    abbrv = Sigmet_DataType_Abbrv(sig_type);
-	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-		fprintf(out, "%s. sweep %d\n", abbrv, s);
-		for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
-		    if ( !vol_p->ray_ok[s][r] ) {
-			continue;
-		    }
-		    fprintf(out, "ray %d: ", r);
-		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-			d = Sigmet_VolDat(vol_p, y, s, r, b);
-			if ( Sigmet_IsData(d) ) {
-			    fprintf(out, "%f ", d);
-			} else {
-			    fprintf(out, "nodat ");
+	    abbrv = vol_p->types[y];
+	    if ( abbrv ) {
+		for (s = 0; s < vol_p->num_sweeps_ax; s++) {
+		    fprintf(out, "%s. sweep %d\n", abbrv, s);
+		    for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
+			if ( !vol_p->ray_ok[s][r] ) {
+			    continue;
 			}
+			fprintf(out, "ray %d: ", r);
+			for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
+			    d = Sigmet_VolDat(vol_p, y, s, r, b);
+			    if ( Sigmet_IsData(d) ) {
+				fprintf(out, "%f ", d);
+			    } else {
+				fprintf(out, "nodat ");
+			    }
+			}
+			fprintf(out, "\n");
 		    }
-		    fprintf(out, "\n");
 		}
 	    }
 	}
@@ -1124,9 +1129,9 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 	    fprintf(out, "%s. sweep %d\n", abbrv, s);
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-		    if ( !vol_p->ray_ok[s][r] ) {
-			continue;
-		    }
+		if ( !vol_p->ray_ok[s][r] ) {
+		    continue;
+		}
 		fprintf(out, "ray %d: ", r);
 		for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
 		    d = Sigmet_VolDat(vol_p, y, s, r, b);
@@ -1289,7 +1294,7 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
     enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
-    struct Sigmet_VolDataType *type_p;	/* Sigmet data type */
+    char **type_p;			/* Sigmet data type */
     int y, s, r, b;			/* data type, sweep, ray, bin */
     unsigned char n_clrs;		/* number of colors for the data type */
     double *bnds;			/* bounds for the type */
@@ -1333,7 +1338,7 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
 	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
-    y = type_p->y;
+    y = type_p - vol_p->types;
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
@@ -1647,7 +1652,7 @@ static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
     enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadHdr */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
-    struct Sigmet_VolDataType *type_p;	/* Sigmet data type. */
+    char **type_p;			/* Sigmet data type. */
     int y, s;				/* Indeces: data type, sweep */
     char img_fl_nm[LEN];		/* Name of image file */
 
@@ -1681,7 +1686,7 @@ static enum Sigmet_CB_Return img_name_cb(int argc, char *argv[], char *cl_wd,
 	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
-    y = type_p->y;
+    y = type_p - vol_p->types;
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
@@ -1713,7 +1718,7 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     enum Sigmet_CB_Return status; 	/* Result of SigmetRaw_ReadVol */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
-    struct Sigmet_VolDataType *type_p;	/* Member of vol_p->types */
+    char **type_p;			/* Member of vol_p->types */
     int y, s, r, b;			/* Indeces: data type, sweep, ray, bin */
     double left;			/* Map coordinate of left side */
     double rght;			/* Map coordinate of right side */
@@ -1834,7 +1839,7 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
-    y = type_p->y;
+    y = type_p - vol_p->types;
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);

@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.69 $ $Date: 2010/11/27 02:17:13 $
+   .	$Revision: 1.70 $ $Date: 2010/11/27 02:57:27 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -41,7 +41,6 @@
 /* Sigmet scan modes */
 enum SCAN_MODE {ppi_sec = 1, rhi, man, ppi_cont, file};
 
-static void type_init(struct Sigmet_Vol *, struct Sigmet_VolDataType *);
 static char *trimRight(char *s, int n);
 static int get_sint16(void *b);
 static unsigned get_uint16(void *b);
@@ -150,7 +149,7 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
     vol_p->types = NULL;
     Hash_Init(&vol_p->types_tbl, 0);
     for (n = 0; n < SIGMET_NTYPES; n++) {
-	vol_p->types_fl[n] = DB_ERROR;
+	vol_p->types_fl[n] = DB_XHDR;		/* Force error if used */
     }
     vol_p->sweep_ok = NULL;
     vol_p->sweep_time = NULL;
@@ -182,10 +181,8 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
     free2d(vol_p->ray_az1);
     if ( vol_p->dat ) {
 	for (y = 0; y < vol_p->num_types; y++) {
-	    switch (vol_p->types[y].sig_type) {
+	    switch (vol_p->dat[y].type) {
 		case DB_XHDR:
-		case DB_SKIP:
-		case DB_ERROR:
 		    break;
 		case DB_DBT:
 		case DB_DBZ:
@@ -200,7 +197,7 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 		case DB_RHOHV:
 		case DB_LDRH:
 		case DB_LDRV:
-		    free3_u1(vol_p->dat[y].d1);
+		    free3_u1(vol_p->dat[y].arr.d1);
 		    break;
 		case DB_DBT2:
 		case DB_DBZ2:
@@ -216,9 +213,9 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 		case DB_PHIDP2:
 		case DB_LDRH2:
 		case DB_LDRV2:
-		    free3_u2(vol_p->dat[y].d2);
+		    free3_u2(vol_p->dat[y].arr.d2);
 		case DB_DBL:
-		    free3_dbl(vol_p->dat[y].dbl);
+		    free3_dbl(vol_p->dat[y].arr.dbl);
 		    break;
 	    }
 	}
@@ -226,25 +223,12 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
     }
     if ( vol_p->types ) {
 	for (y = 0; y < vol_p->num_types; y++) {
-	    FREE(vol_p->types[y].abbrv);
+	    FREE(vol_p->types[y]);
 	}
     }
     FREE(vol_p->types);
     Hash_Clear(&vol_p->types_tbl);
     Sigmet_InitVol(vol_p);
-}
-
-/*
-   This convenience function initializes a newly allocated member of a volume
-   types array.
- */
-
-static void type_init(struct Sigmet_Vol *vol_p,
-	struct Sigmet_VolDataType *type_p)
-{
-    type_p->sig_type = DB_SKIP;
-    type_p->abbrv = NULL;
-    type_p->y = type_p - vol_p->types;
 }
 
 /*
@@ -255,9 +239,9 @@ static void type_init(struct Sigmet_Vol *vol_p,
 
 int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
 {
-    struct Sigmet_VolDataType *type_p;
+    char **type_p, **types;
     size_t sz;
-    union Sigmet_DatArr *dat_p;
+    struct Sigmet_DatArr *dat_p;
     double ***dbl_p;
     int y;
     int num_sweeps, num_rays, num_bins;
@@ -285,73 +269,68 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
     }
 
     /*
-       If a member of vol_p->types has sig_type set to DB_SKIP,
-       replace it and the corresponding member of vol_p->dat with
-       the new field.  Otherwise, add another member to the vol_p->types
-       and vol_p->dat arrays.
+       Search for an unused member of vol_p->types. A member is unused
+       if it is NULL. Replace it and the corresponding member of vol_p->dat
+       with the new field.  Otherwise, create and use new members of the
+       vol_p->types and vol_p->dat arrays.
      */
 
     for (y = 0; y < vol_p->num_types_max; y++) {
-	if ( vol_p->types[y].sig_type == DB_SKIP ) {
+	if ( !vol_p->types[y] ) {
 	    break;
 	}
     }
     if ( y == vol_p->num_types_max ) {
-	sz = (vol_p->num_types_max + 1) * sizeof(struct Sigmet_VolDataType);
-	if ( !(type_p = REALLOC(vol_p->types, sz)) ) {
+	sz = (vol_p->num_types_max + 1) * sizeof(char *);
+	if ( !(types = REALLOC(vol_p->types, sz)) ) {
 	    Err_Append("Could not allocate space for volume types array. ");
 	    return 0;
 	}
-	for ( ; type_p < vol_p->types + vol_p->num_types; type_p++) {
-	    if ( !Hash_Set(&vol_p->types_tbl, type_p->abbrv, type_p) ) {
+	vol_p->types = types;
+	for (type_p = types ; type_p < types + vol_p->num_types; type_p++) {
+	    if ( !Hash_Set(&vol_p->types_tbl, *type_p, type_p) ) {
 		Err_Append("Could not reset volume types table when adding ");
 		Err_Append(abbrv);
 		Err_Append(". ");
 		return 0;
 	    }
 	}
-	vol_p->types = type_p;
-	type_init(vol_p, vol_p->types + vol_p->num_types_max);
-	sz = (vol_p->num_types_max + 1) * sizeof(union Sigmet_DatArr);
+	*type_p = NULL;
+	sz = (vol_p->num_types_max + 1) * sizeof(struct Sigmet_DatArr);
 	if ( !(dat_p = REALLOC(vol_p->dat, sz)) ) {
 	    Err_Append("Allocation failed while enlarging volume data "
 		    "array. ");
-	    FREE(type_p->abbrv);
-	    type_init(vol_p, type_p);
 	    return 0;
 	}
 	vol_p->dat = dat_p;
+	vol_p->dat[y].type = DB_DBL;
+	vol_p->dat[y].arr.dbl = NULL;
 	vol_p->num_types_max++;
     }
     type_p = vol_p->types + y;
-    if ( !(type_p->abbrv = MALLOC(strlen(abbrv) + 1)) ) {
+    if ( !(*type_p = CALLOC(strlen(abbrv) + 1, 1)) ) {
 	Err_Append("Could not allocate space for type abbreviation in volume "
 		"types array. ");
 	return 0;
     }
-    strcpy(type_p->abbrv, abbrv);
-    type_p->sig_type = DB_DBL;
-    type_p->y = y;
-    if ( !Hash_Add(&vol_p->types_tbl, abbrv, type_p) ) {
+    strcpy(*type_p, abbrv);
+    if ( !Hash_Add(&vol_p->types_tbl, *type_p, type_p) ) {
 	Err_Append("Could not add ");
 	Err_Append(abbrv);
 	Err_Append(" to volume types table. ");
-	FREE(type_p->abbrv);
-	type_init(vol_p, type_p);
 	return 0;
     }
-    vol_p->dat[y].dbl = NULL;
+    vol_p->dat[y].type = DB_DBL;
+    vol_p->dat[y].arr.dbl = NULL;
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
     dbl_p = calloc3_dbl(num_sweeps, num_rays, num_bins);
     if ( !dbl_p ) {
 	Err_Append("Could not allocate new field ");
-	FREE(type_p->abbrv);
-	type_init(vol_p, type_p);
 	return 0;
     }
-    vol_p->dat[y].dbl = dbl_p;
+    vol_p->dat[y].arr.dbl = dbl_p;
     vol_p->num_types++;
     return 1;
 }
@@ -378,7 +357,7 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 
     int y, yf;
     enum Sigmet_DataTypeN sig_type;
-    struct Sigmet_VolDataType *type_p;
+    char **type_p, **types;
     char *abbrv;
 
     /*
@@ -401,13 +380,13 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
        Initialize types array with SIGMET_NTYPES members.
      */
 
-    sz = SIGMET_NTYPES * sizeof(struct Sigmet_VolDataType);
+    sz = SIGMET_NTYPES * sizeof(char *);
     if ( !(vol_p->types = MALLOC(sz)) ) {
 	Err_Append("Could not allocate space for volume types array. ");
 	return SIGMET_VOL_MEM_FAIL;
     }
     for (y = 0; y < SIGMET_NTYPES; y++) {
-	type_init(vol_p, vol_p->types + y);
+	vol_p->types[y] = NULL;
     }
     vol_p->num_types_max = SIGMET_NTYPES;
     if ( !Hash_Init(&vol_p->types_tbl, SIGMET_NTYPES * 2) ) {
@@ -461,19 +440,22 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	    if (sig_type == DB_XHDR) {
 		vol_p->xhdr = 1;
 	    } else {
-                type_p = vol_p->types + y;
                 abbrv = Sigmet_DataType_Abbrv(sig_type);
-                type_p->sig_type = sig_type;
+		if ( !abbrv ) {
+		    Err_Append("Unknown data type in volume. ");
+		    status = SIGMET_VOL_BAD_VOL;
+		    goto error;
+		}
+                type_p = vol_p->types + y;
                 sz = strlen(abbrv) + 1;
-                if ( !(type_p->abbrv = MALLOC(sz)) ) {
+                if ( !(*type_p = CALLOC(sz, 1)) ) {
                     Err_Append("Failed to allocate memory while adding ");
                     Err_Append(abbrv);
                     Err_Append(" to volume types table. ");
                     status = SIGMET_VOL_MEM_FAIL;
                     goto error;
                 }
-                strcpy(type_p->abbrv, abbrv);
-                type_p->y = y;
+                strcpy(*type_p, abbrv);
                 y++;
 	    }
 	    vol_p->types_fl[yf] = sig_type;
@@ -481,15 +463,15 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	}
     }
     vol_p->num_types = y;
-    sz = vol_p->num_types * sizeof(struct Sigmet_VolDataType);
-    if ( !(type_p = REALLOC(vol_p->types, sz)) ) {
+    sz = vol_p->num_types * sizeof(char *);
+    if ( !(types = REALLOC(vol_p->types, sz)) ) {
 	Err_Append("Could not reallocate space for volume types array. ");
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
-    vol_p->types = type_p;
-    for ( ; type_p < vol_p->types + vol_p->num_types; type_p++) {
-	if ( !Hash_Add(&vol_p->types_tbl, type_p->abbrv, type_p) ) {
+    vol_p->types = types;
+    for (type_p = types ; type_p < types + vol_p->num_types; type_p++) {
+	if ( !Hash_Add(&vol_p->types_tbl, *type_p, type_p) ) {
 	    Err_Append("Could not initialize volume types table. ");
 	    status = SIGMET_VOL_MEM_FAIL;
 	    goto error;
@@ -521,9 +503,7 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
     for (y = 0; y < vol_p->num_types; y++) {
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
 	fprintf(out, "%s " FS " %s " FS " %s\n",
-		Sigmet_DataType_Abbrv(vol_p->types[y].sig_type),
-		elem_nm,
-		Sigmet_DataType_Descr(vol_p->types[y].sig_type));
+		vol_p->types[y], elem_nm, DataType_GetDescr(vol_p->types[y]));
     }
     fprintf(out, "%d " FS " %s " FS " %s\n",
 	    vol_p->truncated, "truncated", "If true, volume is truncated");
@@ -559,13 +539,12 @@ int Sigmet_GoodVol(FILE *f)
 
     unsigned numWds;			/* Number of words in a run of data */
     enum Sigmet_DataTypeN type;
-    struct Sigmet_VolDataType types[SIGMET_NTYPES];
     int s, r;				/* Sweep, ray indeces */
     int i, n;				/* Temporary values */
 
     s = type = r = 0;
     Sigmet_InitVol(&vol);
-    vol.types = types;
+    vol.types = NULL;
 
     /* record 1, <product_header> */
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
@@ -592,8 +571,7 @@ int Sigmet_GoodVol(FILE *f)
     vol.ih = get_ingest_header(rec);
 
     /*
-       Loop through the bits in the data type mask. 
-       If bit is set, add the corresponding type to types array.
+       Obtain number of data types in volume from data type mask. 
      */
     data_type_mask = vol.ih.tc.tdi.curr_data_mask.mask_word_0;
     for (type = 0, num_types_fl = 0, num_types = 0; type < SIGMET_NTYPES; type++) {
@@ -601,7 +579,6 @@ int Sigmet_GoodVol(FILE *f)
 	    if (type == DB_XHDR) {
 		vol.xhdr = 1;
 	    } else {
-		vol.types[num_types].sig_type = type;
 		num_types++;
 	    }
 	    vol.types_fl[num_types_fl] = type;
@@ -897,26 +874,21 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     }
     vol_p->size += num_sweeps * num_rays * sizeof(double);
 
-    vol_p->dat = CALLOC(num_types, sizeof(union Sigmet_DatArr));
-    vol_p->size += num_types + sizeof(union Sigmet_DatArr);
+    vol_p->dat = CALLOC(num_types, sizeof(struct Sigmet_DatArr));
+    vol_p->size += num_types + sizeof(struct Sigmet_DatArr);
     if ( !vol_p->dat ) {
 	Err_Append("Could not allocate data array (data type dimension). ");
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
     for (y = 0; y < vol_p->num_types; y++) {
-	switch (vol_p->types[y].sig_type) {
+	enum Sigmet_DataTypeN type = Sigmet_DataTypeN(vol_p->types[y]);
+
+	vol_p->dat[y].type = type;
+	switch (type) {
 	    case DB_XHDR:
 		Err_Append("Volume in memory is corrupt. Bogus extended header "
 			"\"type\" in data array.");
-		status = SIGMET_VOL_BAD_VOL;
-		goto error;
-		break;
-	    case DB_SKIP:
-		break;
-	    case DB_ERROR:
-		Err_Append("Volume in memory is corrupt. Bogus error \"type\" "
-			"in data array.");
 		status = SIGMET_VOL_BAD_VOL;
 		goto error;
 		break;
@@ -933,8 +905,8 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    case DB_RHOHV:
 	    case DB_LDRH:
 	    case DB_LDRV:
-		vol_p->dat[y].d1 = calloc3_u1(num_sweeps, num_rays, num_bins);
-		if ( !vol_p->dat[y].d1 ) {
+		vol_p->dat[y].arr.d1 = calloc3_u1(num_sweeps, num_rays, num_bins);
+		if ( !vol_p->dat[y].arr.d1 ) {
 		    status = SIGMET_VOL_MEM_FAIL;
 		    goto error;
 		}
@@ -954,8 +926,8 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 	    case DB_PHIDP2:
 	    case DB_LDRH2:
 	    case DB_LDRV2:
-		vol_p->dat[y].d2 = calloc3_u2(num_sweeps, num_rays, num_bins);
-		if ( !vol_p->dat[y].d2 ) {
+		vol_p->dat[y].arr.d2 = calloc3_u2(num_sweeps, num_rays, num_bins);
+		if ( !vol_p->dat[y].arr.d2 ) {
 		    status = SIGMET_VOL_MEM_FAIL;
 		    goto error;
 		}
@@ -1163,7 +1135,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_LDRH:
 		    case DB_LDRV:
 			for (b = 0; b < nbins; b++)  {
-			    vol_p->dat[y].d1[s][r][b] = rayd[b];
+			    vol_p->dat[y].arr.d1[s][r][b] = rayd[b];
 			}
 			break;
 		    case DB_DBT2:
@@ -1181,11 +1153,9 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		    case DB_LDRH2:
 		    case DB_LDRV2:
 			for (b = 0; b < nbins; b++)  {
-			    vol_p->dat[y].d2[s][r][b] = ((U2BYT *)rayd)[b];
+			    vol_p->dat[y].arr.d2[s][r][b] = ((U2BYT *)rayd)[b];
 			}
 			break;
-		    case DB_ERROR:
-		    case DB_SKIP:
 		    case DB_DBL:
 			Err_Append("Volume has unknown data type.  ");
 			status = SIGMET_VOL_BAD_VOL;
@@ -1241,7 +1211,6 @@ int Sigmet_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 /* Fetch a value from a Sigmet volume */
 double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 {
-    enum Sigmet_DataTypeN type;
     unsigned i;
     double wav_len;
     unsigned e;		/* 4 bit exponent */
@@ -1256,31 +1225,28 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    || !vol_p->ray_num_bins || b >= vol_p->ray_num_bins[s][r] ) {
 	return Sigmet_NoData();
     }
-    type = vol_p->types[y].sig_type;
-    switch (type) {
+    switch (vol_p->dat[y].type) {
 	case DB_XHDR:
-	case DB_SKIP:
-	case DB_ERROR:
 	    return Sigmet_NoData();
 	case DB_DBT:
 	case DB_DBZ:
 	case DB_DBZC:
-	    i = vol_p->dat[y].d1[s][r][b];
+	    i = vol_p->dat[y].arr.d1[s][r][b];
 	    return (i == 0)
 		? Sigmet_NoData() : (i > 255) ? 95.5 : 0.5 * (i - 64.0);
 	case DB_VEL:
-	    i = vol_p->dat[y].d1[s][r][b];
+	    i = vol_p->dat[y].arr.d1[s][r][b];
 	    return (i == 0 || i > 255)
 		? Sigmet_NoData() : Sigmet_VNyquist(vol_p) * (i - 128.0) / 127.0;
 	case DB_WIDTH:
-	    i = vol_p->dat[y].d1[s][r][b];
+	    i = vol_p->dat[y].arr.d1[s][r][b];
 	    return (i == 0 || i > 255)
 		? Sigmet_NoData() : Sigmet_VNyquist(vol_p) * i / 256.0;
 	case DB_ZDR:
-	    i = vol_p->dat[y].d1[s][r][b];
+	    i = vol_p->dat[y].arr.d1[s][r][b];
 	    return (i == 0 || i > 255) ? Sigmet_NoData() : (i - 128.0) / 16.0;
 	case DB_KDP:
-	    i = vol_p->dat[y].d1[s][r][b];
+	    i = vol_p->dat[y].arr.d1[s][r][b];
 	    wav_len = 0.01 * vol_p->ih.tc.tmi.wave_len;
 	    if (i == 0 || i > 255) {
 		return Sigmet_NoData();
@@ -1292,20 +1258,20 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 		return -0.25 * pow(600.0, (127.0 - i) / 126.0) / wav_len;
 	    }
 	case DB_PHIDP:
-	    i = vol_p->dat[y].d1[s][r][b];
+	    i = vol_p->dat[y].arr.d1[s][r][b];
 	    return (i == 0 || i > 255)
 		? Sigmet_NoData() : 180.0 / 254.0 * (i - 1.0);
 	case DB_VELC:
-	    i = vol_p->dat[y].d1[s][r][b];
+	    i = vol_p->dat[y].arr.d1[s][r][b];
 	    return (i == 0 || i > 255)
 		? Sigmet_NoData() : 75.0 / 127.0 * (i - 128.0);
 	case DB_SQI:
 	case DB_RHOHV:
-	    i = vol_p->dat[y].d1[s][r][b];
+	    i = vol_p->dat[y].arr.d1[s][r][b];
 	    return (i == 0 || i > 254) ? Sigmet_NoData() : sqrt((i - 1) / 253.0);
 	case DB_LDRH:
 	case DB_LDRV:
-	    i = vol_p->dat[y].d1[s][r][b];
+	    i = vol_p->dat[y].arr.d1[s][r][b];
 	    return (i == 0 || i > 255) ? Sigmet_NoData() : 0.2 * (i - 1) - 45.0;
 	case DB_DBT2:
 	case DB_DBZ2:
@@ -1316,13 +1282,13 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	case DB_VELC2:
 	case DB_LDRH2:
 	case DB_LDRV2:
-	    i = vol_p->dat[y].d2[s][r][b];
+	    i = vol_p->dat[y].arr.d2[s][r][b];
 	    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * (i - 32768.0);
 	case DB_WIDTH2:
-	    i = vol_p->dat[y].d2[s][r][b];
+	    i = vol_p->dat[y].arr.d2[s][r][b];
 	    return (i == 0 || i > 65535) ? Sigmet_NoData() : 0.01 * i;
 	case DB_RAINRATE2:
-	    i = vol_p->dat[y].d2[s][r][b];
+	    i = vol_p->dat[y].arr.d2[s][r][b];
 	    if (i == 0 || i > 65535)
 	    {
 		return Sigmet_NoData();
@@ -1336,14 +1302,14 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    }
 	case DB_RHOHV2:
 	case DB_SQI2:
-	    i = vol_p->dat[y].d2[s][r][b];
+	    i = vol_p->dat[y].arr.d2[s][r][b];
 	    return (i == 0 || i > 65535) ? Sigmet_NoData() : (i - 1) / 65535.0;
 	case DB_PHIDP2:
-	    i = vol_p->dat[y].d2[s][r][b];
+	    i = vol_p->dat[y].arr.d2[s][r][b];
 	    return (i == 0 || i > 65535)
 		? Sigmet_NoData() : 360.0 / 65534.0 * (i - 1.0);
 	case DB_DBL:
-	    return vol_p->dat[y].dbl[s][r][b];
+	    return vol_p->dat[y].arr.dbl[s][r][b];
     }
     return Sigmet_NoData();
 }
