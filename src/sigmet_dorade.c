@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.12 $ $Date: 2010/11/24 14:55:50 $
+   .	$Revision: 1.13 $ $Date: 2010/11/29 21:11:38 $
  */
 
 #include <string.h>
@@ -179,7 +179,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 						   e.g. "DZ" or "DB_ZDR" */
 	enum Sigmet_DataTypeN sig_type;
 
-	abbrv = vol_p->types[p];
+	abbrv = vol_p->dat[p].abbrv;
 	if ( !abbrv ) {
 	    continue;
 	}
@@ -349,7 +349,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
     for (p = 0; p < num_parms; p++) {
 	int bad_data = swp_p->sensor.parm[p].bad_data;
 
-	if ( !vol_p->types[p] ) {
+	if ( !vol_p->dat[p].abbrv ) {
 	    continue;
 	}
 	for (r = 0; r < num_rays; r++) {

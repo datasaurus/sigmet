@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.51 $ $Date: 2010/11/26 03:35:43 $
+   .	$Revision: 1.52 $ $Date: 2010/11/29 21:09:01 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include "type_nbit.h"
 #include "hash.h"
+#include "data_types.h"
 #include "dorade_lib.h"
 
 #define	PI		3.1415926535897932384
@@ -30,10 +31,8 @@
 #define DEG_PER_RAD	57.29577951308232087648
 
 /*
-   The IRIS Programmer's Manual (section 3.3) defines SIGMET_NTYPES data types.
-   The Sigmet_DataTypeN enumerator indexes these types, plus a non-Sigmet DB_DBL
-   type.  DB_DBL means double value. Use as is. Type has no conversion from
-   integer to floating point measurement.
+   Enumerator for the data types defined in the IRIS Programmer's Manual
+   (section 3.3). DB_UNK means data type is unknown.
  */
 
 #define SIGMET_NTYPES 28
@@ -43,7 +42,7 @@ enum Sigmet_DataTypeN {
     DB_WIDTH2,	DB_ZDR2,	DB_RAINRATE2,	DB_KDP,		DB_KDP2,
     DB_PHIDP,	DB_VELC,	DB_SQI,		DB_RHOHV,	DB_RHOHV2,
     DB_DBZC2,	DB_VELC2,	DB_SQI2,	DB_PHIDP2,	DB_LDRH,
-    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_DBL
+    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_UNK
 };
 
 /*
@@ -408,14 +407,21 @@ struct Sigmet_Ingest_Header {
 };
 
 /*
-   Data array.  If not NULL, d1, d2, or dbl is an array dimensioned
-   [sweep][ray][bin] with data values from the volume.  Choice of union
-   member depends on Sigmet data type given by type member. U1BYT and
-   U2BYT are declared in type_nbit.h.
+   Data array.  A volume will have one of these for each data type in the
+   volume. If not NULL, d1, d2, or dbl is an array dimensioned
+   [sweep][ray][bin] with data values from the volume.
+   Choice of union member determined by arr_type member, which is
+   one of D1 (one byte integer), D2 (two byte integer), DBL (double),
+   or MT (empty).  U1BYT and U2BYT are declared in type_nbit.h.
  */
 
+enum Sigmet_DataArrType {D1, D2, DBL, MT};
 struct Sigmet_DatArr {
-    enum Sigmet_DataTypeN type;
+    char *abbrv;				/* Type abbreviation
+						   (e.g. "DB_DBZ") */
+    struct DataType *data_type;			/* Meta data, for description,
+						   display, and conversions */
+    enum Sigmet_DataArrType arr_type;		/* Which union member to use */
     union {
 	U1BYT ***d1;				/* 1 byte data */
 	U2BYT ***d2;				/* 2 byte data */
@@ -454,16 +460,6 @@ struct Sigmet_Vol {
     int xhdr;					/* true => volume uses extended
 						   headers */
     int num_types;				/* Number of data types */
-    char **types;				/* Array of abbreviations for
-						   data types in the volume.
-						   This includes Sigmet data
-						   types and user defined types,
-						   but not DB_XHDR */
-    int num_types_max;				/* Number of abbreviations that
-						   can be stored at allocation
-						   at types */
-    struct Hash_Tbl types_tbl;			/* Map abbreviations to elements
-						   in types array */
     enum Sigmet_DataTypeN
 	types_fl[SIGMET_NTYPES];		/* Data types in raw product
 						   file. This means Sigmet
@@ -499,14 +495,19 @@ struct Sigmet_Vol {
 						   dimensioned [sweep][ray] */
     double **ray_az1;				/* Azimuth at end of ray, radians,
 						   dimensioned [sweep][ray] */
+    struct Hash_Tbl types_tbl;			/* Map abbreviations to elements
+						   in dat array */
     struct Sigmet_DatArr *dat;			/* Data, dimensioned [type] */
+    int num_types_max;				/* Number of data types that can
+						   be accommodated at allocation
+						   at dat */
     size_t size;				/* Number of bytes of memory this
 						   structure is using */
 };
 
 /*
    These functions provide information about built in Sigmet data types.
-   They do NOT provide information about additional (DB_DBL) or bogus types.
+   They do NOT provide information about additional, user defined, types.
    Use the DataType interface for additional types.
  */
 
@@ -514,6 +515,7 @@ enum Sigmet_DataTypeN Sigmet_DataTypeN(char *);
 char *Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN);
 char *Sigmet_DataType_Descr(enum Sigmet_DataTypeN);
 char *Sigmet_DataType_Unit(enum Sigmet_DataTypeN);
+DataType_StorToCompFn Sigmet_StorToCompFn(enum Sigmet_DataTypeN);
 double Sigmet_NoData(void);
 int Sigmet_IsData(double);
 int Sigmet_IsNoData(double);
@@ -521,6 +523,40 @@ double Sigmet_Bin4Rad(unsigned long);
 double Sigmet_Bin2Rad(unsigned short);
 unsigned long Sigmet_RadBin4(double);
 unsigned long Sigmet_RadBin2(double);
+
+/*
+   These functions convert storage values from Sigmet raw volumes to
+   measurement values for use in computations.
+ */
+
+double Sigmet_XHDR_Comp(double, void *);
+double Sigmet_DBT_Comp(double, void *);
+double Sigmet_DBZ_Comp(double, void *);
+double Sigmet_DBZC_Comp(double, void *);
+double Sigmet_VEL_Comp(double, void *);
+double Sigmet_WIDTH_Comp(double, void *);
+double Sigmet_ZDR_Comp(double, void *);
+double Sigmet_KDP_Comp(double, void *);
+double Sigmet_PHIDP_Comp(double, void *);
+double Sigmet_VELC_Comp(double, void *);
+double Sigmet_SQI_Comp(double, void *);
+double Sigmet_RHOHV_Comp(double, void *);
+double Sigmet_LDRH_Comp(double, void *);
+double Sigmet_LDRV_Comp(double, void *);
+double Sigmet_DBT2_Comp(double, void *);
+double Sigmet_DBZ2_Comp(double, void *);
+double Sigmet_VEL2_Comp(double, void *);
+double Sigmet_ZDR2_Comp(double, void *);
+double Sigmet_KDP2_Comp(double, void *);
+double Sigmet_DBZC2_Comp(double, void *);
+double Sigmet_VELC2_Comp(double, void *);
+double Sigmet_LDRH2_Comp(double, void *);
+double Sigmet_LDRV2_Comp(double, void *);
+double Sigmet_WIDTH2_Comp(double, void *);
+double Sigmet_RAINRATE2_Comp(double, void *);
+double Sigmet_RHOHV2_Comp(double, void *);
+double Sigmet_SQI2_Comp(double, void *);
+double Sigmet_PHIDP2_Comp(double, void *);
 
 /*
    Values of this type are returned by Sigmet_ReadHdr and Sigmet_ReadVol.
