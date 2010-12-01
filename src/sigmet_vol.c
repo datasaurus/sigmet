@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.74 $ $Date: 2010/12/01 16:50:52 $
+   .	$Revision: 1.75 $ $Date: 2010/12/01 21:13:08 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1056,8 +1056,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
 		/* Store ray data. */
 		y = yf - vol_p->xhdr;
-		switch (vol_p->types_fl[yf]) {
-		    case DB_XHDR:
+		if ( vol_p->types_fl[yf] == DB_XHDR ) {
 			/*
 			   For extended header, undo the call to swap_arr16
 			   above, then apply byte swapping to the raw input.
@@ -1065,47 +1064,24 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			swap_arr16(ray + SZ_RAY_HDR, 2);
 			tm_incr = get_sint32(ray + SZ_RAY_HDR);
 			vol_p->ray_time[s][r] = swpTm + tm_incr * 0.001 / 86400.0;
-			break;
-		    case DB_DBT:
-		    case DB_DBZ:
-		    case DB_VEL:
-		    case DB_WIDTH:
-		    case DB_ZDR:
-		    case DB_DBZC:
-		    case DB_KDP:
-		    case DB_PHIDP:
-		    case DB_VELC:
-		    case DB_SQI:
-		    case DB_RHOHV:
-		    case DB_LDRH:
-		    case DB_LDRV:
-			for (b = 0; b < nbins; b++)  {
-			    vol_p->dat[y].arr.d1[s][r][b] = rayd[b];
-			}
-			break;
-		    case DB_DBT2:
-		    case DB_DBZ2:
-		    case DB_VEL2:
-		    case DB_WIDTH2:
-		    case DB_ZDR2:
-		    case DB_RAINRATE2:
-		    case DB_KDP2:
-		    case DB_RHOHV2:
-		    case DB_DBZC2:
-		    case DB_VELC2:
-		    case DB_SQI2:
-		    case DB_PHIDP2:
-		    case DB_LDRH2:
-		    case DB_LDRV2:
-			for (b = 0; b < nbins; b++)  {
-			    vol_p->dat[y].arr.d2[s][r][b] = ((U2BYT *)rayd)[b];
-			}
-			break;
-		    case DB_UNK:
-			Err_Append("Volume has unknown data type.  ");
-			status = SIGMET_VOL_BAD_VOL;
-			goto error;
-			break;
+		} else {
+		    switch (Sigmet_StorFmt(vol_p->types_fl[yf])) {
+			case DATA_TYPE_U1:
+			    for (b = 0; b < nbins; b++)  {
+				vol_p->dat[y].arr.d1[s][r][b] = rayd[b];
+			    }
+			    break;
+			case DATA_TYPE_U2:
+			    for (b = 0; b < nbins; b++)  {
+				vol_p->dat[y].arr.d2[s][r][b] = ((U2BYT *)rayd)[b];
+			    }
+			    break;
+			default:
+			    Err_Append("Volume has unknown data type.  ");
+			    status = SIGMET_VOL_BAD_VOL;
+			    goto error;
+			    break;
+		    }
 		}
 
 		/* Reset for next ray. */
