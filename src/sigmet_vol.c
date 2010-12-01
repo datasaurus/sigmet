@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.72 $ $Date: 2010/11/30 20:55:21 $
+   .	$Revision: 1.73 $ $Date: 2010/12/01 16:47:14 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -335,7 +335,7 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
        These masks are placed against the data type mask in the task dsp info
        structure to determine what data types are in the volume.
      */
-    static unsigned type_masks[SIGMET_NTYPES] = {
+    static unsigned type_mask_bit[SIGMET_NTYPES] = {
 	(1 <<  0), (1 <<  1), (1 <<  2), (1 <<  3), (1 <<  4),
 	(1 <<  5), (1 <<  7), (1 <<  8), (1 <<  9), (1 << 10),
 	(1 << 11), (1 << 12), (1 << 13), (1 << 14), (1 << 15),
@@ -343,7 +343,7 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	(1 << 21), (1 << 22), (1 << 23), (1 << 24), (1 << 25),
 	(1 << 26), (1 << 27), (1 << 28)
     };
-    unsigned data_type_mask;
+    unsigned vol_type_mask;
     size_t sz;
 
     Sigmet_FreeVol(vol_p);
@@ -410,9 +410,9 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
        If bit is set, add the corresponding type to types array.
      */
 
-    data_type_mask = vol_p->ih.tc.tdi.curr_data_mask.mask_word_0;
+    vol_type_mask = vol_p->ih.tc.tdi.curr_data_mask.mask_word_0;
     for (sig_type = 0, yf = y = 0; sig_type < SIGMET_NTYPES; sig_type++) {
-	if (data_type_mask & type_masks[sig_type]) {
+	if (vol_type_mask & type_mask_bit[sig_type]) {
 	    if ( !(abbrv = Sigmet_DataType_Abbrv(sig_type))
 		    || !(data_type = DataType_Get(abbrv)) ) {
 		Err_Append("Unknown data type in volume. ");
@@ -533,7 +533,7 @@ int Sigmet_GoodVol(FILE *f)
     char rec[REC_LEN];			/* Input record from file */
     int num_types_fl;
     int num_types;
-    static unsigned type_masks[SIGMET_NTYPES] = {
+    static unsigned type_mask_bit[SIGMET_NTYPES] = {
 	(1 <<  0), (1 <<  1), (1 <<  2), (1 <<  3), (1 <<  4),
 	(1 <<  5), (1 <<  7), (1 <<  8), (1 <<  9), (1 << 10),
 	(1 << 11), (1 << 12), (1 << 13), (1 << 14), (1 << 15),
@@ -541,7 +541,7 @@ int Sigmet_GoodVol(FILE *f)
 	(1 << 21), (1 << 22), (1 << 23), (1 << 24), (1 << 25),
 	(1 << 26), (1 << 27), (1 << 28)
     };
-    unsigned data_type_mask;
+    unsigned vol_type_mask;
     U16BIT *recP;			/* Pointer into rec */
     U16BIT *recN;			/* Stopping point in rec */
     U16BIT *recEnd = (U16BIT *)(rec + REC_LEN); /* End rec */
@@ -591,9 +591,9 @@ int Sigmet_GoodVol(FILE *f)
        Obtain number of data types in volume from data type mask. 
      */
 
-    data_type_mask = vol.ih.tc.tdi.curr_data_mask.mask_word_0;
+    vol_type_mask = vol.ih.tc.tdi.curr_data_mask.mask_word_0;
     for (type = 0, num_types_fl = 0, num_types = 0; type < SIGMET_NTYPES; type++) {
-	if (data_type_mask & type_masks[type]) {
+	if (vol_type_mask & type_mask_bit[type]) {
 	    if (type == DB_XHDR) {
 		vol.xhdr = 1;
 	    } else {
