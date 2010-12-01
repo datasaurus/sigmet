@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.320 $ $Date: 2010/12/01 16:14:02 $
+ .	$Revision: 1.321 $ $Date: 2010/12/01 16:46:33 $
  */
 
 #include <limits.h>
@@ -724,12 +724,15 @@ static enum Sigmet_CB_Return max_size_cb(int argc, char *argv[], char *cl_wd,
 	fprintf(out, "%lu\n", (unsigned long)SigmetRaw_MaxSize(0));
 	return SIGMET_CB_SUCCESS;
     } else if ( argc == 3) {
+	unsigned long sz_l;
+
 	max_size_s = argv[2];
-	if ( sscanf(max_size_s, "%lu", &sz) != 1 ) {
+	if ( sscanf(max_size_s, "%lu", &sz_l) != 1 ) {
 	    fprintf(err, "%s %s: maximum size must be a positive integer\n",
 		    argv0, argv1);
 	    return SIGMET_CB_FAIL;
 	}
+	sz = sz_l;
 	fprintf(out, "%lu\n", (unsigned long)SigmetRaw_MaxSize(sz));
 	return SIGMET_CB_SUCCESS;
     } else {
