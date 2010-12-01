@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.20 $ $Date: 2010/11/15 20:09:54 $
+   .	$Revision: 1.21 $ $Date: 2010/12/01 16:16:16 $
  */
 
 #include <stdlib.h>
@@ -157,7 +157,7 @@ char * Sigmet_DataType_Unit(enum Sigmet_DataTypeN y)
 
 enum DataType_StorFmt Sigmet_StorFmt(enum Sigmet_DataTypeN y)
 {
-    return (y < SIGMET_NTYPES) ?  stor_fmt[y] : NULL;
+    return (y < SIGMET_NTYPES) ?  stor_fmt[y] : DATA_TYPE_MT;
 }
 
 DataType_StorToCompFn Sigmet_StorToCompFn(enum Sigmet_DataTypeN y)
