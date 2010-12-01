@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.318 $ $Date: 2010/11/29 21:13:24 $
+ .	$Revision: 1.319 $ $Date: 2010/11/30 20:55:21 $
  */
 
 #include <limits.h>
@@ -165,6 +165,7 @@ int main(int argc, char *argv[])
 	status = DataType_Add( Sigmet_DataType_Abbrv(sig_type),
 		Sigmet_DataType_Descr(sig_type),
 		Sigmet_DataType_Unit(sig_type),
+		Sigmet_StorFmt(sig_type),
 		Sigmet_StorToCompFn(sig_type));
 	if ( status != DATATYPE_SUCCESS ) {
 	    fprintf(stderr, "%s (%d): could not register data type "
@@ -546,7 +547,7 @@ static enum Sigmet_CB_Return new_data_type_cb(int argc, char *argv[],
     name = argv[2];
     desc = argv[3];
     unit = argv[4];
-    switch (DataType_Add(name, desc, unit, DataType_DblToDbl)) {
+    switch (DataType_Add(name, desc, unit, DATA_TYPE_DBL, DataType_DblToDbl)) {
 	case DATATYPE_MEM_FAIL:
 	    return SIGMET_CB_MEM_FAIL;
 	case DATATYPE_FAIL:
