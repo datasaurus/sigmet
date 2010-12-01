@@ -9,12 +9,13 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.19 $ $Date: 2010/11/15 17:58:52 $
+   .	$Revision: 1.20 $ $Date: 2010/11/15 20:09:54 $
  */
 
 #include <stdlib.h>
 #include <math.h>
 #include "err_msg.h"
+#include "data_types.h"
 #include "sigmet.h"
 
 /*
@@ -87,6 +88,38 @@ static char *unit[SIGMET_NTYPES] = {
     "none",		"none",		"none",		"none",
 };
 
+/*
+   Storage formats from data_types.h for Sigmet data types.
+   Index with enum Sigmet_DataTypeN.
+ */
+
+static enum DataType_StorFmt stor_fmt[SIGMET_NTYPES] = {
+    DATA_TYPE_MT,	DATA_TYPE_U1,	DATA_TYPE_U1,	DATA_TYPE_U1,
+    DATA_TYPE_U1,	DATA_TYPE_U1,	DATA_TYPE_U1,	DATA_TYPE_U2,
+    DATA_TYPE_U2,	DATA_TYPE_U2,	DATA_TYPE_U2,	DATA_TYPE_U2,
+    DATA_TYPE_U2,	DATA_TYPE_U1,	DATA_TYPE_U2,	DATA_TYPE_U1,
+    DATA_TYPE_U1,	DATA_TYPE_U1,	DATA_TYPE_U1,	DATA_TYPE_U2,
+    DATA_TYPE_U2,	DATA_TYPE_U2,	DATA_TYPE_U2,	DATA_TYPE_U2,
+    DATA_TYPE_U1,	DATA_TYPE_U2,	DATA_TYPE_U1,	DATA_TYPE_U2,
+};
+
+/*
+   Functions to convert storage value to computation value.
+ */
+
+DataType_StorToCompFn stor_to_comp[SIGMET_NTYPES] = {
+    Sigmet_XHDR_Comp,		Sigmet_DBT_Comp,	Sigmet_DBZ_Comp,
+    Sigmet_VEL_Comp,		Sigmet_WIDTH_Comp,	Sigmet_ZDR_Comp,
+    Sigmet_DBZC_Comp,		Sigmet_DBT2_Comp,	Sigmet_DBZ2_Comp,
+    Sigmet_VEL2_Comp,		Sigmet_WIDTH2_Comp,	Sigmet_ZDR2_Comp,
+    Sigmet_RAINRATE2_Comp,	Sigmet_KDP_Comp,	Sigmet_KDP2_Comp,
+    Sigmet_PHIDP_Comp,		Sigmet_VELC_Comp,	Sigmet_SQI_Comp,
+    Sigmet_RHOHV_Comp,		Sigmet_RHOHV2_Comp,	Sigmet_DBZC2_Comp,
+    Sigmet_VELC2_Comp,		Sigmet_SQI2_Comp,	Sigmet_PHIDP2_Comp,
+    Sigmet_LDRH_Comp,		Sigmet_LDRH2_Comp,	Sigmet_LDRV_Comp,
+    Sigmet_LDRV2_Comp
+};
+
 double Sigmet_Bin4Rad(unsigned long a)
 {
     return (double)a / TWO_32 * 2 * PI;
@@ -122,6 +155,16 @@ char * Sigmet_DataType_Unit(enum Sigmet_DataTypeN y)
     return (y < SIGMET_NTYPES) ? unit[y] : NULL;
 }
 
+enum DataType_StorFmt Sigmet_StorFmt(enum Sigmet_DataTypeN y)
+{
+    return (y < SIGMET_NTYPES) ?  stor_fmt[y] : NULL;
+}
+
+DataType_StorToCompFn Sigmet_StorToCompFn(enum Sigmet_DataTypeN y)
+{
+    return (y < SIGMET_NTYPES) ?  stor_to_comp[y] : NULL;
+}
+
 double Sigmet_NoData(void)
 {
     return DBL_MAX;
@@ -135,4 +178,191 @@ int Sigmet_IsData(double v)
 int Sigmet_IsNoData(double v)
 {
     return v == DBL_MAX;
+}
+
+double Sigmet_XHDR_Comp(double v, void *meta)
+{
+    return Sigmet_NoData();
+}
+
+double Sigmet_DBT_Comp(double v, void *meta)
+{
+    return (v == 0)
+	? Sigmet_NoData() : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
+}
+
+double Sigmet_DBZ_Comp(double v, void *meta)
+{
+    return (v == 0)
+	? Sigmet_NoData() : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
+}
+
+double Sigmet_DBZC_Comp(double v, void *meta)
+{
+    return (v == 0)
+	? Sigmet_NoData() : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
+}
+
+double Sigmet_VEL_Comp(double v, void *meta)
+{
+    struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
+
+    if ( !vol_p ) {
+	return Sigmet_NoData();
+    }
+    return (v == 0 || v > 255)
+	? Sigmet_NoData() : Sigmet_VNyquist(vol_p) * (v - 128.0) / 127.0;
+}
+
+double Sigmet_WIDTH_Comp(double v, void *meta)
+{
+    struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
+
+    return (v == 0 || v > 255)
+	? Sigmet_NoData() : Sigmet_VNyquist(vol_p) * v / 256.0;
+}
+
+double Sigmet_ZDR_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 255) ? Sigmet_NoData() : (v - 128.0) / 16.0;
+}
+
+double Sigmet_KDP_Comp(double v, void *meta)
+{
+    struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
+    double wav_len;
+
+    if ( !vol_p ) {
+	return Sigmet_NoData();
+    }
+    wav_len = 0.01 * vol_p->ih.tc.tmi.wave_len;
+    if (v == 0 || v > 255) {
+	return Sigmet_NoData();
+    } else if (v > 128) {
+	return 0.25 * pow(600.0, (v - 129.0) / 126.0) / wav_len;
+    } else if (v == 128) {
+	return 0.0;
+    } else {
+	return -0.25 * pow(600.0, (127.0 - v) / 126.0) / wav_len;
+    }
+}
+
+double Sigmet_PHIDP_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 255)
+	? Sigmet_NoData() : 180.0 / 254.0 * (v - 1.0);
+}
+
+double Sigmet_VELC_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 255)
+	? Sigmet_NoData() : 75.0 / 127.0 * (v - 128.0);
+}
+
+double Sigmet_SQI_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 254) ? Sigmet_NoData() : sqrt((v - 1) / 253.0);
+}
+
+double Sigmet_RHOHV_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 254) ? Sigmet_NoData() : sqrt((v - 1) / 253.0);
+}
+
+double Sigmet_LDRH_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 255) ? Sigmet_NoData() : 0.2 * (v - 1) - 45.0;
+}
+
+double Sigmet_LDRV_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 255) ? Sigmet_NoData() : 0.2 * (v - 1) - 45.0;
+}
+
+double Sigmet_DBT2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+}
+
+double Sigmet_DBZ2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+}
+
+double Sigmet_VEL2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+}
+
+double Sigmet_ZDR2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+}
+
+double Sigmet_KDP2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+}
+
+double Sigmet_DBZC2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+}
+
+double Sigmet_VELC2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+}
+
+double Sigmet_LDRH2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+}
+
+double Sigmet_LDRV2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+}
+
+double Sigmet_WIDTH2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * v;
+}
+
+double Sigmet_RAINRATE2_Comp(double v, void *meta)
+{
+    struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
+    unsigned e;		/* 4 bit exponent */
+    unsigned m;		/* 12 bit mantissa */
+
+    if ( !vol_p ) {
+	return Sigmet_NoData();
+    }
+    if (v == 0 || v > 65535)
+    {
+	return Sigmet_NoData();
+    }
+    e = (unsigned)(0xF000 & (unsigned)v) >> 12;
+    m = 0x0FFF & (unsigned)v;
+    if (e == 0) {
+	return 0.0001 * (m - 1);
+    } else {
+	return 0.0001 * (((0x01000 | m) << (e - 1)) - 1);
+    }
+}
+
+double Sigmet_RHOHV2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : (v - 1) / 65535.0;
+}
+
+double Sigmet_SQI2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535) ? Sigmet_NoData() : (v - 1) / 65535.0;
+}
+
+double Sigmet_PHIDP2_Comp(double v, void *meta)
+{
+    return (v == 0 || v > 65535)
+	? Sigmet_NoData() : 360.0 / 65534.0 * (v - 1.0);
 }
