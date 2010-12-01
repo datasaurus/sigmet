@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.9 $ $Date: 2010/11/09 16:36:23 $
+ .	$Revision: 1.10 $ $Date: 2010/11/10 17:09:11 $
  */
 
 #include <stdlib.h>
@@ -70,8 +70,8 @@ void SigmetRaw_MkDDir(void)
     if ( ddir_e ) {
 	l = strlen(ddir_e) + 1;
 	if ( !(ddir = MALLOC(l)) ) {
-	    fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
-		    "working directory.\n", l);
+	    fprintf(stderr, "Could not allocate %lu bytes for path to daemon "
+		    "working directory.\n", (unsigned long)l);
 	    exit(EXIT_FAILURE);
 	}
 	if ( snprintf(ddir, l, "%s", ddir_e) > l ) {
@@ -82,7 +82,7 @@ void SigmetRaw_MkDDir(void)
 	l = strlen(hdir) + strlen("/.sigmet_raw") + 1;
 	if ( !(ddir = MALLOC(l)) ) {
 	    fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
-		    "working directory.\n", l);
+		    "working directory.\n", (unsigned long)l);
 	    exit(EXIT_FAILURE);
 	}
 	if ( snprintf(ddir, l, "%s/.sigmet_raw", hdir) > l ) {
@@ -98,7 +98,7 @@ void SigmetRaw_MkDDir(void)
     l = strlen(ddir) + strlen("/") + strlen(SIGMET_RAWD_IN) + 1;
     if ( !(dsock = MALLOC(l)) ) {
 	fprintf(stderr, "Could not allocate %ld bytes for path to daemon "
-		"working directory.\n", l);
+		"working directory.\n", (unsigned long)l);
 	exit(EXIT_FAILURE);
     }
     if ( snprintf(dsock, l, "%s/%s", ddir, SIGMET_RAWD_IN ) > l ) {
