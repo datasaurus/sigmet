@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.71 $ $Date: 2010/11/29 21:10:38 $
+   .	$Revision: 1.72 $ $Date: 2010/11/30 20:55:21 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -519,11 +519,9 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
     fprintf(out, "%d " FS " %s " FS " %s\n",
 	    vol_p->num_types, "num_types", "Number of Sigmet data types");
     for (y = 0; y < vol_p->num_types; y++) {
-	char *abbrv = vol_p->dat[y].abbrv;
-
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
 	fprintf(out, "%s " FS " %s " FS " %s\n",
-		abbrv, elem_nm, DataType_GetDescr(abbrv));
+		vol_p->dat[y].abbrv, elem_nm, vol_p->dat[y].data_type->descr);
     }
     fprintf(out, "%d " FS " %s " FS " %s\n",
 	    vol_p->truncated, "truncated", "If true, volume is truncated");
