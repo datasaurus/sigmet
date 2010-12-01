@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.319 $ $Date: 2010/11/30 20:55:21 $
+ .	$Revision: 1.320 $ $Date: 2010/12/01 16:14:02 $
  */
 
 #include <limits.h>
@@ -564,12 +564,13 @@ static enum Sigmet_CB_Return data_types_cb(int argc, char *argv[], char *cl_wd,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *abbrv, *descr, *unit;
+    char *abbrv;
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
     int y;
     enum Sigmet_CB_Return status; 	/* Result of SigmetRaw_ReadHdr */
+    struct DataType *data_type;		/* Information about a data type */
 
     if ( argc == 2 ) {
 	size_t n;
@@ -577,17 +578,10 @@ static enum Sigmet_CB_Return data_types_cb(int argc, char *argv[], char *cl_wd,
 
 	if ( abbrvs ) {
 	    for (a = abbrvs; a < abbrvs + n; a++) {
-		if ( !(descr = DataType_GetDescr(*a)) ) {
-		    fprintf(err, "%s %s: could not get long description for "
-			    "%s\n", argv0, argv1, *a);
-		    return SIGMET_CB_FAIL;
-		}
-		if ( !(unit = DataType_GetUnit(*a)) ) {
-		    fprintf(err, "%s %s: could not get unit for %s\n",
-			    argv0, argv1, *a);
-		    return SIGMET_CB_FAIL;
-		}
-		fprintf(out, "%s | %s | %s\n", *a, descr, unit);
+		data_type = DataType_Get(*a);
+		assert(data_type);
+		fprintf(out, "%s | %s | %s\n",
+			*a, data_type->descr, data_type->unit);
 	    }
 	}
     } else {
@@ -606,17 +600,10 @@ static enum Sigmet_CB_Return data_types_cb(int argc, char *argv[], char *cl_wd,
 	    if ( !abbrv ) {
 		continue;
 	    }
-	    if ( !(descr = DataType_GetDescr(abbrv)) ) {
-		fprintf(err, "%s %s: could not get long description for %s\n",
-			argv0, argv1, abbrv);
-		return SIGMET_CB_FAIL;
-	    }
-	    if ( !(unit = DataType_GetUnit(abbrv)) ) {
-		fprintf(err, "%s %s: could not get unit for %s\n",
-			argv0, argv1, abbrv);
-		return SIGMET_CB_FAIL;
-	    }
-	    fprintf(out, "%s | %s | %s\n", abbrv, descr, unit);
+	    data_type = DataType_Get(abbrv);
+	    assert(data_type);
+	    fprintf(out, "%s | %s | %s\n",
+		    abbrv, data_type->descr, data_type->unit);
 	}
     }
     return SIGMET_CB_SUCCESS;
@@ -980,7 +967,7 @@ static enum Sigmet_CB_Return new_field_cb(int argc, char *argv[], char *cl_wd,
     }
     abbrv = argv[2];
     vol_nm_r = argv[3];
-    if ( !DataType_GetDescr(abbrv) ) {
+    if ( !DataType_Get(abbrv) ) {
 	fprintf(err, "%s %s: No data type named %s. Please add with the "
 		"new_data_type command.\n", argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
@@ -1290,6 +1277,7 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
     enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
+    struct DataType *data_type;		/* Information about the data type */
     struct Sigmet_DatArr *dat_p;
     int y, s, r, b;			/* data type, sweep, ray, bin */
     unsigned char n_clrs;		/* number of colors for the data type */
@@ -1310,12 +1298,14 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
     }
-    if ( DataType_GetColors(abbrv, &n_clrs, NULL, &bnds) != DATATYPE_SUCCESS ) {
-	fprintf(err, "%s %s: cannot get data intervals for %s\n",
+    if ( !(data_type = DataType_Get(abbrv)) ) {
+	fprintf(err, "%s %s: no data type named %s\n",
 		argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
+    n_clrs = data_type->n_colors;
     n_bnds = n_clrs + 1;
+    bnds = data_type->bounds;
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(err, "%s %s: expected integer for sweep index, got %s\n",
 		argv0, argv1, s_s);
@@ -1714,6 +1704,7 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     enum Sigmet_CB_Return status; 	/* Result of SigmetRaw_ReadVol */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
+    struct DataType *data_type;		/* Information about the data type */
     struct Sigmet_DatArr *dat_p;
     int y, s, r, b;			/* Indeces: data type, sweep, ray, bin */
     double left;			/* Map coordinate of left side */
@@ -1810,12 +1801,15 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
 		argv0, argv1, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
     }
-    if ( DataType_GetColors(abbrv, &n_clrs, &clrs, &bnds) != DATATYPE_SUCCESS
-	    || n_clrs == 0 || !clrs || !bnds ) {
-	fprintf(err, "%s %s: colors and bounds not set for %s\n",
+    if ( !(data_type = DataType_Get(abbrv)) ) {
+	fprintf(err, "%s %s: no data type named %s\n",
 		argv0, argv1, abbrv);
 	return SIGMET_CB_FAIL;
     }
+    n_clrs = data_type->n_colors;
+    clrs = data_type->colors;
+    n_bnds = n_clrs + 1;
+    bnds = data_type->bounds;
     n_bnds = n_clrs + 1;
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(err, "%s %s: expected integer for sweep index, got %s\n",
