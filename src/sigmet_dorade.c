@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.13 $ $Date: 2010/11/29 21:11:38 $
+   .	$Revision: 1.14 $ $Date: 2010/11/30 20:55:21 $
  */
 
 #include <string.h>
@@ -178,11 +178,13 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	char *abbrv;				/* Data type abbreviation,
 						   e.g. "DZ" or "DB_ZDR" */
 	enum Sigmet_DataTypeN sig_type;
+	struct DataType *data_type;
 
 	abbrv = vol_p->dat[p].abbrv;
 	if ( !abbrv ) {
 	    continue;
 	}
+	data_type = vol_p->dat[p].data_type;
 	parm_p = sensor_p->parm + p;
 	Dorade_PARM_Init(parm_p);
 	sig_type = Sigmet_DataTypeN(abbrv);
@@ -191,8 +193,8 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 	} else {
 	    strncpy(parm_p->parameter_name, abbrv, 8);
 	}
-	strncpy(parm_p->param_description, DataType_GetDescr(abbrv), 40);
-	strncpy(parm_p->param_units, DataType_GetUnit(abbrv), 40);
+	strncpy(parm_p->param_description, data_type->descr, 40);
+	strncpy(parm_p->param_units, data_type->unit, 40);
 	parm_p->xmitted_freq = 1.0e-9 * 2.9979e8 / wave_len;
 	parm_p->recvr_bandwidth = 1.0e-3 * vol_p->ih.tc.tci.bandwidth;
 	parm_p->pulse_width = vol_p->ih.tc.tdi.pulse_w * 0.01 * 1.0e-6 * 2.9979e8;
