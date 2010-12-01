@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.73 $ $Date: 2010/12/01 16:47:14 $
+   .	$Revision: 1.74 $ $Date: 2010/12/01 16:50:52 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -181,16 +181,16 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
     free2d(vol_p->ray_az1);
     if ( vol_p->dat ) {
 	for (y = 0; y < vol_p->num_types; y++) {
-	    switch (vol_p->dat[y].arr_type) {
-		case D1:
+	    switch (vol_p->dat[y].data_type->stor_fmt) {
+		case DATA_TYPE_U1:
 		    free3_u1(vol_p->dat[y].arr.d1);
 		    break;
-		case D2:
+		case DATA_TYPE_U2:
 		    free3_u2(vol_p->dat[y].arr.d2);
-		case DBL:
+		case DATA_TYPE_DBL:
 		    free3_dbl(vol_p->dat[y].arr.dbl);
 		    break;
-		case MT:
+		case DATA_TYPE_MT:
 		    break;
 	    }
 	}
@@ -283,7 +283,6 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
     dat_p = vol_p->dat + y;
     dat_p->abbrv = abbrv;
     dat_p->data_type = data_type;
-    dat_p->arr_type = DBL;
     dat_p->arr.dbl = NULL;
     if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
 	Err_Append("Could not add ");
@@ -297,7 +296,6 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
     dbl_p = calloc3_dbl(num_sweeps, num_rays, num_bins);
     if ( !dbl_p ) {
 	dat_p->data_type = NULL;
-	dat_p->arr_type = MT;
 	Err_Append("Could not allocate new field ");
 	return 0;
     }
@@ -363,7 +361,6 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_NTYPES; dat_p++) {
 	dat_p->abbrv = NULL;
 	dat_p->data_type = NULL;
-	dat_p->arr_type = DBL;
 	dat_p->arr.dbl = NULL;
     }
     if ( !Hash_Init(&vol_p->types_tbl, SIGMET_NTYPES * 2) ) {
@@ -411,6 +408,9 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
      */
 
     vol_type_mask = vol_p->ih.tc.tdi.curr_data_mask.mask_word_0;
+    if (vol_type_mask & type_mask_bit[DB_XHDR]) {
+	vol_p->xhdr = 1;
+    }
     for (sig_type = 0, yf = y = 0; sig_type < SIGMET_NTYPES; sig_type++) {
 	if (vol_type_mask & type_mask_bit[sig_type]) {
 	    if ( !(abbrv = Sigmet_DataType_Abbrv(sig_type))
@@ -421,61 +421,28 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	    }
 	    vol_p->dat[y].abbrv = abbrv;
 	    vol_p->dat[y].data_type = data_type;
-	    switch (sig_type) {
-		case DB_XHDR:
-		    vol_p->xhdr = 1;
+	    switch (data_type->stor_fmt) {
+		case DATA_TYPE_MT:
 		    break;
-		case DB_DBT:
-		case DB_DBZ:
-		case DB_VEL:
-		case DB_WIDTH:
-		case DB_ZDR:
-		case DB_DBZC:
-		case DB_KDP:
-		case DB_PHIDP:
-		case DB_VELC:
-		case DB_SQI:
-		case DB_RHOHV:
-		case DB_LDRH:
-		case DB_LDRV:
-		    vol_p->dat[y].arr_type = D1;
+		case DATA_TYPE_U1:
 		    vol_p->dat[y].arr.d1 = NULL;
-		    if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
-			Err_Append("Could not initialize volume types table. ");
-			status = SIGMET_VOL_MEM_FAIL;
-			goto error;
-		    }
 		    y++;
 		    break;
-		case DB_DBT2:
-		case DB_DBZ2:
-		case DB_VEL2:
-		case DB_WIDTH2:
-		case DB_ZDR2:
-		case DB_RAINRATE2:
-		case DB_KDP2:
-		case DB_RHOHV2:
-		case DB_DBZC2:
-		case DB_VELC2:
-		case DB_SQI2:
-		case DB_PHIDP2:
-		case DB_LDRH2:
-		case DB_LDRV2:
-		    vol_p->dat[y].arr_type = D2;
-		    vol_p->dat[y].arr.d1 = NULL;
-		    if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
-			Err_Append("Could not initialize volume types table. ");
-			status = SIGMET_VOL_MEM_FAIL;
-			goto error;
-		    }
+		case DATA_TYPE_U2:
+		    vol_p->dat[y].arr.d2 = NULL;
 		    y++;
 		    break;
-		case DB_UNK:
+		case DATA_TYPE_DBL:
 		    Err_Append("Volume in memory is corrupt. Unknown "
 			    "data type in data array.");
 		    status = SIGMET_VOL_BAD_VOL;
 		    goto error;
 		    break;
+	    }
+	    if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
+		Err_Append("Could not initialize volume types table. ");
+		status = SIGMET_VOL_MEM_FAIL;
+		goto error;
 	    }
 	    vol_p->types_fl[yf] = sig_type;
 	    yf++;
@@ -492,7 +459,8 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->dat = dat_p;
     if ( !type_tbl_set(vol_p) ) {
 	Err_Append("Allocation failed while reseting volume types table. ");
-	return 0;
+	status = SIGMET_VOL_MEM_FAIL;
+	goto error;
     }
     vol_p->num_types_max = vol_p->num_types;
     vol_p->size += vol_p->num_types + sizeof(struct Sigmet_DatArr);
@@ -893,10 +861,8 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->size += num_sweeps * num_rays * sizeof(double);
 
     for (y = 0; y < vol_p->num_types; y++) {
-	enum Sigmet_DataArrType arr_type = vol_p->dat[y].arr_type;
-
-	switch (arr_type) {
-	    case D1:
+	switch (vol_p->dat[y].data_type->stor_fmt) {
+	    case DATA_TYPE_U1:
 		vol_p->dat[y].arr.d1 = calloc3_u1(num_sweeps, num_rays, num_bins);
 		if ( !vol_p->dat[y].arr.d1 ) {
 		    status = SIGMET_VOL_MEM_FAIL;
@@ -904,7 +870,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins;
 		break;
-	    case D2:
+	    case DATA_TYPE_U2:
 		vol_p->dat[y].arr.d2 = calloc3_u2(num_sweeps, num_rays, num_bins);
 		if ( !vol_p->dat[y].arr.d2 ) {
 		    status = SIGMET_VOL_MEM_FAIL;
@@ -1202,17 +1168,17 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    || b < 0 || b >= vol_p->ray_num_bins[s][r] ) {
 	return Sigmet_NoData();
     }
-    switch (vol_p->dat[y].arr_type) {
-	case D1:
+    switch (vol_p->dat[y].data_type->stor_fmt) {
+	case DATA_TYPE_U1:
 	    v = vol_p->dat[y].arr.d1[s][r][b];
 	    break;
-	case D2:
+	case DATA_TYPE_U2:
 	    v = vol_p->dat[y].arr.d2[s][r][b];
 	    break;
-	case DBL:
+	case DATA_TYPE_DBL:
 	    v = vol_p->dat[y].arr.dbl[s][r][b];
 	    break;
-	case MT:
+	case DATA_TYPE_MT:
 	    return Sigmet_NoData();
     }
     return DataType_StorToComp(vol_p->dat[y].data_type, v, vol_p);

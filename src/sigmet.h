@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.53 $ $Date: 2010/11/30 20:55:21 $
+   .	$Revision: 1.54 $ $Date: 2010/12/01 16:13:07 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -410,18 +410,13 @@ struct Sigmet_Ingest_Header {
    Data array.  A volume will have one of these for each data type in the
    volume. If not NULL, d1, d2, or dbl is an array dimensioned
    [sweep][ray][bin] with data values from the volume.
-   Choice of union member determined by arr_type member, which is
-   one of D1 (one byte integer), D2 (two byte integer), DBL (double),
-   or MT (empty).  U1BYT and U2BYT are declared in type_nbit.h.
  */
 
-enum Sigmet_DataArrType {D1, D2, DBL, MT};
 struct Sigmet_DatArr {
     char *abbrv;				/* Type abbreviation
 						   (e.g. "DB_DBZ") */
     struct DataType *data_type;			/* Meta data, for description,
 						   display, and conversions */
-    enum Sigmet_DataArrType arr_type;		/* Which union member to use */
     union {
 	U1BYT ***d1;				/* 1 byte data */
 	U2BYT ***d2;				/* 2 byte data */
