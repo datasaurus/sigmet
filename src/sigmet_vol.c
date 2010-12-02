@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.76 $ $Date: 2010/12/01 21:26:47 $
+   .	$Revision: 1.77 $ $Date: 2010/12/02 16:11:58 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -209,7 +209,7 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
     struct Sigmet_DatArr *dat_p;
 
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + vol_p->num_types; dat_p++) {
-	if ( !Hash_Set(&vol_p->types_tbl, dat_p->abbrv, dat_p) ) {
+	if ( !Hash_Set(&vol_p->types_tbl, dat_p->data_type->abbrv, dat_p) ) {
 	    return 0;
 	}
     }
@@ -263,7 +263,6 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
     }
     dat_p = vol_p->dat + vol_p->num_types;
     dat_p->data_type = data_type;
-    dat_p->abbrv = data_type->abbrv;
     dat_p->arr.dbl = NULL;
     if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
 	Err_Append("Could not add ");
@@ -339,7 +338,6 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	goto error;
     }
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_NTYPES; dat_p++) {
-	dat_p->abbrv = NULL;
 	dat_p->data_type = NULL;
 	dat_p->arr.dbl = NULL;
     }
@@ -399,7 +397,6 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		status = SIGMET_VOL_BAD_VOL;
 		goto error;
 	    }
-	    vol_p->dat[y].abbrv = abbrv;
 	    vol_p->dat[y].data_type = data_type;
 	    switch (data_type->stor_fmt) {
 		case DATA_TYPE_MT:
@@ -466,9 +463,11 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
     fprintf(out, "%d " FS " %s " FS " %s\n",
 	    vol_p->num_types, "num_types", "Number of Sigmet data types");
     for (y = 0; y < vol_p->num_types; y++) {
+	struct DataType *data_type = vol_p->dat[y].data_type;
+
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
 	fprintf(out, "%s " FS " %s " FS " %s\n",
-		vol_p->dat[y].abbrv, elem_nm, vol_p->dat[y].data_type->descr);
+		data_type->abbrv, elem_nm, data_type->descr);
     }
     fprintf(out, "%d " FS " %s " FS " %s\n",
 	    vol_p->truncated, "truncated", "If true, volume is truncated");
