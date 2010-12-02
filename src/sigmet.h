@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.55 $ $Date: 2010/12/01 21:13:08 $
+   .	$Revision: 1.56 $ $Date: 2010/12/02 16:09:56 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -413,8 +413,6 @@ struct Sigmet_Ingest_Header {
  */
 
 struct Sigmet_DatArr {
-    char *abbrv;				/* Type abbreviation
-						   (e.g. "DB_DBZ") */
     struct DataType *data_type;			/* Meta data, for description,
 						   display, and conversions */
     union {
