@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.56 $ $Date: 2010/12/02 16:09:56 $
+   .	$Revision: 1.57 $ $Date: 2010/12/02 17:54:41 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -570,7 +570,8 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *, struct Sigmet_Vol *);
 int Sigmet_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 double Sigmet_VNyquist(struct Sigmet_Vol *);
-int Sigmet_VolAddDataType(char *, struct Sigmet_Vol *);
+int Sigmet_VolNewField(struct Sigmet_Vol *, char *);
+int Sigmet_VolDelField(struct Sigmet_Vol *, char *);
 double Sigmet_VolDat(struct Sigmet_Vol *, int, int, int, int);
 int Sigmet_ToDorade(struct Sigmet_Vol *, int, struct Dorade_Sweep *);
 

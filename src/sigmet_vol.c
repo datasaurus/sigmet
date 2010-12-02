@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.77 $ $Date: 2010/12/02 16:11:58 $
+   .	$Revision: 1.78 $ $Date: 2010/12/02 18:00:09 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -217,12 +217,11 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
 }
 
 /*
-   Add a data type to a volume types array and types_tbl lookup table.
-   This allocates space for the new type in the types array and the
+   Add a data type to a volume.  This also allocates space for data in the
    dat array.
  */
 
-int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
+int Sigmet_VolNewField(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct DataType *data_type;
     size_t sz;
@@ -281,6 +280,50 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
     }
     dat_p->arr.dbl = dbl_p;
     vol_p->num_types++;
+    return 1;
+}
+
+int Sigmet_VolDelField(struct Sigmet_Vol *vol_p, char *abbrv)
+{
+    struct DataType *data_type;
+    size_t sz;
+    struct Sigmet_DatArr *d_p, *d1_p;
+
+    if ( !abbrv ) {
+	return 1;
+    }
+    if ( !vol_p ) {
+	Err_Append("Attempted to remove a field from a bogus volume. ");
+	return 0;
+    }
+    if ( !(data_type = DataType_Get(abbrv)) ) {
+	Err_Append("No data type named %s. ");
+	Err_Append(abbrv);
+	Err_Append( ".  ");
+	return 0;
+    }
+    if ( !(d_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("Data type ");
+	Err_Append(abbrv);
+	Err_Append(" not in volume. ");
+	return 0;
+    }
+    free3_dbl(d_p->arr.dbl);
+    Hash_Rm(&vol_p->types_tbl, abbrv);
+    for (d1_p = d_p + 1; d1_p < vol_p->dat + vol_p->num_types; d_p++, d1_p++) {
+	*d_p = *d1_p;
+    }
+    sz = (vol_p->num_types - 1) * sizeof(struct Sigmet_DatArr);
+    if ( !(d_p = REALLOC(vol_p->dat, sz)) ) {
+	Err_Append("Allocation failed while reallocating volume data array.");
+	return 0;
+    }
+    vol_p->dat = d_p;
+    vol_p->num_types--;
+    if ( !type_tbl_set(vol_p) ) {
+	Err_Append("Allocation failed while reseting volume types table. ");
+	return 0;
+    }
     return 1;
 }
 
