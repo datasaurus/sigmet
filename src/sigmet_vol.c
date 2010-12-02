@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.78 $ $Date: 2010/12/02 18:00:09 $
+   .	$Revision: 1.79 $ $Date: 2010/12/02 21:04:52 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1288,9 +1288,9 @@ struct Sigmet_Product_Configuration get_product_configuration(char *rec)
     pc.gen_tm = get_ymds_time(rec + 20);
     pc.ingest_sweep_tm = get_ymds_time(rec + 32);
     pc.ingest_file_tm = get_ymds_time(rec + 44);
-    strncpy(pc.config_file, rec + 62, 12);
+    memcpy(pc.config_file, rec + 62, 12);
     trimRight(pc.config_file, 12);
-    strncpy(pc.task_name, rec + 74, 12);
+    memcpy(pc.task_name, rec + 74, 12);
     trimRight(pc.task_name, 12);
     pc.flag = get_uint16(rec + 86);
     pc.x_scale = get_sint32(rec + 88);
@@ -1304,7 +1304,7 @@ struct Sigmet_Product_Configuration get_product_configuration(char *rec)
     pc.z_loc = get_sint32(rec + 120);
     pc.max_rng = get_sint32(rec + 124);
     pc.data_type = get_uint16(rec + 130);
-    strncpy(pc.proj, rec + 132, 12);
+    memcpy(pc.proj, rec + 132, 12);
     trimRight(pc.proj, 12);
     pc.inp_data_type = get_uint16(rec + 144);
     pc.proj_type = *(unsigned char *)(rec + 146);
@@ -1315,7 +1315,7 @@ struct Sigmet_Product_Configuration get_product_configuration(char *rec)
     pc.x_smooth = get_sint16(rec + 160);
     pc.y_smooth = get_sint16(rec + 162);
     pc.psi = get_product_specific_info(rec + 80);
-    strncpy(pc.suffixes, rec + 244, 16);
+    memcpy(pc.suffixes, rec + 244, 16);
     trimRight(pc.suffixes, 16);
     pc.csd = get_color_scale_def(rec + 272);
     return pc;
@@ -1510,16 +1510,16 @@ struct Sigmet_Product_End get_product_end(char *rec)
 {
     struct Sigmet_Product_End pe;
 
-    strncpy(pe.site_name_prod, rec + 0, 16);
+    memcpy(pe.site_name_prod, rec + 0, 16);
     trimRight(pe.site_name_prod, 16);
-    strncpy(pe.iris_prod_vsn, rec + 16, 8);
+    memcpy(pe.iris_prod_vsn, rec + 16, 8);
     trimRight(pe.iris_prod_vsn, 8);
-    strncpy(pe.iris_ing_vsn, rec + 24, 8);
+    memcpy(pe.iris_ing_vsn, rec + 24, 8);
     trimRight(pe.iris_ing_vsn, 8);
     pe.local_wgmt = get_sint16(rec + 72);
-    strncpy(pe.hw_name, rec + 74, 16);
+    memcpy(pe.hw_name, rec + 74, 16);
     trimRight(pe.hw_name, 16);
-    strncpy(pe.site_name_ing, rec + 90, 16);
+    memcpy(pe.site_name_ing, rec + 90, 16);
     trimRight(pe.site_name_ing, 16);
     pe.rec_wgmt = get_sint16(rec + 106);
     pe.center_latitude = get_uint32(rec + 108);
@@ -1531,7 +1531,7 @@ struct Sigmet_Product_End get_product_end(char *rec)
     pe.proc_type = get_uint16(rec + 128);
     pe.trigger_rate_scheme = get_uint16(rec + 130);
     pe.num_samples = get_sint16(rec + 132);
-    strncpy(pe.clutter_filter, rec + 134, 12);
+    memcpy(pe.clutter_filter, rec + 134, 12);
     trimRight(pe.clutter_filter, 12);
     pe.lin_filter = get_uint16(rec + 146);
     pe.wave_len = get_sint32(rec + 148);
@@ -1567,7 +1567,7 @@ struct Sigmet_Product_End get_product_end(char *rec)
     pe.num_elem = get_sint16(rec + 286);
     pe.wind_spd = *(unsigned char *)(rec + 288);
     pe.wind_dir = *(unsigned char *)(rec + 289);
-    strncpy(pe.tz, rec + 292, 8);
+    memcpy(pe.tz, rec + 292, 8);
     trimRight(pe.tz, 8);
     return pe;
 }
@@ -1715,7 +1715,7 @@ struct Sigmet_Ingest_Configuration get_ingest_configuration(char *rec)
     char *p, *p1;
     int *q;
 
-    strncpy(ic.file_name, rec + 0, 80);
+    memcpy(ic.file_name, rec + 0, 80);
     trimRight(ic.file_name, 80);
     ic.num_assoc_files = get_sint16(rec + 80);
     ic.num_sweeps = get_sint16(rec + 82);
@@ -1725,12 +1725,12 @@ struct Sigmet_Ingest_Configuration get_ingest_configuration(char *rec)
     ic.extended_ray_headers_sz = get_sint16(rec + 114);
     ic.task_config_table_num = get_sint16(rec + 116);
     ic.playback_vsn = get_sint16(rec + 118);
-    strncpy(ic.IRIS_vsn, rec + 124, 8);
+    memcpy(ic.IRIS_vsn, rec + 124, 8);
     trimRight(ic.IRIS_vsn, 8);
-    strncpy(ic.hw_site_name, rec + 132, 16);
+    memcpy(ic.hw_site_name, rec + 132, 16);
     trimRight(ic.hw_site_name, 16);
     ic.local_wgmt = get_sint16(rec + 148);
-    strncpy(ic.su_site_name, rec + 150, 16);
+    memcpy(ic.su_site_name, rec + 150, 16);
     trimRight(ic.su_site_name, 16);
     ic.rec_wgmt = get_sint16(rec + 166);
     ic.latitude = get_uint32(rec + 168);
@@ -1756,10 +1756,10 @@ struct Sigmet_Ingest_Configuration get_ingest_configuration(char *rec)
     }
     ic.fault = get_uint32(rec + 216);
     ic.melt_level = get_sint16(rec + 220);
-    strncpy(ic.tz, rec + 224, 8);
+    memcpy(ic.tz, rec + 224, 8);
     trimRight(ic.tz, 8);
     ic.flags = get_uint32(rec + 232);
-    strncpy(ic.config_name, rec + 236, 16);
+    memcpy(ic.config_name, rec + 236, 16);
     trimRight(ic.config_name, 16);
     return ic;
 }
@@ -1979,7 +1979,7 @@ struct Sigmet_Task_DSP_Info get_task_dsp_info(char *rec)
     tdi.agc_feebk = get_uint16(rec + 148);
     tdi.sampl_sz = get_sint16(rec + 150);
     tdi.gain_flag = get_uint16(rec + 152);
-    strncpy(tdi.clutter_file, rec + 154, 12);
+    memcpy(tdi.clutter_file, rec + 154, 12);
     trimRight(tdi.clutter_file, 12);
     tdi.lin_filter_num = *(unsigned char *)(rec + 166);
     tdi.log_filter_num = *(unsigned char *)(rec + 167);
@@ -1989,7 +1989,7 @@ struct Sigmet_Task_DSP_Info get_task_dsp_info(char *rec)
     tdi.xmt_phase = get_uint16(rec + 174);
     tdi.ray_hdr_mask = get_uint32(rec + 176);
     tdi.time_series_flag = get_uint16(rec + 180);
-    strncpy(tdi.custom_ray_hdr, rec + 184, 16);
+    memcpy(tdi.custom_ray_hdr, rec + 184, 16);
     trimRight(tdi.custom_ray_hdr, 16);
     return tdi;
 }
@@ -2349,7 +2349,7 @@ struct Sigmet_Task_File_Scan_Info get_task_file_scan_info(char *rec)
 
     tfsi.az0 = get_uint16(rec + 0);
     tfsi.elev0 = get_uint16(rec + 2);
-    strncpy(tfsi.ant_ctrl, rec + 4, 12);
+    memcpy(tfsi.ant_ctrl, rec + 4, 12);
     trimRight(tfsi.ant_ctrl, 12);
     return tfsi;
 }
@@ -2397,7 +2397,7 @@ struct Sigmet_Task_Misc_Info get_task_misc_info(char *rec)
     unsigned *q;
 
     tmi.wave_len = get_sint32(rec + 0);
-    strncpy(tmi.tr_ser, rec + 4, 16);
+    memcpy(tmi.tr_ser, rec + 4, 16);
     trimRight(tmi.tr_ser, 16);
     tmi.power = get_sint32(rec + 20);
     tmi.flags = get_uint16(rec + 24);
@@ -2455,9 +2455,9 @@ struct Sigmet_Task_End_Info get_task_end_info(char *rec)
 
     tei.task_major = get_sint16(rec + 0);
     tei.task_minor = get_sint16(rec + 2);
-    strncpy(tei.task_config, rec + 4, 12);
+    memcpy(tei.task_config, rec + 4, 12);
     trimRight(tei.task_config, 12);
-    strncpy(tei.task_descr, rec + 16, 80);
+    memcpy(tei.task_descr, rec + 16, 80);
     trimRight(tei.task_descr, 80);
     tei.hybrid_ntasks = get_sint32(rec + 96);
     tei.task_state = get_uint16(rec + 100);

@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.57 $ $Date: 2010/12/02 17:54:41 $
+   .	$Revision: 1.58 $ $Date: 2010/12/02 21:04:32 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -116,8 +116,8 @@ struct Sigmet_Product_Configuration {
     struct Sigmet_YMDS_Time gen_tm;
     struct Sigmet_YMDS_Time ingest_sweep_tm;
     struct Sigmet_YMDS_Time ingest_file_tm;
-    char config_file[12];
-    char task_name[12];
+    char config_file[13];
+    char task_name[13];
     unsigned flag;
     int x_scale;
     int y_scale;
@@ -130,7 +130,7 @@ struct Sigmet_Product_Configuration {
     int z_loc;
     int max_rng;
     unsigned data_type;
-    char proj[12];
+    char proj[13];
     unsigned inp_data_type;
     unsigned proj_type;
     int rad_smoother;
@@ -140,17 +140,17 @@ struct Sigmet_Product_Configuration {
     int x_smooth;
     int y_smooth;
     struct Sigmet_Product_Specific_Info psi;
-    char suffixes[16];
+    char suffixes[13];
     struct Sigmet_Color_Scale_Def csd;
 };
 
 struct Sigmet_Product_End {
-    char site_name_prod[16];
-    char iris_prod_vsn[8];
-    char iris_ing_vsn[8];
+    char site_name_prod[17];
+    char iris_prod_vsn[9];
+    char iris_ing_vsn[9];
     int local_wgmt;
-    char hw_name[16];
-    char site_name_ing[16];
+    char hw_name[17];
+    char site_name_ing[17];
     int rec_wgmt;
     unsigned center_latitude;
     unsigned center_longitude;
@@ -161,7 +161,7 @@ struct Sigmet_Product_End {
     unsigned proc_type;
     unsigned trigger_rate_scheme;
     int num_samples;
-    char clutter_filter[12];
+    char clutter_filter[13];
     unsigned lin_filter;
     int wave_len;
     int trunc_ht;
@@ -196,7 +196,7 @@ struct Sigmet_Product_End {
     int num_elem;
     unsigned wind_spd;
     unsigned wind_dir;
-    char tz[8];
+    char tz[9];
 };
 
 struct Sigmet_Product_Hdr {
@@ -206,7 +206,7 @@ struct Sigmet_Product_Hdr {
 };
 
 struct Sigmet_Ingest_Configuration {
-    char file_name[80];
+    char file_name[81];
     int num_assoc_files;
     int num_sweeps;
     int size_files;
@@ -215,10 +215,10 @@ struct Sigmet_Ingest_Configuration {
     int extended_ray_headers_sz;
     int task_config_table_num;
     int playback_vsn;
-    char IRIS_vsn[8];
-    char hw_site_name[16];
+    char IRIS_vsn[9];
+    char hw_site_name[17];
     int local_wgmt;
-    char su_site_name[16];
+    char su_site_name[17];
     int rec_wgmt;
     unsigned latitude;
     unsigned longitude;
@@ -233,9 +233,9 @@ struct Sigmet_Ingest_Configuration {
     int offset_inu[3];
     unsigned fault;
     int melt_level;
-    char tz[8];
+    char tz[9];
     unsigned flags;
-    char config_name[16];
+    char config_name[17];
 };
 
 struct Sigmet_Task_Sched_Info {
@@ -280,7 +280,7 @@ struct Sigmet_Task_DSP_Info {
     unsigned agc_feebk;
     int sampl_sz;
     unsigned gain_flag;
-    char clutter_file[12];
+    char clutter_file[13];
     unsigned lin_filter_num;
     unsigned log_filter_num;
     int attenuation;
@@ -289,7 +289,7 @@ struct Sigmet_Task_DSP_Info {
     unsigned xmt_phase;
     unsigned ray_hdr_mask;
     unsigned time_series_flag;
-    char custom_ray_hdr[16];
+    char custom_ray_hdr[17];
 };
 
 struct Sigmet_Task_Calib_Info {
@@ -347,7 +347,7 @@ struct Sigmet_Task_PPI_Scan_Info {
 struct Sigmet_Task_File_Scan_Info {
     unsigned az0;
     unsigned elev0;
-    char ant_ctrl[12];
+    char ant_ctrl[13];
 };
 
 struct Sigmet_Task_Manual_Scan_Info {
@@ -368,7 +368,7 @@ struct Sigmet_Task_Scan_Info {
 
 struct Sigmet_Task_Misc_Info {
     int wave_len;
-    char tr_ser[16];
+    char tr_ser[17];
     int power;
     unsigned flags;
     unsigned polarization;
@@ -382,8 +382,8 @@ struct Sigmet_Task_Misc_Info {
 struct Sigmet_Task_End_Info {
     int task_major;
     int task_minor;
-    char task_config[12];
-    char task_descr[80];
+    char task_config[13];
+    char task_descr[81];
     int hybrid_ntasks;
     unsigned task_state;
     struct Sigmet_YMDS_Time data_time;
