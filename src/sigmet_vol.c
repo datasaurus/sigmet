@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.75 $ $Date: 2010/12/01 21:13:08 $
+   .	$Revision: 1.76 $ $Date: 2010/12/01 21:26:47 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -146,7 +146,7 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
 	return;
     }
     memset(vol_p, 0, sizeof(struct Sigmet_Vol));
-    vol_p->num_types = vol_p->num_types_max = 0;
+    vol_p->num_types = 0;
     Hash_Init(&vol_p->types_tbl, 0);
     for (n = 0; n < SIGMET_NTYPES; n++) {
 	vol_p->types_fl[n] = DB_XHDR;		/* Force error if used */
@@ -228,7 +228,6 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
     size_t sz;
     struct Sigmet_DatArr *dat_p;
     double ***dbl_p;
-    int y;
     int num_sweeps, num_rays, num_bins;
 
     if ( !abbrv ) {
@@ -251,38 +250,20 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
 	Err_Append(" already exists in volume. ");
 	return 0;
     }
-
-    /*
-       Search for an unused member of vol_p->dat. A member is unused
-       if its data_type is NULL. 
-     */
-
-    for (y = 0; y < vol_p->num_types_max; y++) {
-	if ( !vol_p->dat[y].data_type ) {
-	    break;
-	}
+    sz = (vol_p->num_types + 1) * sizeof(struct Sigmet_DatArr);
+    if ( !(dat_p = REALLOC(vol_p->dat, sz)) ) {
+	Err_Append("Allocation failed while enlarging volume data "
+		"array. ");
+	return 0;
     }
-
-    if ( y == vol_p->num_types_max ) {
-	/* vol_p->dat is full.  Add another member.  */
-
-	sz = (vol_p->num_types_max + 1) * sizeof(struct Sigmet_DatArr);
-	if ( !(dat_p = REALLOC(vol_p->dat, sz)) ) {
-	    Err_Append("Allocation failed while enlarging volume data "
-		    "array. ");
-	    return 0;
-	}
-	vol_p->dat = dat_p;
-	if ( !type_tbl_set(vol_p) ) {
-	    Err_Append("Allocation failed while reseting volume types table. ");
-	    return 0;
-	}
-	vol_p->num_types_max++;
+    vol_p->dat = dat_p;
+    if ( !type_tbl_set(vol_p) ) {
+	Err_Append("Allocation failed while reseting volume types table. ");
+	return 0;
     }
-
-    dat_p = vol_p->dat + y;
-    dat_p->abbrv = abbrv;
+    dat_p = vol_p->dat + vol_p->num_types;
     dat_p->data_type = data_type;
+    dat_p->abbrv = data_type->abbrv;
     dat_p->arr.dbl = NULL;
     if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
 	Err_Append("Could not add ");
@@ -299,7 +280,7 @@ int Sigmet_VolAddDataType(char *abbrv, struct Sigmet_Vol *vol_p)
 	Err_Append("Could not allocate new field ");
 	return 0;
     }
-    vol_p->dat[y].arr.dbl = dbl_p;
+    dat_p->arr.dbl = dbl_p;
     vol_p->num_types++;
     return 1;
 }
@@ -357,7 +338,6 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
-    vol_p->num_types_max = SIGMET_NTYPES;
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_NTYPES; dat_p++) {
 	dat_p->abbrv = NULL;
 	dat_p->data_type = NULL;
@@ -462,7 +442,6 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_VOL_MEM_FAIL;
 	goto error;
     }
-    vol_p->num_types_max = vol_p->num_types;
     vol_p->size += vol_p->num_types + sizeof(struct Sigmet_DatArr);
     vol_p->has_headers = 1;
     return SIGMET_VOL_READ_OK;
