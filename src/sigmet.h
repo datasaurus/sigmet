@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.54 $ $Date: 2010/12/01 16:13:07 $
+   .	$Revision: 1.55 $ $Date: 2010/12/01 21:13:08 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -493,9 +493,6 @@ struct Sigmet_Vol {
     struct Hash_Tbl types_tbl;			/* Map abbreviations to elements
 						   in dat array */
     struct Sigmet_DatArr *dat;			/* Data, dimensioned [type] */
-    int num_types_max;				/* Number of data types that can
-						   be accommodated at allocation
-						   at dat */
     size_t size;				/* Number of bytes of memory this
 						   structure is using */
 };
