@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.79 $ $Date: 2010/12/02 21:04:52 $
+   .	$Revision: 1.80 $ $Date: 2010/12/02 21:45:44 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -217,8 +217,8 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
 }
 
 /*
-   Add a data type to a volume.  This also allocates space for data in the
-   dat array.
+   Add a new field to a volume.  This also allocates space for data in the
+   dat array. It does not initialize the array.
  */
 
 int Sigmet_VolNewField(struct Sigmet_Vol *vol_p, char *abbrv)
@@ -1179,6 +1179,80 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    return Sigmet_NoData();
     }
     return DataType_StorToComp(vol_p->dat[y].data_type, v, vol_p);
+}
+
+/*
+   Initialize data array to a given value.
+ */
+
+int Sigmet_SetDat_F(struct Sigmet_Vol *vol_p, char *abbrv, double v)
+{
+    struct Sigmet_DatArr *dat_p;
+    int s, r;
+    double *dp, *dp1;
+
+    if ( !vol_p || !abbrv ) {
+	return 0;
+    }
+    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("No field of ");
+	Err_Append(abbrv);
+	Err_Append(" in volume. ");
+	return 0;
+    }
+    dat_p->data_type->stor_fmt = DATA_TYPE_DBL;
+    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+	if ( vol_p->sweep_ok[s] ) {
+	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+		if ( vol_p->ray_ok[s][r] ) {
+		    dp = dat_p->arr.dbl[s][r];
+		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    for ( ; dp < dp1; dp++) {
+			*dp = v;
+		    }
+		}
+	    }
+	}
+    }
+    return 1;
+}
+
+/*
+   Initialize data array to distance along beam.
+ */
+
+int Sigmet_SetDat_RBeam(struct Sigmet_Vol *vol_p, char *abbrv)
+{
+    struct Sigmet_DatArr *dat_p;
+    double ***arr;
+    int s, r, b;
+    double bin0, bin_step;
+
+    if ( !vol_p || !abbrv ) {
+	return 0;
+    }
+    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("No field of ");
+	Err_Append(abbrv);
+	Err_Append(" in volume. ");
+	return 0;
+    }
+    dat_p->data_type->stor_fmt = DATA_TYPE_DBL;
+    arr = dat_p->arr.dbl;
+    bin_step = 0.01 * vol_p->ih.tc.tri.step_out;	/* cm -> meter */
+    bin0 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin + 0.5 * bin_step;
+    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+	if ( vol_p->sweep_ok[s] ) {
+	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+		if ( vol_p->ray_ok[s][r] ) {
+		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			 arr[s][r][b] = bin0 + b * bin_step;
+		    }
+		}
+	    }
+	}
+    }
+    return 1;
 }
 
 /* Nyquist velocity */
