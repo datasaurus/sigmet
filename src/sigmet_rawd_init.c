@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.323 $ $Date: 2010/12/02 17:59:24 $
+ .	$Revision: 1.324 $ $Date: 2010/12/02 21:05:47 $
  */
 
 #include <limits.h>
@@ -57,7 +57,7 @@
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 28
+#define NCMD 29
 typedef enum Sigmet_CB_Return (callback)(int , char **, char *, int, FILE *,
 	int, FILE *);
 static callback pid_cb;
@@ -88,19 +88,22 @@ static callback alpha_cb;
 static callback img_name_cb;
 static callback img_cb;
 static callback dorade_cb;
+static callback set_field_cb;
 static char *cmd1v[NCMD] = {
     "pid", "data_types", "new_data_type", "colors", "good", "list",
     "keep", "delete", "max_size", "volume_headers", "vol_hdr",
     "near_sweep", "ray_headers", "new_field", "del_field", "data",
     "bin_outline", "bintvls", "radar_lon", "radar_lat", "shift_az",
-    "proj", "img_app", "img_sz", "alpha", "img_name", "img", "dorade"
+    "proj", "img_app", "img_sz", "alpha", "img_name", "img", "dorade",
+    "set_field"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, setcolors_cb, good_cb, list_cb,
     keep_cb, delete_cb, max_size_cb, volume_headers_cb, vol_hdr_cb,
     near_sweep_cb, ray_headers_cb, new_field_cb, del_field_cb, data_cb,
     bin_outline_cb, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
-    proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb
+    proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb,
+    set_field_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -2285,11 +2288,76 @@ error:
 }
 
 /*
+   Set value for a field.
+ */
+
+static enum Sigmet_CB_Return set_field_cb(int argc, char *argv[], char *cl_wd,
+	int i_out, FILE *out, int i_err, FILE *err)
+{
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
+    struct Sigmet_Vol *vol_p;		/* Volume structure */
+    enum Sigmet_CB_Return status;	/* Result of SigmetRaw_ReadVol */
+    char *abbrv;			/* Data type abbreviation */
+    char *d_s;
+    double d;
+
+    if ( argc != 5 ) {
+	fprintf(err, "Usage: %s %s type value sigmet_volume\n", argv0, argv1);
+	return SIGMET_CB_FAIL;
+    }
+    abbrv = argv[2];
+    d_s = argv[3];
+    vol_nm_r = argv[4];
+    if ( !DataType_Get(abbrv) ) {
+	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
+	return SIGMET_CB_FAIL;
+    }
+    if ( !abs_name(cl_wd, vol_nm_r, vol_nm, LEN) ) {
+	fprintf(err, "%s %s: Bad volume name %s\n%s\n",
+		argv0, argv1, vol_nm_r, Err_Get());
+	return SIGMET_CB_FAIL;
+    }
+    status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p);
+    if ( status != SIGMET_CB_SUCCESS ) {
+	    return status;
+    }
+
+    /*
+       Parse value and set in data array.
+       "r_beam" => set bin value to distance along bin, in meters.
+       Otherwise, value must be a floating point number.
+     */
+
+    if ( strcmp("r_beam", d_s) == 0 ) {
+	if ( !Sigmet_SetDat_RBeam(vol_p, abbrv) ) {
+	    fprintf(err, "%s %s: could not set %s to beam range in %s\n%s\n",
+		    argv0, argv1, abbrv, vol_nm_r, Err_Get());
+	    return SIGMET_CB_FAIL;
+	}
+    } else if ( sscanf(d_s, "%lf", &d) == 1 ) {
+	if ( !Sigmet_SetDat_F(vol_p, abbrv, d) ) {
+	    fprintf(err, "%s %s: could not set %s to %lf in %s\n%s\n",
+		    argv0, argv1, abbrv, d, vol_nm_r, Err_Get());
+	    return SIGMET_CB_FAIL;
+	}
+    } else {
+	fprintf(err, "%s %s: field value must be a number or \"r_beam\"\n",
+		argv0, argv1);
+	return SIGMET_CB_FAIL;
+    }
+
+    return SIGMET_CB_SUCCESS;
+}
+
+/*
    Basic signal management.
 
    Reference --
-       Rochkind, Marc J., "Advanced UNIX Programming, Second Edition",
-       2004, Addison-Wesley, Boston.
+   Rochkind, Marc J., "Advanced UNIX Programming, Second Edition",
+   2004, Addison-Wesley, Boston.
  */
 
 static int handle_signals(void)
