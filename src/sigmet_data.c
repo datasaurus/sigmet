@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.21 $ $Date: 2010/12/01 16:16:16 $
+   .	$Revision: 1.22 $ $Date: 2010/12/01 21:39:47 $
  */
 
 #include <stdlib.h>
@@ -104,20 +104,55 @@ static enum DataType_StorFmt stor_fmt[SIGMET_NTYPES] = {
 };
 
 /*
+   These functions convert storage values from Sigmet raw volumes to
+   measurement values for use in computations.
+ */
+
+static double stor_comp_XHDR(double, void *);
+static double stor_comp_DBT(double, void *);
+static double stor_comp_DBZ(double, void *);
+static double stor_comp_DBZC(double, void *);
+static double stor_comp_VEL(double, void *);
+static double stor_comp_WIDTH(double, void *);
+static double stor_comp_ZDR(double, void *);
+static double stor_comp_KDP(double, void *);
+static double stor_comp_PHIDP(double, void *);
+static double stor_comp_VELC(double, void *);
+static double stor_comp_SQI(double, void *);
+static double stor_comp_RHOHV(double, void *);
+static double stor_comp_LDRH(double, void *);
+static double stor_comp_LDRV(double, void *);
+static double stor_comp_DBT2(double, void *);
+static double stor_comp_DBZ2(double, void *);
+static double stor_comp_VEL2(double, void *);
+static double stor_comp_ZDR2(double, void *);
+static double stor_comp_KDP2(double, void *);
+static double stor_comp_DBZC2(double, void *);
+static double stor_comp_VELC2(double, void *);
+static double stor_comp_LDRH2(double, void *);
+static double stor_comp_LDRV2(double, void *);
+static double stor_comp_WIDTH2(double, void *);
+static double stor_comp_RAINRATE2(double, void *);
+static double stor_comp_RHOHV2(double, void *);
+static double stor_comp_SQI2(double, void *);
+static double stor_comp_PHIDP2(double, void *);
+
+/*
    Functions to convert storage value to computation value.
+   Index with enum Sigmet_DataTypeN.
  */
 
 DataType_StorToCompFn stor_to_comp[SIGMET_NTYPES] = {
-    Sigmet_XHDR_Comp,		Sigmet_DBT_Comp,	Sigmet_DBZ_Comp,
-    Sigmet_VEL_Comp,		Sigmet_WIDTH_Comp,	Sigmet_ZDR_Comp,
-    Sigmet_DBZC_Comp,		Sigmet_DBT2_Comp,	Sigmet_DBZ2_Comp,
-    Sigmet_VEL2_Comp,		Sigmet_WIDTH2_Comp,	Sigmet_ZDR2_Comp,
-    Sigmet_RAINRATE2_Comp,	Sigmet_KDP_Comp,	Sigmet_KDP2_Comp,
-    Sigmet_PHIDP_Comp,		Sigmet_VELC_Comp,	Sigmet_SQI_Comp,
-    Sigmet_RHOHV_Comp,		Sigmet_RHOHV2_Comp,	Sigmet_DBZC2_Comp,
-    Sigmet_VELC2_Comp,		Sigmet_SQI2_Comp,	Sigmet_PHIDP2_Comp,
-    Sigmet_LDRH_Comp,		Sigmet_LDRH2_Comp,	Sigmet_LDRV_Comp,
-    Sigmet_LDRV2_Comp
+    stor_comp_XHDR,		stor_comp_DBT,	stor_comp_DBZ,
+    stor_comp_VEL,		stor_comp_WIDTH,	stor_comp_ZDR,
+    stor_comp_DBZC,		stor_comp_DBT2,	stor_comp_DBZ2,
+    stor_comp_VEL2,		stor_comp_WIDTH2,	stor_comp_ZDR2,
+    stor_comp_RAINRATE2,	stor_comp_KDP,	stor_comp_KDP2,
+    stor_comp_PHIDP,		stor_comp_VELC,	stor_comp_SQI,
+    stor_comp_RHOHV,		stor_comp_RHOHV2,	stor_comp_DBZC2,
+    stor_comp_VELC2,		stor_comp_SQI2,	stor_comp_PHIDP2,
+    stor_comp_LDRH,		stor_comp_LDRH2,	stor_comp_LDRV,
+    stor_comp_LDRV2
 };
 
 double Sigmet_Bin4Rad(unsigned long a)
@@ -180,30 +215,30 @@ int Sigmet_IsNoData(double v)
     return v == DBL_MAX;
 }
 
-double Sigmet_XHDR_Comp(double v, void *meta)
+static double stor_comp_XHDR(double v, void *meta)
 {
     return Sigmet_NoData();
 }
 
-double Sigmet_DBT_Comp(double v, void *meta)
+static double stor_comp_DBT(double v, void *meta)
 {
     return (v == 0)
 	? Sigmet_NoData() : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
 }
 
-double Sigmet_DBZ_Comp(double v, void *meta)
+static double stor_comp_DBZ(double v, void *meta)
 {
     return (v == 0)
 	? Sigmet_NoData() : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
 }
 
-double Sigmet_DBZC_Comp(double v, void *meta)
+static double stor_comp_DBZC(double v, void *meta)
 {
     return (v == 0)
 	? Sigmet_NoData() : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
 }
 
-double Sigmet_VEL_Comp(double v, void *meta)
+static double stor_comp_VEL(double v, void *meta)
 {
     struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
 
@@ -214,7 +249,7 @@ double Sigmet_VEL_Comp(double v, void *meta)
 	? Sigmet_NoData() : Sigmet_VNyquist(vol_p) * (v - 128.0) / 127.0;
 }
 
-double Sigmet_WIDTH_Comp(double v, void *meta)
+static double stor_comp_WIDTH(double v, void *meta)
 {
     struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
 
@@ -222,12 +257,12 @@ double Sigmet_WIDTH_Comp(double v, void *meta)
 	? Sigmet_NoData() : Sigmet_VNyquist(vol_p) * v / 256.0;
 }
 
-double Sigmet_ZDR_Comp(double v, void *meta)
+static double stor_comp_ZDR(double v, void *meta)
 {
     return (v == 0 || v > 255) ? Sigmet_NoData() : (v - 128.0) / 16.0;
 }
 
-double Sigmet_KDP_Comp(double v, void *meta)
+static double stor_comp_KDP(double v, void *meta)
 {
     struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
     double wav_len;
@@ -247,89 +282,89 @@ double Sigmet_KDP_Comp(double v, void *meta)
     }
 }
 
-double Sigmet_PHIDP_Comp(double v, void *meta)
+static double stor_comp_PHIDP(double v, void *meta)
 {
     return (v == 0 || v > 255)
 	? Sigmet_NoData() : 180.0 / 254.0 * (v - 1.0);
 }
 
-double Sigmet_VELC_Comp(double v, void *meta)
+static double stor_comp_VELC(double v, void *meta)
 {
     return (v == 0 || v > 255)
 	? Sigmet_NoData() : 75.0 / 127.0 * (v - 128.0);
 }
 
-double Sigmet_SQI_Comp(double v, void *meta)
+static double stor_comp_SQI(double v, void *meta)
 {
     return (v == 0 || v > 254) ? Sigmet_NoData() : sqrt((v - 1) / 253.0);
 }
 
-double Sigmet_RHOHV_Comp(double v, void *meta)
+static double stor_comp_RHOHV(double v, void *meta)
 {
     return (v == 0 || v > 254) ? Sigmet_NoData() : sqrt((v - 1) / 253.0);
 }
 
-double Sigmet_LDRH_Comp(double v, void *meta)
+static double stor_comp_LDRH(double v, void *meta)
 {
     return (v == 0 || v > 255) ? Sigmet_NoData() : 0.2 * (v - 1) - 45.0;
 }
 
-double Sigmet_LDRV_Comp(double v, void *meta)
+static double stor_comp_LDRV(double v, void *meta)
 {
     return (v == 0 || v > 255) ? Sigmet_NoData() : 0.2 * (v - 1) - 45.0;
 }
 
-double Sigmet_DBT2_Comp(double v, void *meta)
+static double stor_comp_DBT2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
 }
 
-double Sigmet_DBZ2_Comp(double v, void *meta)
+static double stor_comp_DBZ2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
 }
 
-double Sigmet_VEL2_Comp(double v, void *meta)
+static double stor_comp_VEL2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
 }
 
-double Sigmet_ZDR2_Comp(double v, void *meta)
+static double stor_comp_ZDR2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
 }
 
-double Sigmet_KDP2_Comp(double v, void *meta)
+static double stor_comp_KDP2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
 }
 
-double Sigmet_DBZC2_Comp(double v, void *meta)
+static double stor_comp_DBZC2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
 }
 
-double Sigmet_VELC2_Comp(double v, void *meta)
+static double stor_comp_VELC2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
 }
 
-double Sigmet_LDRH2_Comp(double v, void *meta)
+static double stor_comp_LDRH2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
 }
 
-double Sigmet_LDRV2_Comp(double v, void *meta)
+static double stor_comp_LDRV2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
 }
 
-double Sigmet_WIDTH2_Comp(double v, void *meta)
+static double stor_comp_WIDTH2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * v;
 }
 
-double Sigmet_RAINRATE2_Comp(double v, void *meta)
+static double stor_comp_RAINRATE2(double v, void *meta)
 {
     struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
     unsigned e;		/* 4 bit exponent */
@@ -351,17 +386,17 @@ double Sigmet_RAINRATE2_Comp(double v, void *meta)
     }
 }
 
-double Sigmet_RHOHV2_Comp(double v, void *meta)
+static double stor_comp_RHOHV2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : (v - 1) / 65535.0;
 }
 
-double Sigmet_SQI2_Comp(double v, void *meta)
+static double stor_comp_SQI2(double v, void *meta)
 {
     return (v == 0 || v > 65535) ? Sigmet_NoData() : (v - 1) / 65535.0;
 }
 
-double Sigmet_PHIDP2_Comp(double v, void *meta)
+static double stor_comp_PHIDP2(double v, void *meta)
 {
     return (v == 0 || v > 65535)
 	? Sigmet_NoData() : 360.0 / 65534.0 * (v - 1.0);

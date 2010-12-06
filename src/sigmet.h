@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.59 $ $Date: 2010/12/02 21:45:44 $
+   .	$Revision: 1.60 $ $Date: 2010/12/04 01:54:39 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -514,40 +514,6 @@ double Sigmet_Bin4Rad(unsigned long);
 double Sigmet_Bin2Rad(unsigned short);
 unsigned long Sigmet_RadBin4(double);
 unsigned long Sigmet_RadBin2(double);
-
-/*
-   These functions convert storage values from Sigmet raw volumes to
-   measurement values for use in computations.
- */
-
-double Sigmet_XHDR_Comp(double, void *);
-double Sigmet_DBT_Comp(double, void *);
-double Sigmet_DBZ_Comp(double, void *);
-double Sigmet_DBZC_Comp(double, void *);
-double Sigmet_VEL_Comp(double, void *);
-double Sigmet_WIDTH_Comp(double, void *);
-double Sigmet_ZDR_Comp(double, void *);
-double Sigmet_KDP_Comp(double, void *);
-double Sigmet_PHIDP_Comp(double, void *);
-double Sigmet_VELC_Comp(double, void *);
-double Sigmet_SQI_Comp(double, void *);
-double Sigmet_RHOHV_Comp(double, void *);
-double Sigmet_LDRH_Comp(double, void *);
-double Sigmet_LDRV_Comp(double, void *);
-double Sigmet_DBT2_Comp(double, void *);
-double Sigmet_DBZ2_Comp(double, void *);
-double Sigmet_VEL2_Comp(double, void *);
-double Sigmet_ZDR2_Comp(double, void *);
-double Sigmet_KDP2_Comp(double, void *);
-double Sigmet_DBZC2_Comp(double, void *);
-double Sigmet_VELC2_Comp(double, void *);
-double Sigmet_LDRH2_Comp(double, void *);
-double Sigmet_LDRV2_Comp(double, void *);
-double Sigmet_WIDTH2_Comp(double, void *);
-double Sigmet_RAINRATE2_Comp(double, void *);
-double Sigmet_RHOHV2_Comp(double, void *);
-double Sigmet_SQI2_Comp(double, void *);
-double Sigmet_PHIDP2_Comp(double, void *);
 
 /*
    Values of this type are returned by Sigmet_ReadHdr and Sigmet_ReadVol.
