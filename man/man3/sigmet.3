@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.12 $ $Date: 2010/11/24 15:30:38 $
+.\" $Revision: 1.13 $ $Date: 2010/12/06 17:37:18 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
 Sigmet_DataTypeN, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_Unit, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_Vol_Init, Sigmet_Vol_Free, Sigmet_Vol_Good, Sigmet_Vol_ReadHdr, Sigmet_Vol_PrintHdr, Sigmet_Vol_Read, Sigmet_Vol_BadRay, Sigmet_Vol_BinOutl, Sigmet_Vol_ToDorade \- read Sigmet raw data
@@ -29,12 +29,12 @@ Sigmet_DataTypeN, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_
 \fBvoid Sigmet_Vol_Init(struct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
 \fBvoid Sigmet_Vol_Free(struct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
 \fBint Sigmet_Vol_Good(FILE\fP *\fIf\fP\fB);\fP
-\fBenum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE\fP *\fIf, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
+\fBenum Sigmet_Status Sigmet_Vol_ReadHdr(FILE\fP *\fIf, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
 \fBvoid Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
-\fBenum Sigmet_ReadStatus Sigmet_Vol_Read(FILE\fP *\fIf\fP, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
+\fBenum Sigmet_Status Sigmet_Vol_Read(FILE\fP *\fIf\fP, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
 \fBint Sigmet_Vol_BadRay(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP\fB);\fP
-\fBint Sigmet_Vol_BinOutl(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP, \fBint\fP \fIb\fP, \fBdouble\fP *\fIll\fP\fB);\fP
-\fBint Sigmet_Vol_ToDorade(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBstruct Dorade_Sweep *\fIswp_p\fP\fB);\fP
+\fBenum Sigmet_Status Sigmet_Vol_BinOutl(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP, \fBint\fP \fIb\fP, \fBdouble\fP *\fIll\fP\fB);\fP
+\fBenum Sigmet_Status Sigmet_Vol_ToDorade(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBstruct Dorade_Sweep *\fIswp_p\fP\fB);\fP
 .fi
 .SH DESCRIPTION
 These functions read and access data obtained from Sigmet raw product
@@ -107,20 +107,6 @@ structure at \fIvol_p\fP and reinitializes the structure.
 \fBSigmet_Vol_Good\fP returns true if the file at \fIf\fP\fB is a readable
 Sigmet raw product volume.
 .PP
-\fBSigmet_Vol_ReadHdr\fP and \fBSigmet_Vol_Read\fP return an enumerator that indicates
-whether the function succeeded, or how it failed. The return value will be one of:
-.nf
-
-    \fBSIGMET_READ_OK\fP - a volume was read and stored.
-    \fBSIGMET_INPUT_FAIL\fP - some of a volume was read and stored, but
-        input ended before a complete volume, as described in the headers,
-        could be read.
-    \fBSIGMET_BAD_VOL\fP - no valid volume is found. Nothing is stored.
-    \fBSIGMET_MEM_FAIL\fP - there is not sufficient memory to store a volume.
-        Nothing is stored.
-
-.fi
-.PP
 \fBSigmet_Vol_ReadHdr\fP reads and stores volume headers for a Sigmet raw product
 file from stream \fIf\fP into the volume structure at \fIvol_p\fP.
 \fIf\fP should be at the start of a raw product file.  \fIvol_p\fP
@@ -173,14 +159,32 @@ Hierarchies are printed with form:
 coordinates are placed into array \fIll\fP as (\fIlon1 lat1 lon2 lat2 lon3 lat3
 lon4 lat4\fP), denoting the corners of the bin.  Array \fIll\fP should point to
 space for eight double values.  \fBSigmet_Vol_BinOutl\fP returns true if it
-succeeds.  If something goes wrong it returns false, leaving an error message
-which can be retrieved with \fBerr_get\fP.
+succeeds.
+Return value is a \fBSigmet_Status\fP enumerator, described below.
 .PP
 \fBSigmet_Vol_ToDorade\fP transfers information from sweep \fIs\fP of the Sigmet
 volume at \fIvol_p\fP to the DORADE sweep structure at \fIswp_p\fP. The DORADE
 sweep should have been initialized with a call to \fBDorade_Sweep_Init\fP.
-\fBSigmet_Vol_ToDorade\fP returns true if it succeeds.  If something goes wrong it
-returns false, leaving an error message which can be retrieved with \fBerr_get\fP.
+\fBSigmet_Vol_ToDorade\fP returns true if it succeeds.
+Return value is a \fBSigmet_Status\fP enumerator, described below.
+.SH RETURN VALUES
+The Sigmet volume access functions return an enumerator that indicates whether
+the function succeeded, or how it failed. The return value will be one of:
+.nf
+
+    \fBSIGMET_OK\fP		- Success
+    \fBSIGMET_NOT_INIT\fP	- A resource or interface is not initialized
+    \fBSIGMET_IO_FAIL\fP	- Failed communication with file or process
+    \fBSIGMET_HELPER_FAIL\fP	- Helper process failed
+    \fBSIGMET_BAD_FILE\fP	- An input file is not in expected format
+    \fBSIGMET_BAD_VOL\fP	- Corrupt volume in memory
+    \fBSIGMET_ALLOC_FAIL\fP	- Failed to allocate memory
+    \fBSIGMET_FLUSH_FAIL\fP	- Failed to free desired amount of memory
+    \fBSIGMET_BAD_ARG\fP	- an argument to a function could not be parsed
+
+.fi
+In case of error, the function appends information to the global error string
+which can be retrieved with a call to \fBErr_Get\fP().
 .SH KEYWORDS
 radar sigmet data
 .SH AUTHOR
