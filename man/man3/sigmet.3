@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.13 $ $Date: 2010/12/06 17:37:18 $
+.\" $Revision: 1.14 $ $Date: 2010/12/06 21:20:35 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
 Sigmet_DataTypeN, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_Unit, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_Vol_Init, Sigmet_Vol_Free, Sigmet_Vol_Good, Sigmet_Vol_ReadHdr, Sigmet_Vol_PrintHdr, Sigmet_Vol_Read, Sigmet_Vol_BadRay, Sigmet_Vol_BinOutl, Sigmet_Vol_ToDorade \- read Sigmet raw data
@@ -29,12 +29,12 @@ Sigmet_DataTypeN, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_
 \fBvoid Sigmet_Vol_Init(struct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
 \fBvoid Sigmet_Vol_Free(struct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
 \fBint Sigmet_Vol_Good(FILE\fP *\fIf\fP\fB);\fP
-\fBenum Sigmet_Status Sigmet_Vol_ReadHdr(FILE\fP *\fIf, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
-\fBvoid Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
+\fBenum Sigmet_Status Sigmet_Vol_ReadHdr(FILE\fP *\fIf\fP, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
+\fBvoid Sigmet_Vol_PrintHdr(FILE *\fP \fIf\fP, \fBstruct Sigmet_Vol *\fP\fIvol_p\fP);
 \fBenum Sigmet_Status Sigmet_Vol_Read(FILE\fP *\fIf\fP, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
 \fBint Sigmet_Vol_BadRay(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP\fB);\fP
 \fBenum Sigmet_Status Sigmet_Vol_BinOutl(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP, \fBint\fP \fIb\fP, \fBdouble\fP *\fIll\fP\fB);\fP
-\fBenum Sigmet_Status Sigmet_Vol_ToDorade(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBstruct Dorade_Sweep *\fIswp_p\fP\fB);\fP
+\fBenum Sigmet_Status Sigmet_Vol_ToDorade(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBstruct Dorade_Sweep *\fP\fIswp_p\fP\fB);\fP
 .fi
 .SH DESCRIPTION
 These functions read and access data obtained from Sigmet raw product
@@ -43,25 +43,21 @@ the \fBIRIS Programmer's Manual, September 2002\fP.
 .SH SIGMET DATA TYPES
 A Sigmet data type is identified by an integer constant which must
 be member of:
-
+.ne 10v
 .nf
-enum Sigmet_DataTypeN {
+
+\fBenum Sigmet_DataTypeN {
     DB_XHDR,    DB_DBT,         DB_DBZ,         DB_VEL,         DB_WIDTH,
     DB_ZDR,     DB_DBZC,        DB_DBT2,        DB_DBZ2,        DB_VEL2,
     DB_WIDTH2,  DB_ZDR2,        DB_RAINRATE2,   DB_KDP,         DB_KDP2,
     DB_PHIDP,   DB_VELC,        DB_SQI,         DB_RHOHV,       DB_RHOHV2,
     DB_DBZC2,   DB_VELC2,       DB_SQI2,        DB_PHIDP2,      DB_LDRH,
-    DB_LDRH2,   DB_LDRV,        DB_LDRV2,       DB_DBL,		DB_SKIP,
-    DB_ERROR
-};
-.fi
+    DB_LDRH2,   DB_LDRV,        DB_LDRV2,       DB_UNK
+};\fP
 
-The first 28 types (DB_XHDR through DB_LDRV2), are defined by Sigmet.
-See the Sigmet documentation for discussion of each type.
-DB_DBL means the type is user defined. Values should be used as is. There
-is no conversion from storage value to measurement. DB_SKIP indicates a
-placeholder type. In other words, the types is not used in a volume.
-DB_ERROR indicates an error.
+.fi
+The first 28 types are defined in the Sigmet Programmer's Manual.
+Type \fBDB_UNK\fP means unknown or erroneous data type.
 .PP
 \fBSigmet_DataType\fP returns the Sigmet data type enumerator corresponding
 to short abbreviation \fIa\fP. If there is none, it returns DB_DBL, meaning
@@ -104,7 +100,7 @@ Upon return, \fIvol_p\fP can be safely passed to \fBSigmet_Vol_Free\fP.
 \fBSigmet_Vol_Free\fP frees memory associated with a Sigmet volume
 structure at \fIvol_p\fP and reinitializes the structure.
 .PP
-\fBSigmet_Vol_Good\fP returns true if the file at \fIf\fP\fB is a readable
+\fBSigmet_Vol_Good\fP returns true if the file at \fIf\fP is a readable
 Sigmet raw product volume.
 .PP
 \fBSigmet_Vol_ReadHdr\fP reads and stores volume headers for a Sigmet raw product
@@ -147,7 +143,7 @@ hierarchy, as described in section 3.2 of the IRIS Programmer's Manual.
 Hierarchies are printed with form:
 
 .nf
-    ...\fB<\fP\fIparent\fP\fB>.<\fP\fIchild\fP\fB>.<\fP\fIgrandchild\fP\fB>.\fImember\fP
+    ...\fB<\fP\fIparent\fP\fB>.<\fP\fIchild\fP\fB>.<\fP\fIgrandchild\fP\fB>.\fP\fImember\fP
 .fi
 
 .PP
@@ -172,15 +168,15 @@ The Sigmet volume access functions return an enumerator that indicates whether
 the function succeeded, or how it failed. The return value will be one of:
 .nf
 
-    \fBSIGMET_OK\fP		- Success
-    \fBSIGMET_NOT_INIT\fP	- A resource or interface is not initialized
-    \fBSIGMET_IO_FAIL\fP	- Failed communication with file or process
-    \fBSIGMET_HELPER_FAIL\fP	- Helper process failed
-    \fBSIGMET_BAD_FILE\fP	- An input file is not in expected format
-    \fBSIGMET_BAD_VOL\fP	- Corrupt volume in memory
-    \fBSIGMET_ALLOC_FAIL\fP	- Failed to allocate memory
-    \fBSIGMET_FLUSH_FAIL\fP	- Failed to free desired amount of memory
-    \fBSIGMET_BAD_ARG\fP	- an argument to a function could not be parsed
+    \fBSIGMET_OK\fP          - Success
+    \fBSIGMET_NOT_INIT\fP    - A resource or interface is not initialized
+    \fBSIGMET_IO_FAIL\fP     - Failed communication with file or process
+    \fBSIGMET_HELPER_FAIL\fP - Helper process failed
+    \fBSIGMET_BAD_FILE\fP    - An input file is not in expected format
+    \fBSIGMET_BAD_VOL\fP     - Corrupt volume in memory
+    \fBSIGMET_ALLOC_FAIL\fP  - Failed to allocate memory
+    \fBSIGMET_FLUSH_FAIL\fP  - Failed to free desired amount of memory
+    \fBSIGMET_BAD_ARG\fP     - an argument to a function could not be parsed
 
 .fi
 In case of error, the function appends information to the global error string
