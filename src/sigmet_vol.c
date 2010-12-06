@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.80 $ $Date: 2010/12/02 21:45:44 $
+   .	$Revision: 1.81 $ $Date: 2010/12/04 01:56:35 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1086,7 +1086,7 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 			tm_incr = get_sint32(ray + SZ_RAY_HDR);
 			vol_p->ray_time[s][r] = swpTm + tm_incr * 0.001 / 86400.0;
 		} else {
-		    switch (Sigmet_StorFmt(vol_p->types_fl[yf])) {
+		    switch (Sigmet_DataType_StorFmt(vol_p->types_fl[yf])) {
 			case DATA_TYPE_U1:
 			    for (b = 0; b < nbins; b++)  {
 				vol_p->dat[y].arr.d1[s][r][b] = rayd[b];
