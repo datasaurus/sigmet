@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.60 $ $Date: 2010/12/04 01:54:39 $
+   .	$Revision: 1.61 $ $Date: 2010/12/06 15:32:44 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -505,8 +505,8 @@ enum Sigmet_DataTypeN Sigmet_DataTypeN(char *);
 char *Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN);
 char *Sigmet_DataType_Descr(enum Sigmet_DataTypeN);
 char *Sigmet_DataType_Unit(enum Sigmet_DataTypeN);
-enum DataType_StorFmt Sigmet_StorFmt(enum Sigmet_DataTypeN);
-DataType_StorToCompFn Sigmet_StorToCompFn(enum Sigmet_DataTypeN);
+enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN);
+DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 double Sigmet_NoData(void);
 int Sigmet_IsData(double);
 int Sigmet_IsNoData(double);

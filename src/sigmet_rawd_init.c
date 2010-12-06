@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.324 $ $Date: 2010/12/02 21:05:47 $
+ .	$Revision: 1.325 $ $Date: 2010/12/04 01:56:05 $
  */
 
 #include <limits.h>
@@ -169,8 +169,8 @@ int main(int argc, char *argv[])
 	status = DataType_Add( Sigmet_DataType_Abbrv(sig_type),
 		Sigmet_DataType_Descr(sig_type),
 		Sigmet_DataType_Unit(sig_type),
-		Sigmet_StorFmt(sig_type),
-		Sigmet_StorToCompFn(sig_type));
+		Sigmet_DataType_StorFmt(sig_type),
+		Sigmet_DataType_StorToComp(sig_type));
 	if ( status != DATATYPE_SUCCESS ) {
 	    fprintf(stderr, "%s (%d): could not register data type "
 		    "%s\n%s\n", argv0, pid,
