@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.327 $ $Date: 2010/12/06 17:26:55 $
+ .	$Revision: 1.328 $ $Date: 2010/12/06 20:49:22 $
  */
 
 #include <limits.h>
@@ -1108,17 +1108,17 @@ static enum Sigmet_Status data_cb(int argc, char *argv[], char *cl_wd,
     if ( s != all && s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if ( r != all && r >= (int)vol_p->ih.ic.num_rays ) {
 	fprintf(err, "%s %s: ray index %d out of range for %s\n",
 		argv0, argv1, r, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if ( b != all && b >= vol_p->ih.tc.tri.num_bins_out ) {
 	fprintf(err, "%s %s: bin index %d out of range for %s\n",
 		argv0, argv1, b, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
 
     /*
@@ -1276,17 +1276,17 @@ static enum Sigmet_Status bin_outline_cb(int argc, char *argv[], char *cl_wd,
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if ( r >= vol_p->ih.ic.num_rays ) {
 	fprintf(err, "%s %s: ray index %d out of range for %s\n",
 		argv0, argv1, r, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if ( b >= vol_p->ih.tc.tri.num_bins_out ) {
 	fprintf(err, "%s %s: bin index %d out of range for %s\n",
 		argv0, argv1, b, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if ( (status = Sigmet_Vol_BinOutl(vol_p, s, r, b, corners)) != SIGMET_OK ) {
 	fprintf(err, "%s %s: could not compute bin outlines for bin %d %d %d in "
@@ -1367,12 +1367,12 @@ static enum Sigmet_Status bintvls_cb(int argc, char *argv[], char *cl_wd,
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if ( !vol_p->sweep_ok[s] ) {
 	fprintf(err, "%s %s: sweep %d not valid in %s\n",
 		argv0, argv1, s, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
 
     /*
@@ -1657,14 +1657,14 @@ static enum Sigmet_Status img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     if ( s >= vol_p->ih.ic.num_sweeps || !vol_p->sweep_ok[s]
 	    || !Tm_JulToCal(vol_p->sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
 	Err_Append("Invalid sweep. ");
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if ( snprintf(buf, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f",
 		vol_p->ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
 		abbrv, vol_p->sweep_angle[s] * DEG_PER_RAD) >= LEN ) {
 	memset(buf, 0, LEN);
 	Err_Append("Image file name too long. ");
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     return SIGMET_OK;
 }
@@ -1718,7 +1718,7 @@ static enum Sigmet_Status img_name_cb(int argc, char *argv[], char *cl_wd,
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
 
     /*
@@ -1875,12 +1875,12 @@ static enum Sigmet_Status img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if ( !vol_p->sweep_ok[s] ) {
 	fprintf(err, "%s %s: sweep %d not valid in %s\n",
 		argv0, argv1, s, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if ( !Tm_JulToCal(vol_p->sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
 	fprintf(err, "%s %s: invalid sweep time\n%s\n", argv0, argv1, Err_Get());
@@ -1914,7 +1914,7 @@ static enum Sigmet_Status img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
 	fprintf(err, "%s %s: west edge of map not defined in current projection\n",
 		argv0, argv1);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     left = edge.u;
 
@@ -1929,7 +1929,7 @@ static enum Sigmet_Status img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
 	fprintf(err, "%s %s: east edge of map not defined in current projection\n",
 		argv0, argv1);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     rght = edge.u;
 
@@ -1944,7 +1944,7 @@ static enum Sigmet_Status img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
 	fprintf(err, "%s %s: south edge of map not defined in current "
 		"projection\n", argv0, argv1);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     btm = edge.v;
 
@@ -1960,7 +1960,7 @@ static enum Sigmet_Status img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 	fprintf(err, "%s %s: north edge of map not defined in current "
 		"projection\n",
 		argv0, argv1);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     top = edge.v;
 
@@ -1984,7 +1984,7 @@ static enum Sigmet_Status img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     if ( snprintf(img_fl_nm, LEN, "%s/%s.png", cl_wd, base_nm) >= LEN ) {
 	fprintf(err, "%s %s: could not make image file name. "
 		"%s/%s.png too long.\n", argv0, argv1, cl_wd, base_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     flags = O_CREAT | O_EXCL | O_WRONLY;
     mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
@@ -2256,7 +2256,7 @@ static enum Sigmet_Status dorade_cb(int argc, char *argv[], char *cl_wd,
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if ( s == all ) {
 	for (s = 0; s < vol_p->num_sweeps_ax; s++) {

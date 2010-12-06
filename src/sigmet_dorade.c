@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.17 $ $Date: 2010/12/06 17:26:37 $
+   .	$Revision: 1.18 $ $Date: 2010/12/06 20:48:24 $
  */
 
 #include <string.h>
@@ -58,7 +58,7 @@ enum Sigmet_Status Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     if ( s > vol_p->ih.ic.num_sweeps ) {
 	Err_Append("Sweep index out of range. ");
-	status = SIGMET_BAD_ARG;
+	status = SIGMET_RNG_ERR;
 	goto error;
     }
 
@@ -69,7 +69,7 @@ enum Sigmet_Status Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     if ( snprintf(swp_p->comm.comment, 500, "Sigmet volume sweep %d, task %s", 
 		s, vol_p->ph.pc.task_name) >= 500 ) {
 	Err_Append("Could not set COMM block. String too big.");
-	status = SIGMET_BAD_ARG;
+	status = SIGMET_RNG_ERR;
 	goto error;
     }
 

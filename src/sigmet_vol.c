@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.83 $ $Date: 2010/12/06 17:27:48 $
+   .	$Revision: 1.84 $ $Date: 2010/12/06 20:51:04 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1314,15 +1314,15 @@ enum Sigmet_Status Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r,
 
     if (s >= vol_p->ih.ic.num_sweeps) {
 	Err_Append("Sweep index out of bounds.  ");
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if (r >= vol_p->ih.ic.num_rays) {
 	Err_Append("Ray index out of bounds.  ");
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
     if (b >= vol_p->ray_num_bins[s][r]) {
 	Err_Append("Bin index out of bounds.  ");
-	return SIGMET_BAD_ARG;
+	return SIGMET_RNG_ERR;
     }
 
     re = GeogREarth(NULL);

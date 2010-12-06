@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.14 $ $Date: 2010/12/06 21:20:35 $
+.\" $Revision: 1.15 $ $Date: 2010/12/06 21:36:47 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
 Sigmet_DataTypeN, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_Unit, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_Vol_Init, Sigmet_Vol_Free, Sigmet_Vol_Good, Sigmet_Vol_ReadHdr, Sigmet_Vol_PrintHdr, Sigmet_Vol_Read, Sigmet_Vol_BadRay, Sigmet_Vol_BinOutl, Sigmet_Vol_ToDorade \- read Sigmet raw data
@@ -176,7 +176,9 @@ the function succeeded, or how it failed. The return value will be one of:
     \fBSIGMET_BAD_VOL\fP     - Corrupt volume in memory
     \fBSIGMET_ALLOC_FAIL\fP  - Failed to allocate memory
     \fBSIGMET_FLUSH_FAIL\fP  - Failed to free desired amount of memory
-    \fBSIGMET_BAD_ARG\fP     - an argument to a function could not be parsed
+    \fBSIGMET_BAD_ARG\fP     - An argument to a function could not be parsed
+                               or referred to something that does not exist
+    \fBSIGMET_RNG_ERR\fP     - a value is too large or out of range
 
 .fi
 In case of error, the function appends information to the global error string

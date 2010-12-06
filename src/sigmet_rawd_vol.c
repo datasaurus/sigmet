@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.49 $ $Date: 2010/12/06 17:27:23 $
+ .	$Revision: 1.50 $ $Date: 2010/12/06 20:50:43 $
  */
 
 #include <unistd.h>
@@ -350,8 +350,8 @@ enum Sigmet_Status SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
      */
 
     if ( !(sv_p = sig_vol_get(vol_nm)) ) {
-	fprintf(err, "No entry for %s in volume table, and unable to add it.\n%s\n",
-		vol_nm, Err_Get());
+	fprintf(err, "No entry for %s in volume table, and unable to add it.\n"
+		"%s\n", vol_nm, Err_Get());
 	return SIGMET_BAD_ARG;
     }
     vol_p = (struct Sigmet_Vol *)sv_p;
@@ -403,6 +403,7 @@ enum Sigmet_Status SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	    case SIGMET_FLUSH_FAIL:
 	    case SIGMET_NOT_INIT:
 	    case SIGMET_HELPER_FAIL:
+	    case SIGMET_RNG_ERR:
 		/* Not returned by Sigmet_Vol_ReadHdr */
 		break;
 	}
@@ -506,6 +507,7 @@ enum Sigmet_Status SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	    case SIGMET_FLUSH_FAIL:
 	    case SIGMET_NOT_INIT:
 	    case SIGMET_HELPER_FAIL:
+	    case SIGMET_RNG_ERR:
 		/* Not returned by Sigmet_Vol_ReadHdr */
 		break;
 	}

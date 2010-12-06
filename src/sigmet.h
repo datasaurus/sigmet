@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.65 $ $Date: 2010/12/06 17:31:49 $
+   .	$Revision: 1.66 $ $Date: 2010/12/06 20:47:58 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -515,19 +515,20 @@ enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN);
 DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 
 /*
-   Function return values.
+   Function return values. See sigmet(3).
  */
 
 enum Sigmet_Status {
-    SIGMET_OK,			/* Success */
-    SIGMET_NOT_INIT,		/* A resource or interface is not initialized */
-    SIGMET_IO_FAIL,		/* Failed communication with file or process */
-    SIGMET_HELPER_FAIL,		/* Helper process failed */
-    SIGMET_BAD_FILE,		/* An input file is not in expected format */
-    SIGMET_BAD_VOL,		/* Corrupt volume in memory */
-    SIGMET_ALLOC_FAIL,		/* Failed to allocate memory */
-    SIGMET_FLUSH_FAIL,		/* Failed to free desired amount of memory */
-    SIGMET_BAD_ARG		/* Invalid argument to a function */
+    SIGMET_OK,
+    SIGMET_NOT_INIT,
+    SIGMET_IO_FAIL,
+    SIGMET_HELPER_FAIL,
+    SIGMET_BAD_FILE,
+    SIGMET_BAD_VOL,
+    SIGMET_ALLOC_FAIL,
+    SIGMET_FLUSH_FAIL,
+    SIGMET_BAD_ARG,
+    SIGMET_RNG_ERR
 };
 
 /*
