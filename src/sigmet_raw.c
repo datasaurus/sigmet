@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.64 $ $Date: 2010/11/09 20:19:53 $
+   .	$Revision: 1.65 $ $Date: 2010/11/09 20:21:19 $
  */
 
 #include <limits.h>
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
     fd_set set, read_set;	/* Give i_dmn, i_out, and i_err to select */
     int fd_hwm = 0;		/* Highest file descriptor */
     ssize_t ll;			/* Number of bytes read from server */
-    enum Sigmet_CB_Return sstatus; /* Result of callback */
+    enum Sigmet_Status sstatus; /* Result of callback */
 
     strcpy(out_nm, "");
     strcpy(err_nm, "");
@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
 	       Clean up and return the status as exit status of this process.
 	     */
 
-	    if ( (ll = read(i_dmn, &sstatus, sizeof(enum Sigmet_CB_Return))) == -1
+	    if ( (ll = read(i_dmn, &sstatus, sizeof(enum Sigmet_Status))) == -1
 		    || ll == 0 ) {
 		fprintf(stderr, "%s (%d): could not get exit status from "
 			"daemon\n%s\n", argv0, pid,
