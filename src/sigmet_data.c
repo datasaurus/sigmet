@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.24 $ $Date: 2010/12/06 15:46:10 $
+   .	$Revision: 1.25 $ $Date: 2010/12/06 17:26:19 $
  */
 
 #include <stdlib.h>
@@ -157,22 +157,22 @@ DataType_StorToCompFn stor_to_comp[SIGMET_NTYPES] = {
 
 double Sigmet_Bin4Rad(unsigned long a)
 {
-    return (double)a / TWO_32 * 2 * PI;
+    return (double)a / TWO_32 * 2 * M_PI;
 }
 
 double Sigmet_Bin2Rad(unsigned short a)
 {
-    return (double)a / TWO_16 * 2 * PI;
+    return (double)a / TWO_16 * 2 * M_PI;
 }
 
 unsigned long Sigmet_RadBin4(double a)
 {
-    return a * TWO_32 / (2 * PI);
+    return a * TWO_32 / (2 * M_PI);
 }
 
 unsigned long Sigmet_RadBin2(double a)
 {
-    return a * TWO_16 / (2 * PI);
+    return a * TWO_16 / (2 * M_PI);
 }
 
 char * Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN y)
