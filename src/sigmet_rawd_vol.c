@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.48 $ $Date: 2010/12/06 17:27:19 $
+ .	$Revision: 1.49 $ $Date: 2010/12/06 17:27:23 $
  */
 
 #include <unistd.h>
@@ -301,7 +301,7 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
    Print error messages to err.
  */
 
-enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
+enum Sigmet_Status SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 {
     struct sig_vol *sv_p;
     FILE *in;
@@ -310,15 +310,15 @@ enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 
     /* If volume is already loaded and not truncated, it is good */
     if ( (sv_p = sig_vol_get(vol_nm)) && !sv_p->vol.truncated ) {
-	return SIGMET_CB_SUCCESS;
+	return SIGMET_OK;
     }
 
     /* Volume not loaded. Inspect vol_nm with Sigmet_Vol_Good. */
     if ( !(in = vol_open(vol_nm, &p, i_err, err)) ) {
 	fprintf(err, "Could not open %s\n", vol_nm);
-	return SIGMET_CB_INPUT_FAIL;
+	return SIGMET_IO_FAIL;
     }
-    rslt = Sigmet_Vol_Good(in) ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
+    rslt = Sigmet_Vol_Good(in) ? SIGMET_OK : SIGMET_BAD_FILE;
     fclose(in);
     if ( p != -1 ) {
 	waitpid(p, NULL, 0);
@@ -332,7 +332,7 @@ enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
    the volume headers, but not data. Send error messages to err or i_err.
  */
 
-enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
+enum Sigmet_Status SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	struct Sigmet_Vol ** vol_pp)
 {
     struct sig_vol *sv_p;	/* Member of vols */
@@ -340,7 +340,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     int loaded;			/* If true, volume is loaded */
     int try;			/* Number of attempts to read volume */
     int max_try = 3;		/* Maximum tries */
-    enum Sigmet_ReadStatus status; /* Result of a read call */
+    enum Sigmet_Status status; /* Result of a read call */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
 
@@ -352,12 +352,12 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     if ( !(sv_p = sig_vol_get(vol_nm)) ) {
 	fprintf(err, "No entry for %s in volume table, and unable to add it.\n%s\n",
 		vol_nm, Err_Get());
-	return SIGMET_CB_FAIL;
+	return SIGMET_BAD_ARG;
     }
     vol_p = (struct Sigmet_Vol *)sv_p;
     if ( vol_p->has_headers ) {
 	*vol_pp = vol_p;
-	return SIGMET_CB_SUCCESS;
+	return SIGMET_OK;
     }
 
     /*
@@ -375,24 +375,35 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
 	    fprintf(err, "Could not open %s for input.\n", vol_nm);
 	    SigmetRaw_Delete(vol_nm);
-	    return SIGMET_CB_INPUT_FAIL;
+	    return SIGMET_IO_FAIL;
 	}
 	switch (status = Sigmet_Vol_ReadHdr(in, vol_p)) {
-	    case SIGMET_VOL_READ_OK:
+	    case SIGMET_OK:
 		loaded = 1;
 		break;
-	    case SIGMET_VOL_MEM_FAIL:
+	    case SIGMET_IO_FAIL:
+		fprintf(err, "Input error while reading headers.\n");
+		break;
+	    case SIGMET_BAD_FILE:
+		fprintf(err, "Raw product file is corrupt.\n");
+		break;
+	    case SIGMET_ALLOC_FAIL:
 		fprintf(err, "Out of memory. Offloading unused volumes\n");
 		max_vol_size = vol_size() * 3 / 4;
-		if ( !SigmetRaw_Flush() ) {
+		if ( (status = SigmetRaw_Flush()) != SIGMET_OK ) {
 		    fprintf(err, "Could not offload sufficient volumes\n");
 		    try = max_try;
 		}
 		break;
-	    case SIGMET_VOL_INPUT_FAIL:
-	    case SIGMET_VOL_BAD_VOL:
-		fprintf(err, "%s\n", Err_Get());
-		try = max_try;
+	    case SIGMET_BAD_ARG:
+		fprintf(err, "Internal failure while reading volume "
+			"headers.\n");
+		break;
+	    case SIGMET_BAD_VOL:
+	    case SIGMET_FLUSH_FAIL:
+	    case SIGMET_NOT_INIT:
+	    case SIGMET_HELPER_FAIL:
+		/* Not returned by Sigmet_Vol_ReadHdr */
 		break;
 	}
 	fclose(in);
@@ -403,29 +414,18 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
 	SigmetRaw_Delete(vol_nm);
-	switch (status) {
-	    case SIGMET_VOL_READ_OK:
-		break;
-	    case SIGMET_VOL_MEM_FAIL:
-		return SIGMET_CB_MEM_FAIL;
-		break;
-	    case SIGMET_VOL_INPUT_FAIL:
-		return SIGMET_CB_INPUT_FAIL;
-		break;
-	    case SIGMET_VOL_BAD_VOL:
-		return SIGMET_CB_FAIL;
-		break;
-	}
+	return status;
     }
-    if ( vol_size() > max_vol_size && !SigmetRaw_Flush() ) {
+    if ( vol_size() > max_vol_size
+	    && (status = SigmetRaw_Flush()) != SIGMET_OK ) {
 	fprintf(err, "Reading %s puts memory use beyond limit and unable "
 		"to flush.\n", vol_nm);
 	SigmetRaw_Delete(vol_nm);
-	return SIGMET_CB_FAIL;
+	return status;
     }
     sv_p->keep = 0;
     *vol_pp = vol_p;
-    return SIGMET_CB_SUCCESS;
+    return SIGMET_OK;
 }
 
 /*
@@ -434,7 +434,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
    the volume headers and data. Send error messages to err or i_err.
  */
 
-enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
+enum Sigmet_Status SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	struct Sigmet_Vol **vol_pp)
 {
     struct sig_vol *sv_p;	/* Member of vols */
@@ -442,7 +442,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     int loaded;			/* If true, volume is loaded */
     int try;			/* Number of attempts to read volume */
     int max_try = 3;		/* Maximum tries */
-    enum Sigmet_ReadStatus status; /* Result of a read call */
+    enum Sigmet_Status status; /* Result of a read call */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
 
@@ -454,13 +454,13 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     if ( !(sv_p = sig_vol_get(vol_nm)) ) {
 	fprintf(err, "No entry for %s in volume table, and unable to add it.\n%s\n",
 		vol_nm, Err_Get());
-	return SIGMET_CB_FAIL;
+	return SIGMET_BAD_ARG;
     }
 
     vol_p = (struct Sigmet_Vol *)sv_p;
     if ( !vol_p->truncated ) {
 	*vol_pp = vol_p;
-	return SIGMET_CB_SUCCESS;
+	return SIGMET_OK;
     }
     Sigmet_Vol_Free(vol_p);
 
@@ -479,26 +479,34 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
 	    fprintf(err, "Could not open %s for input.\n", vol_nm);
 	    SigmetRaw_Delete(vol_nm);
-	    return SIGMET_CB_INPUT_FAIL;
+	    return SIGMET_IO_FAIL;
 	}
 	switch (status = Sigmet_Vol_Read(in, vol_p)) {
-	    case SIGMET_VOL_READ_OK:
-	    case SIGMET_VOL_INPUT_FAIL:
+	    case SIGMET_OK:
+	    case SIGMET_IO_FAIL:
 		loaded = 1;
 		break;
-	    case SIGMET_VOL_MEM_FAIL:
+	    case SIGMET_ALLOC_FAIL:
 		fprintf(err, "Read failed. Out of memory. %s "
 			"Offloading unused volumes\n", Err_Get());
 		max_vol_size = vol_size() * 3 / 4;
-		if ( !SigmetRaw_Flush() ) {
+		if ( (status = SigmetRaw_Flush()) != SIGMET_OK ) {
 		    fprintf(err, "Could not offload sufficient volumes\n");
 		    try = max_try;
 		}
 		break;
-	    case SIGMET_VOL_BAD_VOL:
-		fprintf(err, "Read failed, bad volume. %s\n", Err_Get());
-		Sigmet_Vol_Free(vol_p);
+	    case SIGMET_BAD_FILE:
+		fprintf(err, "Raw product file is corrupt.\n");
 		try = max_try;
+		break;
+	    case SIGMET_BAD_ARG:
+		fprintf(err, "Internal failure while reading volume.\n");
+		break;
+	    case SIGMET_BAD_VOL:
+	    case SIGMET_FLUSH_FAIL:
+	    case SIGMET_NOT_INIT:
+	    case SIGMET_HELPER_FAIL:
+		/* Not returned by Sigmet_Vol_ReadHdr */
 		break;
 	}
 	fclose(in);
@@ -509,29 +517,18 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     if ( !loaded ) {
 	fprintf(err, "Could not read %s\n", vol_nm);
 	SigmetRaw_Delete(vol_nm);
-	switch (status) {
-	    case SIGMET_VOL_READ_OK:
-		break;
-	    case SIGMET_VOL_MEM_FAIL:
-		return SIGMET_CB_MEM_FAIL;
-		break;
-	    case SIGMET_VOL_INPUT_FAIL:
-		return SIGMET_CB_INPUT_FAIL;
-		break;
-	    case SIGMET_VOL_BAD_VOL:
-		return SIGMET_CB_FAIL;
-		break;
-	}
+	return status;
     }
-    if ( vol_size() > max_vol_size && !SigmetRaw_Flush() ) {
+    if ( vol_size() > max_vol_size
+	    && (status = SigmetRaw_Flush()) != SIGMET_OK ) {
 	fprintf(err, "Reading %s puts memory use beyond limit and unable "
 		"to flush.\n", vol_nm);
 	SigmetRaw_Delete(vol_nm);
-	return SIGMET_CB_FAIL;
+	return SIGMET_FLUSH_FAIL;
     }
     sv_p->keep = 0;
     *vol_pp = vol_p;
-    return SIGMET_CB_SUCCESS;
+    return SIGMET_OK;
 }
 
 /*
@@ -587,7 +584,7 @@ void SigmetRaw_Release(char *vol_nm)
    otherwise return false.
  */
 
-int SigmetRaw_Delete(char *vol_nm)
+enum Sigmet_Status SigmetRaw_Delete(char *vol_nm)
 {
     dev_t d;			/* Id of device containing file named vol_nm */
     ino_t i;			/* Inode number for file named vol_nm*/
@@ -595,25 +592,25 @@ int SigmetRaw_Delete(char *vol_nm)
     struct sig_vol *sv_p;	/* Volume to delete */
 
     if ( !hash(vol_nm, &d, &i, &h) ) {
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     for (sv_p = vols[h]; sv_p; sv_p = sv_p->tnext) {
 	if ( (sv_p->st_dev == d) && (sv_p->st_ino == i) ) {
 	    uunlink(sv_p);
 	    tunlink(sv_p);
 	    sig_vol_free(sv_p);
-	    return 1;
+	    return SIGMET_OK;
 	}
     }
-    return 0;
+    return SIGMET_BAD_ARG;
 }
 
 /*
    Remove expendable volumes. A volume is expendable if it's "keep" member is
-   not set. Return true if total volume size is less than or equal to limit.
+   not set.
  */
 
-int SigmetRaw_Flush(void)
+enum Sigmet_Status SigmetRaw_Flush(void)
 {
     struct sig_vol *sv_p, *unext;
 
@@ -632,7 +629,7 @@ int SigmetRaw_Flush(void)
 	    sig_vol_free(sv_p);
 	}
     }
-    return vol_size() <= max_vol_size;
+    return (vol_size() <= max_vol_size) ?  SIGMET_OK : SIGMET_FLUSH_FAIL;
 }
 
 /*

@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.16 $ $Date: 2010/12/02 17:58:42 $
+   .	$Revision: 1.17 $ $Date: 2010/12/06 17:26:37 $
  */
 
 #include <string.h>
@@ -21,8 +21,10 @@
 #include "data_types.h"
 #include "dorade_lib.h"
 
-int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
+enum Sigmet_Status Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
+	struct Dorade_Sweep *swp_p)
 {
+    enum Sigmet_Status status;			/* Return value for this call */
     double epoch;				/* 1970/01/01 */
     int year, mon, day, hr, min; double sec;	/* Sweep time */
     double wave_len;				/* Wavelength from vol_p */
@@ -56,6 +58,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *sw
 
     if ( s > vol_p->ih.ic.num_sweeps ) {
 	Err_Append("Sweep index out of range. ");
+	status = SIGMET_BAD_ARG;
 	goto error;
     }
 
@@ -66,6 +69,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *sw
     if ( snprintf(swp_p->comm.comment, 500, "Sigmet volume sweep %d, task %s", 
 		s, vol_p->ph.pc.task_name) >= 500 ) {
 	Err_Append("Could not set COMM block. String too big.");
+	status = SIGMET_BAD_ARG;
 	goto error;
     }
 
@@ -88,6 +92,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *sw
     swp_p->vold.maximum_bytes = 65500;
     if ( !Tm_JulToCal(vol_p->sweep_time[s], &year, &mon, &day, &hr, &min, &sec) ) {
 	Err_Append("Could not set sweep time. ");
+	status = SIGMET_BAD_ARG;
 	goto error;
     }
     swp_p->vold.year = year;
@@ -261,6 +266,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *sw
 
     if ( !(swp_p->ray_hdr = CALLOC(num_rays, sizeof(struct Dorade_Ray_Hdr))) ) {
 	Err_Append("Could not allocate space for ray headers. ");
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     for (r = 0; r < num_rays; r++) {
@@ -312,6 +318,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *sw
 	if ( !Tm_JulToCal(vol_p->ray_time[s][r],
 		    &year, &mon, &day, &hr, &min, &sec) ) {
 	    Err_Append("Could not get ray time. ");
+	    status = SIGMET_BAD_VOL;
 	    goto error;
 	}
 	julian0 = Tm_CalToJul(year, 1, 1, 0, 0, 0.0);
@@ -345,6 +352,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *sw
 
     if ( !Dorade_Sweep_AllocDat(swp_p, num_parms, num_rays, num_cells) ) {
 	Err_Append("Could not allocate data array. ");
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     dat_p = swp_p->dat;
@@ -374,9 +382,9 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *sw
 	}
     }
 
-    return 1;
+    return SIGMET_OK;
 
 error:
     Dorade_Sweep_Free(swp_p);
-    return 0;
+    return status;
 };

@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.1 $ $Date: 2010/08/18 19:35:53 $
+ .	$Revision: 1.2 $ $Date: 2010/11/10 17:41:34 $
  */
 
 /*
@@ -32,7 +32,7 @@ int SigmetRaw_ProjInit(void)
     return 1;
 }
 
-int SigmetRaw_SetProj(int argc, char *argv[])
+enum Sigmet_Status SigmetRaw_SetProj(int argc, char *argv[])
 {
     projPJ t_pj;
 
@@ -45,13 +45,13 @@ int SigmetRaw_SetProj(int argc, char *argv[])
 	    Err_Append(argv[a]);
 	}
 	Err_Append("\n");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if ( pj ) {
 	pj_free(pj);
     }
     pj = t_pj;
-    return 1;
+    return SIGMET_OK;
 }
 
 projPJ SigmetRaw_GetProj(void)

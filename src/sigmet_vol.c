@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.82 $ $Date: 2010/12/06 15:47:07 $
+   .	$Revision: 1.83 $ $Date: 2010/12/06 17:27:48 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -221,7 +221,7 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
    dat array. It does not initialize the array.
  */
 
-int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
+enum Sigmet_Status Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct DataType *data_type;
     size_t sz;
@@ -231,34 +231,34 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
 
     if ( !abbrv ) {
 	Err_Append("Attempted to add bogus data type to a volume. ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if ( !vol_p ) {
 	Err_Append("Attempted to add data type to a bogus volume. ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if ( !(data_type = DataType_Get(abbrv)) ) {
 	Err_Append("No data type named %s. ");
 	Err_Append(abbrv);
 	Err_Append( " Please add with the new_data_type command. ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if ( Hash_Get(&vol_p->types_tbl, abbrv) ) {
 	Err_Append("Data type ");
 	Err_Append(abbrv);
 	Err_Append(" already exists in volume. ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     sz = (vol_p->num_types + 1) * sizeof(struct Sigmet_DatArr);
     if ( !(dat_p = REALLOC(vol_p->dat, sz)) ) {
 	Err_Append("Allocation failed while enlarging volume data "
 		"array. ");
-	return 0;
+	return SIGMET_ALLOC_FAIL;
     }
     vol_p->dat = dat_p;
     if ( !type_tbl_set(vol_p) ) {
 	Err_Append("Allocation failed while reseting volume types table. ");
-	return 0;
+	return SIGMET_ALLOC_FAIL;
     }
     dat_p = vol_p->dat + vol_p->num_types;
     dat_p->data_type = data_type;
@@ -267,7 +267,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
 	Err_Append("Could not add ");
 	Err_Append(abbrv);
 	Err_Append(" to volume types table. ");
-	return 0;
+	return SIGMET_ALLOC_FAIL;
     }
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
@@ -276,37 +276,38 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
     if ( !dbl_p ) {
 	dat_p->data_type = NULL;
 	Err_Append("Could not allocate new field ");
-	return 0;
+	return SIGMET_ALLOC_FAIL;
     }
     dat_p->arr.dbl = dbl_p;
     vol_p->num_types++;
-    return 1;
+    return SIGMET_OK;
 }
 
-int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
+enum Sigmet_Status Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct DataType *data_type;
     size_t sz;
     struct Sigmet_DatArr *d_p, *d1_p;
 
     if ( !abbrv ) {
-	return 1;
+	Err_Append("Attempted to remove a bogus field. ");
+	return SIGMET_BAD_ARG;
     }
     if ( !vol_p ) {
 	Err_Append("Attempted to remove a field from a bogus volume. ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if ( !(data_type = DataType_Get(abbrv)) ) {
 	Err_Append("No data type named %s. ");
 	Err_Append(abbrv);
 	Err_Append( ".  ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if ( !(d_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
 	Err_Append("Data type ");
 	Err_Append(abbrv);
 	Err_Append(" not in volume. ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     free3_dbl(d_p->arr.dbl);
     Hash_Rm(&vol_p->types_tbl, abbrv);
@@ -316,21 +317,21 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
     sz = (vol_p->num_types - 1) * sizeof(struct Sigmet_DatArr);
     if ( !(d_p = REALLOC(vol_p->dat, sz)) ) {
 	Err_Append("Allocation failed while reallocating volume data array.");
-	return 0;
+	return SIGMET_ALLOC_FAIL;
     }
     vol_p->dat = d_p;
     vol_p->num_types--;
     if ( !type_tbl_set(vol_p) ) {
 	Err_Append("Allocation failed while reseting volume types table. ");
-	return 0;
+	return SIGMET_ALLOC_FAIL;
     }
-    return 1;
+    return SIGMET_OK;
 }
 
-enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
+enum Sigmet_Status Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
-    enum Sigmet_ReadStatus status;
+    enum Sigmet_Status status;
 
     /*
        yf will increment as bits are found in the volume type mask.
@@ -367,6 +368,17 @@ enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     unsigned vol_type_mask;
     size_t sz;
 
+    if ( !f ) {
+	Err_Append("Read header function called with bogus input stream. ");
+	status = SIGMET_BAD_ARG;
+	goto error;
+    }
+    if ( !vol_p ) {
+	Err_Append("Read header function called with bogus volume. ");
+	status = SIGMET_BAD_ARG;
+	goto error;
+    }
+
     Sigmet_Vol_Free(vol_p);
 
     /*
@@ -377,7 +389,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->dat = CALLOC(SIGMET_NTYPES, sizeof(struct Sigmet_DatArr));
     if ( !vol_p->dat ) {
 	Err_Append("Could not allocate data array (data type dimension). ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_NTYPES; dat_p++) {
@@ -386,7 +398,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     }
     if ( !Hash_Init(&vol_p->types_tbl, SIGMET_NTYPES * 2) ) {
 	Err_Append("Could not allocate space for volume types table. ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
 
@@ -396,7 +408,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 	Err_Append("Could not read record 1 of Sigmet volume.  ");
-	status = SIGMET_VOL_INPUT_FAIL;
+	status = SIGMET_IO_FAIL;
 	goto error;
     }
 
@@ -408,7 +420,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	Toggle_Swap();
 	if (get_sint16(rec) != 27) {
 	    Err_Append( "Bad magic number (should be 27).  ");
-	    status = SIGMET_VOL_BAD_VOL;
+	    status = SIGMET_BAD_FILE;
 	    goto error;
 	}
     }
@@ -418,7 +430,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     /* record 2, <ingest_header> */
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 	Err_Append("Could not read record 2 of Sigmet volume.  ");
-	status = SIGMET_VOL_INPUT_FAIL;
+	status = SIGMET_IO_FAIL;
 	goto error;
     }
     vol_p->ih = get_ingest_header(rec);
@@ -437,7 +449,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	    if ( !(abbrv = Sigmet_DataType_Abbrv(sig_type))
 		    || !(data_type = DataType_Get(abbrv)) ) {
 		Err_Append("Unknown data type in volume. ");
-		status = SIGMET_VOL_BAD_VOL;
+		status = SIGMET_BAD_FILE;
 		goto error;
 	    }
 	    vol_p->dat[y].data_type = data_type;
@@ -455,13 +467,13 @@ enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		case DATA_TYPE_DBL:
 		    Err_Append("Volume in memory is corrupt. Unknown "
 			    "data type in data array.");
-		    status = SIGMET_VOL_BAD_VOL;
+		    status = SIGMET_BAD_FILE;
 		    goto error;
 		    break;
 	    }
 	    if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
 		Err_Append("Could not initialize volume types table. ");
-		status = SIGMET_VOL_MEM_FAIL;
+		status = SIGMET_ALLOC_FAIL;
 		goto error;
 	    }
 	    vol_p->types_fl[yf] = sig_type;
@@ -473,18 +485,18 @@ enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     dat_p = REALLOC(vol_p->dat, sz);
     if ( !dat_p ) {
 	Err_Append("Could not reallocate space for volume types array. ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->dat = dat_p;
     if ( !type_tbl_set(vol_p) ) {
 	Err_Append("Allocation failed while reseting volume types table. ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += vol_p->num_types + sizeof(struct Sigmet_DatArr);
     vol_p->has_headers = 1;
-    return SIGMET_VOL_READ_OK;
+    return SIGMET_OK;
 
 error:
     Sigmet_Vol_Free(vol_p);
@@ -745,10 +757,10 @@ int Sigmet_Vol_Good(FILE *f)
     return 1;
 }
 
-enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
+enum Sigmet_Status Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
-    enum Sigmet_ReadStatus status;
+    enum Sigmet_Status status;
 
 
     U16BIT *recP;			/* Pointer into rec */
@@ -783,15 +795,25 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     int nbins;				/* vol_p->ray_num_bins */
     int tm_incr;			/* Ray time adjustment */
 
+    if ( !f ) {
+	Err_Append("Read header function called with bogus input stream. ");
+	status = SIGMET_BAD_ARG;
+	goto error;
+    }
+    if ( !vol_p ) {
+	Err_Append("Read header function called with bogus volume. ");
+	status = SIGMET_BAD_ARG;
+	goto error;
+    }
+
     s = r = b = 0;
     yf = y = 0;
-    status = SIGMET_VOL_READ_OK;
 
     /* Read headers. As a side effect, this initializes vol_p. */
-    if ( (status = Sigmet_Vol_ReadHdr(f, vol_p)) != SIGMET_VOL_READ_OK ) {
+    if ( (status = Sigmet_Vol_ReadHdr(f, vol_p)) != SIGMET_OK ) {
 	Err_Append("Could not read volume headers.\n");
 	Sigmet_Vol_Free(vol_p);
-	return SIGMET_VOL_BAD_VOL;
+	return status;
     }
 
     /* Allocate arrays in vol_p. */
@@ -804,7 +826,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->sweep_ok = (int *)CALLOC(num_sweeps, sizeof(int));
     if ( !vol_p->sweep_ok ) {
 	Err_Append("Could not allocate sweep status array.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * sizeof(int);
@@ -812,7 +834,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->sweep_time = (double *)CALLOC(num_sweeps, sizeof(double));
     if ( !vol_p->sweep_time ) {
 	Err_Append("Could not allocate sweep time array.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * sizeof(double);
@@ -820,7 +842,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->sweep_angle = (double *)CALLOC(num_sweeps, sizeof(double));
     if ( !vol_p->sweep_angle ) {
 	Err_Append("Could not allocate sweep angle array.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * sizeof(double);
@@ -828,7 +850,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->ray_ok = calloc2i(num_sweeps, num_rays);
     if ( !vol_p->ray_ok ) {
 	Err_Append("Could not allocate array of ray status array.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * num_rays * sizeof(int);
@@ -836,7 +858,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->ray_time = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_time ) {
 	Err_Append("Could not allocate ray time array.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * num_rays * sizeof(double);
@@ -844,7 +866,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->ray_num_bins = calloc2i(num_sweeps, num_rays);
     if ( !vol_p->ray_num_bins ) {
 	Err_Append("Could not allocate array of ray bin counts.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * num_rays * sizeof(int);
@@ -852,7 +874,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->ray_tilt0 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_tilt0 ) {
 	Err_Append("Could not allocate array of ray initial tilts.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * num_rays * sizeof(double);
@@ -860,7 +882,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->ray_tilt1 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_tilt1 ) {
 	Err_Append("Could not allocate array of ray final tilts.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * num_rays * sizeof(double);
@@ -868,7 +890,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->ray_az0 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_az0 ) {
 	Err_Append("Could not allocate array of ray initial azimuths.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * num_rays * sizeof(double);
@@ -876,7 +898,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->ray_az1 = calloc2d(num_sweeps, num_rays);
     if ( !vol_p->ray_az1 ) {
 	Err_Append("Could not allocate array of ray final azimuths.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * num_rays * sizeof(double);
@@ -886,7 +908,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    case DATA_TYPE_U1:
 		vol_p->dat[y].arr.d1 = calloc3_u1(num_sweeps, num_rays, num_bins);
 		if ( !vol_p->dat[y].arr.d1 ) {
-		    status = SIGMET_VOL_MEM_FAIL;
+		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins;
@@ -894,7 +916,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    case DATA_TYPE_U2:
 		vol_p->dat[y].arr.d2 = calloc3_u2(num_sweeps, num_rays, num_bins);
 		if ( !vol_p->dat[y].arr.d2 ) {
-		    status = SIGMET_VOL_MEM_FAIL;
+		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins * 2;
@@ -902,7 +924,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    default:
 		Err_Append("Volume in memory is corrupt. Unknown data type "
 			"in data array.");
-		status = SIGMET_VOL_BAD_VOL;
+		status = SIGMET_BAD_VOL;
 		goto error;
 		break;
 	}
@@ -917,7 +939,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     ray = (U16BIT *)MALLOC(raySz);
     if ( !ray ) {
 	Err_Append("Could not allocate input ray buffer.  ");
-	status = SIGMET_VOL_MEM_FAIL;
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     rayd = (unsigned char *)ray + SZ_RAY_HDR;
@@ -935,7 +957,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	if (i != rec_idx + 1) {
 	    Err_Append(
 		    "Sigmet raw product file records out of sequence.  ");
-	    status = SIGMET_VOL_BAD_VOL;
+	    status = SIGMET_BAD_FILE;
 	    goto error;
 	}
 	rec_idx = i;
@@ -946,7 +968,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
 		Err_Append("Volume has excess sweeps.  ");
-		status = SIGMET_VOL_BAD_VOL;
+		status = SIGMET_BAD_FILE;
 		goto error;
 	    }
 	    s = sweep_num - 1;
@@ -970,7 +992,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    day = get_sint16(rec + 34);
 	    if (year == 0 || month == 0 || day == 0) {
 		Err_Append("Sweep date is 0000/00/00.  ");
-		status = SIGMET_VOL_BAD_VOL;
+		status = SIGMET_BAD_FILE;
 		goto error;
 	    }
 
@@ -1029,7 +1051,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    if (i != rec_idx + 1) {
 			Err_Append("Sigmet raw product file records "
 				" out of sequence.  ");
-			status = SIGMET_VOL_BAD_VOL;
+			status = SIGMET_BAD_FILE;
 			goto error;
 		    }
 		    rec_idx = i;
@@ -1057,12 +1079,12 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		/* End of ray */
 		if (s > num_sweeps) {
 		    Err_Append("Volume has more sweeps than reported in header. ");
-		    status = SIGMET_VOL_BAD_VOL;
+		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
 		if (r > num_rays) {
 		    Err_Append("Volume has more rays than reported in header. ");
-		    status = SIGMET_VOL_BAD_VOL;
+		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
 		vol_p->ray_ok[s][r] = 1;
@@ -1099,7 +1121,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 			    break;
 			default:
 			    Err_Append("Volume has unknown data type.  ");
-			    status = SIGMET_VOL_BAD_VOL;
+			    status = SIGMET_BAD_FILE;
 			    goto error;
 			    break;
 		    }
@@ -1119,7 +1141,7 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		if ( numWds > rayEnd - rayP ) {
 		    Err_Append("Corrupt volume.  "
 			    "Run of zeros tried to go past end of ray.  ");
-		    status = SIGMET_VOL_BAD_VOL;
+		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
 		rayP += numWds;
@@ -1132,12 +1154,12 @@ enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     }
     vol_p->truncated = (r + 1 < num_rays || s + 1 < num_sweeps) ? 1 : 0;
     if ( vol_p->truncated && feof(f) ) {
-	status = SIGMET_VOL_INPUT_FAIL;
+	status = SIGMET_BAD_FILE;
     }
     FREE(ray);
     vol_p->num_sweeps_ax = s;
 
-    return status;
+    return SIGMET_OK;
 
 error:
     FREE(ray);
@@ -1185,20 +1207,21 @@ double Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
    Initialize data array to a given value.
  */
 
-int Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *vol_p, char *abbrv, double v)
+enum Sigmet_Status Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *vol_p, char *abbrv,
+	double v)
 {
     struct Sigmet_DatArr *dat_p;
     int s, r;
     double *dp, *dp1;
 
     if ( !vol_p || !abbrv ) {
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv);
 	Err_Append(" in volume. ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     dat_p->data_type->stor_fmt = DATA_TYPE_DBL;
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -1214,14 +1237,15 @@ int Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *vol_p, char *abbrv, double v)
 	    }
 	}
     }
-    return 1;
+    return SIGMET_OK;
 }
 
 /*
    Initialize data array to distance along beam.
  */
 
-int Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *vol_p, char *abbrv)
+enum Sigmet_Status Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *vol_p,
+	char *abbrv)
 {
     struct Sigmet_DatArr *dat_p;
     double ***arr;
@@ -1229,13 +1253,13 @@ int Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *vol_p, char *abbrv)
     double bin0, bin_step;
 
     if ( !vol_p || !abbrv ) {
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv);
 	Err_Append(" in volume. ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     dat_p->data_type->stor_fmt = DATA_TYPE_DBL;
     arr = dat_p->arr.dbl;
@@ -1252,7 +1276,7 @@ int Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 	    }
 	}
     }
-    return 1;
+    return SIGMET_OK;
 }
 
 /* Nyquist velocity */
@@ -1276,7 +1300,8 @@ double Sigmet_Vol_VNyquist(struct Sigmet_Vol *vol_p)
 }
 
 /* Return lon-lat's at corners of a bin */
-int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b, double *ll)
+enum Sigmet_Status Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r,
+	int b, double *ll)
 {
     double re;			/* Earth radius */
     double lon_r, lat_r;	/* Radar longitude latitude */
@@ -1289,15 +1314,15 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b, double *ll
 
     if (s >= vol_p->ih.ic.num_sweeps) {
 	Err_Append("Sweep index out of bounds.  ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if (r >= vol_p->ih.ic.num_rays) {
 	Err_Append("Ray index out of bounds.  ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if (b >= vol_p->ray_num_bins[s][r]) {
 	Err_Append("Bin index out of bounds.  ");
-	return 0;
+	return SIGMET_BAD_ARG;
     }
 
     re = GeogREarth(NULL);
@@ -1325,7 +1350,7 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b, double *ll
     GeogStep(lon_r, lat_r, az1, r1, ll + 4, ll + 5);
     GeogStep(lon_r, lat_r, az1, r0, ll + 6, ll + 7);
 
-    return 1;
+    return SIGMET_OK;
 }
 
 /* get / print product_hdr (a.k.a. raw volume record 1). */
