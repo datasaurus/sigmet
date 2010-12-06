@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.61 $ $Date: 2010/12/06 15:32:44 $
+   .	$Revision: 1.62 $ $Date: 2010/12/06 15:45:14 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -496,17 +496,11 @@ struct Sigmet_Vol {
 };
 
 /*
-   These functions provide information about built in Sigmet data types.
+   These functions access and manipulate built in Sigmet data types.
    They do NOT provide information about additional, user defined, types.
    Use the DataType interface for additional types.
  */
 
-enum Sigmet_DataTypeN Sigmet_DataTypeN(char *);
-char *Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN);
-char *Sigmet_DataType_Descr(enum Sigmet_DataTypeN);
-char *Sigmet_DataType_Unit(enum Sigmet_DataTypeN);
-enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN);
-DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 double Sigmet_NoData(void);
 int Sigmet_IsData(double);
 int Sigmet_IsNoData(double);
@@ -514,6 +508,13 @@ double Sigmet_Bin4Rad(unsigned long);
 double Sigmet_Bin2Rad(unsigned short);
 unsigned long Sigmet_RadBin4(double);
 unsigned long Sigmet_RadBin2(double);
+
+enum Sigmet_DataTypeN Sigmet_DataTypeN(char *);
+char *Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN);
+char *Sigmet_DataType_Descr(enum Sigmet_DataTypeN);
+char *Sigmet_DataType_Unit(enum Sigmet_DataTypeN);
+enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN);
+DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 
 /*
    Values of this type are returned by Sigmet_ReadHdr and Sigmet_ReadVol.
