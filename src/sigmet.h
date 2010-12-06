@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.63 $ $Date: 2010/12/06 15:49:38 $
+   .	$Revision: 1.64 $ $Date: 2010/12/06 17:25:54 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -25,8 +25,6 @@
 #include "data_types.h"
 #include "dorade_lib.h"
 
-#define	PI		3.1415926535897932384
-#define	PI_2		1.57079632679489661923
 #define RAD_PER_DEG	0.01745329251994329576
 #define DEG_PER_RAD	57.29577951308232087648
 
