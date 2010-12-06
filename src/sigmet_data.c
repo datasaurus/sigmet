@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.23 $ $Date: 2010/12/06 15:32:44 $
+   .	$Revision: 1.24 $ $Date: 2010/12/06 15:46:10 $
  */
 
 #include <stdlib.h>
@@ -246,7 +246,7 @@ static double stor_comp_VEL(double v, void *meta)
 	return Sigmet_NoData();
     }
     return (v == 0 || v > 255)
-	? Sigmet_NoData() : Sigmet_VNyquist(vol_p) * (v - 128.0) / 127.0;
+	? Sigmet_NoData() : Sigmet_Vol_VNyquist(vol_p) * (v - 128.0) / 127.0;
 }
 
 static double stor_comp_WIDTH(double v, void *meta)
@@ -254,7 +254,7 @@ static double stor_comp_WIDTH(double v, void *meta)
     struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
 
     return (v == 0 || v > 255)
-	? Sigmet_NoData() : Sigmet_VNyquist(vol_p) * v / 256.0;
+	? Sigmet_NoData() : Sigmet_Vol_VNyquist(vol_p) * v / 256.0;
 }
 
 static double stor_comp_ZDR(double v, void *meta)

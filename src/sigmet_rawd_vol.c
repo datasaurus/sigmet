@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.46 $ $Date: 2010/11/10 22:19:01 $
+ .	$Revision: 1.47 $ $Date: 2010/11/10 22:27:36 $
  */
 
 #include <unistd.h>
@@ -138,7 +138,7 @@ static void sig_vol_free(struct sig_vol *sv_p)
     if ( !sv_p ) {
 	return;
     }
-    Sigmet_FreeVol(&sv_p->vol);
+    Sigmet_Vol_Free(&sv_p->vol);
     FREE(sv_p->vol_nm);
     FREE(sv_p);
 }
@@ -239,7 +239,7 @@ static int hash(char *vol_nm, dev_t *d_p, ino_t *i_p, int *h_p)
 
 /*
    Find or create an entry for vol_nm in vols.  If a new sig_vol struct is
-   created in vols, the vol member is initialized with a call to Sigmet_InitVol,
+   created in vols, the vol member is initialized with a call to Sigmet_Vol_Init,
    but the volume is not read.  Return the (possibly new) entry. Memory
    associated with the return value should eventually be freed with a call to
    sig_vol_free.  If something goes wrong, store an error string with
@@ -279,7 +279,7 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
 	FREE(sv_p);
 	return NULL;
     }
-    Sigmet_InitVol(&sv_p->vol);
+    Sigmet_Vol_Init(&sv_p->vol);
     strcpy(sv_p->vol_nm, vol_nm);
     sv_p->st_dev = d;
     sv_p->st_ino = i;
@@ -313,12 +313,12 @@ enum Sigmet_CB_Return SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 	return SIGMET_CB_SUCCESS;
     }
 
-    /* Volume not loaded. Inspect vol_nm with Sigmet_GoodVol. */
+    /* Volume not loaded. Inspect vol_nm with Sigmet_Vol_Good. */
     if ( !(in = vol_open(vol_nm, &p, i_err, err)) ) {
 	fprintf(err, "Could not open %s\n", vol_nm);
 	return SIGMET_CB_INPUT_FAIL;
     }
-    rslt = Sigmet_GoodVol(in) ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
+    rslt = Sigmet_Vol_Good(in) ? SIGMET_CB_SUCCESS : SIGMET_CB_FAIL;
     fclose(in);
     if ( p != -1 ) {
 	waitpid(p, NULL, 0);
@@ -366,7 +366,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
        is an allocation failure while reading, reduce max_vol_size and
        offload expendable volumes with a call to SigmetRaw_Flush. Temporarily
        setting the "keep" member keeps this volume from being flushed while
-       Sigmet_ReadHdr is using it.
+       Sigmet_Vol_ReadHdr is using it.
      */
 
     sv_p->keep = 1;
@@ -377,7 +377,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	    SigmetRaw_Delete(vol_nm);
 	    return SIGMET_CB_INPUT_FAIL;
 	}
-	switch (status = Sigmet_ReadHdr(in, vol_p)) {
+	switch (status = Sigmet_Vol_ReadHdr(in, vol_p)) {
 	    case SIGMET_VOL_READ_OK:
 		loaded = 1;
 		break;
@@ -462,7 +462,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	*vol_pp = vol_p;
 	return SIGMET_CB_SUCCESS;
     }
-    Sigmet_FreeVol(vol_p);
+    Sigmet_Vol_Free(vol_p);
 
     /*
        There is an entry for vol_nm in vols, but the vol member does not have
@@ -470,7 +470,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
        is an allocation failure while reading, reduce max_vol_size and
        offload expendable volumes with a call to SigmetRaw_Flush. Temporarily
        setting the "keep" member keeps this volume from being flushed while
-       Sigmet_ReadVol is using it.
+       Sigmet_Vol_Read is using it.
      */
 
     sv_p->keep = 1;
@@ -481,7 +481,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	    SigmetRaw_Delete(vol_nm);
 	    return SIGMET_CB_INPUT_FAIL;
 	}
-	switch (status = Sigmet_ReadVol(in, vol_p)) {
+	switch (status = Sigmet_Vol_Read(in, vol_p)) {
 	    case SIGMET_VOL_READ_OK:
 	    case SIGMET_VOL_INPUT_FAIL:
 		loaded = 1;
@@ -497,7 +497,7 @@ enum Sigmet_CB_Return SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		break;
 	    case SIGMET_VOL_BAD_VOL:
 		fprintf(err, "Read failed, bad volume. %s\n", Err_Get());
-		Sigmet_FreeVol(vol_p);
+		Sigmet_Vol_Free(vol_p);
 		try = max_try;
 		break;
 	}

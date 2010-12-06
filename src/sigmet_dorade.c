@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.15 $ $Date: 2010/12/01 16:45:16 $
+   .	$Revision: 1.16 $ $Date: 2010/12/02 17:58:42 $
  */
 
 #include <string.h>
@@ -21,7 +21,7 @@
 #include "data_types.h"
 #include "dorade_lib.h"
 
-int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
+int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 {
     double epoch;				/* 1970/01/01 */
     int year, mon, day, hr, min; double sec;	/* Sweep time */
@@ -363,7 +363,7 @@ int Sigmet_ToDorade(struct Sigmet_Vol *vol_p, int s, struct Dorade_Sweep *swp_p)
 		for (c = 0; c < num_cells; c++) {
 		    double d;
 
-		    d = Sigmet_VolDat(vol_p, p, s, r, c);
+		    d = Sigmet_Vol_GetDat(vol_p, p, s, r, c);
 		    if (Sigmet_IsData(d)) {
 			dat_p[p][r][c] = d;
 		    } else {

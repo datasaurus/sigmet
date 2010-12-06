@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.325 $ $Date: 2010/12/04 01:56:05 $
+ .	$Revision: 1.326 $ $Date: 2010/12/06 15:46:31 $
  */
 
 #include <limits.h>
@@ -762,7 +762,7 @@ static enum Sigmet_CB_Return volume_headers_cb(int argc, char *argv[], char *cl_
     }
     status = SigmetRaw_ReadHdr(vol_nm, err, i_err, &vol_p);
     if ( status == SIGMET_CB_SUCCESS ) {
-	Sigmet_PrintHdr(out, vol_p);
+	Sigmet_Vol_PrintHdr(out, vol_p);
     }
     return status;
 }
@@ -982,7 +982,7 @@ static enum Sigmet_CB_Return new_field_cb(int argc, char *argv[], char *cl_wd,
     if ( status != SIGMET_CB_SUCCESS ) {
 	return status;
     }
-    if ( !Sigmet_VolNewField(vol_p, abbrv) ) {
+    if ( !Sigmet_Vol_NewField(vol_p, abbrv) ) {
 	fprintf(err, "%s %s: could not add data type %s to %s\n%s\n",
 		argv0, argv1, abbrv, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
@@ -1021,7 +1021,7 @@ static enum Sigmet_CB_Return del_field_cb(int argc, char *argv[], char *cl_wd,
     if ( status != SIGMET_CB_SUCCESS ) {
 	return status;
     }
-    if ( !Sigmet_VolDelField(vol_p, abbrv) ) {
+    if ( !Sigmet_Vol_DelField(vol_p, abbrv) ) {
 	fprintf(err, "%s %s: could not remove data type %s from %s\n%s\n",
 		argv0, argv1, abbrv, vol_nm_r, Err_Get());
 	return SIGMET_CB_FAIL;
@@ -1135,7 +1135,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 		    }
 		    fprintf(out, "ray %d: ", r);
 		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-			d = Sigmet_VolDat(vol_p, y, s, r, b);
+			d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 			if ( Sigmet_IsData(d) ) {
 			    fprintf(out, "%f ", d);
 			} else {
@@ -1155,7 +1155,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 		}
 		fprintf(out, "ray %d: ", r);
 		for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		    d = Sigmet_VolDat(vol_p, y, s, r, b);
+		    d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 		    if ( Sigmet_IsData(d) ) {
 			fprintf(out, "%f ", d);
 		    } else {
@@ -1173,7 +1173,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	    }
 	    fprintf(out, "ray %d: ", r);
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		d = Sigmet_VolDat(vol_p, y, s, r, b);
+		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 		if ( Sigmet_IsData(d) ) {
 		    fprintf(out, "%f ", d);
 		} else {
@@ -1186,7 +1186,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
 	if ( vol_p->ray_ok[s][r] ) {
 	    fprintf(out, "%s. sweep %d, ray %d: ", abbrv, s, r);
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		d = Sigmet_VolDat(vol_p, y, s, r, b);
+		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 		if ( Sigmet_IsData(d) ) {
 		    fprintf(out, "%f ", d);
 		} else {
@@ -1198,7 +1198,7 @@ static enum Sigmet_CB_Return data_cb(int argc, char *argv[], char *cl_wd,
     } else {
 	if ( vol_p->ray_ok[s][r] ) {
 	    fprintf(out, "%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
-	    d = Sigmet_VolDat(vol_p, y, s, r, b);
+	    d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 	    if ( Sigmet_IsData(d) ) {
 		fprintf(out, "%f ", d);
 	    } else {
@@ -1287,7 +1287,7 @@ static enum Sigmet_CB_Return bin_outline_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, b, vol_nm);
 	return SIGMET_CB_FAIL;
     }
-    if ( !Sigmet_BinOutl(vol_p, s, r, b, corners) ) {
+    if ( !Sigmet_Vol_BinOutl(vol_p, s, r, b, corners) ) {
 	fprintf(err, "%s %s: could not compute bin outlines for bin %d %d %d in "
 		"%s\n%s\n", argv0, argv1, s, r, b, vol_nm, Err_Get());
 	return SIGMET_CB_FAIL;
@@ -1381,7 +1381,7 @@ static enum Sigmet_CB_Return bintvls_cb(int argc, char *argv[], char *cl_wd,
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_ok[s][r] ) {
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		d = Sigmet_VolDat(vol_p, y, s, r, b);
+		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 		if ( Sigmet_IsData(d)
 			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
 		    fprintf(out, "%6d: %3d %5d\n", n, r, b);
@@ -2104,13 +2104,13 @@ static enum Sigmet_CB_Return img_cb(int argc, char *argv[], char *cl_wd, int i_o
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_ok[s][r] ) {
 	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		d = Sigmet_VolDat(vol_p, y, s, r, b);
+		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 		if ( Sigmet_IsData(d)
 			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
 		    int undef = 0;		/* If true, outside map */
 		    size_t npts = 4;		/* Number of vertices */
 
-		    if ( !Sigmet_BinOutl(vol_p, s, r, b, cnrs_ll) ) {
+		    if ( !Sigmet_Vol_BinOutl(vol_p, s, r, b, cnrs_ll) ) {
 			Err_Get();		/* Flush */
 			continue;
 		    }
@@ -2253,7 +2253,7 @@ static enum Sigmet_CB_Return dorade_cb(int argc, char *argv[], char *cl_wd,
     if ( s == all ) {
 	for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 	    Dorade_Sweep_Init(&swp);
-	    if ( !Sigmet_ToDorade(vol_p, s, &swp) ) {
+	    if ( !Sigmet_Vol_ToDorade(vol_p, s, &swp) ) {
 		fprintf(err, "%s %s: could not translate sweep %d of %s to "
 			"DORADE format\n%s\n", argv0, argv1, s, vol_nm, Err_Get());
 		goto error;
@@ -2267,7 +2267,7 @@ static enum Sigmet_CB_Return dorade_cb(int argc, char *argv[], char *cl_wd,
 	}
     } else {
 	Dorade_Sweep_Init(&swp);
-	if ( !Sigmet_ToDorade(vol_p, s, &swp) ) {
+	if ( !Sigmet_Vol_ToDorade(vol_p, s, &swp) ) {
 	    fprintf(err, "%s %s: could not translate sweep %d of %s to "
 		    "DORADE format\n%s\n", argv0, argv1, s, vol_nm, Err_Get());
 	    goto error;
@@ -2332,13 +2332,13 @@ static enum Sigmet_CB_Return set_field_cb(int argc, char *argv[], char *cl_wd,
      */
 
     if ( strcmp("r_beam", d_s) == 0 ) {
-	if ( !Sigmet_SetDat_RBeam(vol_p, abbrv) ) {
+	if ( !Sigmet_Vol_SetFld_RBeam(vol_p, abbrv) ) {
 	    fprintf(err, "%s %s: could not set %s to beam range in %s\n%s\n",
 		    argv0, argv1, abbrv, vol_nm_r, Err_Get());
 	    return SIGMET_CB_FAIL;
 	}
     } else if ( sscanf(d_s, "%lf", &d) == 1 ) {
-	if ( !Sigmet_SetDat_F(vol_p, abbrv, d) ) {
+	if ( !Sigmet_Vol_SetFld_Dbl(vol_p, abbrv, d) ) {
 	    fprintf(err, "%s %s: could not set %s to %lf in %s\n%s\n",
 		    argv0, argv1, abbrv, d, vol_nm_r, Err_Get());
 	    return SIGMET_CB_FAIL;

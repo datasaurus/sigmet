@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.62 $ $Date: 2010/12/06 15:45:14 $
+   .	$Revision: 1.63 $ $Date: 2010/12/06 15:49:38 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -517,7 +517,7 @@ enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN);
 DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 
 /*
-   Values of this type are returned by Sigmet_ReadHdr and Sigmet_ReadVol.
+   Values of this type are returned by Sigmet_Vol_ReadHdr and Sigmet_Vol_Read.
    They indicate whether reading succeeded, or if not, how it failed.
  */
 
@@ -528,20 +528,20 @@ enum Sigmet_ReadStatus {SIGMET_VOL_READ_OK, SIGMET_VOL_INPUT_FAIL,
    These functions access Sigmet raw product files.
  */
 
-void Sigmet_InitVol(struct Sigmet_Vol *);
-void Sigmet_FreeVol(struct Sigmet_Vol *);
-int Sigmet_GoodVol(FILE *);
-enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *, struct Sigmet_Vol *);
-void Sigmet_PrintHdr(FILE *, struct Sigmet_Vol *);
-enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *, struct Sigmet_Vol *);
-int Sigmet_BadRay(struct Sigmet_Vol *, int, int);
-int Sigmet_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
-int Sigmet_VolNewField(struct Sigmet_Vol *, char *);
-int Sigmet_VolDelField(struct Sigmet_Vol *, char *);
-double Sigmet_VolDat(struct Sigmet_Vol *, int, int, int, int);
-int Sigmet_SetDat_F(struct Sigmet_Vol *, char *, double);
-int Sigmet_SetDat_RBeam(struct Sigmet_Vol *, char *);
-double Sigmet_VNyquist(struct Sigmet_Vol *);
-int Sigmet_ToDorade(struct Sigmet_Vol *, int, struct Dorade_Sweep *);
+void Sigmet_Vol_Init(struct Sigmet_Vol *);
+void Sigmet_Vol_Free(struct Sigmet_Vol *);
+int Sigmet_Vol_Good(FILE *);
+enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
+void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
+enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
+int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
+int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
+int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
+int Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
+double Sigmet_Vol_GetDat(struct Sigmet_Vol *, int, int, int, int);
+int Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *, char *, double);
+int Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *, char *);
+double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
+int Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int, struct Dorade_Sweep *);
 
 #endif

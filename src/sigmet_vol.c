@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.81 $ $Date: 2010/12/04 01:56:35 $
+   .	$Revision: 1.82 $ $Date: 2010/12/06 15:47:07 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -138,7 +138,7 @@ static void free3_u2(U2BYT ***);
 static double *** calloc3_dbl(long, long, long);
 static void free3_dbl(double ***);
 
-void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
+void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
 {
     int n;
 
@@ -162,7 +162,7 @@ void Sigmet_InitVol(struct Sigmet_Vol *vol_p)
     return;
 }
 
-void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
+void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 {
     int y;
 
@@ -197,7 +197,7 @@ void Sigmet_FreeVol(struct Sigmet_Vol *vol_p)
 	FREE(vol_p->dat);
     }
     Hash_Clear(&vol_p->types_tbl);
-    Sigmet_InitVol(vol_p);
+    Sigmet_Vol_Init(vol_p);
 }
 
 /*
@@ -221,7 +221,7 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
    dat array. It does not initialize the array.
  */
 
-int Sigmet_VolNewField(struct Sigmet_Vol *vol_p, char *abbrv)
+int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct DataType *data_type;
     size_t sz;
@@ -283,7 +283,7 @@ int Sigmet_VolNewField(struct Sigmet_Vol *vol_p, char *abbrv)
     return 1;
 }
 
-int Sigmet_VolDelField(struct Sigmet_Vol *vol_p, char *abbrv)
+int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct DataType *data_type;
     size_t sz;
@@ -327,7 +327,7 @@ int Sigmet_VolDelField(struct Sigmet_Vol *vol_p, char *abbrv)
     return 1;
 }
 
-enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
+enum Sigmet_ReadStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
     enum Sigmet_ReadStatus status;
@@ -367,7 +367,7 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     unsigned vol_type_mask;
     size_t sz;
 
-    Sigmet_FreeVol(vol_p);
+    Sigmet_Vol_Free(vol_p);
 
     /*
        Initialize dat array with SIGMET_NTYPES members.
@@ -487,11 +487,11 @@ enum Sigmet_ReadStatus Sigmet_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     return SIGMET_VOL_READ_OK;
 
 error:
-    Sigmet_FreeVol(vol_p);
+    Sigmet_Vol_Free(vol_p);
     return status;
 }
 
-void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
+void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
 {
     int y;
     char elem_nm[STR_LEN];
@@ -516,7 +516,7 @@ void Sigmet_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
 	    vol_p->truncated, "truncated", "If true, volume is truncated");
 }
 
-int Sigmet_GoodVol(FILE *f)
+int Sigmet_Vol_Good(FILE *f)
 {
     struct Sigmet_Vol vol;
     char rec[REC_LEN];			/* Input record from file */
@@ -550,7 +550,7 @@ int Sigmet_GoodVol(FILE *f)
     int i, n;				/* Temporary values */
 
     s = type = r = 0;
-    Sigmet_InitVol(&vol);
+    Sigmet_Vol_Init(&vol);
 
     /* record 1, <product_header> */
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
@@ -745,7 +745,7 @@ int Sigmet_GoodVol(FILE *f)
     return 1;
 }
 
-enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
+enum Sigmet_ReadStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
     enum Sigmet_ReadStatus status;
@@ -788,9 +788,9 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
     status = SIGMET_VOL_READ_OK;
 
     /* Read headers. As a side effect, this initializes vol_p. */
-    if ( (status = Sigmet_ReadHdr(f, vol_p)) != SIGMET_VOL_READ_OK ) {
+    if ( (status = Sigmet_Vol_ReadHdr(f, vol_p)) != SIGMET_VOL_READ_OK ) {
 	Err_Append("Could not read volume headers.\n");
-	Sigmet_FreeVol(vol_p);
+	Sigmet_Vol_Free(vol_p);
 	return SIGMET_VOL_BAD_VOL;
     }
 
@@ -1141,17 +1141,17 @@ enum Sigmet_ReadStatus Sigmet_ReadVol(FILE *f, struct Sigmet_Vol *vol_p)
 
 error:
     FREE(ray);
-    Sigmet_FreeVol(vol_p);
+    Sigmet_Vol_Free(vol_p);
     return status;
 }
 
-int Sigmet_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
+int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 {
     return vol_p->ray_az0[s][r] == vol_p->ray_az1[s][r];
 }
 
 /* Fetch a value from a Sigmet volume */
-double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
+double Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 {
     double v;
 
@@ -1185,7 +1185,7 @@ double Sigmet_VolDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
    Initialize data array to a given value.
  */
 
-int Sigmet_SetDat_F(struct Sigmet_Vol *vol_p, char *abbrv, double v)
+int Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *vol_p, char *abbrv, double v)
 {
     struct Sigmet_DatArr *dat_p;
     int s, r;
@@ -1221,7 +1221,7 @@ int Sigmet_SetDat_F(struct Sigmet_Vol *vol_p, char *abbrv, double v)
    Initialize data array to distance along beam.
  */
 
-int Sigmet_SetDat_RBeam(struct Sigmet_Vol *vol_p, char *abbrv)
+int Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct Sigmet_DatArr *dat_p;
     double ***arr;
@@ -1256,7 +1256,7 @@ int Sigmet_SetDat_RBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 }
 
 /* Nyquist velocity */
-double Sigmet_VNyquist(struct Sigmet_Vol *vol_p)
+double Sigmet_Vol_VNyquist(struct Sigmet_Vol *vol_p)
 {
     double wav_len, prf;
 
@@ -1276,7 +1276,7 @@ double Sigmet_VNyquist(struct Sigmet_Vol *vol_p)
 }
 
 /* Return lon-lat's at corners of a bin */
-int Sigmet_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b, double *ll)
+int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b, double *ll)
 {
     double re;			/* Earth radius */
     double lon_r, lat_r;	/* Radar longitude latitude */
