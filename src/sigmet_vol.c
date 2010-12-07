@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.87 $ $Date: 2010/12/07 19:50:41 $
+   .	$Revision: 1.88 $ $Date: 2010/12/07 21:39:38 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1274,6 +1274,123 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 	    }
 	}
     }
+    return SIGMET_OK;
+}
+
+/*
+   Add scalar a to field abbrv.
+ */
+
+int Sigmet_Vol_Fld_AddDbl(struct Sigmet_Vol *vol_p, char *abbrv, double a)
+{
+    struct Sigmet_DatArr *dat_p;
+    struct DataType *data_type;
+    int num_sweeps, num_rays, num_bins;
+    int s, r, b;
+    double d, ***dbl_p;
+
+    if ( !vol_p || !abbrv ) {
+	return SIGMET_BAD_ARG;
+    }
+    num_sweeps = vol_p->ih.tc.tni.num_sweeps;
+    num_rays = vol_p->ih.ic.num_rays;
+    num_bins = vol_p->ih.tc.tri.num_bins_out;
+    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("No field of ");
+	Err_Append(abbrv);
+	Err_Append(" in volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    data_type = dat_p->data_type;
+    switch (data_type->stor_fmt) {
+	case DATA_TYPE_U1:
+	    dbl_p = calloc3_dbl(num_sweeps, num_rays, num_bins);
+	    if ( !dbl_p ) {
+		Err_Append("Could not allocate new field while converting ");
+		Err_Append(abbrv);
+		Err_Append(" to new internal representation. ");
+		return SIGMET_ALLOC_FAIL;
+	    }
+	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+		if ( vol_p->sweep_ok[s] ) {
+		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+			if ( vol_p->ray_ok[s][r] ) {
+			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+				d = dat_p->arr.d1[s][r][b];
+				d = DataType_StorToComp(data_type, d, vol_p);
+				if ( Sigmet_IsData(d) ) {
+				    dbl_p[s][r][b] = d + a;
+				} else {
+				    dbl_p[s][r][b] = Sigmet_NoData();
+				}
+			    }
+			}
+		    }
+		}
+	    }
+	    free3_u1(dat_p->arr.d1);
+	    dat_p->arr.dbl = dbl_p;
+	    dat_p->data_type->stor_fmt = DATA_TYPE_DBL;
+	    break;
+	case DATA_TYPE_U2:
+	    dbl_p = calloc3_dbl(num_sweeps, num_rays, num_bins);
+	    if ( !dbl_p ) {
+		Err_Append("Could not allocate new field while converting ");
+		Err_Append(abbrv);
+		Err_Append(" to new internal representation. ");
+		return SIGMET_ALLOC_FAIL;
+	    }
+	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+		if ( vol_p->sweep_ok[s] ) {
+		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+			if ( vol_p->ray_ok[s][r] ) {
+			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+				d = dat_p->arr.d2[s][r][b];
+				d = DataType_StorToComp(data_type, d, vol_p);
+				if ( Sigmet_IsData(d) ) {
+				    dbl_p[s][r][b] = d + a;
+				} else {
+				    dbl_p[s][r][b] = Sigmet_NoData();
+				}
+			    }
+			}
+		    }
+		}
+	    }
+	    free3_u2(dat_p->arr.d2);
+	    dat_p->arr.dbl = dbl_p;
+	    dat_p->data_type->stor_fmt = DATA_TYPE_DBL;
+	    break;
+	case DATA_TYPE_DBL:
+	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+		if ( vol_p->sweep_ok[s] ) {
+		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+			if ( vol_p->ray_ok[s][r] ) {
+			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+				d = dat_p->arr.dbl[s][r][b];
+				if ( Sigmet_IsData(d) ) {
+				    dat_p->arr.dbl[s][r][b] = d + a;
+				}
+			    }
+			}
+		    }
+		}
+	    }
+	    break;
+	case DATA_TYPE_MT:
+	    Err_Append("Unknown data type in volume. ");
+	    return SIGMET_BAD_VOL;
+	    break;
+    }
+    return SIGMET_OK;
+}
+
+/*
+   Add field abbrv2 to abbrv1.
+ */
+
+int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char* abbrv2)
+{
     return SIGMET_OK;
 }
 
@@ -3038,7 +3155,7 @@ static void free3_u2(U2BYT ***dat)
  */
 static double ***calloc3_dbl(long kmax, long jmax, long imax)
 {
-    double ***dat;
+    double ***dat, *d;
     long k, j;
     size_t kk, jj, ii;
 
@@ -3078,6 +3195,9 @@ static double ***calloc3_dbl(long kmax, long jmax, long imax)
     }
     for (j = 1; j <= kmax * jmax; j++) {
 	dat[0][j] = dat[0][j - 1] + imax;
+    }
+    for (d = dat[0][0]; d < dat[0][0] + kk * jj * ii + 1; d++) {
+	*d = Sigmet_NoData();
     }
     return dat;
 }
