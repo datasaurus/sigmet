@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.67 $ $Date: 2010/12/06 21:54:55 $
+   .	$Revision: 1.68 $ $Date: 2010/12/07 18:06:20 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -30,7 +30,7 @@
 
 /*
    Enumerator for the data types defined in the IRIS Programmer's Manual
-   (section 3.3). DB_UNK means data type is unknown.
+   (section 3.3).
  */
 
 #define SIGMET_NTYPES 28
@@ -40,7 +40,7 @@ enum Sigmet_DataTypeN {
     DB_WIDTH2,	DB_ZDR2,	DB_RAINRATE2,	DB_KDP,		DB_KDP2,
     DB_PHIDP,	DB_VELC,	DB_SQI,		DB_RHOHV,	DB_RHOHV2,
     DB_DBZC2,	DB_VELC2,	DB_SQI2,	DB_PHIDP2,	DB_LDRH,
-    DB_LDRH2,	DB_LDRV,	DB_LDRV2,	DB_UNK
+    DB_LDRH2,	DB_LDRV,	DB_LDRV2
 };
 
 /*
@@ -507,7 +507,7 @@ double Sigmet_Bin2Rad(unsigned short);
 unsigned long Sigmet_RadBin4(double);
 unsigned long Sigmet_RadBin2(double);
 
-enum Sigmet_DataTypeN Sigmet_DataTypeN(char *);
+int Sigmet_DataType_GetN(char *, enum Sigmet_DataTypeN *);
 char *Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN);
 char *Sigmet_DataType_Descr(enum Sigmet_DataTypeN);
 char *Sigmet_DataType_Unit(enum Sigmet_DataTypeN);
