@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.328 $ $Date: 2010/12/06 20:49:22 $
+ .	$Revision: 1.329 $ $Date: 2010/12/06 21:54:55 $
  */
 
 #include <limits.h>
@@ -58,8 +58,7 @@
  */
 
 #define NCMD 29
-typedef enum Sigmet_Status (callback)(int , char **, char *, int, FILE *,
-	int, FILE *);
+typedef int (callback)(int , char **, char *, int, FILE *, int, FILE *);
 static callback pid_cb;
 static callback data_types_cb;
 static callback new_data_type_cb;
@@ -115,7 +114,7 @@ static callback *cb1v[NCMD] = {
 
 static char *time_stamp(void);
 static int abs_name(char *, char *, char *, size_t);
-static enum Sigmet_Status img_name(struct Sigmet_Vol *, char *, int, char *);
+static int img_name(struct Sigmet_Vol *, char *, int, char *);
 static int handle_signals(void);
 static void handler(int);
 
@@ -250,7 +249,7 @@ int main(int argc, char *argv[])
 	int i_err = -1;		/* Error output to client  */
 	FILE *out, *err;	/* Standard streams for i_out and i_err */
 	int flags;		/* Return from fcntl, when config'ing cl_io_fd */
-	enum Sigmet_Status sstatus; /* Result of callback */
+	int sstatus;		/* Result of callback */
 	int i;			/* Loop index */
 	char *c, *e;		/* Loop parameters */
 	void *t;		/* Hold return from realloc */
@@ -430,7 +429,8 @@ int main(int argc, char *argv[])
 
 	/*
 	   Callback, if any, is done. Close fifo's. Client will delete them.
-	   Send callback exit status of through the daemon socket and close
+	   Send callback exit status, which will be a SIGMET_* return value
+	   defined in sigmet.h, through the daemon socket and close
 	   the client side of the socket. Break out of loop if subcommand
 	   is "stop".
 	 */
@@ -440,7 +440,7 @@ int main(int argc, char *argv[])
 		    "for process %d\n%s\n",
 		    time_stamp(), client_pid, strerror(errno));
 	}
-	if ( write(cl_io_fd, &sstatus, sizeof(enum Sigmet_Status)) == -1 ) {
+	if ( write(cl_io_fd, &sstatus, sizeof(int)) == -1 ) {
 	    fprintf(err, "%s: could not send return code for %s (%d).\n"
 		    "%s\n", time_stamp(), cmd1, client_pid, strerror(errno) );
 	}
@@ -522,7 +522,7 @@ static int abs_name(char *root, char *rel, char *abs, size_t l)
     return 1;
 }
 
-static enum Sigmet_Status pid_cb(int argc, char *argv[], char *cl_wd, int i_out,
+static int pid_cb(int argc, char *argv[], char *cl_wd, int i_out,
 	FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -536,7 +536,7 @@ static enum Sigmet_Status pid_cb(int argc, char *argv[], char *cl_wd, int i_out,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status new_data_type_cb(int argc, char *argv[],
+static int new_data_type_cb(int argc, char *argv[],
 	char *cl_wd, int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -564,7 +564,7 @@ static enum Sigmet_Status new_data_type_cb(int argc, char *argv[],
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status data_types_cb(int argc, char *argv[], char *cl_wd,
+static int data_types_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -573,7 +573,7 @@ static enum Sigmet_Status data_types_cb(int argc, char *argv[], char *cl_wd,
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
     int y;
-    enum Sigmet_Status status; 		/* Result of SigmetRaw_ReadHdr */
+    int status;				/* Result of SigmetRaw_ReadHdr */
     struct DataType *data_type;		/* Information about a data type */
 
     if ( argc == 2 ) {
@@ -608,7 +608,7 @@ static enum Sigmet_Status data_types_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status setcolors_cb(int argc, char *argv[], char *cl_wd,
+static int setcolors_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -640,7 +640,7 @@ static enum Sigmet_Status setcolors_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status good_cb(int argc, char *argv[], char *cl_wd,
+static int good_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -661,14 +661,14 @@ static enum Sigmet_Status good_cb(int argc, char *argv[], char *cl_wd,
     return SigmetRaw_GoodVol(vol_nm, i_err, err);
 }
 
-static enum Sigmet_Status list_cb(int argc, char *argv[], char *cl_wd,
+static int list_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     SigmetRaw_VolList(out);
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status keep_cb(int argc, char *argv[], char *cl_wd,
+static int keep_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -690,7 +690,7 @@ static enum Sigmet_Status keep_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status delete_cb(int argc, char *argv[], char *cl_wd,
+static int delete_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -711,7 +711,7 @@ static enum Sigmet_Status delete_cb(int argc, char *argv[], char *cl_wd,
     return SigmetRaw_Delete(vol_nm);
 }
 
-static enum Sigmet_Status max_size_cb(int argc, char *argv[], char *cl_wd,
+static int max_size_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -741,7 +741,7 @@ static enum Sigmet_Status max_size_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status volume_headers_cb(int argc, char *argv[], char *cl_wd,
+static int volume_headers_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -749,7 +749,7 @@ static enum Sigmet_Status volume_headers_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
-    enum Sigmet_Status status; 		/* Result of SigmetRaw_ReadHdr */
+    int status;				/* Result of SigmetRaw_ReadHdr */
 
     if ( argc != 3 ) {
 	fprintf(err, "Usage: %s %s sigmet_volume\n", argv0, argv1);
@@ -768,7 +768,7 @@ static enum Sigmet_Status volume_headers_cb(int argc, char *argv[], char *cl_wd,
     return status;
 }
 
-static enum Sigmet_Status vol_hdr_cb(int argc, char *argv[], char *cl_wd,
+static int vol_hdr_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -776,7 +776,7 @@ static enum Sigmet_Status vol_hdr_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadHdr */
+    int status;				/* Result of SigmetRaw_ReadHdr */
     int y;
     double wavlen, prf, vel_ua;
     enum Sigmet_Multi_PRF mp;
@@ -845,7 +845,7 @@ static enum Sigmet_Status vol_hdr_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status near_sweep_cb(int argc, char *argv[], char *cl_wd,
+static int near_sweep_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -855,7 +855,7 @@ static enum Sigmet_Status near_sweep_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
     int s, nrst;
 
     if ( argc != 4 ) {
@@ -895,7 +895,7 @@ static enum Sigmet_Status near_sweep_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status ray_headers_cb(int argc, char *argv[], char *cl_wd,
+static int ray_headers_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -903,7 +903,7 @@ static enum Sigmet_Status ray_headers_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
     int s, r;
 
     if ( argc != 3 ) {
@@ -952,7 +952,7 @@ static enum Sigmet_Status ray_headers_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status new_field_cb(int argc, char *argv[], char *cl_wd,
+static int new_field_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -961,7 +961,7 @@ static enum Sigmet_Status new_field_cb(int argc, char *argv[], char *cl_wd,
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     char *abbrv;			/* Data type abbreviation */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
 
     if ( argc != 4 ) {
 	fprintf(err, "Usage: %s %s data_type sigmet_volume\n", argv0, argv1);
@@ -993,7 +993,7 @@ static enum Sigmet_Status new_field_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status del_field_cb(int argc, char *argv[], char *cl_wd,
+static int del_field_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1002,7 +1002,7 @@ static enum Sigmet_Status del_field_cb(int argc, char *argv[], char *cl_wd,
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     char *abbrv;			/* Data type abbreviation */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
 
     if ( argc != 4 ) {
 	fprintf(err, "Usage: %s %s data_type sigmet_volume\n", argv0, argv1);
@@ -1031,7 +1031,7 @@ static enum Sigmet_Status del_field_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status data_cb(int argc, char *argv[], char *cl_wd,
+static int data_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1039,7 +1039,7 @@ static enum Sigmet_Status data_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
     int s, y, r, b;
     char *abbrv;
     double d;
@@ -1211,7 +1211,7 @@ static enum Sigmet_Status data_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status bin_outline_cb(int argc, char *argv[], char *cl_wd,
+static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1219,7 +1219,7 @@ static enum Sigmet_Status bin_outline_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
     char *s_s, *r_s, *b_s, *u_s;
     int use_rad = 1;			/* If true, use radians */
     int use_deg = 0;			/* If true, use degrees */
@@ -1289,8 +1289,8 @@ static enum Sigmet_Status bin_outline_cb(int argc, char *argv[], char *cl_wd,
 	return SIGMET_RNG_ERR;
     }
     if ( (status = Sigmet_Vol_BinOutl(vol_p, s, r, b, corners)) != SIGMET_OK ) {
-	fprintf(err, "%s %s: could not compute bin outlines for bin %d %d %d in "
-		"%s\n%s\n", argv0, argv1, s, r, b, vol_nm, Err_Get());
+	fprintf(err, "%s %s: could not compute bin outlines for bin %d %d %d "
+		"in %s\n%s\n", argv0, argv1, s, r, b, vol_nm, Err_Get());
 	return status;
     }
     if ( use_deg ) {
@@ -1305,7 +1305,7 @@ static enum Sigmet_Status bin_outline_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status bintvls_cb(int argc, char *argv[], char *cl_wd,
+static int bintvls_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1313,7 +1313,7 @@ static enum Sigmet_Status bintvls_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
     struct DataType *data_type;		/* Information about the data type */
@@ -1394,7 +1394,7 @@ static enum Sigmet_Status bintvls_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status radar_lon_cb(int argc, char *argv[], char *cl_wd,
+static int radar_lon_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1402,7 +1402,7 @@ static enum Sigmet_Status radar_lon_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadHdr */
+    int status;				/* Result of SigmetRaw_ReadHdr */
     char *lon_s;			/* New longitude, degrees, in argv */
     double lon;				/* New longitude, degrees */
 
@@ -1433,7 +1433,7 @@ static enum Sigmet_Status radar_lon_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status radar_lat_cb(int argc, char *argv[], char *cl_wd,
+static int radar_lat_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1441,7 +1441,7 @@ static enum Sigmet_Status radar_lat_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadHdr */
+    int status;				/* Result of SigmetRaw_ReadHdr */
     char *lat_s;			/* New latitude, degrees, in argv */
     double lat;				/* New latitude, degrees */
 
@@ -1472,7 +1472,7 @@ static enum Sigmet_Status radar_lat_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status shift_az_cb(int argc, char *argv[], char *cl_wd,
+static int shift_az_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1480,7 +1480,7 @@ static enum Sigmet_Status shift_az_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
     char *daz_s;			/* Degrees to add to each azimuth */
     double daz;				/* Radians to add to each azimuth */
     double idaz;			/* Binary angle to add to each azimuth */
@@ -1538,10 +1538,10 @@ static enum Sigmet_Status shift_az_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status proj_cb(int argc, char *argv[], char *cl_wd,
+static int proj_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
-    enum Sigmet_Status status;
+    int status;
     char *argv0 = argv[0];
     char *argv1 = argv[1];
 
@@ -1553,7 +1553,7 @@ static enum Sigmet_Status proj_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status img_sz_cb(int argc, char *argv[], char *cl_wd,
+static int img_sz_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1596,10 +1596,10 @@ static enum Sigmet_Status img_sz_cb(int argc, char *argv[], char *cl_wd,
     }
 }
 
-static enum Sigmet_Status img_app_cb(int argc, char *argv[], char *cl_wd,
+static int img_app_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
-    enum Sigmet_Status status;
+    int status;
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     char *img_app_s;			/* Path name of image generator */
@@ -1617,7 +1617,7 @@ static enum Sigmet_Status img_app_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status alpha_cb(int argc, char *argv[], char *cl_wd,
+static int alpha_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1647,7 +1647,7 @@ static enum Sigmet_Status alpha_cb(int argc, char *argv[], char *cl_wd,
    buf with nul's, store and error string with Err_Append, and return 0.
  */
 
-static enum Sigmet_Status img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s,
+static int img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	char *buf)
 {
     int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
@@ -1669,7 +1669,7 @@ static enum Sigmet_Status img_name(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status img_name_cb(int argc, char *argv[], char *cl_wd,
+static int img_name_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1677,7 +1677,7 @@ static enum Sigmet_Status img_name_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadHdr */
+    int status;				/* Result of SigmetRaw_ReadHdr */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
     struct Sigmet_DatArr *dat_p;
@@ -1735,7 +1735,7 @@ static enum Sigmet_Status img_name_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static enum Sigmet_Status img_cb(int argc, char *argv[], char *cl_wd, int i_out,
+static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 	FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -1743,7 +1743,7 @@ static enum Sigmet_Status img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
-    enum Sigmet_Status status; 		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
     struct DataType *data_type;		/* Information about the data type */
@@ -2212,7 +2212,7 @@ error:
     return status;
 }
 
-static enum Sigmet_Status dorade_cb(int argc, char *argv[], char *cl_wd,
+static int dorade_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -2224,7 +2224,7 @@ static enum Sigmet_Status dorade_cb(int argc, char *argv[], char *cl_wd,
     char *s_s;				/* String representation of s */
     int all = -1;
     struct Sigmet_Vol *vol_p;
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
     struct Dorade_Sweep swp;
 
     if ( argc == 3 ) {
@@ -2299,7 +2299,7 @@ error:
    Set value for a field.
  */
 
-static enum Sigmet_Status set_field_cb(int argc, char *argv[], char *cl_wd,
+static int set_field_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
@@ -2307,7 +2307,7 @@ static enum Sigmet_Status set_field_cb(int argc, char *argv[], char *cl_wd,
     char *vol_nm_r;			/* Path to Sigmet volume */
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     struct Sigmet_Vol *vol_p;		/* Volume structure */
-    enum Sigmet_Status status;		/* Result of SigmetRaw_ReadVol */
+    int status;				/* Result of SigmetRaw_ReadVol */
     char *abbrv;			/* Data type abbreviation */
     char *d_s;
     double d;

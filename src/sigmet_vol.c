@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.84 $ $Date: 2010/12/06 20:51:04 $
+   .	$Revision: 1.85 $ $Date: 2010/12/06 21:54:55 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -221,7 +221,7 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
    dat array. It does not initialize the array.
  */
 
-enum Sigmet_Status Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
+int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct DataType *data_type;
     size_t sz;
@@ -283,7 +283,7 @@ enum Sigmet_Status Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
     return SIGMET_OK;
 }
 
-enum Sigmet_Status Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
+int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct DataType *data_type;
     size_t sz;
@@ -328,10 +328,10 @@ enum Sigmet_Status Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
     return SIGMET_OK;
 }
 
-enum Sigmet_Status Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
+int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
-    enum Sigmet_Status status;
+    int status;
 
     /*
        yf will increment as bits are found in the volume type mask.
@@ -566,7 +566,7 @@ int Sigmet_Vol_Good(FILE *f)
 
     /* record 1, <product_header> */
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
-	return 0;
+	return SIGMET_IO_FAIL;
     }
 
     /*
@@ -576,7 +576,7 @@ int Sigmet_Vol_Good(FILE *f)
     if (get_sint16(rec) != 27) {
 	Toggle_Swap();
 	if (get_sint16(rec) != 27) {
-	    return 0;
+	    return SIGMET_BAD_FILE;
 	}
     }
 
@@ -584,7 +584,7 @@ int Sigmet_Vol_Good(FILE *f)
 
     /* record 2, <ingest_header> */
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
-	return 0;
+	return SIGMET_IO_FAIL;
     }
     vol.ih = get_ingest_header(rec);
 
@@ -622,7 +622,7 @@ int Sigmet_Vol_Good(FILE *f)
 	n = get_sint16(rec + 2);
 
 	if (i != rec_idx + 1) {
-	    return 0;
+	    return SIGMET_BAD_FILE;
 	}
 	rec_idx = i;
 
@@ -630,7 +630,7 @@ int Sigmet_Vol_Good(FILE *f)
 	    /* Record is start of new sweep. */
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
-		return 0;
+		return SIGMET_BAD_FILE;
 	    }
 	    s = sweep_num - 1;
 	    r = 0;
@@ -652,7 +652,7 @@ int Sigmet_Vol_Good(FILE *f)
 	    month = get_sint16(rec + 32);
 	    day = get_sint16(rec + 34);
 	    if (year == 0 || month == 0 || day == 0) {
-		return 0;
+		return SIGMET_BAD_FILE;
 	    }
 
 	    /* Set sweep in volume. */
@@ -700,11 +700,11 @@ int Sigmet_Vol_Good(FILE *f)
 		       should agree with counter.
 		     */
 		    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
-			return 0;
+			return SIGMET_IO_FAIL;
 		    }
 		    i = get_sint16(rec);
 		    if (i != rec_idx + 1) {
-			return 0;
+			return SIGMET_BAD_FILE;
 		    }
 		    rec_idx = i;
 
@@ -727,10 +727,10 @@ int Sigmet_Vol_Good(FILE *f)
 	    } else if (*recP == 1) {
 		/* End of ray */
 		if (s > num_sweeps) {
-		    return 0;
+		    return SIGMET_BAD_FILE;
 		}
 		if (r > num_rays) {
-		    return 0;
+		    return SIGMET_BAD_FILE;
 		}
 
 		/* Skip ray data. */
@@ -749,18 +749,18 @@ int Sigmet_Vol_Good(FILE *f)
 	}
     }
     if (s + 1 != num_sweeps) {
-	return 0;
+	return SIGMET_BAD_FILE;
     }
     if ( !feof(f) ) {
-	return 0;
+	return SIGMET_BAD_FILE;
     }
-    return 1;
+    return SIGMET_OK;
 }
 
-enum Sigmet_Status Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
+int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
-    enum Sigmet_Status status;
+    int status;
 
 
     U16BIT *recP;			/* Pointer into rec */
@@ -1207,8 +1207,7 @@ double Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
    Initialize data array to a given value.
  */
 
-enum Sigmet_Status Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *vol_p, char *abbrv,
-	double v)
+int Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *vol_p, char *abbrv, double v)
 {
     struct Sigmet_DatArr *dat_p;
     int s, r;
@@ -1244,8 +1243,7 @@ enum Sigmet_Status Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *vol_p, char *abbrv,
    Initialize data array to distance along beam.
  */
 
-enum Sigmet_Status Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *vol_p,
-	char *abbrv)
+int Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct Sigmet_DatArr *dat_p;
     double ***arr;
@@ -1300,8 +1298,8 @@ double Sigmet_Vol_VNyquist(struct Sigmet_Vol *vol_p)
 }
 
 /* Return lon-lat's at corners of a bin */
-enum Sigmet_Status Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r,
-	int b, double *ll)
+int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
+	double *ll)
 {
     double re;			/* Earth radius */
     double lon_r, lat_r;	/* Radar longitude latitude */

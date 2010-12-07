@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.2 $ $Date: 2010/08/18 21:10:51 $
+ .	$Revision: 1.3 $ $Date: 2010/12/06 20:50:05 $
  */
 
 #include <string.h>
@@ -47,7 +47,7 @@ double SigmetRaw_GetImgAlpha(void)
     return alpha;
 }
 
-enum Sigmet_Status SigmetRaw_SetImgApp(char *nm)
+int SigmetRaw_SetImgApp(char *nm)
 {
     struct stat sbuf;
     mode_t m = S_IXUSR | S_IXGRP | S_IXOTH;	/* Executable mode */

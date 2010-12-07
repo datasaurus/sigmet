@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.18 $ $Date: 2010/12/06 20:48:24 $
+   .	$Revision: 1.19 $ $Date: 2010/12/06 21:54:55 $
  */
 
 #include <string.h>
@@ -21,10 +21,10 @@
 #include "data_types.h"
 #include "dorade_lib.h"
 
-enum Sigmet_Status Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
+int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	struct Dorade_Sweep *swp_p)
 {
-    enum Sigmet_Status status;			/* Return value for this call */
+    int status;					/* Return value for this call */
     double epoch;				/* 1970/01/01 */
     int year, mon, day, hr, min; double sec;	/* Sweep time */
     double wave_len;				/* Wavelength from vol_p */

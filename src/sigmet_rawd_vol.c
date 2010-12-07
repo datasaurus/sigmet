@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.50 $ $Date: 2010/12/06 20:50:43 $
+ .	$Revision: 1.51 $ $Date: 2010/12/06 21:54:55 $
  */
 
 #include <unistd.h>
@@ -301,7 +301,7 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
    Print error messages to err.
  */
 
-enum Sigmet_Status SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
+int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 {
     struct sig_vol *sv_p;
     FILE *in;
@@ -332,7 +332,7 @@ enum Sigmet_Status SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
    the volume headers, but not data. Send error messages to err or i_err.
  */
 
-enum Sigmet_Status SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
+int SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	struct Sigmet_Vol ** vol_pp)
 {
     struct sig_vol *sv_p;	/* Member of vols */
@@ -340,7 +340,7 @@ enum Sigmet_Status SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     int loaded;			/* If true, volume is loaded */
     int try;			/* Number of attempts to read volume */
     int max_try = 3;		/* Maximum tries */
-    enum Sigmet_Status status; /* Result of a read call */
+    int status;			/* Result of a read call */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
 
@@ -399,13 +399,6 @@ enum Sigmet_Status SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 		fprintf(err, "Internal failure while reading volume "
 			"headers.\n");
 		break;
-	    case SIGMET_BAD_VOL:
-	    case SIGMET_FLUSH_FAIL:
-	    case SIGMET_NOT_INIT:
-	    case SIGMET_HELPER_FAIL:
-	    case SIGMET_RNG_ERR:
-		/* Not returned by Sigmet_Vol_ReadHdr */
-		break;
 	}
 	fclose(in);
 	if (in_pid != -1) {
@@ -435,7 +428,7 @@ enum Sigmet_Status SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
    the volume headers and data. Send error messages to err or i_err.
  */
 
-enum Sigmet_Status SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
+int SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	struct Sigmet_Vol **vol_pp)
 {
     struct sig_vol *sv_p;	/* Member of vols */
@@ -443,7 +436,7 @@ enum Sigmet_Status SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     int loaded;			/* If true, volume is loaded */
     int try;			/* Number of attempts to read volume */
     int max_try = 3;		/* Maximum tries */
-    enum Sigmet_Status status; /* Result of a read call */
+    int status;			/* Result of a read call */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
 
@@ -502,13 +495,6 @@ enum Sigmet_Status SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		break;
 	    case SIGMET_BAD_ARG:
 		fprintf(err, "Internal failure while reading volume.\n");
-		break;
-	    case SIGMET_BAD_VOL:
-	    case SIGMET_FLUSH_FAIL:
-	    case SIGMET_NOT_INIT:
-	    case SIGMET_HELPER_FAIL:
-	    case SIGMET_RNG_ERR:
-		/* Not returned by Sigmet_Vol_ReadHdr */
 		break;
 	}
 	fclose(in);
@@ -586,7 +572,7 @@ void SigmetRaw_Release(char *vol_nm)
    otherwise return false.
  */
 
-enum Sigmet_Status SigmetRaw_Delete(char *vol_nm)
+int SigmetRaw_Delete(char *vol_nm)
 {
     dev_t d;			/* Id of device containing file named vol_nm */
     ino_t i;			/* Inode number for file named vol_nm*/
@@ -612,7 +598,7 @@ enum Sigmet_Status SigmetRaw_Delete(char *vol_nm)
    not set.
  */
 
-enum Sigmet_Status SigmetRaw_Flush(void)
+int SigmetRaw_Flush(void)
 {
     struct sig_vol *sv_p, *unext;
 

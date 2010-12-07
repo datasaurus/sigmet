@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.66 $ $Date: 2010/12/06 20:47:58 $
+   .	$Revision: 1.67 $ $Date: 2010/12/06 21:54:55 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -515,21 +515,19 @@ enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN);
 DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 
 /*
-   Function return values. See sigmet(3).
+   Return values. See sigmet(3).
  */
 
-enum Sigmet_Status {
-    SIGMET_OK,
-    SIGMET_NOT_INIT,
-    SIGMET_IO_FAIL,
-    SIGMET_HELPER_FAIL,
-    SIGMET_BAD_FILE,
-    SIGMET_BAD_VOL,
-    SIGMET_ALLOC_FAIL,
-    SIGMET_FLUSH_FAIL,
-    SIGMET_BAD_ARG,
-    SIGMET_RNG_ERR
-};
+#define SIGMET_OK 0
+#define SIGMET_NOT_INIT 1
+#define SIGMET_IO_FAIL 2
+#define SIGMET_HELPER_FAIL 3
+#define SIGMET_BAD_FILE 4
+#define SIGMET_BAD_VOL 5
+#define SIGMET_ALLOC_FAIL 6
+#define SIGMET_FLUSH_FAIL 7
+#define SIGMET_BAD_ARG 8
+#define SIGMET_RNG_ERR 9
 
 /*
    These functions access Sigmet raw product files.
@@ -538,19 +536,19 @@ enum Sigmet_Status {
 void Sigmet_Vol_Init(struct Sigmet_Vol *);
 void Sigmet_Vol_Free(struct Sigmet_Vol *);
 int Sigmet_Vol_Good(FILE *);
-enum Sigmet_Status Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
+int Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
-enum Sigmet_Status Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
+int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
-enum Sigmet_Status Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int,
+int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int,
 	double *);
-enum Sigmet_Status Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
-enum Sigmet_Status Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
+int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
+int Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
 double Sigmet_Vol_GetDat(struct Sigmet_Vol *, int, int, int, int);
-enum Sigmet_Status Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *, char *, double);
-enum Sigmet_Status Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *, char *);
+int Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *, char *, double);
+int Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *, char *);
 double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
-enum Sigmet_Status Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int,
+int Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int,
 	struct Dorade_Sweep *);
 
 #endif
