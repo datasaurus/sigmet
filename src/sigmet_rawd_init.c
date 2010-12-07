@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.332 $ $Date: 2010/12/07 20:14:28 $
+ .	$Revision: 1.333 $ $Date: 2010/12/07 21:30:25 $
  */
 
 #include <limits.h>
@@ -2337,13 +2337,13 @@ static int set_field_cb(int argc, char *argv[], char *cl_wd,
      */
 
     if ( strcmp("r_beam", d_s) == 0 ) {
-	if ( (status = Sigmet_Vol_SetFld_RBeam(vol_p, abbrv)) != SIGMET_OK ) {
+	if ( (status = Sigmet_Vol_Fld_SetRBeam(vol_p, abbrv)) != SIGMET_OK ) {
 	    fprintf(err, "%s %s: could not set %s to beam range in %s\n%s\n",
 		    argv0, argv1, abbrv, vol_nm_r, Err_Get());
 	    return status;
 	}
     } else if ( sscanf(d_s, "%lf", &d) == 1 ) {
-	if ( (status = Sigmet_Vol_SetFld_Dbl(vol_p, abbrv, d)) != SIGMET_OK ) {
+	if ( (status = Sigmet_Vol_Fld_SetDbl(vol_p, abbrv, d)) != SIGMET_OK ) {
 	    fprintf(err, "%s %s: could not set %s to %lf in %s\n%s\n",
 		    argv0, argv1, abbrv, d, vol_nm_r, Err_Get());
 	    return status;

@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.86 $ $Date: 2010/12/07 18:06:20 $
+   .	$Revision: 1.87 $ $Date: 2010/12/07 19:50:41 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1207,7 +1207,7 @@ double Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
    Initialize data array to a given value.
  */
 
-int Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *vol_p, char *abbrv, double v)
+int Sigmet_Vol_Fld_SetDbl(struct Sigmet_Vol *vol_p, char *abbrv, double v)
 {
     struct Sigmet_DatArr *dat_p;
     int s, r;
@@ -1243,7 +1243,7 @@ int Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *vol_p, char *abbrv, double v)
    Initialize data array to distance along beam.
  */
 
-int Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *vol_p, char *abbrv)
+int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct Sigmet_DatArr *dat_p;
     double ***arr;

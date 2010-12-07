@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.69 $ $Date: 2010/12/07 19:49:02 $
+   .	$Revision: 1.70 $ $Date: 2010/12/07 20:13:50 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -546,8 +546,8 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int,
 int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
 double Sigmet_Vol_GetDat(struct Sigmet_Vol *, int, int, int, int);
-int Sigmet_Vol_SetFld_Dbl(struct Sigmet_Vol *, char *, double);
-int Sigmet_Vol_SetFld_RBeam(struct Sigmet_Vol *, char *);
+int Sigmet_Vol_Fld_SetDbl(struct Sigmet_Vol *, char *, double);
+int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *, char *);
 double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
 int Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int,
 	struct Dorade_Sweep *);
