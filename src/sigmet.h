@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.68 $ $Date: 2010/12/07 18:06:20 $
+   .	$Revision: 1.69 $ $Date: 2010/12/07 19:49:02 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -528,6 +528,7 @@ DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 #define SIGMET_FLUSH_FAIL 7
 #define SIGMET_BAD_ARG 8
 #define SIGMET_RNG_ERR 9
+#define SIGMET_BAD_TIME 10
 
 /*
    These functions access Sigmet raw product files.

@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.330 $ $Date: 2010/12/07 18:06:20 $
+ .	$Revision: 1.331 $ $Date: 2010/12/07 19:21:25 $
  */
 
 #include <limits.h>
@@ -950,7 +950,7 @@ static int ray_headers_cb(int argc, char *argv[], char *cl_wd,
 	    if ( !Tm_JulToCal(vol_p->ray_time[s][r],
 			&yr, &mon, &da, &hr, &min, &sec) ) {
 		fprintf(err, "%s %s: bad ray time\n%s\n", argv0, argv1, Err_Get());
-		return SIGMET_BAD_ARG;
+		return SIGMET_BAD_TIME;
 	    }
 	    fprintf(out, "%04d/%02d/%02d %02d:%02d:%04.1f | ",
 		    yr, mon, da, hr, min, sec);
@@ -1898,7 +1898,7 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     }
     if ( !Tm_JulToCal(vol_p->sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
 	fprintf(err, "%s %s: invalid sweep time\n%s\n", argv0, argv1, Err_Get());
-	return SIGMET_BAD_ARG;
+	return SIGMET_BAD_TIME;
     }
 
     /*

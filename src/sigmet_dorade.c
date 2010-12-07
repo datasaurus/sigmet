@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.20 $ $Date: 2010/12/07 18:06:20 $
+   .	$Revision: 1.21 $ $Date: 2010/12/07 19:50:17 $
  */
 
 #include <string.h>
@@ -92,7 +92,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     swp_p->vold.maximum_bytes = 65500;
     if ( !Tm_JulToCal(vol_p->sweep_time[s], &year, &mon, &day, &hr, &min, &sec) ) {
 	Err_Append("Could not set sweep time. ");
-	status = SIGMET_BAD_ARG;
+	status = SIGMET_BAD_TIME;
 	goto error;
     }
     swp_p->vold.year = year;
