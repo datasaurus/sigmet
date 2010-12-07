@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.85 $ $Date: 2010/12/06 21:54:55 $
+   .	$Revision: 1.86 $ $Date: 2010/12/07 18:06:20 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -448,7 +448,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	if (vol_type_mask & type_mask_bit[sig_type]) {
 	    if ( !(abbrv = Sigmet_DataType_Abbrv(sig_type))
 		    || !(data_type = DataType_Get(abbrv)) ) {
-		Err_Append("Unknown data type in volume. ");
+		Err_Append("Unknown data type in volume file. ");
 		status = SIGMET_BAD_FILE;
 		goto error;
 	    }
