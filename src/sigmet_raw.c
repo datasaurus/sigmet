@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.66 $ $Date: 2010/12/06 20:48:54 $
+   .	$Revision: 1.67 $ $Date: 2010/12/07 18:06:20 $
  */
 
 #include <limits.h>
@@ -71,6 +71,10 @@ int main(int argc, char *argv[])
     strcpy(out_nm, "");
     strcpy(err_nm, "");
 
+    if ( !handle_signals() ) {
+	fprintf(stderr, "%s (%d): could not set up signal management.", argv0, pid);
+	goto error;
+    }
     if ( argc < 2 ) {
 	fprintf(stderr, "Usage: %s command\n", argv0);
 	goto error;
@@ -81,10 +85,6 @@ int main(int argc, char *argv[])
     if ( argc > SIGMET_RAWD_ARGCX ) {
 	fprintf(stderr, "%s: cannot parse %d arguments. Maximum argument "
 		"count is %d\n", argv0, argc, SIGMET_RAWD_ARGCX);
-	goto error;
-    }
-    if ( !handle_signals() ) {
-	fprintf(stderr, "%s (%d): could not set up signal management.", argv0, pid);
 	goto error;
     }
 

@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.10 $ $Date: 2010/11/09 17:56:56 $
+   .	$Revision: 1.11 $ $Date: 2010/11/10 17:12:46 $
  */
 
 #include <stdio.h>
@@ -44,16 +44,16 @@ void SigmetRaw_Start(int argc, char *argv[])
     sigset_t set;		/* To block TERM while terminating */
     int try;			/* Count down while waiting for daemon socket */
 
-    if ( argc == 0 ) {
-	fprintf(stderr, "sigmet_raw start: no user command given\n");
-	exit(EXIT_FAILURE);
-    }
-    ucmd = argv[0];
     if ( !handle_signals() ) {
 	fprintf(stderr, "sigmet_raw start: could not set up signal "
 		"management.");
 	exit(EXIT_FAILURE);
     }
+    if ( argc == 0 ) {
+	fprintf(stderr, "sigmet_raw start: no user command given\n");
+	exit(EXIT_FAILURE);
+    }
+    ucmd = argv[0];
 
     /*
        Identify daemon working directory and socket.  Put daemon working
