@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.51 $ $Date: 2010/12/06 21:54:55 $
+ .	$Revision: 1.52 $ $Date: 2010/12/07 18:06:20 $
  */
 
 #include <unistd.h>
@@ -305,7 +305,7 @@ int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 {
     struct sig_vol *sv_p;
     FILE *in;
-    int rslt;
+    int status;
     pid_t p;
 
     /* If volume is already loaded and not truncated, it is good */
@@ -318,12 +318,12 @@ int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 	fprintf(err, "Could not open %s\n", vol_nm);
 	return SIGMET_IO_FAIL;
     }
-    rslt = Sigmet_Vol_Good(in) ? SIGMET_OK : SIGMET_BAD_FILE;
+    status = Sigmet_Vol_Good(in) ? SIGMET_OK : SIGMET_BAD_FILE;
     fclose(in);
     if ( p != -1 ) {
 	waitpid(p, NULL, 0);
     }
-    return rslt;
+    return status;
 }
 
 /*
@@ -386,6 +386,7 @@ int SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 		break;
 	    case SIGMET_BAD_FILE:
 		fprintf(err, "Raw product file is corrupt.\n");
+		try = max_try;
 		break;
 	    case SIGMET_ALLOC_FAIL:
 		fprintf(err, "Out of memory. Offloading unused volumes\n");
@@ -398,6 +399,7 @@ int SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	    case SIGMET_BAD_ARG:
 		fprintf(err, "Internal failure while reading volume "
 			"headers.\n");
+		try = max_try;
 		break;
 	}
 	fclose(in);
@@ -446,8 +448,8 @@ int SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
      */
 
     if ( !(sv_p = sig_vol_get(vol_nm)) ) {
-	fprintf(err, "No entry for %s in volume table, and unable to add it.\n%s\n",
-		vol_nm, Err_Get());
+	fprintf(err, "No entry for %s in volume table, and unable to add it.\n"
+		"%s\n", vol_nm, Err_Get());
 	return SIGMET_BAD_ARG;
     }
 
@@ -495,6 +497,7 @@ int SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		break;
 	    case SIGMET_BAD_ARG:
 		fprintf(err, "Internal failure while reading volume.\n");
+		try = max_try;
 		break;
 	}
 	fclose(in);
