@@ -4,7 +4,7 @@
 .\" 
 .\" Please address questions and feedback to dev0@trekix.net
 .\" 
-.\" $Revision: 1.29 $ $Date: 2010/11/17 21:53:33 $
+.\" $Revision: 1.30 $ $Date: 2010/11/23 18:45:54 $
 .\"
 .TH sigmet_raw 3 "Sigmet raw product"
 .SH NAME
@@ -127,9 +127,8 @@ and physical unit.
 .TP
 \fBsigmet_raw\fP \fBgood\fP \fIvolume_file\fP
 This command attempts to navigate \fIvolume_file\fP, but does not store any data.
-No output is printed.  This command returns 0 if it succeeds and the volume is
-good, 1 if \fIvolume_file\fP does not exist, 2 if it cannot read
-\fIvolume_file\fP, and 3 if \fIvolume_file\fP is not a good volume.
+No output is printed. It returns a success or failure code described in the
+RETURN VALUES section below.
 .TP
 \fBsigmet_raw\fP \fBlist\fP
 Prints a list of currently loaded volumes, along with their keep status, sweep
@@ -253,8 +252,6 @@ monotonic.  Members of the \fIcolors\fP array must have the form
 and blue values.
 In subsequent displays, a bin (gate) whose value satisfies
 bounds[i]\ <=\ value\ <\ bounds[i+1] will be displayed with colors[i].
-This command returns 0 if it succeeds, 1 if \fIcolors_file\fP is inaccessible or
-corrupt, 2 if the daemon runs out of memory, and 3 for any other error.
 .TP
 \fBsigmet_raw\fP \fBbintvls\fP \fItype\fP \fIs\fP \fIvolume_file\fP
 Assigns bins (gates) for data type \fItype\fP, sweep \fIs\fP, in the volume from
@@ -340,6 +337,25 @@ Creates DORADE sweep files in the current directory from data in \fIvolume_file\
 If \fIs\fP is an integer, this command only makes a sweep file that sweep. If
 \fIs\fP is absent, or "\fBall\fP", this command makes sweep files for the entire
 volume.
+.SH RETURN VALUES
+These commands return a code that indicates success or type of failure. It
+will be one of:
+.nf
+
+     \fB0\fP - Success
+     \fB1\fP - A resource or interface is not initialized
+     \fB2\fP - input or output failure with file or process
+     \fB3\fP - Helper process failed
+     \fB4\fP - An input file is not in expected format
+     \fB5\fP - Corrupt volume in memory
+     \fB6\fP - Failed to allocate memory
+     \fB7\fP - Application tried to free some memory and failed
+     \fB8\fP - An argument could not be parsed or referred to something
+               that does not exist
+     \fB9\fP - a string was too long or a value was too large or out of range
+    \fB10\fP - A time computation failed
+
+.fi
 .SH SEE ALSO
 sigmet (3), proj (1), pj_init (3), xdr (3)
 .br

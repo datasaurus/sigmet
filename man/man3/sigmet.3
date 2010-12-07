@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.15 $ $Date: 2010/12/06 21:36:47 $
+.\" $Revision: 1.16 $ $Date: 2010/12/06 21:54:55 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
 Sigmet_DataTypeN, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_Unit, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_Vol_Init, Sigmet_Vol_Free, Sigmet_Vol_Good, Sigmet_Vol_ReadHdr, Sigmet_Vol_PrintHdr, Sigmet_Vol_Read, Sigmet_Vol_BadRay, Sigmet_Vol_BinOutl, Sigmet_Vol_ToDorade \- read Sigmet raw data
@@ -110,26 +110,26 @@ should have been initialized at least once with a call to \fBSigmet_Vol_Init\fP.
 Upon entry, \fBSigmet_Vol_ReadHdr\fP will free the contents of \fIf\fP with a call
 to \fBSigmet_Vol_Free\fP.  This function only reads volume headers. Sweep headers
 and rays are left in their bogus initialized state.
-\fBSigmet_Vol_ReadHdr\fP returns a read status enumerator described above, which
-should be \fBSIGMET_READ_OK\fP.
-If the return value is \fBSIGMET_INPUT_FAIL\fP, \fBSIGMET_BAD_VOL\fP, or
-\fBSIGMET_MEM_FAIL\fP, the function stores nothing, it re-initializes the
-structure at \fIvol_p\fP with a call to \fBSigmet_Vol_Init\fP, and it leaves
-an error message that can be retrieved with \fBerr_get\fP.
+If successful, \fBSigmet_Vol_ReadHdr\fP returns \fBSIGMET_READ_OK\fP.
+Otherwise, the function stores nothing, it re-initializes the structure at
+\fIvol_p\fP with a call to \fBSigmet_Vol_Init\fP, leaves an error message that
+can be retrieved with \fBerr_get\fP, and returns an error code described in the
+RETURN VALUES section below.
 .PP
 \fBSigmet_Vol_Read\fP reads and stores a Sigmet raw product
 file from stream \fIf\fP into the volume structure at \fIvol_p\fP.
 \fIf\fP should be at the start of a raw product file.  \fIvol_p\fP
 should have already been initialized with a call to \fBSigmet_Vol_Init\fP.
 Upon entry, \fBSigmet_Vol_ReadHdr\fP will free the contents of \fIf\fP with a call
-to \fBSigmet_Vol_Free\fP.  \fBSigmet_Vol_Read\fP returns a read status enumerator
-described above.  If the return value is \fBSIGMET_READ_OK\fP or
-\fBSIGMET_INPUT_FAIL\fP, some of all of the volume is stored at \fIvol_p\fP.
-Memory allocated should eventually be freed with a call to \fISigmet_Vol_Free\fP.
-If the return value is \fBSIGMET_BAD_VOL\fP or \fBSIGMET_MEM_FAIL\fP, it
-re-initializes the structure at \fIvol_p\fP with a call to \fBSigmet_Vol_Init\fP.
-If something goes wrong (return value is not \fBSIGMET_READ_OK\fP) it leaves an
-error message which can be retrieved with \fBerr_get\fP.
+to \fBSigmet_Vol_Free\fP.
+If successful, \fBSigmet_Vol_Read\fP returns \fBSIGMET_READ_OK\fP.
+If the return value is \fBSIGMET_INPUT_FAIL\fP, input ended unexpectedly, but
+some or all of the volume is stored at \fIvol_p\fP.  In both cases, memory
+allocated should eventually be freed with a call to \fISigmet_Vol_Free\fP.
+Otherwise, the function stores nothing, it re-initializes the structure at
+\fIvol_p\fP with a call to \fBSigmet_Vol_Init\fP, leaves an error message that
+can be retrieved with \fBerr_get\fP, and returns an error code described in the
+RETURN VALUES section below.
 .PP
 \fBSigmet_Vol_PrintHdr\fP prints volume headers from \fIvol\fP to output
 stream \fIout\fP.  Each line of output will have form:
@@ -164,7 +164,7 @@ sweep should have been initialized with a call to \fBDorade_Sweep_Init\fP.
 \fBSigmet_Vol_ToDorade\fP returns true if it succeeds.
 Return value is a \fBSigmet_Status\fP enumerator, described below.
 .SH RETURN VALUES
-The Sigmet volume access functions return an enumerator that indicates whether
+The Sigmet volume access functions return a value that indicates whether
 the function succeeded, or how it failed. The return value will be one of:
 .nf
 
@@ -178,7 +178,8 @@ the function succeeded, or how it failed. The return value will be one of:
     \fBSIGMET_FLUSH_FAIL\fP  - Failed to free desired amount of memory
     \fBSIGMET_BAD_ARG\fP     - An argument to a function could not be parsed
                                or referred to something that does not exist
-    \fBSIGMET_RNG_ERR\fP     - a value is too large or out of range
+    \fBSIGMET_RNG_ERR\fP     - A value is too large or out of range
+    \fBSIGMET_BAD_TIME\fP    - A time computation failed
 
 .fi
 In case of error, the function appends information to the global error string
