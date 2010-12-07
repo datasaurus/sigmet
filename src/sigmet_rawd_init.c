@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.331 $ $Date: 2010/12/07 19:21:25 $
+ .	$Revision: 1.332 $ $Date: 2010/12/07 20:14:28 $
  */
 
 #include <limits.h>
@@ -605,8 +605,7 @@ static int data_types_cb(int argc, char *argv[], char *cl_wd,
 		    argv0, argv1, vol_nm_r, Err_Get());
 	    return status;
 	}
-	if ( (status = SigmetRaw_ReadHdr(vol_nm, err, i_err, &vol_p))
-		!= SIGMET_OK ) {
+	if ( (status = SigmetRaw_ReadHdr(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	    return status;
 	}
 	for (y = 0; y < vol_p->num_types; y++) {
@@ -669,7 +668,7 @@ static int good_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
     }
-    return SigmetRaw_GoodVol(vol_nm, i_err, err);
+    return SigmetRaw_GoodVol(vol_nm, i_err);
 }
 
 static int list_cb(int argc, char *argv[], char *cl_wd,
@@ -774,8 +773,7 @@ static int volume_headers_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
     }
-    status = SigmetRaw_ReadHdr(vol_nm, err, i_err, &vol_p);
-    if ( status == SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadHdr(vol_nm, i_err, &vol_p)) == SIGMET_OK ) {
 	Sigmet_Vol_PrintHdr(out, vol_p);
     }
     return status;
@@ -805,8 +803,7 @@ static int vol_hdr_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
     }
-    if ( (status = SigmetRaw_ReadHdr(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadHdr(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	    return status;
     }
     fprintf(out, "site_name=\"%s\"\n", vol_p->ih.ic.su_site_name);
@@ -888,8 +885,7 @@ static int near_sweep_cb(int argc, char *argv[], char *cl_wd,
 	return SIGMET_BAD_ARG;
     }
     ang *= RAD_PER_DEG;
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
     if ( !vol_p->sweep_angle ) {
@@ -929,8 +925,7 @@ static int ray_headers_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
     if ( vol_p->truncated ) {
@@ -992,8 +987,7 @@ static int new_field_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	fprintf(err, "%s %s: could not read %s\n%s\n",
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
@@ -1032,8 +1026,7 @@ static int del_field_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
     if ( (status = Sigmet_Vol_DelField(vol_p, abbrv)) != SIGMET_OK ) {
@@ -1100,8 +1093,7 @@ static int data_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
 
@@ -1255,8 +1247,7 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
 
@@ -1363,8 +1354,7 @@ static int bintvls_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, s_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
 
@@ -1436,8 +1426,7 @@ static int radar_lon_cb(int argc, char *argv[], char *cl_wd,
 		"got %s\n", argv0, argv1, lon_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( (status = SigmetRaw_ReadHdr(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadHdr(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
     lon = GeogLonR(lon * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
@@ -1475,8 +1464,7 @@ static int radar_lat_cb(int argc, char *argv[], char *cl_wd,
 		"got %s\n", argv0, argv1, lat_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( (status = SigmetRaw_ReadHdr(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadHdr(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
     lat = GeogLonR(lat * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
@@ -1516,8 +1504,7 @@ static int shift_az_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, daz_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
     daz = GeogLonR(daz * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
@@ -1715,8 +1702,7 @@ static int img_name_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, s_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
 
@@ -1872,8 +1858,7 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 		argv0, argv1, s_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
 
@@ -2263,8 +2248,7 @@ static int dorade_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
     if ( s >= vol_p->num_sweeps_ax ) {
@@ -2342,8 +2326,7 @@ static int set_field_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm_r, Err_Get());
 	return status;
     }
-    if ( (status = SigmetRaw_ReadVol(vol_nm, err, i_err, &vol_p))
-	    != SIGMET_OK ) {
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
 

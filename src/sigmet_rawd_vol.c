@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.52 $ $Date: 2010/12/07 18:06:20 $
+ .	$Revision: 1.53 $ $Date: 2010/12/07 19:22:29 $
  */
 
 #include <unistd.h>
@@ -90,7 +90,7 @@ static void tunlink(struct sig_vol *);
 static void uunlink(struct sig_vol *sv_p);
 static void uappend(struct sig_vol *sv_p);
 static int hash(char *, dev_t *, ino_t *, int *);
-static FILE *vol_open(const char *, pid_t *, int, FILE *);
+static FILE *vol_open(const char *, pid_t *, int);
 
 /*
    Initialize this interface
@@ -298,10 +298,10 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
 
 /*
    Return true if vol_nm is a good (navigable) Sigmet volume.
-   Print error messages to err.
+   Propagate error messages with Err_Append.
  */
 
-int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
+int SigmetRaw_GoodVol(char *vol_nm, int i_err)
 {
     struct sig_vol *sv_p;
     FILE *in;
@@ -314,8 +314,10 @@ int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
     }
 
     /* Volume not loaded. Inspect vol_nm with Sigmet_Vol_Good. */
-    if ( !(in = vol_open(vol_nm, &p, i_err, err)) ) {
-	fprintf(err, "Could not open %s\n", vol_nm);
+    if ( !(in = vol_open(vol_nm, &p, i_err)) ) {
+	Err_Append("Could not open ");
+	Err_Append(vol_nm);
+	Err_Append(". ");
 	return SIGMET_IO_FAIL;
     }
     status = Sigmet_Vol_Good(in) ? SIGMET_OK : SIGMET_BAD_FILE;
@@ -329,11 +331,10 @@ int SigmetRaw_GoodVol(char *vol_nm, int i_err, FILE *err)
 /*
    Fetch headers for the volume stored in Sigmet raw product file vol_nm.
    If vol_nm is absent from vols, or not loaded, this function loads
-   the volume headers, but not data. Send error messages to err or i_err.
+   the volume headers, but not data.  Propagate error messages with Err_Append.
  */
 
-int SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
-	struct Sigmet_Vol ** vol_pp)
+int SigmetRaw_ReadHdr(char *vol_nm, int i_err, struct Sigmet_Vol ** vol_pp)
 {
     struct sig_vol *sv_p;	/* Member of vols */
     struct Sigmet_Vol *vol_p;	/* Return value */
@@ -350,8 +351,9 @@ int SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
      */
 
     if ( !(sv_p = sig_vol_get(vol_nm)) ) {
-	fprintf(err, "No entry for %s in volume table, and unable to add it.\n"
-		"%s\n", vol_nm, Err_Get());
+	Err_Append("No entry for ");
+	Err_Append(vol_nm);
+	Err_Append(" in volume table and unable to add it. ");
 	return SIGMET_BAD_ARG;
     }
     vol_p = (struct Sigmet_Vol *)sv_p;
@@ -372,8 +374,10 @@ int SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
     sv_p->keep = 1;
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	in_pid = -1;
-	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
-	    fprintf(err, "Could not open %s for input.\n", vol_nm);
+	if ( !(in = vol_open(vol_nm, &in_pid, i_err)) ) {
+	    Err_Append("Could not open ");
+	    Err_Append(vol_nm);
+	    Err_Append(". ");
 	    SigmetRaw_Delete(vol_nm);
 	    return SIGMET_IO_FAIL;
 	}
@@ -382,23 +386,22 @@ int SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 		loaded = 1;
 		break;
 	    case SIGMET_IO_FAIL:
-		fprintf(err, "Input error while reading headers.\n");
+		Err_Append("Input error while reading headers. ");
 		break;
 	    case SIGMET_BAD_FILE:
-		fprintf(err, "Raw product file is corrupt.\n");
+		Err_Append("Raw product file is corrupt. ");
 		try = max_try;
 		break;
 	    case SIGMET_ALLOC_FAIL:
-		fprintf(err, "Out of memory. Offloading unused volumes\n");
+		Err_Append("Out of memory. Offloading unused volumes. ");
 		max_vol_size = vol_size() * 3 / 4;
 		if ( (status = SigmetRaw_Flush()) != SIGMET_OK ) {
-		    fprintf(err, "Could not offload sufficient volumes\n");
+		    Err_Append("Could not offload sufficient volumes ");
 		    try = max_try;
 		}
 		break;
 	    case SIGMET_BAD_ARG:
-		fprintf(err, "Internal failure while reading volume "
-			"headers.\n");
+		Err_Append("Internal failure while reading volume headers. ");
 		try = max_try;
 		break;
 	}
@@ -408,14 +411,17 @@ int SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 	}
     }
     if ( !loaded ) {
-	fprintf(err, "Could not read %s\n", vol_nm);
+	Err_Append("Could not read headers from ");
+	Err_Append(vol_nm);
+	Err_Append(". ");
 	SigmetRaw_Delete(vol_nm);
 	return status;
     }
     if ( vol_size() > max_vol_size
 	    && (status = SigmetRaw_Flush()) != SIGMET_OK ) {
-	fprintf(err, "Reading %s puts memory use beyond limit and unable "
-		"to flush.\n", vol_nm);
+	Err_Append("Reading ");
+	Err_Append(vol_nm);
+	Err_Append(" puts memory use beyond limit and unable to flush. ");
 	SigmetRaw_Delete(vol_nm);
 	return status;
     }
@@ -427,11 +433,10 @@ int SigmetRaw_ReadHdr(char *vol_nm, FILE *err, int i_err,
 /*
    Fetch headers and data for the volume stored in Sigmet raw product file
    vol_nm.  If vol_nm is absent from vols, or not loaded, this function loads
-   the volume headers and data. Send error messages to err or i_err.
+   the volume headers and data.  Propagate error messages with Err_Append.
  */
 
-int SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
-	struct Sigmet_Vol **vol_pp)
+int SigmetRaw_ReadVol(char *vol_nm, int i_err, struct Sigmet_Vol **vol_pp)
 {
     struct sig_vol *sv_p;	/* Member of vols */
     struct Sigmet_Vol *vol_p;	/* Return value */
@@ -448,8 +453,9 @@ int SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
      */
 
     if ( !(sv_p = sig_vol_get(vol_nm)) ) {
-	fprintf(err, "No entry for %s in volume table, and unable to add it.\n"
-		"%s\n", vol_nm, Err_Get());
+	Err_Append("No entry for ");
+	Err_Append(vol_nm);
+	Err_Append(" in volume table and unable to add it. ");
 	return SIGMET_BAD_ARG;
     }
 
@@ -472,8 +478,10 @@ int SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
     sv_p->keep = 1;
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	in_pid = -1;
-	if ( !(in = vol_open(vol_nm, &in_pid, i_err, err)) ) {
-	    fprintf(err, "Could not open %s for input.\n", vol_nm);
+	if ( !(in = vol_open(vol_nm, &in_pid, i_err)) ) {
+	    Err_Append("Could not open ");
+	    Err_Append(vol_nm);
+	    Err_Append(". ");
 	    SigmetRaw_Delete(vol_nm);
 	    return SIGMET_IO_FAIL;
 	}
@@ -483,20 +491,20 @@ int SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 		loaded = 1;
 		break;
 	    case SIGMET_ALLOC_FAIL:
-		fprintf(err, "Read failed. Out of memory. %s "
-			"Offloading unused volumes\n", Err_Get());
 		max_vol_size = vol_size() * 3 / 4;
 		if ( (status = SigmetRaw_Flush()) != SIGMET_OK ) {
-		    fprintf(err, "Could not offload sufficient volumes\n");
+		    Err_Append("Allocation failed while reading volume, "
+			    "and could not offload sufficient volumes to "
+			    "continue. ");
 		    try = max_try;
 		}
 		break;
 	    case SIGMET_BAD_FILE:
-		fprintf(err, "Raw product file is corrupt.\n");
+		Err_Append("Raw product file is corrupt. ");
 		try = max_try;
 		break;
 	    case SIGMET_BAD_ARG:
-		fprintf(err, "Internal failure while reading volume.\n");
+		Err_Append("Internal failure while reading volume headers. ");
 		try = max_try;
 		break;
 	}
@@ -506,14 +514,17 @@ int SigmetRaw_ReadVol(char *vol_nm, FILE *err, int i_err,
 	}
     }
     if ( !loaded ) {
-	fprintf(err, "Could not read %s\n", vol_nm);
+	Err_Append("Could not read ");
+	Err_Append(vol_nm);
+	Err_Append(". ");
 	SigmetRaw_Delete(vol_nm);
 	return status;
     }
     if ( vol_size() > max_vol_size
 	    && (status = SigmetRaw_Flush()) != SIGMET_OK ) {
-	fprintf(err, "Reading %s puts memory use beyond limit and unable "
-		"to flush.\n", vol_nm);
+	Err_Append("Reading ");
+	Err_Append(vol_nm);
+	Err_Append(" puts memory use beyond limit and unable to flush. ");
 	SigmetRaw_Delete(vol_nm);
 	return SIGMET_FLUSH_FAIL;
     }
@@ -655,11 +666,12 @@ size_t SigmetRaw_MaxSize(size_t sz)
    a pipe to a decompression process.  Return a file handle to the file or
    decompression process, or NULL if failure. If return value is output from a
    decompression process, put the process id at pid_p. Set *pid_p to -1 if
-   there is no decompression process (i.e. vol_nm is a plain file).  Send error
-   messages to err (in this function) or i_err (in child).
+   there is no decompression process (i.e. vol_nm is a plain file).
+   Propagate error messages with Err_Append.  Have child send its error messages
+   to i_err.
  */
 
-static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
+static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err)
 {
     FILE *in = NULL;		/* Return value */
     char *sfx;			/* Filename suffix */
@@ -674,13 +686,15 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 	 */
 
 	if ( pipe(pfd) == -1 ) {
-	    fprintf(err, "Could not create pipe for gzip\n%s\n", strerror(errno));
+	    Err_Append("Could not create pipe for gzip\n");
+	    Err_Append(strerror(errno));
+	    Err_Append("\n");
 	    goto error;
 	}
 	ch_pid = fork();
 	switch (ch_pid) {
 	    case -1:
-		fprintf(err, "Could not spawn gzip\n");
+		Err_Append("Could not spawn gzip. ");
 		goto error;
 	    case 0:
 		/*
@@ -690,12 +704,9 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
 			|| close(pfd[0]) == -1 ) {
-		    fprintf(err, "gzip process failed\n%s\n", strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
-		    fprintf(err, "gzip process could not access error stream\n%s\n",
-			    strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
 		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
@@ -706,8 +717,9 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		 */
 
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-		    fprintf(err, "Could not read gzip process\n%s\n",
-			    strerror(errno));
+		    Err_Append("Could not read gzip process\n%s\n");
+		    Err_Append(strerror(errno));
+		    Err_Append("\n");
 		    goto error;
 		} else {
 		    *pid_p = ch_pid;
@@ -720,13 +732,15 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 	 */
 
 	if ( pipe(pfd) == -1 ) {
-	    fprintf(err, "Could not create pipe for bzip2\n%s\n", strerror(errno));
+	    Err_Append("Could not create pipe for bzip2\n");
+	    Err_Append(strerror(errno));
+	    Err_Append("\n");
 	    goto error;
 	}
 	ch_pid = fork();
 	switch (ch_pid) {
 	    case -1:
-		fprintf(err, "Could not spawn bzip2\n");
+		Err_Append("Could not spawn bzip2. ");
 		goto error;
 	    case 0:
 		/*
@@ -736,12 +750,9 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 
 		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
 			|| close(pfd[0]) == -1 ) {
-		    fprintf(err, "could not set up bzip2 process");
 		    _exit(EXIT_FAILURE);
 		}
 		if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
-		    fprintf(err, "bzip2 process could not access error "
-			    "stream\n%s\n", strerror(errno));
 		    _exit(EXIT_FAILURE);
 		}
 		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
@@ -752,8 +763,6 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 		 */
 
 		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-		    fprintf(err, "Could not read bzip2 process\n%s\n",
-			    strerror(errno));
 		    goto error;
 		} else {
 		    *pid_p = ch_pid;
@@ -765,7 +774,11 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err, FILE *err)
 	   Uncompressed file
 	 */
 
-	fprintf(err, "Could not open %s\n%s\n", vol_nm, strerror(errno));
+	Err_Append("Could not open ");
+	Err_Append(vol_nm);
+	Err_Append(" ");
+	Err_Append(strerror(errno));
+	Err_Append("\n");
 	return NULL;
     }
     return in;
