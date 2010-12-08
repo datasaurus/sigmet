@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.97 $ $Date: 2010/12/08 20:56:10 $
+   .	$Revision: 1.98 $ $Date: 2010/12/08 21:19:28 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -183,10 +183,10 @@ void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 	for (y = 0; y < vol_p->num_types; y++) {
 	    switch (vol_p->dat[y].data_type->stor_fmt) {
 		case DATA_TYPE_U1:
-		    free3_u1(vol_p->dat[y].arr.d1);
+		    free3_u1(vol_p->dat[y].arr.u1);
 		    break;
 		case DATA_TYPE_U2:
-		    free3_u2(vol_p->dat[y].arr.d2);
+		    free3_u2(vol_p->dat[y].arr.u2);
 		case DATA_TYPE_FLT:
 		    free3_flt(vol_p->dat[y].arr.flt);
 		    break;
@@ -346,11 +346,11 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		case DATA_TYPE_MT:
 		    break;
 		case DATA_TYPE_U1:
-		    vol_p->dat[y].arr.d1 = NULL;
+		    vol_p->dat[y].arr.u1 = NULL;
 		    y++;
 		    break;
 		case DATA_TYPE_U2:
-		    vol_p->dat[y].arr.d2 = NULL;
+		    vol_p->dat[y].arr.u2 = NULL;
 		    y++;
 		    break;
 		case DATA_TYPE_FLT:
@@ -796,16 +796,16 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     for (y = 0; y < vol_p->num_types; y++) {
 	switch (vol_p->dat[y].data_type->stor_fmt) {
 	    case DATA_TYPE_U1:
-		vol_p->dat[y].arr.d1 = calloc3_u1(num_sweeps, num_rays, num_bins);
-		if ( !vol_p->dat[y].arr.d1 ) {
+		vol_p->dat[y].arr.u1 = calloc3_u1(num_sweeps, num_rays, num_bins);
+		if ( !vol_p->dat[y].arr.u1 ) {
 		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins;
 		break;
 	    case DATA_TYPE_U2:
-		vol_p->dat[y].arr.d2 = calloc3_u2(num_sweeps, num_rays, num_bins);
-		if ( !vol_p->dat[y].arr.d2 ) {
+		vol_p->dat[y].arr.u2 = calloc3_u2(num_sweeps, num_rays, num_bins);
+		if ( !vol_p->dat[y].arr.u2 ) {
 		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
 		}
@@ -1001,12 +1001,12 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    switch (Sigmet_DataType_StorFmt(vol_p->types_fl[yf])) {
 			case DATA_TYPE_U1:
 			    for (b = 0; b < nbins; b++)  {
-				vol_p->dat[y].arr.d1[s][r][b] = rayd[b];
+				vol_p->dat[y].arr.u1[s][r][b] = rayd[b];
 			    }
 			    break;
 			case DATA_TYPE_U2:
 			    for (b = 0; b < nbins; b++)  {
-				vol_p->dat[y].arr.d2[s][r][b] = ((U2BYT *)rayd)[b];
+				vol_p->dat[y].arr.u2[s][r][b] = ((U2BYT *)rayd)[b];
 			    }
 			    break;
 			default:
@@ -1300,7 +1300,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f2 = dat_p2->arr.d1[s][r][b];
+				f2 = dat_p2->arr.u1[s][r][b];
 				f2 = DataType_StorToComp(data_type2, f2, vol_p);
 				dat_p1->arr.flt[s][r][b] = f2;
 			    }
@@ -1315,7 +1315,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f2 = dat_p2->arr.d2[s][r][b];
+				f2 = dat_p2->arr.u2[s][r][b];
 				f2 = DataType_StorToComp(data_type2, f2, vol_p);
 				dat_p1->arr.flt[s][r][b] = f2;
 			    }
@@ -1460,7 +1460,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
 				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.d1[s][r][b];
+				f2 = dat_p2->arr.u1[s][r][b];
 				f2 = DataType_StorToComp(data_type2, f2, vol_p);
 				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
 				    dat_p1->arr.flt[s][r][b] = f1 + sgn * f2;
@@ -1480,7 +1480,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
 				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.d2[s][r][b];
+				f2 = dat_p2->arr.u2[s][r][b];
 				f2 = DataType_StorToComp(data_type2, f2, vol_p);
 				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
 				    dat_p1->arr.flt[s][r][b] = f1 + sgn * f2;
@@ -1641,7 +1641,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
 				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.d1[s][r][b];
+				f2 = dat_p2->arr.u1[s][r][b];
 				f2 = DataType_StorToComp(data_type2, f2, vol_p);
 				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
 				    dat_p1->arr.flt[s][r][b] = f1 - sgn * f2;
@@ -1661,7 +1661,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
 				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.d2[s][r][b];
+				f2 = dat_p2->arr.u2[s][r][b];
 				f2 = DataType_StorToComp(data_type2, f2, vol_p);
 				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
 				    dat_p1->arr.flt[s][r][b] = f1 - sgn * f2;
@@ -1822,7 +1822,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
 				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.d1[s][r][b];
+				f2 = dat_p2->arr.u1[s][r][b];
 				f2 = DataType_StorToComp(data_type2, f2, vol_p);
 				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
 				    dat_p1->arr.flt[s][r][b] = f1 * sgn * f2;
@@ -1842,7 +1842,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
 				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.d2[s][r][b];
+				f2 = dat_p2->arr.u2[s][r][b];
 				f2 = DataType_StorToComp(data_type2, f2, vol_p);
 				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
 				    dat_p1->arr.flt[s][r][b] = f1 * sgn * f2;
@@ -2007,7 +2007,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
 				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.d1[s][r][b];
+				f2 = dat_p2->arr.u1[s][r][b];
 				f2 = DataType_StorToComp(data_type2, f2, vol_p);
 				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
 				    f1 = f1 / (sgn * f2);
@@ -2029,7 +2029,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
 				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.d2[s][r][b];
+				f2 = dat_p2->arr.u2[s][r][b];
 				f2 = DataType_StorToComp(data_type2, f2, vol_p);
 				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
 				    f1 = f1 / (sgn * f2);
@@ -2175,10 +2175,10 @@ float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
     }
     switch (vol_p->dat[y].data_type->stor_fmt) {
 	case DATA_TYPE_U1:
-	    v = vol_p->dat[y].arr.d1[s][r][b];
+	    v = vol_p->dat[y].arr.u1[s][r][b];
 	    break;
 	case DATA_TYPE_U2:
-	    v = vol_p->dat[y].arr.d2[s][r][b];
+	    v = vol_p->dat[y].arr.u2[s][r][b];
 	    break;
 	case DATA_TYPE_FLT:
 	    v = vol_p->dat[y].arr.flt[s][r][b];

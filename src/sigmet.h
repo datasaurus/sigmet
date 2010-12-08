@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.77 $ $Date: 2010/12/08 20:54:35 $
+   .	$Revision: 1.78 $ $Date: 2010/12/08 21:20:19 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -406,7 +406,7 @@ struct Sigmet_Ingest_Header {
 
 /*
    Data array.  A volume will have one of these for each data type in the
-   volume. If not NULL, d1, d2, or f is an array dimensioned
+   volume. If not NULL, u1, u2, or f is an array dimensioned
    [sweep][ray][bin] with data values from the volume.
  */
 
@@ -414,8 +414,8 @@ struct Sigmet_DatArr {
     struct DataType *data_type;			/* Meta data, for description,
 						   display, and conversions */
     union {
-	U1BYT ***d1;				/* 1 byte data */
-	U2BYT ***d2;				/* 2 byte data */
+	U1BYT ***u1;				/* 1 byte data */
+	U2BYT ***u2;				/* 2 byte data */
 	float ***flt;				/* Floating point data */
     } arr;
 };
