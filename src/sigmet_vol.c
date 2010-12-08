@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.95 $ $Date: 2010/12/08 20:22:50 $
+   .	$Revision: 1.96 $ $Date: 2010/12/08 20:41:26 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1501,6 +1501,185 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				f2 = dat_p2->arr.flt[s][r][b];
 				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
 				    dat_p1->arr.flt[s][r][b] = f1 + sgn * f2;
+				} else {
+				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				}
+			    }
+			}
+		    }
+		}
+	    }
+	    break;
+	case DATA_TYPE_DBL:
+	case DATA_TYPE_MT:
+	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+		if ( vol_p->sweep_ok[s] ) {
+		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+			if ( vol_p->ray_ok[s][r] ) {
+			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+			    }
+			}
+		    }
+		}
+	    }
+	    break;
+    }
+    return SIGMET_OK;
+}
+
+/*
+   Multiply field abbrv by scalar a.
+ */
+
+int Sigmet_Vol_Fld_MulFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
+{
+    enum Sigmet_DataTypeN sig_type;
+    struct Sigmet_DatArr *dat_p;
+    struct DataType *data_type;
+    int s, r, b;
+    float f;
+
+    if ( !vol_p ) {
+	Err_Append("Attempted to add field to bogus volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !abbrv ) {
+	Err_Append("Attempted to add bogus field. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
+	Err_Append("Sigmet raw data cannot be modified. "
+		"Please copy the field and modify the copy. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("No field of ");
+	Err_Append(abbrv);
+	Err_Append(" in volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    data_type = dat_p->data_type;
+    if ( data_type->stor_fmt != DATA_TYPE_FLT ) {
+	Err_Append("Editable field in volume not in correct format. ");
+	return SIGMET_BAD_VOL;
+    }
+    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+	if ( vol_p->sweep_ok[s] ) {
+	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+		if ( vol_p->ray_ok[s][r] ) {
+		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			f = dat_p->arr.flt[s][r][b];
+			if ( Sigmet_IsData(f) ) {
+			    dat_p->arr.flt[s][r][b] = f * a;
+			}
+		    }
+		}
+	    }
+	}
+    }
+    return SIGMET_OK;
+}
+
+/*
+   Replace field abbrv1 with abbrv1 * abbrv2.
+ */
+
+int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
+{
+    enum Sigmet_DataTypeN sig_type1;
+    struct Sigmet_DatArr *dat_p1, *dat_p2;
+    struct DataType *data_type1, *data_type2;
+    int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
+    int s, r, b;
+    float f1, f2;
+
+    if ( !vol_p ) {
+	Err_Append("Attempted to add field to bogus volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !abbrv1 || !abbrv2 ) {
+	Err_Append("Attempted to add bogus field. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( Sigmet_DataType_GetN(abbrv1, &sig_type1) ) {
+	Err_Append("Sigmet raw data cannot be modified. "
+		"Please copy the field and modify the copy. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(dat_p1 = Hash_Get(&vol_p->types_tbl, abbrv1)) ) {
+	Err_Append("No field of ");
+	Err_Append(abbrv1);
+	Err_Append(" in volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    data_type1 = dat_p1->data_type;
+    if ( data_type1->stor_fmt != DATA_TYPE_FLT ) {
+	Err_Append("Editable field in volume not in correct format. ");
+	return SIGMET_BAD_VOL;
+    }
+    if ( *abbrv2 == '-' ) {
+	sgn = -1;
+	abbrv2++;
+    }
+    if ( !(dat_p2 = Hash_Get(&vol_p->types_tbl, abbrv2)) ) {
+	Err_Append("No field of ");
+	Err_Append(abbrv2);
+	Err_Append(" in volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    data_type2 = dat_p2->data_type;
+    switch (dat_p2->data_type->stor_fmt) {
+	case DATA_TYPE_U1:
+	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+		if ( vol_p->sweep_ok[s] ) {
+		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+			if ( vol_p->ray_ok[s][r] ) {
+			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+				f1 = dat_p1->arr.flt[s][r][b];
+				f2 = dat_p2->arr.d1[s][r][b];
+				f2 = DataType_StorToComp(data_type2, f2, vol_p);
+				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
+				    dat_p1->arr.flt[s][r][b] = f1 * sgn * f2;
+				} else {
+				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				}
+			    }
+			}
+		    }
+		}
+	    }
+	    break;
+	case DATA_TYPE_U2:
+	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+		if ( vol_p->sweep_ok[s] ) {
+		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+			if ( vol_p->ray_ok[s][r] ) {
+			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+				f1 = dat_p1->arr.flt[s][r][b];
+				f2 = dat_p2->arr.d2[s][r][b];
+				f2 = DataType_StorToComp(data_type2, f2, vol_p);
+				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
+				    dat_p1->arr.flt[s][r][b] = f1 * sgn * f2;
+				} else {
+				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				}
+			    }
+			}
+		    }
+		}
+	    }
+	    break;
+	case DATA_TYPE_FLT:
+	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+		if ( vol_p->sweep_ok[s] ) {
+		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+			if ( vol_p->ray_ok[s][r] ) {
+			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+				f1 = dat_p1->arr.flt[s][r][b];
+				f2 = dat_p2->arr.flt[s][r][b];
+				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
+				    dat_p1->arr.flt[s][r][b] = f1 * sgn * f2;
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
