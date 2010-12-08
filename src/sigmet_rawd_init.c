@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.336 $ $Date: 2010/12/08 15:57:44 $
+ .	$Revision: 1.337 $ $Date: 2010/12/08 18:28:35 $
  */
 
 #include <limits.h>
@@ -970,14 +970,22 @@ static int new_field_cb(int argc, char *argv[], char *cl_wd,
     char vol_nm[LEN];			/* Absolute path to Sigmet volume */
     char *abbrv;			/* Data type abbreviation */
     struct Sigmet_Vol *vol_p;
+    char *d_s = NULL;			/* Initial value */
+    double d;
     int status;				/* Result of SigmetRaw_ReadVol */
 
-    if ( argc != 4 ) {
-	fprintf(err, "Usage: %s %s data_type sigmet_volume\n", argv0, argv1);
+    if ( argc == 4 ) {
+	abbrv = argv[2];
+	vol_nm_r = argv[3];
+    } else if ( argc == 5 ) {
+	abbrv = argv[2];
+	d_s = argv[3];
+	vol_nm_r = argv[4];
+    } else {
+	fprintf(err, "Usage: %s %s data_type [value] sigmet_volume\n",
+		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
-    abbrv = argv[2];
-    vol_nm_r = argv[3];
     if ( !DataType_Get(abbrv) ) {
 	fprintf(err, "%s %s: No data type named %s. Please add with the "
 		"new_data_type command.\n", argv0, argv1, abbrv);
@@ -997,6 +1005,23 @@ static int new_field_cb(int argc, char *argv[], char *cl_wd,
 	fprintf(err, "%s %s: could not add data type %s to %s\n%s\n",
 		argv0, argv1, abbrv, vol_nm_r, Err_Get());
 	return status;
+    }
+    if ( d_s ) {
+	if ( sscanf(d_s, "%lf", &d) == 1 ) {
+	    if ( (status = Sigmet_Vol_Fld_SetFlt(vol_p, abbrv, d))
+		    != SIGMET_OK ) {
+		fprintf(err, "%s %s: could not set %s to %lf in %s\n%s\n"
+			"Field is retained in volume but values are garbage.\n",
+			argv0, argv1, abbrv, d, vol_nm_r, Err_Get());
+		return status;
+	    }
+	} else if ( (status = Sigmet_Vol_Fld_Copy(vol_p, abbrv, d_s))
+		!= SIGMET_OK ) {
+	    fprintf(err, "%s %s: could not set %s to %s in %s\n%s\n"
+			"Field is retained in volume but values are garbage.\n",
+		    argv0, argv1, abbrv, d_s, vol_nm_r, Err_Get());
+	    return status;
+	}
     }
     return SIGMET_OK;
 }
