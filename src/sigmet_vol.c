@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.93 $ $Date: 2010/12/08 20:16:15 $
+   .	$Revision: 1.94 $ $Date: 2010/12/08 20:21:37 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1062,38 +1062,6 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
     return vol_p->ray_az0[s][r] == vol_p->ray_az1[s][r];
 }
 
-/* Fetch a value from a Sigmet volume */
-float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
-{
-    float v;
-
-    if ( !vol_p ) {
-	return Sigmet_NoData();
-    }
-    if ( y < 0 || y >= vol_p->num_types
-	    || s < 0 || s >= vol_p->num_sweeps_ax
-	    || r < 0 || r >= vol_p->ih.ic.num_rays
-	    || !vol_p->ray_num_bins
-	    || b < 0 || b >= vol_p->ray_num_bins[s][r] ) {
-	return Sigmet_NoData();
-    }
-    switch (vol_p->dat[y].data_type->stor_fmt) {
-	case DATA_TYPE_U1:
-	    v = vol_p->dat[y].arr.d1[s][r][b];
-	    break;
-	case DATA_TYPE_U2:
-	    v = vol_p->dat[y].arr.d2[s][r][b];
-	    break;
-	case DATA_TYPE_FLT:
-	    v = vol_p->dat[y].arr.flt[s][r][b];
-	    break;
-	case DATA_TYPE_DBL:
-	case DATA_TYPE_MT:
-	    return Sigmet_NoData();
-    }
-    return DataType_StorToComp(vol_p->dat[y].data_type, v, vol_p);
-}
-
 /*
    Add a new field to a volume.  This also allocates space for data in the
    dat array. It does not initialize the array.
@@ -1631,6 +1599,38 @@ double Sigmet_Vol_VNyquist(struct Sigmet_Vol *vol_p)
 	    return 3 * 0.25 * wav_len * prf;
     }
     return Sigmet_NoData();
+}
+
+/* Fetch a value from a Sigmet volume */
+float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
+{
+    float v;
+
+    if ( !vol_p ) {
+	return Sigmet_NoData();
+    }
+    if ( y < 0 || y >= vol_p->num_types
+	    || s < 0 || s >= vol_p->num_sweeps_ax
+	    || r < 0 || r >= vol_p->ih.ic.num_rays
+	    || !vol_p->ray_num_bins
+	    || b < 0 || b >= vol_p->ray_num_bins[s][r] ) {
+	return Sigmet_NoData();
+    }
+    switch (vol_p->dat[y].data_type->stor_fmt) {
+	case DATA_TYPE_U1:
+	    v = vol_p->dat[y].arr.d1[s][r][b];
+	    break;
+	case DATA_TYPE_U2:
+	    v = vol_p->dat[y].arr.d2[s][r][b];
+	    break;
+	case DATA_TYPE_FLT:
+	    v = vol_p->dat[y].arr.flt[s][r][b];
+	    break;
+	case DATA_TYPE_DBL:
+	case DATA_TYPE_MT:
+	    return Sigmet_NoData();
+    }
+    return DataType_StorToComp(vol_p->dat[y].data_type, v, vol_p);
 }
 
 /* Return lon-lat's at corners of a bin */
