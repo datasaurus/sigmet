@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.76 $ $Date: 2010/12/08 20:21:37 $
+   .	$Revision: 1.77 $ $Date: 2010/12/08 20:54:35 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -549,8 +549,12 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *, char *, char *);
 int Sigmet_Vol_Fld_AddFlt(struct Sigmet_Vol *, char *, float);
 int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *, char *, char *);
+int Sigmet_Vol_Fld_SubFlt(struct Sigmet_Vol *, char *, float);
+int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *, char *, char *);
 int Sigmet_Vol_Fld_MulFlt(struct Sigmet_Vol *, char *, float);
 int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *, char *, char *);
+int Sigmet_Vol_Fld_DivFlt(struct Sigmet_Vol *, char *, float);
+int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *, char *, char *);
 int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *, char *);
 double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
 float Sigmet_Vol_GetDat(struct Sigmet_Vol *, int, int, int, int);
