@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.341 $ $Date: 2010/12/08 21:00:20 $
+ .	$Revision: 1.342 $ $Date: 2010/12/08 21:28:37 $
  */
 
 #include <limits.h>
@@ -97,9 +97,9 @@ static char *cmd1v[NCMD] = {
     "pid", "data_types", "new_data_type", "colors", "good", "list",
     "keep", "delete", "max_size", "volume_headers", "vol_hdr",
     "near_sweep", "ray_headers", "new_field", "del_field", "set_field",
-    "add", "sub" "mul", "div", "log10", "data", "bin_outline",
+    "add", "sub", "mul", "div", "log10", "data", "bin_outline",
     "bintvls", "radar_lon", "radar_lat", "shift_az", "proj", "img_app",
-    "img_sz", "alpha", "img_name", "img", "dorade",
+    "img_sz", "alpha", "img_name", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, setcolors_cb, good_cb, list_cb,
