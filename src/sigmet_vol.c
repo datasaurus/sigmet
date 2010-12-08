@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.91 $ $Date: 2010/12/08 18:34:11 $
+   .	$Revision: 1.92 $ $Date: 2010/12/08 18:56:18 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -215,118 +215,6 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
 	}
     }
     return 1;
-}
-
-/*
-   Add a new field to a volume.  This also allocates space for data in the
-   dat array. It does not initialize the array.
- */
-
-int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
-{
-    struct DataType *data_type;
-    size_t sz;
-    struct Sigmet_DatArr *dat_p;
-    float ***flt_p;
-    int num_sweeps, num_rays, num_bins;
-
-    if ( !abbrv ) {
-	Err_Append("Attempted to add bogus data type to a volume. ");
-	return SIGMET_BAD_ARG;
-    }
-    if ( !vol_p ) {
-	Err_Append("Attempted to add data type to a bogus volume. ");
-	return SIGMET_BAD_ARG;
-    }
-    if ( !(data_type = DataType_Get(abbrv)) ) {
-	Err_Append("No data type named %s. ");
-	Err_Append(abbrv);
-	Err_Append( " Please add with the new_data_type command. ");
-	return SIGMET_BAD_ARG;
-    }
-    if ( Hash_Get(&vol_p->types_tbl, abbrv) ) {
-	Err_Append("Data type ");
-	Err_Append(abbrv);
-	Err_Append(" already exists in volume. ");
-	return SIGMET_BAD_ARG;
-    }
-    sz = (vol_p->num_types + 1) * sizeof(struct Sigmet_DatArr);
-    if ( !(dat_p = REALLOC(vol_p->dat, sz)) ) {
-	Err_Append("Allocation failed while enlarging volume data "
-		"array. ");
-	return SIGMET_ALLOC_FAIL;
-    }
-    vol_p->dat = dat_p;
-    if ( !type_tbl_set(vol_p) ) {
-	Err_Append("Allocation failed while reseting volume types table. ");
-	return SIGMET_ALLOC_FAIL;
-    }
-    dat_p = vol_p->dat + vol_p->num_types;
-    dat_p->data_type = data_type;
-    dat_p->arr.flt = NULL;
-    if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
-	Err_Append("Could not add ");
-	Err_Append(abbrv);
-	Err_Append(" to volume types table. ");
-	return SIGMET_ALLOC_FAIL;
-    }
-    num_sweeps = vol_p->ih.tc.tni.num_sweeps;
-    num_rays = vol_p->ih.ic.num_rays;
-    num_bins = vol_p->ih.tc.tri.num_bins_out;
-    flt_p = calloc3_flt(num_sweeps, num_rays, num_bins);
-    if ( !flt_p ) {
-	dat_p->data_type = NULL;
-	Err_Append("Could not allocate new field ");
-	return SIGMET_ALLOC_FAIL;
-    }
-    dat_p->arr.flt = flt_p;
-    vol_p->num_types++;
-    return SIGMET_OK;
-}
-
-int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
-{
-    struct DataType *data_type;
-    size_t sz;
-    struct Sigmet_DatArr *d_p, *d1_p;
-
-    if ( !abbrv ) {
-	Err_Append("Attempted to remove a bogus field. ");
-	return SIGMET_BAD_ARG;
-    }
-    if ( !vol_p ) {
-	Err_Append("Attempted to remove a field from a bogus volume. ");
-	return SIGMET_BAD_ARG;
-    }
-    if ( !(data_type = DataType_Get(abbrv)) ) {
-	Err_Append("No data type named %s. ");
-	Err_Append(abbrv);
-	Err_Append( ".  ");
-	return SIGMET_BAD_ARG;
-    }
-    if ( !(d_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
-	Err_Append("Data type ");
-	Err_Append(abbrv);
-	Err_Append(" not in volume. ");
-	return SIGMET_BAD_ARG;
-    }
-    free3_flt(d_p->arr.flt);
-    Hash_Rm(&vol_p->types_tbl, abbrv);
-    for (d1_p = d_p + 1; d1_p < vol_p->dat + vol_p->num_types; d_p++, d1_p++) {
-	*d_p = *d1_p;
-    }
-    sz = (vol_p->num_types - 1) * sizeof(struct Sigmet_DatArr);
-    if ( !(d_p = REALLOC(vol_p->dat, sz)) ) {
-	Err_Append("Allocation failed while reallocating volume data array.");
-	return SIGMET_ALLOC_FAIL;
-    }
-    vol_p->dat = d_p;
-    vol_p->num_types--;
-    if ( !type_tbl_set(vol_p) ) {
-	Err_Append("Allocation failed while reseting volume types table. ");
-	return SIGMET_ALLOC_FAIL;
-    }
-    return SIGMET_OK;
 }
 
 int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
@@ -1204,6 +1092,118 @@ float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    return Sigmet_NoData();
     }
     return DataType_StorToComp(vol_p->dat[y].data_type, v, vol_p);
+}
+
+/*
+   Add a new field to a volume.  This also allocates space for data in the
+   dat array. It does not initialize the array.
+ */
+
+int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
+{
+    struct DataType *data_type;
+    size_t sz;
+    struct Sigmet_DatArr *dat_p;
+    float ***flt_p;
+    int num_sweeps, num_rays, num_bins;
+
+    if ( !abbrv ) {
+	Err_Append("Attempted to add bogus data type to a volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !vol_p ) {
+	Err_Append("Attempted to add data type to a bogus volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(data_type = DataType_Get(abbrv)) ) {
+	Err_Append("No data type named %s. ");
+	Err_Append(abbrv);
+	Err_Append( " Please add with the new_data_type command. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( Hash_Get(&vol_p->types_tbl, abbrv) ) {
+	Err_Append("Data type ");
+	Err_Append(abbrv);
+	Err_Append(" already exists in volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    sz = (vol_p->num_types + 1) * sizeof(struct Sigmet_DatArr);
+    if ( !(dat_p = REALLOC(vol_p->dat, sz)) ) {
+	Err_Append("Allocation failed while enlarging volume data "
+		"array. ");
+	return SIGMET_ALLOC_FAIL;
+    }
+    vol_p->dat = dat_p;
+    if ( !type_tbl_set(vol_p) ) {
+	Err_Append("Allocation failed while reseting volume types table. ");
+	return SIGMET_ALLOC_FAIL;
+    }
+    dat_p = vol_p->dat + vol_p->num_types;
+    dat_p->data_type = data_type;
+    dat_p->arr.flt = NULL;
+    if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
+	Err_Append("Could not add ");
+	Err_Append(abbrv);
+	Err_Append(" to volume types table. ");
+	return SIGMET_ALLOC_FAIL;
+    }
+    num_sweeps = vol_p->ih.tc.tni.num_sweeps;
+    num_rays = vol_p->ih.ic.num_rays;
+    num_bins = vol_p->ih.tc.tri.num_bins_out;
+    flt_p = calloc3_flt(num_sweeps, num_rays, num_bins);
+    if ( !flt_p ) {
+	dat_p->data_type = NULL;
+	Err_Append("Could not allocate new field ");
+	return SIGMET_ALLOC_FAIL;
+    }
+    dat_p->arr.flt = flt_p;
+    vol_p->num_types++;
+    return SIGMET_OK;
+}
+
+int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
+{
+    struct DataType *data_type;
+    size_t sz;
+    struct Sigmet_DatArr *d_p, *d1_p;
+
+    if ( !abbrv ) {
+	Err_Append("Attempted to remove a bogus field. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !vol_p ) {
+	Err_Append("Attempted to remove a field from a bogus volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(data_type = DataType_Get(abbrv)) ) {
+	Err_Append("No data type named %s. ");
+	Err_Append(abbrv);
+	Err_Append( ".  ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(d_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("Data type ");
+	Err_Append(abbrv);
+	Err_Append(" not in volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    free3_flt(d_p->arr.flt);
+    Hash_Rm(&vol_p->types_tbl, abbrv);
+    for (d1_p = d_p + 1; d1_p < vol_p->dat + vol_p->num_types; d_p++, d1_p++) {
+	*d_p = *d1_p;
+    }
+    sz = (vol_p->num_types - 1) * sizeof(struct Sigmet_DatArr);
+    if ( !(d_p = REALLOC(vol_p->dat, sz)) ) {
+	Err_Append("Allocation failed while reallocating volume data array.");
+	return SIGMET_ALLOC_FAIL;
+    }
+    vol_p->dat = d_p;
+    vol_p->num_types--;
+    if ( !type_tbl_set(vol_p) ) {
+	Err_Append("Allocation failed while reseting volume types table. ");
+	return SIGMET_ALLOC_FAIL;
+    }
+    return SIGMET_OK;
 }
 
 /*
