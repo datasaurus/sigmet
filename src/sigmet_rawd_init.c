@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.335 $ $Date: 2010/12/07 23:04:40 $
+ .	$Revision: 1.336 $ $Date: 2010/12/08 15:57:44 $
  */
 
 #include <limits.h>
@@ -87,7 +87,7 @@ static callback alpha_cb;
 static callback img_name_cb;
 static callback img_cb;
 static callback dorade_cb;
-static callback field_set_cb;
+static callback set_field_cb;
 static callback add_cb;
 static char *cmd1v[NCMD] = {
     "pid", "data_types", "new_data_type", "colors", "good", "list",
@@ -95,7 +95,7 @@ static char *cmd1v[NCMD] = {
     "near_sweep", "ray_headers", "new_field", "del_field", "data",
     "bin_outline", "bintvls", "radar_lon", "radar_lat", "shift_az",
     "proj", "img_app", "img_sz", "alpha", "img_name", "img", "dorade",
-    "field_set", "add"
+    "set_field", "add"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, setcolors_cb, good_cb, list_cb,
@@ -103,7 +103,7 @@ static callback *cb1v[NCMD] = {
     near_sweep_cb, ray_headers_cb, new_field_cb, del_field_cb, data_cb,
     bin_outline_cb, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
     proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb,
-    field_set_cb, add_cb
+    set_field_cb, add_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -2298,7 +2298,7 @@ error:
    Set value for a field.
  */
 
-static int field_set_cb(int argc, char *argv[], char *cl_wd,
+static int set_field_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     char *argv0 = argv[0];
