@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.90 $ $Date: 2010/12/08 15:57:44 $
+   .	$Revision: 1.91 $ $Date: 2010/12/08 18:34:11 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1324,7 +1324,8 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    switch (dat_p2->data_type->stor_fmt) {
+    data_type2 = dat_p2->data_type;
+    switch (data_type2->stor_fmt) {
 	case DATA_TYPE_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
 		if ( vol_p->sweep_ok[s] ) {
