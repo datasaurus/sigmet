@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.92 $ $Date: 2010/12/08 18:56:18 $
+   .	$Revision: 1.93 $ $Date: 2010/12/08 20:16:15 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1556,6 +1556,59 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
+    }
+    return SIGMET_OK;
+}
+
+/*
+   Replace field abbrv with its log10.
+ */
+
+int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
+{
+    enum Sigmet_DataTypeN sig_type;
+    struct Sigmet_DatArr *dat_p;
+    struct DataType *data_type;
+    int s, r, b;
+    float f;
+
+    if ( !vol_p ) {
+	Err_Append("Attempted to add field to bogus volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !abbrv ) {
+	Err_Append("Attempted to add bogus field. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
+	Err_Append("Sigmet raw data cannot be modified. "
+		"Please copy the field and modify the copy. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("No field of ");
+	Err_Append(abbrv);
+	Err_Append(" in volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    data_type = dat_p->data_type;
+    if ( data_type->stor_fmt != DATA_TYPE_FLT ) {
+	Err_Append("Editable field in volume not in correct format. ");
+	return SIGMET_BAD_VOL;
+    }
+    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
+	if ( vol_p->sweep_ok[s] ) {
+	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+		if ( vol_p->ray_ok[s][r] ) {
+		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			f = dat_p->arr.flt[s][r][b];
+			if ( Sigmet_IsData(f) ) {
+			    dat_p->arr.flt[s][r][b] = log10(f);
+			}
+		    }
+		}
+	    }
+	}
     }
     return SIGMET_OK;
 }
