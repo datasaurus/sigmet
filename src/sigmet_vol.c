@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.94 $ $Date: 2010/12/08 20:21:37 $
+   .	$Revision: 1.95 $ $Date: 2010/12/08 20:22:50 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1571,7 +1571,9 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
 		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
 			f = dat_p->arr.flt[s][r][b];
 			if ( Sigmet_IsData(f) ) {
-			    dat_p->arr.flt[s][r][b] = log10(f);
+			    f = log10(f);
+			    dat_p->arr.flt[s][r][b]
+				= isfinite(f) ? f : Sigmet_NoData();
 			}
 		    }
 		}
