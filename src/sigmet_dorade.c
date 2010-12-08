@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.21 $ $Date: 2010/12/07 19:50:17 $
+   .	$Revision: 1.22 $ $Date: 2010/12/07 20:14:51 $
  */
 
 #include <string.h>
@@ -373,7 +373,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 		}
 	    } else {
 		for (c = 0; c < num_cells; c++) {
-		    double d;
+		    float d;
 
 		    d = Sigmet_Vol_GetDat(vol_p, p, s, r, c);
 		    if (Sigmet_IsData(d)) {

@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.334 $ $Date: 2010/12/07 21:39:23 $
+ .	$Revision: 1.335 $ $Date: 2010/12/07 23:04:40 $
  */
 
 #include <limits.h>
@@ -562,7 +562,7 @@ static int new_data_type_cb(int argc, char *argv[],
     name = argv[2];
     desc = argv[3];
     unit = argv[4];
-    switch (DataType_Add(name, desc, unit, DATA_TYPE_DBL, DataType_DblToDbl)) {
+    switch (DataType_Add(name, desc, unit, DATA_TYPE_FLT, DataType_DblToDbl)) {
 	case DATATYPE_ALLOC_FAIL:
 	    return SIGMET_ALLOC_FAIL;
 	case DATATYPE_INPUT_FAIL:
@@ -2344,7 +2344,7 @@ static int field_set_cb(int argc, char *argv[], char *cl_wd,
 	    return status;
 	}
     } else if ( sscanf(d_s, "%lf", &d) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_SetDbl(vol_p, abbrv, d)) != SIGMET_OK ) {
+	if ( (status = Sigmet_Vol_Fld_SetFlt(vol_p, abbrv, d)) != SIGMET_OK ) {
 	    fprintf(err, "%s %s: could not set %s to %lf in %s\n%s\n",
 		    argv0, argv1, abbrv, d, vol_nm_r, Err_Get());
 	    return status;
@@ -2396,7 +2396,7 @@ static int add_cb(int argc, char *argv[], char *cl_wd,
 	return status;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_AddDbl(vol_p, abbrv, a)) != SIGMET_OK ) {
+	if ( (status = Sigmet_Vol_Fld_AddFlt(vol_p, abbrv, a)) != SIGMET_OK ) {
 	    fprintf(err, "%s %s: could not add %s to %lf in %s\n%s\n",
 		    argv0, argv1, abbrv, a, vol_nm_r, Err_Get());
 	    return status;

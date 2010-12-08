@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.88 $ $Date: 2010/12/07 21:39:38 $
+   .	$Revision: 1.89 $ $Date: 2010/12/07 23:03:54 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -135,8 +135,8 @@ static U1BYT *** calloc3_u1(long, long, long);
 static void free3_u1(U1BYT ***);
 static U2BYT *** calloc3_u2(long, long, long);
 static void free3_u2(U2BYT ***);
-static double *** calloc3_dbl(long, long, long);
-static void free3_dbl(double ***);
+static float *** calloc3_flt(long, long, long);
+static void free3_flt(float ***);
 
 void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
 {
@@ -187,9 +187,10 @@ void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 		    break;
 		case DATA_TYPE_U2:
 		    free3_u2(vol_p->dat[y].arr.d2);
-		case DATA_TYPE_DBL:
-		    free3_dbl(vol_p->dat[y].arr.dbl);
+		case DATA_TYPE_FLT:
+		    free3_flt(vol_p->dat[y].arr.flt);
 		    break;
+		case DATA_TYPE_DBL:
 		case DATA_TYPE_MT:
 		    break;
 	    }
@@ -226,7 +227,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
     struct DataType *data_type;
     size_t sz;
     struct Sigmet_DatArr *dat_p;
-    double ***dbl_p;
+    float ***flt_p;
     int num_sweeps, num_rays, num_bins;
 
     if ( !abbrv ) {
@@ -262,7 +263,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
     }
     dat_p = vol_p->dat + vol_p->num_types;
     dat_p->data_type = data_type;
-    dat_p->arr.dbl = NULL;
+    dat_p->arr.flt = NULL;
     if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
 	Err_Append("Could not add ");
 	Err_Append(abbrv);
@@ -272,13 +273,13 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
-    dbl_p = calloc3_dbl(num_sweeps, num_rays, num_bins);
-    if ( !dbl_p ) {
+    flt_p = calloc3_flt(num_sweeps, num_rays, num_bins);
+    if ( !flt_p ) {
 	dat_p->data_type = NULL;
 	Err_Append("Could not allocate new field ");
 	return SIGMET_ALLOC_FAIL;
     }
-    dat_p->arr.dbl = dbl_p;
+    dat_p->arr.flt = flt_p;
     vol_p->num_types++;
     return SIGMET_OK;
 }
@@ -309,7 +310,7 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 	Err_Append(" not in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    free3_dbl(d_p->arr.dbl);
+    free3_flt(d_p->arr.flt);
     Hash_Rm(&vol_p->types_tbl, abbrv);
     for (d1_p = d_p + 1; d1_p < vol_p->dat + vol_p->num_types; d_p++, d1_p++) {
 	*d_p = *d1_p;
@@ -394,7 +395,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     }
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_NTYPES; dat_p++) {
 	dat_p->data_type = NULL;
-	dat_p->arr.dbl = NULL;
+	dat_p->arr.flt = NULL;
     }
     if ( !Hash_Init(&vol_p->types_tbl, SIGMET_NTYPES * 2) ) {
 	Err_Append("Could not allocate space for volume types table. ");
@@ -464,6 +465,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		    vol_p->dat[y].arr.d2 = NULL;
 		    y++;
 		    break;
+		case DATA_TYPE_FLT:
 		case DATA_TYPE_DBL:
 		    Err_Append("Volume in memory is corrupt. Unknown "
 			    "data type in data array.");
@@ -1173,9 +1175,9 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 }
 
 /* Fetch a value from a Sigmet volume */
-double Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
+float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 {
-    double v;
+    float v;
 
     if ( !vol_p ) {
 	return Sigmet_NoData();
@@ -1194,9 +1196,10 @@ double Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	case DATA_TYPE_U2:
 	    v = vol_p->dat[y].arr.d2[s][r][b];
 	    break;
-	case DATA_TYPE_DBL:
-	    v = vol_p->dat[y].arr.dbl[s][r][b];
+	case DATA_TYPE_FLT:
+	    v = vol_p->dat[y].arr.flt[s][r][b];
 	    break;
+	case DATA_TYPE_DBL:
 	case DATA_TYPE_MT:
 	    return Sigmet_NoData();
     }
@@ -1207,11 +1210,11 @@ double Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
    Initialize data array to a given value.
  */
 
-int Sigmet_Vol_Fld_SetDbl(struct Sigmet_Vol *vol_p, char *abbrv, double v)
+int Sigmet_Vol_Fld_SetFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     struct Sigmet_DatArr *dat_p;
     int s, r;
-    double *dp, *dp1;
+    float *dp, *dp1;
 
     if ( !vol_p || !abbrv ) {
 	return SIGMET_BAD_ARG;
@@ -1222,12 +1225,12 @@ int Sigmet_Vol_Fld_SetDbl(struct Sigmet_Vol *vol_p, char *abbrv, double v)
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    dat_p->data_type->stor_fmt = DATA_TYPE_DBL;
+    dat_p->data_type->stor_fmt = DATA_TYPE_FLT;
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
 	if ( vol_p->sweep_ok[s] ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    dp = dat_p->arr.dbl[s][r];
+		    dp = dat_p->arr.flt[s][r];
 		    dp1 = dp + vol_p->ray_num_bins[s][r];
 		    for ( ; dp < dp1; dp++) {
 			*dp = v;
@@ -1246,7 +1249,7 @@ int Sigmet_Vol_Fld_SetDbl(struct Sigmet_Vol *vol_p, char *abbrv, double v)
 int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     struct Sigmet_DatArr *dat_p;
-    double ***arr;
+    float ***arr;
     int s, r, b;
     double bin0, bin_step;
 
@@ -1259,8 +1262,8 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    dat_p->data_type->stor_fmt = DATA_TYPE_DBL;
-    arr = dat_p->arr.dbl;
+    dat_p->data_type->stor_fmt = DATA_TYPE_FLT;
+    arr = dat_p->arr.flt;
     bin_step = 0.01 * vol_p->ih.tc.tri.step_out;	/* cm -> meter */
     bin0 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin + 0.5 * bin_step;
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -1281,13 +1284,13 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
    Add scalar a to field abbrv.
  */
 
-int Sigmet_Vol_Fld_AddDbl(struct Sigmet_Vol *vol_p, char *abbrv, double a)
+int Sigmet_Vol_Fld_AddFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
 {
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
     int num_sweeps, num_rays, num_bins;
     int s, r, b;
-    double d, ***dbl_p;
+    float d, ***flt_p;
 
     if ( !vol_p || !abbrv ) {
 	return SIGMET_BAD_ARG;
@@ -1304,8 +1307,8 @@ int Sigmet_Vol_Fld_AddDbl(struct Sigmet_Vol *vol_p, char *abbrv, double a)
     data_type = dat_p->data_type;
     switch (data_type->stor_fmt) {
 	case DATA_TYPE_U1:
-	    dbl_p = calloc3_dbl(num_sweeps, num_rays, num_bins);
-	    if ( !dbl_p ) {
+	    flt_p = calloc3_flt(num_sweeps, num_rays, num_bins);
+	    if ( !flt_p ) {
 		Err_Append("Could not allocate new field while converting ");
 		Err_Append(abbrv);
 		Err_Append(" to new internal representation. ");
@@ -1319,9 +1322,9 @@ int Sigmet_Vol_Fld_AddDbl(struct Sigmet_Vol *vol_p, char *abbrv, double a)
 				d = dat_p->arr.d1[s][r][b];
 				d = DataType_StorToComp(data_type, d, vol_p);
 				if ( Sigmet_IsData(d) ) {
-				    dbl_p[s][r][b] = d + a;
+				    flt_p[s][r][b] = d + a;
 				} else {
-				    dbl_p[s][r][b] = Sigmet_NoData();
+				    flt_p[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -1329,12 +1332,12 @@ int Sigmet_Vol_Fld_AddDbl(struct Sigmet_Vol *vol_p, char *abbrv, double a)
 		}
 	    }
 	    free3_u1(dat_p->arr.d1);
-	    dat_p->arr.dbl = dbl_p;
-	    dat_p->data_type->stor_fmt = DATA_TYPE_DBL;
+	    dat_p->arr.flt = flt_p;
+	    dat_p->data_type->stor_fmt = DATA_TYPE_FLT;
 	    break;
 	case DATA_TYPE_U2:
-	    dbl_p = calloc3_dbl(num_sweeps, num_rays, num_bins);
-	    if ( !dbl_p ) {
+	    flt_p = calloc3_flt(num_sweeps, num_rays, num_bins);
+	    if ( !flt_p ) {
 		Err_Append("Could not allocate new field while converting ");
 		Err_Append(abbrv);
 		Err_Append(" to new internal representation. ");
@@ -1348,9 +1351,9 @@ int Sigmet_Vol_Fld_AddDbl(struct Sigmet_Vol *vol_p, char *abbrv, double a)
 				d = dat_p->arr.d2[s][r][b];
 				d = DataType_StorToComp(data_type, d, vol_p);
 				if ( Sigmet_IsData(d) ) {
-				    dbl_p[s][r][b] = d + a;
+				    flt_p[s][r][b] = d + a;
 				} else {
-				    dbl_p[s][r][b] = Sigmet_NoData();
+				    flt_p[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -1358,18 +1361,18 @@ int Sigmet_Vol_Fld_AddDbl(struct Sigmet_Vol *vol_p, char *abbrv, double a)
 		}
 	    }
 	    free3_u2(dat_p->arr.d2);
-	    dat_p->arr.dbl = dbl_p;
-	    dat_p->data_type->stor_fmt = DATA_TYPE_DBL;
+	    dat_p->arr.flt = flt_p;
+	    dat_p->data_type->stor_fmt = DATA_TYPE_FLT;
 	    break;
-	case DATA_TYPE_DBL:
+	case DATA_TYPE_FLT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
 		if ( vol_p->sweep_ok[s] ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				d = dat_p->arr.dbl[s][r][b];
+				d = dat_p->arr.flt[s][r][b];
 				if ( Sigmet_IsData(d) ) {
-				    dat_p->arr.dbl[s][r][b] = d + a;
+				    dat_p->arr.flt[s][r][b] = d + a;
 				}
 			    }
 			}
@@ -1377,6 +1380,7 @@ int Sigmet_Vol_Fld_AddDbl(struct Sigmet_Vol *vol_p, char *abbrv, double a)
 		}
 	    }
 	    break;
+	case DATA_TYPE_DBL:
 	case DATA_TYPE_MT:
 	    Err_Append("Unknown data type in volume. ");
 	    return SIGMET_BAD_VOL;
@@ -3153,9 +3157,9 @@ static void free3_u2(U2BYT ***dat)
    Allocate a 3 dimensional array of floats.  Return the array. If something
    goes wrong, post an error message with Err_Append and return NULL.
  */
-static double ***calloc3_dbl(long kmax, long jmax, long imax)
+static float ***calloc3_flt(long kmax, long jmax, long imax)
 {
-    double ***dat, *d;
+    float ***dat, *d;
     long k, j;
     size_t kk, jj, ii;
 
@@ -3172,18 +3176,18 @@ static double ***calloc3_dbl(long kmax, long jmax, long imax)
 	return NULL;
     }
 
-    dat = (double ***)CALLOC(kk + 2, sizeof(double **));
+    dat = (float ***)CALLOC(kk + 2, sizeof(float **));
     if ( !dat ) {
 	Err_Append("Could not allocate 3rd dimension.\n");
 	return NULL;
     }
-    dat[0] = (double **)CALLOC(kk * jj + 1, sizeof(double *));
+    dat[0] = (float **)CALLOC(kk * jj + 1, sizeof(float *));
     if ( !dat[0] ) {
 	FREE(dat);
 	Err_Append("Could not allocate 2nd dimension.\n");
 	return NULL;
     }
-    dat[0][0] = (double *)CALLOC(kk * jj * ii + 1, sizeof(double));
+    dat[0][0] = (float *)CALLOC(kk * jj * ii + 1, sizeof(float));
     if ( !dat[0][0] ) {
 	FREE(dat[0]);
 	FREE(dat);
@@ -3202,8 +3206,8 @@ static double ***calloc3_dbl(long kmax, long jmax, long imax)
     return dat;
 }
 
-/* Free array created by calloc3_dbl */
-static void free3_dbl(double ***dat)
+/* Free array created by calloc3_flt */
+static void free3_flt(float ***dat)
 {
     if (dat) {
 	if (dat[0]) {

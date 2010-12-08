@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.25 $ $Date: 2010/12/06 17:26:19 $
+   .	$Revision: 1.26 $ $Date: 2010/12/06 17:32:33 $
  */
 
 #include <stdlib.h>
@@ -200,19 +200,19 @@ DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN y)
     return (y < SIGMET_NTYPES) ?  stor_to_comp[y] : NULL;
 }
 
-double Sigmet_NoData(void)
+float Sigmet_NoData(void)
 {
-    return DBL_MAX;
+    return FLT_MAX;
 }
 
-int Sigmet_IsData(double v)
+int Sigmet_IsData(float v)
 {
-    return !(v == DBL_MAX);
+    return !(v == FLT_MAX);
 }
 
-int Sigmet_IsNoData(double v)
+int Sigmet_IsNoData(float v)
 {
-    return v == DBL_MAX;
+    return v == FLT_MAX;
 }
 
 static double stor_comp_XHDR(double v, void *meta)

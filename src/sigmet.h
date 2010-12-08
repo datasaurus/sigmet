@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.71 $ $Date: 2010/12/07 21:38:56 $
+   .	$Revision: 1.72 $ $Date: 2010/12/07 23:03:22 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -406,7 +406,7 @@ struct Sigmet_Ingest_Header {
 
 /*
    Data array.  A volume will have one of these for each data type in the
-   volume. If not NULL, d1, d2, or dbl is an array dimensioned
+   volume. If not NULL, d1, d2, or f is an array dimensioned
    [sweep][ray][bin] with data values from the volume.
  */
 
@@ -416,7 +416,7 @@ struct Sigmet_DatArr {
     union {
 	U1BYT ***d1;				/* 1 byte data */
 	U2BYT ***d2;				/* 2 byte data */
-	double ***dbl;				/* Floating point data */
+	float ***flt;				/* Floating point data */
     } arr;
 };
 
@@ -499,9 +499,9 @@ struct Sigmet_Vol {
    Use the DataType interface for additional types.
  */
 
-double Sigmet_NoData(void);
-int Sigmet_IsData(double);
-int Sigmet_IsNoData(double);
+float Sigmet_NoData(void);
+int Sigmet_IsData(float);
+int Sigmet_IsNoData(float);
 double Sigmet_Bin4Rad(unsigned long);
 double Sigmet_Bin2Rad(unsigned short);
 unsigned long Sigmet_RadBin4(double);
@@ -541,14 +541,13 @@ int Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
-int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int,
-	double *);
+int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
-double Sigmet_Vol_GetDat(struct Sigmet_Vol *, int, int, int, int);
-int Sigmet_Vol_Fld_SetDbl(struct Sigmet_Vol *, char *, double);
+float Sigmet_Vol_GetDat(struct Sigmet_Vol *, int, int, int, int);
+int Sigmet_Vol_Fld_SetFlt(struct Sigmet_Vol *, char *, float);
 int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *, char *);
-int Sigmet_Vol_Fld_AddDbl(struct Sigmet_Vol *, char *, double);
+int Sigmet_Vol_Fld_AddFlt(struct Sigmet_Vol *, char *, float);
 int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *, char *, char *);
 double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
 int Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int,
