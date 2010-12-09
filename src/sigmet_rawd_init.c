@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.342 $ $Date: 2010/12/08 21:28:37 $
+ .	$Revision: 1.343 $ $Date: 2010/12/08 21:51:22 $
  */
 
 #include <limits.h>
@@ -2196,7 +2196,10 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     clrs = data_type->colors;
     n_bnds = n_clrs + 1;
     bnds = data_type->bounds;
-    n_bnds = n_clrs + 1;
+    if ( n_clrs == 0 || !clrs || n_bnds == 1 || !bnds ) {
+	fprintf(err, "%s %s: colors and bounds not set.\n", argv0, argv1);
+	return SIGMET_NOT_INIT;
+    }
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(err, "%s %s: expected integer for sweep index, got %s\n",
 		argv0, argv1, s_s);
