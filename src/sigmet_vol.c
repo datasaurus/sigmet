@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.101 $ $Date: 2010/12/10 15:48:06 $
+   .	$Revision: 1.102 $ $Date: 2010/12/10 15:53:56 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1399,9 +1399,6 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
 			    *dp += v;
-			    if ( !isfinite(*dp) ) {
-				*dp = Sigmet_NoData();
-			    }
 			}
 		    }
 		}
@@ -1582,9 +1579,6 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
 			    *dp -= v;
-			    if ( !isfinite(*dp) ) {
-				*dp = Sigmet_NoData();
-			    }
 			}
 		    }
 		}
@@ -1765,9 +1759,6 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
 			    *dp *= v;
-			    if ( !isfinite(*dp) ) {
-				*dp = Sigmet_NoData();
-			    }
 			}
 		    }
 		}
@@ -1952,9 +1943,6 @@ int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
 			    *dp /= v;
-			    if ( !isfinite(*dp) ) {
-				*dp = Sigmet_NoData();
-			    }
 			}
 		    }
 		}
@@ -2022,10 +2010,9 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				v1 = dat_p1->arr.flt[s][r][b];
 				v2 = dat_p2->arr.u1[s][r][b];
 				v2 = DataType_StorToComp(data_type2, v2, vol_p);
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    v1 = v1 / (sgn * v2);
-				    dat_p1->arr.flt[s][r][b]
-					= isfinite(v1) ? v1 : Sigmet_NoData();
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2)
+					&& v2 != 0.0 ) {
+				    dat_p1->arr.flt[s][r][b] = v1 / (sgn * v2);
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -2044,10 +2031,9 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				v1 = dat_p1->arr.flt[s][r][b];
 				v2 = dat_p2->arr.u2[s][r][b];
 				v2 = DataType_StorToComp(data_type2, v2, vol_p);
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    v1 = v1 / (sgn * v2);
-				    dat_p1->arr.flt[s][r][b]
-					= isfinite(v1) ? v1 : Sigmet_NoData();
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2)
+					&& v2 != 0.0) {
+				    dat_p1->arr.flt[s][r][b] = v1 / (sgn * v2);
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -2065,10 +2051,9 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
 				v1 = dat_p1->arr.flt[s][r][b];
 				v2 = dat_p2->arr.flt[s][r][b];
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    v1 = v1 / (sgn * v2);
-				    dat_p1->arr.flt[s][r][b]
-					= isfinite(v1) ? v1 : Sigmet_NoData();
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2)
+					&& v2 != 0.0 ) {
+				    dat_p1->arr.flt[s][r][b] = v1 / (sgn * v2);
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -2140,10 +2125,7 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
 		    dp1 = dp + vol_p->ray_num_bins[s][r];
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
-			    *dp = log10(*dp);
-			    if ( !isfinite(*dp) ) {
-				*dp = Sigmet_NoData();
-			    }
+			    *dp = (*dp > 0.0) ? log10(*dp) : Sigmet_NoData();
 			}
 		    }
 		}
