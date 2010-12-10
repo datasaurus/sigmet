@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.344 $ $Date: 2010/12/09 18:39:25 $
+ .	$Revision: 1.345 $ $Date: 2010/12/10 15:53:56 $
  */
 
 #include <limits.h>
@@ -1012,19 +1012,29 @@ static int new_field_cb(int argc, char *argv[], char *cl_wd,
     }
     if ( d_s ) {
 	if ( sscanf(d_s, "%lf", &d) == 1 ) {
-	    if ( (status = Sigmet_Vol_Fld_SetVal(vol_p, abbrv, d))
-		    != SIGMET_OK ) {
+	    status = Sigmet_Vol_Fld_SetVal(vol_p, abbrv, d);
+	    if ( status != SIGMET_OK ) {
 		fprintf(err, "%s %s: could not set %s to %lf in %s\n%s\n"
 			"Field is retained in volume but values are garbage.\n",
 			argv0, argv1, abbrv, d, vol_nm_r, Err_Get());
 		return status;
 	    }
-	} else if ( (status = Sigmet_Vol_Fld_Copy(vol_p, abbrv, d_s))
-		!= SIGMET_OK ) {
-	    fprintf(err, "%s %s: could not set %s to %s in %s\n%s\n"
+	} else if ( strcmp(d_s, "r_beam") == 0 ) {
+	    status = Sigmet_Vol_Fld_SetRBeam(vol_p, abbrv);
+	    if ( status != SIGMET_OK ) {
+		fprintf(err, "%s %s: could not set %s to %s in %s\n%s\n"
 			"Field is retained in volume but values are garbage.\n",
-		    argv0, argv1, abbrv, d_s, vol_nm_r, Err_Get());
-	    return status;
+			argv0, argv1, abbrv, d_s, vol_nm_r, Err_Get());
+		return status;
+	    }
+	} else {
+	    status = Sigmet_Vol_Fld_Copy(vol_p, abbrv, d_s);
+	    if ( status != SIGMET_OK ) {
+		fprintf(err, "%s %s: could not set %s to %s in %s\n%s\n"
+			"Field is retained in volume but values are garbage.\n",
+			argv0, argv1, abbrv, d_s, vol_nm_r, Err_Get());
+		return status;
+	    }
 	}
     }
     return SIGMET_OK;
