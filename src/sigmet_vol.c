@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.100 $ $Date: 2010/12/10 14:50:55 $
+   .	$Revision: 1.101 $ $Date: 2010/12/10 15:48:06 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1183,7 +1183,7 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
    Initialize data array to value v.
  */
 
-int Sigmet_Vol_Fld_SetFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
+int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     struct Sigmet_DatArr *dat_p;
     int s, r;
@@ -1358,7 +1358,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
    Add scalar value v to field abbrv.
  */
 
-int Sigmet_Vol_Fld_AddFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
+int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
@@ -1541,7 +1541,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
    Subtract scalar v from field abbrv.
  */
 
-int Sigmet_Vol_Fld_SubFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
+int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
@@ -1724,7 +1724,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
    Multiply field abbrv by scalar v.
  */
 
-int Sigmet_Vol_Fld_MulFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
+int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
@@ -1907,7 +1907,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
    Divide field abbrv by scalar v.
  */
 
-int Sigmet_Vol_Fld_DivFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
+int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;

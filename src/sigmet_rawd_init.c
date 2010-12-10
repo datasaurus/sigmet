@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.343 $ $Date: 2010/12/08 21:51:22 $
+ .	$Revision: 1.344 $ $Date: 2010/12/09 18:39:25 $
  */
 
 #include <limits.h>
@@ -1012,7 +1012,7 @@ static int new_field_cb(int argc, char *argv[], char *cl_wd,
     }
     if ( d_s ) {
 	if ( sscanf(d_s, "%lf", &d) == 1 ) {
-	    if ( (status = Sigmet_Vol_Fld_SetFlt(vol_p, abbrv, d))
+	    if ( (status = Sigmet_Vol_Fld_SetVal(vol_p, abbrv, d))
 		    != SIGMET_OK ) {
 		fprintf(err, "%s %s: could not set %s to %lf in %s\n%s\n"
 			"Field is retained in volume but values are garbage.\n",
@@ -1117,7 +1117,7 @@ static int set_field_cb(int argc, char *argv[], char *cl_wd,
 	    return status;
 	}
     } else if ( sscanf(d_s, "%lf", &d) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_SetFlt(vol_p, abbrv, d)) != SIGMET_OK ) {
+	if ( (status = Sigmet_Vol_Fld_SetVal(vol_p, abbrv, d)) != SIGMET_OK ) {
 	    fprintf(err, "%s %s: could not set %s to %lf in %s\n%s\n",
 		    argv0, argv1, abbrv, d, vol_nm_r, Err_Get());
 	    return status;
@@ -1169,7 +1169,7 @@ static int add_cb(int argc, char *argv[], char *cl_wd,
 	return status;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_AddFlt(vol_p, abbrv, a)) != SIGMET_OK ) {
+	if ( (status = Sigmet_Vol_Fld_AddVal(vol_p, abbrv, a)) != SIGMET_OK ) {
 	    fprintf(err, "%s %s: could not add %s to %lf in %s\n%s\n",
 		    argv0, argv1, abbrv, a, vol_nm_r, Err_Get());
 	    return status;
@@ -1221,7 +1221,7 @@ static int sub_cb(int argc, char *argv[], char *cl_wd,
 	return status;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_SubFlt(vol_p, abbrv, a)) != SIGMET_OK ) {
+	if ( (status = Sigmet_Vol_Fld_SubVal(vol_p, abbrv, a)) != SIGMET_OK ) {
 	    fprintf(err, "%s %s: could not subtract %lf from %s in %s\n%s\n",
 		    argv0, argv1, a, abbrv, vol_nm_r, Err_Get());
 	    return status;
@@ -1273,7 +1273,7 @@ static int mul_cb(int argc, char *argv[], char *cl_wd,
 	return status;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_MulFlt(vol_p, abbrv, a)) != SIGMET_OK ) {
+	if ( (status = Sigmet_Vol_Fld_MulVal(vol_p, abbrv, a)) != SIGMET_OK ) {
 	    fprintf(err, "%s %s: could not multiply %s by %lf in %s\n%s\n",
 		    argv0, argv1, abbrv, a, vol_nm_r, Err_Get());
 	    return status;
@@ -1325,7 +1325,7 @@ static int div_cb(int argc, char *argv[], char *cl_wd,
 	return status;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_DivFlt(vol_p, abbrv, a)) != SIGMET_OK ) {
+	if ( (status = Sigmet_Vol_Fld_DivVal(vol_p, abbrv, a)) != SIGMET_OK ) {
 	    fprintf(err, "%s %s: could not divide %s by %lf in %s\n%s\n",
 		    argv0, argv1, abbrv, a, vol_nm_r, Err_Get());
 	    return status;
