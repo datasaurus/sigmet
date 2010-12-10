@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.22 $ $Date: 2010/12/07 20:14:51 $
+   .	$Revision: 1.23 $ $Date: 2010/12/08 15:57:44 $
  */
 
 #include <string.h>
@@ -192,12 +192,8 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	data_type = vol_p->dat[p].data_type;
 	parm_p = sensor_p->parm + p;
 	Dorade_PARM_Init(parm_p);
-	if ( !Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	    Err_Append("Volume is corrupt in memory. ");
-	    status = SIGMET_BAD_VOL;
-	    goto error;
-	}
-	if ( soloii_abbrv[sig_type] ) {
+	if ( Sigmet_DataType_GetN(abbrv, &sig_type) && soloii_abbrv[sig_type] )
+	{
 	    strncpy(parm_p->parameter_name, soloii_abbrv[sig_type], 8);
 	} else {
 	    strncpy(parm_p->parameter_name, abbrv, 8);
