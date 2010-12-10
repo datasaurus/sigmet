@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.99 $ $Date: 2010/12/08 21:51:00 $
+   .	$Revision: 1.100 $ $Date: 2010/12/10 14:50:55 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1157,6 +1157,11 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
     }
     free3_flt(d_p->arr.flt);
     Hash_Rm(&vol_p->types_tbl, abbrv);
+
+    /*
+       Slide the rest of the members of dat down one to fill the hole.
+     */
+
     for (d1_p = d_p + 1; d1_p < vol_p->dat + vol_p->num_types; d_p++, d1_p++) {
 	*d_p = *d1_p;
     }
@@ -1249,7 +1254,7 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 }
 
 /*
-   Copy field abbrv2 to abbrv1. Previous contents of abbrv1 are obliterated.
+   Replace contents of field abbrv1 with contents of field abbrv2.
  */
 
 int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
@@ -1260,7 +1265,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     int s, r, b;
     int num_sweeps, num_rays, num_bins;
     size_t sz;
-    float f2;
+    float v2;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1300,9 +1305,9 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f2 = dat_p2->arr.u1[s][r][b];
-				f2 = DataType_StorToComp(data_type2, f2, vol_p);
-				dat_p1->arr.flt[s][r][b] = f2;
+				v2 = dat_p2->arr.u1[s][r][b];
+				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				dat_p1->arr.flt[s][r][b] = v2;
 			    }
 			}
 		    }
@@ -1315,9 +1320,9 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f2 = dat_p2->arr.u2[s][r][b];
-				f2 = DataType_StorToComp(data_type2, f2, vol_p);
-				dat_p1->arr.flt[s][r][b] = f2;
+				v2 = dat_p2->arr.u2[s][r][b];
+				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				dat_p1->arr.flt[s][r][b] = v2;
 			    }
 			}
 		    }
@@ -1350,16 +1355,16 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 }
 
 /*
-   Add scalar value v1 to field abbrv.
+   Add scalar value v to field abbrv.
  */
 
-int Sigmet_Vol_Fld_AddFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
+int Sigmet_Vol_Fld_AddFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
-    int s, r, b;
-    float v;
+    int s, r;
+    float *dp, *dp1;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1389,12 +1394,14 @@ int Sigmet_Vol_Fld_AddFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
 	if ( vol_p->sweep_ok[s] ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			v = dat_p->arr.flt[s][r][b];
-			if ( Sigmet_IsData(v) ) {
-			    v = v + v1;
-			    dat_p->arr.flt[s][r][b]
-				= isfinite(v) ? v : Sigmet_NoData();
+		    dp = dat_p->arr.flt[s][r];
+		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    for ( ; dp < dp1; dp++) {
+			if ( Sigmet_IsData(*dp) ) {
+			    *dp += v;
+			    if ( !isfinite(*dp) ) {
+				*dp = Sigmet_NoData();
+			    }
 			}
 		    }
 		}
@@ -1415,7 +1422,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     struct DataType *data_type1, *data_type2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
     int s, r, b;
-    float f1, f2;
+    float v1, v2;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1459,11 +1466,11 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.u1[s][r][b];
-				f2 = DataType_StorToComp(data_type2, f2, vol_p);
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    dat_p1->arr.flt[s][r][b] = f1 + sgn * f2;
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.u1[s][r][b];
+				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    dat_p1->arr.flt[s][r][b] = v1 + sgn * v2;
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -1479,11 +1486,11 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.u2[s][r][b];
-				f2 = DataType_StorToComp(data_type2, f2, vol_p);
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    dat_p1->arr.flt[s][r][b] = f1 + sgn * f2;
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.u2[s][r][b];
+				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    dat_p1->arr.flt[s][r][b] = v1 + sgn * v2;
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -1499,10 +1506,10 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.flt[s][r][b];
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    dat_p1->arr.flt[s][r][b] = f1 + sgn * f2;
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.flt[s][r][b];
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    dat_p1->arr.flt[s][r][b] = v1 + sgn * v2;
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -1531,16 +1538,16 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 }
 
 /*
-   Subtract scalar v1 from field abbrv.
+   Subtract scalar v from field abbrv.
  */
 
-int Sigmet_Vol_Fld_SubFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
+int Sigmet_Vol_Fld_SubFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
-    int s, r, b;
-    float v;
+    int s, r;
+    float *dp, *dp1;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1570,12 +1577,14 @@ int Sigmet_Vol_Fld_SubFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
 	if ( vol_p->sweep_ok[s] ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			v = dat_p->arr.flt[s][r][b];
-			if ( Sigmet_IsData(v) ) {
-			    v = v - v1;
-			    dat_p->arr.flt[s][r][b]
-				= isfinite(v) ? v : Sigmet_NoData();
+		    dp = dat_p->arr.flt[s][r];
+		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    for ( ; dp < dp1; dp++) {
+			if ( Sigmet_IsData(*dp) ) {
+			    *dp -= v;
+			    if ( !isfinite(*dp) ) {
+				*dp = Sigmet_NoData();
+			    }
 			}
 		    }
 		}
@@ -1596,7 +1605,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     struct DataType *data_type1, *data_type2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
     int s, r, b;
-    float f1, f2;
+    float v1, v2;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1640,11 +1649,11 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.u1[s][r][b];
-				f2 = DataType_StorToComp(data_type2, f2, vol_p);
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    dat_p1->arr.flt[s][r][b] = f1 - sgn * f2;
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.u1[s][r][b];
+				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    dat_p1->arr.flt[s][r][b] = v1 - sgn * v2;
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -1660,11 +1669,11 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.u2[s][r][b];
-				f2 = DataType_StorToComp(data_type2, f2, vol_p);
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    dat_p1->arr.flt[s][r][b] = f1 - sgn * f2;
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.u2[s][r][b];
+				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    dat_p1->arr.flt[s][r][b] = v1 - sgn * v2;
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -1680,10 +1689,10 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.flt[s][r][b];
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    dat_p1->arr.flt[s][r][b] = f1 - sgn * f2;
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.flt[s][r][b];
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    dat_p1->arr.flt[s][r][b] = v1 - sgn * v2;
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -1712,16 +1721,16 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 }
 
 /*
-   Multiply field abbrv by scalar v1.
+   Multiply field abbrv by scalar v.
  */
 
-int Sigmet_Vol_Fld_MulFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
+int Sigmet_Vol_Fld_MulFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
-    int s, r, b;
-    float v;
+    int s, r;
+    float *dp, *dp1;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1751,12 +1760,14 @@ int Sigmet_Vol_Fld_MulFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
 	if ( vol_p->sweep_ok[s] ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			v = dat_p->arr.flt[s][r][b];
-			if ( Sigmet_IsData(v) ) {
-			    v = v * v1;
-			    dat_p->arr.flt[s][r][b]
-				= isfinite(v) ? v : Sigmet_NoData();
+		    dp = dat_p->arr.flt[s][r];
+		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    for ( ; dp < dp1; dp++) {
+			if ( Sigmet_IsData(*dp) ) {
+			    *dp *= v;
+			    if ( !isfinite(*dp) ) {
+				*dp = Sigmet_NoData();
+			    }
 			}
 		    }
 		}
@@ -1777,7 +1788,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     struct DataType *data_type1, *data_type2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
     int s, r, b;
-    float f1, f2;
+    float v1, v2;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1821,11 +1832,11 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.u1[s][r][b];
-				f2 = DataType_StorToComp(data_type2, f2, vol_p);
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    dat_p1->arr.flt[s][r][b] = f1 * sgn * f2;
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.u1[s][r][b];
+				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    dat_p1->arr.flt[s][r][b] = v1 * sgn * v2;
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -1841,11 +1852,11 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.u2[s][r][b];
-				f2 = DataType_StorToComp(data_type2, f2, vol_p);
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    dat_p1->arr.flt[s][r][b] = f1 * sgn * f2;
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.u2[s][r][b];
+				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    dat_p1->arr.flt[s][r][b] = v1 * sgn * v2;
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -1861,10 +1872,10 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.flt[s][r][b];
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    dat_p1->arr.flt[s][r][b] = f1 * sgn * f2;
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.flt[s][r][b];
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    dat_p1->arr.flt[s][r][b] = v1 * sgn * v2;
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -1893,16 +1904,16 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 }
 
 /*
-   Divide field abbrv by scalar v1.
+   Divide field abbrv by scalar v.
  */
 
-int Sigmet_Vol_Fld_DivFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
+int Sigmet_Vol_Fld_DivFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
-    int s, r, b;
-    float v;
+    int s, r;
+    float *dp, *dp1;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1912,7 +1923,7 @@ int Sigmet_Vol_Fld_DivFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
 	Err_Append("Attempted to add bogus field. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( v1 == 0.0 ) {
+    if ( v == 0.0 ) {
 	Err_Append("Attempted to divide by zero. ");
 	return SIGMET_BAD_ARG;
     }
@@ -1936,12 +1947,14 @@ int Sigmet_Vol_Fld_DivFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
 	if ( vol_p->sweep_ok[s] ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			v = dat_p->arr.flt[s][r][b];
-			if ( Sigmet_IsData(v) ) {
-			    v = v / v1;
-			    dat_p->arr.flt[s][r][b]
-				= isfinite(v) ? v : Sigmet_NoData();
+		    dp = dat_p->arr.flt[s][r];
+		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    for ( ; dp < dp1; dp++) {
+			if ( Sigmet_IsData(*dp) ) {
+			    *dp /= v;
+			    if ( !isfinite(*dp) ) {
+				*dp = Sigmet_NoData();
+			    }
 			}
 		    }
 		}
@@ -1962,7 +1975,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     struct DataType *data_type1, *data_type2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
     int s, r, b;
-    float f1, f2;
+    float v1, v2;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -2006,13 +2019,13 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.u1[s][r][b];
-				f2 = DataType_StorToComp(data_type2, f2, vol_p);
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    f1 = f1 / (sgn * f2);
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.u1[s][r][b];
+				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    v1 = v1 / (sgn * v2);
 				    dat_p1->arr.flt[s][r][b]
-					= isfinite(f1) ? f1 : Sigmet_NoData();
+					= isfinite(v1) ? v1 : Sigmet_NoData();
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -2028,13 +2041,13 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.u2[s][r][b];
-				f2 = DataType_StorToComp(data_type2, f2, vol_p);
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    f1 = f1 / (sgn * f2);
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.u2[s][r][b];
+				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    v1 = v1 / (sgn * v2);
 				    dat_p1->arr.flt[s][r][b]
-					= isfinite(f1) ? f1 : Sigmet_NoData();
+					= isfinite(v1) ? v1 : Sigmet_NoData();
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -2050,12 +2063,12 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				f1 = dat_p1->arr.flt[s][r][b];
-				f2 = dat_p2->arr.flt[s][r][b];
-				if ( Sigmet_IsData(f1) && Sigmet_IsData(f2) ) {
-				    f1 = f1 / (sgn * f2);
+				v1 = dat_p1->arr.flt[s][r][b];
+				v2 = dat_p2->arr.flt[s][r][b];
+				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
+				    v1 = v1 / (sgn * v2);
 				    dat_p1->arr.flt[s][r][b]
-					= isfinite(f1) ? f1 : Sigmet_NoData();
+					= isfinite(v1) ? v1 : Sigmet_NoData();
 				} else {
 				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
 				}
@@ -2092,8 +2105,8 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
-    int s, r, b;
-    float v;
+    int s, r;
+    float *dp, *dp1;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -2123,12 +2136,14 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
 	if ( vol_p->sweep_ok[s] ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			v = dat_p->arr.flt[s][r][b];
-			if ( Sigmet_IsData(v) ) {
-			    v = log10(v);
-			    dat_p->arr.flt[s][r][b]
-				= isfinite(v) ? v : Sigmet_NoData();
+		    dp = dat_p->arr.flt[s][r];
+		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    for ( ; dp < dp1; dp++) {
+			if ( Sigmet_IsData(*dp) ) {
+			    *dp = log10(*dp);
+			    if ( !isfinite(*dp) ) {
+				*dp = Sigmet_NoData();
+			    }
 			}
 		    }
 		}
