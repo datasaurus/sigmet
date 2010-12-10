@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.98 $ $Date: 2010/12/08 21:19:28 $
+   .	$Revision: 1.99 $ $Date: 2010/12/08 21:51:00 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1064,7 +1064,7 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 
 /*
    Add a new field to a volume.  This also allocates space for data in the
-   dat array. It does not initialize the array.
+   dat array.
  */
 
 int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
@@ -1175,7 +1175,7 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 }
 
 /*
-   Initialize data array to a given value.
+   Initialize data array to value v.
  */
 
 int Sigmet_Vol_Fld_SetFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v)
@@ -1350,16 +1350,16 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 }
 
 /*
-   Add scalar a to field abbrv.
+   Add scalar value v1 to field abbrv.
  */
 
-int Sigmet_Vol_Fld_AddFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
+int Sigmet_Vol_Fld_AddFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
     int s, r, b;
-    float f;
+    float v;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1390,11 +1390,11 @@ int Sigmet_Vol_Fld_AddFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
 		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			f = dat_p->arr.flt[s][r][b];
-			if ( Sigmet_IsData(f) ) {
-			    f = f + a;
+			v = dat_p->arr.flt[s][r][b];
+			if ( Sigmet_IsData(v) ) {
+			    v = v + v1;
 			    dat_p->arr.flt[s][r][b]
-				= isfinite(f) ? f : Sigmet_NoData();
+				= isfinite(v) ? v : Sigmet_NoData();
 			}
 		    }
 		}
@@ -1531,16 +1531,16 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 }
 
 /*
-   Subtract scalar a from field abbrv.
+   Subtract scalar v1 from field abbrv.
  */
 
-int Sigmet_Vol_Fld_SubFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
+int Sigmet_Vol_Fld_SubFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
     int s, r, b;
-    float f;
+    float v;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1571,11 +1571,11 @@ int Sigmet_Vol_Fld_SubFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
 		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			f = dat_p->arr.flt[s][r][b];
-			if ( Sigmet_IsData(f) ) {
-			    f = f - a;
+			v = dat_p->arr.flt[s][r][b];
+			if ( Sigmet_IsData(v) ) {
+			    v = v - v1;
 			    dat_p->arr.flt[s][r][b]
-				= isfinite(f) ? f : Sigmet_NoData();
+				= isfinite(v) ? v : Sigmet_NoData();
 			}
 		    }
 		}
@@ -1712,16 +1712,16 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 }
 
 /*
-   Multiply field abbrv by scalar a.
+   Multiply field abbrv by scalar v1.
  */
 
-int Sigmet_Vol_Fld_MulFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
+int Sigmet_Vol_Fld_MulFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
     int s, r, b;
-    float f;
+    float v;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1752,11 +1752,11 @@ int Sigmet_Vol_Fld_MulFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
 		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			f = dat_p->arr.flt[s][r][b];
-			if ( Sigmet_IsData(f) ) {
-			    f = f * a;
+			v = dat_p->arr.flt[s][r][b];
+			if ( Sigmet_IsData(v) ) {
+			    v = v * v1;
 			    dat_p->arr.flt[s][r][b]
-				= isfinite(f) ? f : Sigmet_NoData();
+				= isfinite(v) ? v : Sigmet_NoData();
 			}
 		    }
 		}
@@ -1893,16 +1893,16 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 }
 
 /*
-   Divide field abbrv by scalar a.
+   Divide field abbrv by scalar v1.
  */
 
-int Sigmet_Vol_Fld_DivFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
+int Sigmet_Vol_Fld_DivFlt(struct Sigmet_Vol *vol_p, char *abbrv, float v1)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
     int s, r, b;
-    float f;
+    float v;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -1912,7 +1912,7 @@ int Sigmet_Vol_Fld_DivFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
 	Err_Append("Attempted to add bogus field. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( a == 0.0 ) {
+    if ( v1 == 0.0 ) {
 	Err_Append("Attempted to divide by zero. ");
 	return SIGMET_BAD_ARG;
     }
@@ -1937,11 +1937,11 @@ int Sigmet_Vol_Fld_DivFlt(struct Sigmet_Vol *vol_p, char *abbrv, float a)
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
 		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			f = dat_p->arr.flt[s][r][b];
-			if ( Sigmet_IsData(f) ) {
-			    f = f / a;
+			v = dat_p->arr.flt[s][r][b];
+			if ( Sigmet_IsData(v) ) {
+			    v = v / v1;
 			    dat_p->arr.flt[s][r][b]
-				= isfinite(f) ? f : Sigmet_NoData();
+				= isfinite(v) ? v : Sigmet_NoData();
 			}
 		    }
 		}
@@ -2093,7 +2093,7 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
     struct Sigmet_DatArr *dat_p;
     struct DataType *data_type;
     int s, r, b;
-    float f;
+    float v;
 
     if ( !vol_p ) {
 	Err_Append("Attempted to add field to bogus volume. ");
@@ -2124,11 +2124,11 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
 		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			f = dat_p->arr.flt[s][r][b];
-			if ( Sigmet_IsData(f) ) {
-			    f = log10(f);
+			v = dat_p->arr.flt[s][r][b];
+			if ( Sigmet_IsData(v) ) {
+			    v = log10(v);
 			    dat_p->arr.flt[s][r][b]
-				= isfinite(f) ? f : Sigmet_NoData();
+				= isfinite(v) ? v : Sigmet_NoData();
 			}
 		    }
 		}
@@ -2244,7 +2244,7 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
     return SIGMET_OK;
 }
 
-/* get / print product_hdr (a.k.a. raw volume record 1). */
+/* get product_hdr (raw volume record 1). */
 
 struct Sigmet_Product_Hdr get_product_hdr(char *rec)
 {
@@ -2675,7 +2675,7 @@ void print_product_end(FILE *out, char *pfx, struct Sigmet_Product_End pe)
 	    "TZ Name of recorded data");
 }
 
-/* get / print ingest header (a.k.a. raw volume record 2). */
+/* get ingest header (raw volume record 2). */
 
 struct Sigmet_Ingest_Header get_ingest_header(char *rec)
 {
@@ -3926,8 +3926,9 @@ static void free3_u2(U2BYT ***dat)
 }
 
 /*
-   Allocate a 3 dimensional array of floats.  Return the array. If something
-   goes wrong, post an error message with Err_Append and return NULL.
+   Allocate a 3 dimensional array of floats. Initialize with Sigmet_NoData().
+   Return the array. If something goes wrong, post an error message with
+   Err_Append and return NULL.
  */
 static float ***calloc3_flt(long kmax, long jmax, long imax)
 {
