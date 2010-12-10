@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.23 $ $Date: 2010/12/08 15:57:44 $
+   .	$Revision: 1.24 $ $Date: 2010/12/10 18:49:02 $
  */
 
 #include <string.h>
@@ -220,11 +220,12 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     /*
        Populate csfd block. Assume cell geometry for last parameter applies
-       to all.
+       to all. Initialize csfd member since dorade_lib assumes CFAC.
      */
 
     sensor_p->cell_geo_t = CSFD;
     csfd_p = &sensor_p->cell_geo.csfd;
+    Dorade_CSFD_Init(csfd_p);
     csfd_p->num_segments = 1;
     csfd_p->dist_to_first = parm_p->meters_to_first_cell;
     csfd_p->spacing[0] = parm_p->meters_between_cells;
@@ -273,30 +274,10 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	ray_hdr_p = swp_p->ray_hdr + r;
 	ryib_p = &ray_hdr_p->ryib;
 	asib_p = &ray_hdr_p->asib;
-
-	/*
-	   Initialize ryib block
-	 */
-
+	Dorade_RYIB_Init(ryib_p);
 	ryib_p->sweep_num = s;
-	ryib_p->julian_day = -999;
-	ryib_p->hour = -999;
-	ryib_p->minute = -999;
-	ryib_p->second = -999;
-	ryib_p->millisecond = -999;
-	ryib_p->azimuth = -999.0;
-	ryib_p->elevation = -999.0;
-	ryib_p->peak_power = -999.0;
 	ryib_p->ray_status = 2;
-
-	/*
-	   Initialize asib block
-	 */
-
-	asib_p->longitude = -999.0;
-	asib_p->latitude = -999.0;
-	asib_p->altitude_msl = -999.0;
-	asib_p->altitude_agl = -999.0;
+	Dorade_ASIB_Init(asib_p);
     }
     for (r = 0; r < num_rays; r++) {
 	double julian0;			/* 00:00 01 Jan of ray year */
