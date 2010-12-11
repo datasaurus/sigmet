@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.345 $ $Date: 2010/12/10 15:53:56 $
+ .	$Revision: 1.346 $ $Date: 2010/12/10 18:48:37 $
  */
 
 #include <limits.h>
@@ -2035,8 +2035,7 @@ static int img_name_cb(int argc, char *argv[], char *cl_wd,
     int status;				/* Result of SigmetRaw_ReadHdr */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
-    struct Sigmet_DatArr *dat_p;
-    int y, s;				/* Indeces: data type, sweep */
+    int s;				/* Indeces: data type, sweep */
     char img_fl_nm[LEN];		/* Name of image file */
 
     if ( argc != 5 ) {
@@ -2064,11 +2063,6 @@ static int img_name_cb(int argc, char *argv[], char *cl_wd,
        Validate
      */
 
-    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
-	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
-	return SIGMET_BAD_ARG;
-    }
-    y = dat_p - vol_p->dat;
     if ( s >= vol_p->num_sweeps_ax ) {
 	fprintf(err, "%s %s: sweep index %d out of range for %s\n",
 		argv0, argv1, s, vol_nm);
