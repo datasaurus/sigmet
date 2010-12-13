@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.103 $ $Date: 2010/12/10 17:10:03 $
+   .	$Revision: 1.104 $ $Date: 2010/12/13 18:54:35 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2322,6 +2322,88 @@ float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    return Sigmet_NoData();
     }
     return DataType_StorToComp(vol_p->dat[y].data_type, v, vol_p);
+}
+
+/*
+   Place values for a ray from a Sigmet volume at ray_p, which should have
+   space for *n float values. If *n is insufficient, increase allocation at
+   ray_p with a call to REALLOC, and update *n.
+ */
+
+int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s, int r,
+	float **ray_p, int *n)
+{
+    int ray_num_bins;
+    struct DataType *data_type;
+    U1BYT *u1_p, *u1_e;
+    U2BYT *u2_p, *u2_e;
+    float *f_p, *f_e;
+    float *r_p;
+
+    if ( !vol_p ) {
+	return Sigmet_NoData();
+    }
+    if ( y < 0 || y >= vol_p->num_types
+	    || s < 0 || s >= vol_p->num_sweeps_ax
+	    || r < 0 || r >= vol_p->ih.ic.num_rays ) {
+	return SIGMET_BAD_ARG;
+    }
+    if ( !vol_p->ray_num_bins ) {
+	return SIGMET_BAD_VOL;
+    }
+    ray_num_bins = vol_p->ray_num_bins[s][r];
+    if ( *n < ray_num_bins ) {
+	float *t;
+
+	if ( !(t = REALLOC(*ray_p, ray_num_bins)) ) {
+	    return SIGMET_ALLOC_FAIL;
+	}
+	*ray_p = t;
+	*n = ray_num_bins;
+	for (r_p = *ray_p ; r_p < *ray_p + ray_num_bins; r_p++) {
+	    *r_p = Sigmet_NoData();
+	}
+    }
+    data_type = vol_p->dat[y].data_type;
+    switch (vol_p->dat[y].data_type->stor_fmt) {
+	case DATA_TYPE_U1:
+	    u1_p = vol_p->dat[y].arr.u1[s][r];
+	    u1_e = u1_p + ray_num_bins;
+	    r_p = *ray_p;
+	    for ( ; u1_p < u1_e; u1_p++, r_p++) {
+		*r_p = DataType_StorToComp(data_type, *u1_p, vol_p);
+	    }
+	    for ( ; r_p < *ray_p + *n; r_p++) {
+		*r_p = Sigmet_NoData();
+	    }
+	    break;
+	case DATA_TYPE_U2:
+	    u2_p = vol_p->dat[y].arr.u2[s][r];
+	    u2_e = u2_p + ray_num_bins;
+	    r_p = *ray_p;
+	    for ( ; u2_p < u2_e; u2_p++, r_p++) {
+		*r_p = DataType_StorToComp(data_type, *u2_p, vol_p);
+	    }
+	    for ( ; r_p < *ray_p + *n; r_p++) {
+		*r_p = Sigmet_NoData();
+	    }
+	    break;
+	case DATA_TYPE_FLT:
+	    f_p = vol_p->dat[y].arr.flt[s][r];
+	    f_e = f_p + ray_num_bins;
+	    r_p = *ray_p;
+	    for ( ; f_p < f_e; f_p++, r_p++) {
+		*r_p = *f_p;
+	    }
+	    for ( ; r_p < *ray_p + *n; r_p++) {
+		*r_p = Sigmet_NoData();
+	    }
+	    break;
+	case DATA_TYPE_DBL:
+	case DATA_TYPE_MT:
+	    return SIGMET_BAD_VOL;
+    }
+    return SIGMET_OK;
 }
 
 /*

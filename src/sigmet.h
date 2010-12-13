@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.79 $ $Date: 2010/12/08 21:50:43 $
+   .	$Revision: 1.80 $ $Date: 2010/12/10 15:53:56 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -558,6 +558,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *, char *, char *);
 int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *, char *);
 double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
 float Sigmet_Vol_GetDat(struct Sigmet_Vol *, int, int, int, int);
+int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *, int, int, int, float **, int *);
 int Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int,
 	struct Dorade_Sweep *);
 

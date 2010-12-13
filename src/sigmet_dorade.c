@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.24 $ $Date: 2010/12/10 18:49:02 $
+   .	$Revision: 1.25 $ $Date: 2010/12/10 21:48:32 $
  */
 
 #include <string.h>
@@ -30,6 +30,9 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     double wave_len;				/* Wavelength from vol_p */
     double prf;					/* PRF from vol_p */
     int p, r, c;				/* Loop parameters */
+    float *ray_p = NULL;			/* Hold data for a ray */
+    float *r_p;					/* Point into ray_p */
+    int num_bins = 0;				/* Allocation at ray_p */
     int num_parms, num_rays, num_cells;		/* Convenience */
 
     /*
@@ -337,6 +340,16 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	goto error;
     }
     dat_p = swp_p->dat;
+    num_bins = num_cells;
+    ray_p = NULL;
+    if ( !(ray_p = MALLOC(num_bins * sizeof(float)))) {
+	Err_Append("Could not allocate ray data buffer. ");
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
+    for (r_p = ray_p ; r_p < ray_p + num_bins; r_p++) {
+	*r_p = Sigmet_NoData();
+    }
     for (p = 0; p < num_parms; p++) {
 	int bad_data = swp_p->sensor.parm[p].bad_data;
 
@@ -349,12 +362,15 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 		    dat_p[p][r][c] = bad_data;
 		}
 	    } else {
+		status = Sigmet_Vol_GetRayDat(vol_p, p, s, r, &ray_p, &num_bins);
+		if ( (status != SIGMET_OK) ) {
+		    Err_Append("Could not retrieve ray data "
+			    "from Sigmet volume");
+		    goto error;
+		}
 		for (c = 0; c < num_cells; c++) {
-		    float d;
-
-		    d = Sigmet_Vol_GetDat(vol_p, p, s, r, c);
-		    if (Sigmet_IsData(d)) {
-			dat_p[p][r][c] = d;
+		    if (Sigmet_IsData(ray_p[c])) {
+			dat_p[p][r][c] = ray_p[c];
 		    } else {
 			dat_p[p][r][c] = bad_data;
 		    }
@@ -362,10 +378,12 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	    }
 	}
     }
+    FREE(ray_p);
 
     return SIGMET_OK;
 
 error:
     Dorade_Sweep_Free(swp_p);
+    FREE(ray_p);
     return status;
 };
