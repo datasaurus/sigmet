@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.104 $ $Date: 2010/12/13 18:54:35 $
+   .	$Revision: 1.105 $ $Date: 2010/12/13 20:18:22 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -48,6 +48,12 @@
 #define FS "|"
 
 /*
+   Round f to nearest integer
+ */
+
+#define N_INT(f) ((f) > 0.0 ? (f) + 0.5 : (f) - 0.5)
+
+/*
    Sigmet scan modes
  */
 
@@ -73,6 +79,7 @@ static int type_tbl_set(struct Sigmet_Vol *);
    guide for more information.
  */
 
+static int ymds_incr(struct Sigmet_YMDS_Time *, double);
 static struct Sigmet_YMDS_Time get_ymds_time(char *);
 static void print_ymds_time(FILE *, struct Sigmet_YMDS_Time,
 	char *, char *, char *);
@@ -159,6 +166,30 @@ static U2BYT *** calloc3_u2(long, long, long);
 static void free3_u2(U2BYT ***);
 static float *** calloc3_flt(long, long, long);
 static void free3_flt(float ***);
+
+/*
+   Add dt DAYS to the time structure at time_p. Return success/failure.
+ */
+
+static int ymds_incr(struct Sigmet_YMDS_Time *tm_p, double dt)
+{
+    double t;
+    int yr, mon, day, hr, min;
+    double sec, isec, fsec;
+
+    sec = tm_p->sec + tm_p->msec * 0.001;
+    t = Tm_CalToJul(tm_p->year, tm_p->month, tm_p->day, 0, 0, sec);
+    if ( !Tm_JulToCal(t + dt, &yr, &mon, &day, &hr, &min, &sec) ) {
+	return 0;
+    }
+    fsec = modf(sec, &isec);
+    tm_p->sec = hr * 3600 + min * 60 + isec;
+    tm_p->msec = fsec * 1000;
+    tm_p->year = yr;
+    tm_p->month = mon;
+    tm_p->day = day;
+    return 1;
+}
 
 void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
 {
@@ -2264,6 +2295,52 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
 	}
     }
     return SIGMET_OK;
+}
+
+/*
+   Add dt DAYS to all times in vol_p.
+ */
+
+int Sigmet_Vol_IncrTm(struct Sigmet_Vol *vol_p, double dt)
+{
+    struct Sigmet_Task_Sched_Info tsi;
+    int dt_i;
+    int s, num_sweeps, r, num_rays;
+
+    if ( !vol_p ) {
+	Err_Append("Attempted to increment time on bogus volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if (       !ymds_incr(&vol_p->ph.pc.gen_tm, dt)
+	    || !ymds_incr(&vol_p->ph.pc.ingest_sweep_tm, dt)
+	    || !ymds_incr(&vol_p->ph.pc.ingest_file_tm, dt)
+	    || !ymds_incr(&vol_p->ih.ic.vol_start_time, dt)
+	    || !ymds_incr(&vol_p->ih.tc.tei.data_time, dt) ) {
+	return SIGMET_BAD_VOL;
+    }
+    dt_i = N_INT(dt * 86400);
+    tsi = vol_p->ih.tc.tsi;
+    if ( tsi.start_time >= 0 ) {
+	vol_p->ih.tc.tsi.start_time = (tsi.start_time + dt_i) % 86400;
+    }
+    if ( tsi.stop_time >= 0 ) {
+	vol_p->ih.tc.tsi.stop_time = (tsi.stop_time + dt_i) % 86400;
+    }
+    if ( tsi.time_last_run >= 0 ) {
+	vol_p->ih.tc.tsi.time_last_run = (tsi.time_last_run + dt_i) % 86400;
+    }
+    if ( tsi.rel_day_last_run >= 0 ) {
+	vol_p->ih.tc.tsi.rel_day_last_run = tsi.rel_day_last_run + dt_i / 86400;
+    }
+    num_sweeps = vol_p->ih.tc.tni.num_sweeps;
+    num_rays = vol_p->ih.ic.num_rays;
+    for (s = 0; s < num_sweeps; s++) {
+	vol_p->sweep_time[s] += dt;
+	for (r = 0; r < num_rays; r++) {
+	    vol_p->ray_time[s][r] += dt;
+	}
+    }
+    return 1;
 }
 
 /*
