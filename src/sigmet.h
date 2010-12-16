@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.80 $ $Date: 2010/12/10 15:53:56 $
+   .	$Revision: 1.81 $ $Date: 2010/12/13 20:18:22 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -62,6 +62,7 @@ enum Sigmet_ScanMode {PPI_S = 1, RHI, MAN_SCAN, PPI_C, FILE_SCAN};
 /*
    Time as represented in various Sigmet raw headers.
  */
+
 struct Sigmet_YMDS_Time {
     int sec;		/* Seconds since midnight */
     unsigned msec;	/* Milliseconds */
@@ -556,6 +557,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *, char *, char *);
 int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *, char *, float);
 int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *, char *, char *);
 int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *, char *);
+int Sigmet_Vol_IncrTm(struct Sigmet_Vol *, double);
 double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
 float Sigmet_Vol_GetDat(struct Sigmet_Vol *, int, int, int, int);
 int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *, int, int, int, float **, int *);
