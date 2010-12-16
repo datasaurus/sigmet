@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.53 $ $Date: 2010/12/07 19:22:29 $
+ .	$Revision: 1.54 $ $Date: 2010/12/07 21:30:45 $
  */
 
 #include <unistd.h>
@@ -555,7 +555,7 @@ void SigmetRaw_VolList(FILE *out)
 }
 
 /*
-   Indicate that a volume no longer must be kept
+   Indicate that a volume must be kept
  */
 
 void SigmetRaw_Keep(char *vol_nm)
