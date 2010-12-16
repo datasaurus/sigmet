@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.347 $ $Date: 2010/12/11 04:30:00 $
+ .	$Revision: 1.348 $ $Date: 2010/12/16 17:54:47 $
  */
 
 #include <limits.h>
@@ -1038,6 +1038,7 @@ static int new_field_cb(int argc, char *argv[], char *cl_wd,
 	    }
 	}
     }
+    SigmetRaw_Keep(vol_nm);
     return SIGMET_OK;
 }
 
@@ -1075,6 +1076,7 @@ static int del_field_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, abbrv, vol_nm_r, Err_Get());
 	return status;
     }
+    SigmetRaw_Keep(vol_nm);
     return SIGMET_OK;
 }
 
@@ -1138,7 +1140,7 @@ static int set_field_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
-
+    SigmetRaw_Keep(vol_nm);
     return SIGMET_OK;
 }
 
@@ -1191,6 +1193,7 @@ static int add_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, abbrv, a_s, vol_nm_r, Err_Get());
 	return status;
     }
+    SigmetRaw_Keep(vol_nm);
     return SIGMET_OK;
 }
 
@@ -1243,6 +1246,7 @@ static int sub_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, a_s, abbrv, vol_nm_r, Err_Get());
 	return status;
     }
+    SigmetRaw_Keep(vol_nm);
     return SIGMET_OK;
 }
 
@@ -1295,6 +1299,7 @@ static int mul_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, abbrv, a_s, vol_nm_r, Err_Get());
 	return status;
     }
+    SigmetRaw_Keep(vol_nm);
     return SIGMET_OK;
 }
 
@@ -1347,6 +1352,7 @@ static int div_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, abbrv, a_s, vol_nm_r, Err_Get());
 	return status;
     }
+    SigmetRaw_Keep(vol_nm);
     return SIGMET_OK;
 }
 
@@ -1389,6 +1395,7 @@ static int log10_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, abbrv, vol_nm_r, Err_Get());
 	return status;
     }
+    SigmetRaw_Keep(vol_nm);
     return SIGMET_OK;
 }
 
@@ -1439,6 +1446,7 @@ static int incr_time_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, vol_nm, Err_Get());
 	return SIGMET_BAD_TIME;
     }
+    SigmetRaw_Keep(vol_nm);
     return SIGMET_OK;
 }
 
