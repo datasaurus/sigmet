@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.346 $ $Date: 2010/12/10 18:48:37 $
+ .	$Revision: 1.347 $ $Date: 2010/12/11 04:30:00 $
  */
 
 #include <limits.h>
@@ -57,7 +57,7 @@
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 34
+#define NCMD 35
 typedef int (callback)(int , char **, char *, int, FILE *, int, FILE *);
 static callback pid_cb;
 static callback data_types_cb;
@@ -80,6 +80,7 @@ static callback sub_cb;
 static callback mul_cb;
 static callback div_cb;
 static callback log10_cb;
+static callback incr_time_cb;
 static callback data_cb;
 static callback bin_outline_cb;
 static callback bintvls_cb;
@@ -97,17 +98,17 @@ static char *cmd1v[NCMD] = {
     "pid", "data_types", "new_data_type", "colors", "good", "list",
     "keep", "delete", "max_size", "volume_headers", "vol_hdr",
     "near_sweep", "ray_headers", "new_field", "del_field", "set_field",
-    "add", "sub", "mul", "div", "log10", "data", "bin_outline",
-    "bintvls", "radar_lon", "radar_lat", "shift_az", "proj", "img_app",
-    "img_sz", "alpha", "img_name", "img", "dorade"
+    "add", "sub", "mul", "div", "log10", "incr_time", "data",
+    "bin_outline", "bintvls", "radar_lon", "radar_lat", "shift_az",
+    "proj", "img_app", "img_sz", "alpha", "img_name", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, setcolors_cb, good_cb, list_cb,
     keep_cb, delete_cb, max_size_cb, volume_headers_cb, vol_hdr_cb,
     near_sweep_cb, ray_headers_cb, new_field_cb, del_field_cb, set_field_cb,
-    add_cb, sub_cb, mul_cb, div_cb, log10_cb, data_cb, bin_outline_cb,
-    bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb, proj_cb, img_app_cb,
-    img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb
+    add_cb, sub_cb, mul_cb, div_cb, log10_cb, incr_time_cb, data_cb,
+    bin_outline_cb, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
+    proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -1387,6 +1388,56 @@ static int log10_cb(int argc, char *argv[], char *cl_wd,
 	fprintf(err, "%s %s: could not compute log10 of %s in %s\n%s\n",
 		argv0, argv1, abbrv, vol_nm_r, Err_Get());
 	return status;
+    }
+    return SIGMET_OK;
+}
+
+static int incr_time_cb(int argc, char *argv[], char *cl_wd,
+	int i_out, FILE *out, int i_err, FILE *err)
+{
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+    char *vol_nm_r;			/* Path to Sigmet volume */
+    char vol_nm[LEN];			/* Absolute path to Sigmet volume */
+    struct Sigmet_Vol *vol_p;		/* Volume structure */
+    int status;				/* Result of Sigmet_* function */
+    char *dt_s;
+    double dt;				/* Time increment, seconds */
+    char *unit;				/* Time unit, "day" or "second" */
+
+    if ( argc != 5 ) {
+	fprintf(err, "Usage: %s %s dt unit sigmet_volume\n", argv0, argv1);
+	return SIGMET_BAD_ARG;
+    }
+    dt_s = argv[2];
+    unit = argv[3];
+    vol_nm_r = argv[4];
+    if ( sscanf(dt_s, "%lf", &dt) != 1) {
+	fprintf(err, "%s %s: expected float value for time increment, got "
+		"%s\n", argv0, argv1, dt_s);
+	return SIGMET_BAD_ARG;
+    }
+    if ( strcmp(unit, "day") == 0 ) {
+
+    } else if ( strcmp(unit, "second") == 0 ) {
+	dt /= 86400.0;
+    } else {
+	fprintf(err, "%s %s: time unit must be \"day\" or \"second\", not %s\n",
+		argv0, argv1, unit);
+	return SIGMET_BAD_ARG;
+    }
+    if ( (status = abs_name(cl_wd, vol_nm_r, vol_nm, LEN)) != SIGMET_OK ) {
+	fprintf(err, "%s %s: Bad volume name %s\n%s\n",
+		argv0, argv1, vol_nm_r, Err_Get());
+	return status;
+    }
+    if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
+	return status;
+    }
+    if ( !Sigmet_Vol_IncrTm(vol_p, dt) ) {
+	fprintf(err, "%s %s: could not increment time in %s\n%s\n",
+		argv0, argv1, vol_nm, Err_Get());
+	return SIGMET_BAD_TIME;
     }
     return SIGMET_OK;
 }
