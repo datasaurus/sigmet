@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.106 $ $Date: 2010/12/16 17:54:18 $
+   .	$Revision: 1.107 $ $Date: 2010/12/16 19:54:01 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1150,8 +1150,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		       above, then apply byte swapping to the raw input.
 		     */
 
-		    swap_arr16(ray + SZ_RAY_HDR, 2);
-		    tm_incr = get_sint32(ray + SZ_RAY_HDR);
+		    swap_arr16((U16BIT *)((char *)ray + SZ_RAY_HDR), 2);
+		    tm_incr = get_sint32((char *)ray + SZ_RAY_HDR);
 		    vol_p->ray_time[s][r] = swpTm + tm_incr * 0.001 / 86400.0;
 		} else {
 		    switch (Sigmet_DataType_StorFmt(vol_p->types_fl[yf])) {
