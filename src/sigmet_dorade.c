@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.25 $ $Date: 2010/12/10 21:48:32 $
+   .	$Revision: 1.26 $ $Date: 2010/12/13 20:18:22 $
  */
 
 #include <string.h>
@@ -58,6 +58,8 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     struct Dorade_RYIB *ryib_p;
     struct Dorade_ASIB *asib_p;
     float ***dat_p;
+
+    num_parms = num_rays = num_cells = -1;
 
     if ( s > vol_p->ih.ic.num_sweeps ) {
 	Err_Append("Sweep index out of range. ");
@@ -181,7 +183,10 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     if ( !(sensor_p->parm = CALLOC(num_parms, sizeof(struct Dorade_PARM))) ) {
 	Err_Append("Could not allocate array of parameter descriptors. ");
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
     }
+    parm_p = NULL;
     for (p = 0; p < num_parms; p++) {
 	char *abbrv;				/* Data type abbreviation,
 						   e.g. "DZ" or "DB_ZDR" */
@@ -223,9 +228,14 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     /*
        Populate csfd block. Assume cell geometry for last parameter applies
-       to all. Initialize csfd member since dorade_lib assumes CFAC.
+       to all (parm_p). Initialize csfd member since dorade_lib assumes CFAC.
      */
 
+    if ( !parm_p ) {
+	Err_Append("Volume has no parameters. ");
+	status = SIGMET_BAD_VOL;
+	goto error;
+    }
     sensor_p->cell_geo_t = CSFD;
     csfd_p = &sensor_p->cell_geo.csfd;
     Dorade_CSFD_Init(csfd_p);
