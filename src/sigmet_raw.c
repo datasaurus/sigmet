@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.67 $ $Date: 2010/12/07 18:06:20 $
+   .	$Revision: 1.68 $ $Date: 2010/12/07 19:24:38 $
  */
 
 #include <limits.h>
@@ -466,6 +466,7 @@ void handler(int signum)
 
     unlink(out_nm);
     unlink(err_nm);
+    msg = "sigmet_raw command exiting                          \n";
     switch (signum) {
 	case SIGTERM:
 	    msg = "sigmet_raw command exiting on termination signal    \n";
