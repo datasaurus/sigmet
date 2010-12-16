@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.348 $ $Date: 2010/12/16 17:54:47 $
+ .	$Revision: 1.349 $ $Date: 2010/12/16 17:59:35 $
  */
 
 #include <limits.h>
@@ -1639,8 +1639,6 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
     struct Sigmet_Vol *vol_p;
     int status;				/* Result of SigmetRaw_ReadVol */
     char *s_s, *r_s, *b_s, *u_s;
-    int use_rad = 1;			/* If true, use radians */
-    int use_deg = 0;			/* If true, use degrees */
     int s, r, b;
     double corners[8];
     double c;
@@ -1680,11 +1678,9 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
 	return SIGMET_BAD_ARG;
     }
     if ( strcmp(u_s, "deg") == 0 || strcmp(u_s, "degree") == 0 ) {
-	use_rad = 0;
-	use_deg = 1;
+	c = DEG_RAD;
     } else if ( strcmp(u_s, "rad") == 0 || strcmp(u_s, "rad") == 0 ) {
-	use_rad = 1;
-	use_deg = 0;
+	c = 1.0;
     } else {
 	fprintf(err, "Unknown angle unit %s. Angle unit must be \"degree\" "
 		"or \"radian\"\n", u_s);
@@ -1710,10 +1706,9 @@ static int bin_outline_cb(int argc, char *argv[], char *cl_wd,
 		"in %s\n%s\n", argv0, argv1, s, r, b, vol_nm, Err_Get());
 	return status;
     }
-    if ( use_deg ) {
-	c = DEG_RAD;
-    } else if ( use_rad ) {
-	c = 1.0;
+    if ( c == -1.0 ) {
+	fprintf(err, "%s %s: bad angle unit.\n", argv0, argv1);
+	return SIGMET_BAD_ARG;
     }
     fprintf(out, "%f %f %f %f %f %f %f %f\n",
 	    corners[0] * c, corners[1] * c, corners[2] * c, corners[3] * c,
@@ -2797,6 +2792,7 @@ void handler(int signum)
 {
     char *msg;
 
+    msg = "sigmet_rawd daemon exiting                          \n";
     unlink(SIGMET_RAWD_IN);
     switch (signum) {
 	case SIGTERM:
