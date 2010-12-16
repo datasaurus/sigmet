@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.349 $ $Date: 2010/12/16 17:59:35 $
+ .	$Revision: 1.350 $ $Date: 2010/12/16 19:18:02 $
  */
 
 #include <limits.h>
@@ -953,7 +953,7 @@ static int ray_headers_cb(int argc, char *argv[], char *cl_wd,
 		fprintf(err, "%s %s: bad ray time\n%s\n", argv0, argv1, Err_Get());
 		return SIGMET_BAD_TIME;
 	    }
-	    fprintf(out, "%04d/%02d/%02d %02d:%02d:%04.1f | ",
+	    fprintf(out, "%04d/%02d/%02d %02d:%02d:%04.3f | ",
 		    yr, mon, da, hr, min, sec);
 	    fprintf(out, "az %7.3f %7.3f | ",
 		    vol_p->ray_az0[s][r] * DEG_PER_RAD,
