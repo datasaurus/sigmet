@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.11 $ $Date: 2010/11/10 17:12:46 $
+   .	$Revision: 1.12 $ $Date: 2010/12/07 19:24:38 $
  */
 
 #include <stdio.h>
@@ -40,7 +40,7 @@ void SigmetRaw_Start(int argc, char *argv[])
 				   user command, and daemon */
     pid_t chpid;		/* Id of a child process */
     int si;			/* Exit information from a user command */
-    int status;			/* Exit status from a user command */
+    int status = EXIT_SUCCESS;	/* Exit status from a user command */
     sigset_t set;		/* To block TERM while terminating */
     int try;			/* Count down while waiting for daemon socket */
 
@@ -80,7 +80,7 @@ void SigmetRaw_Start(int argc, char *argv[])
      */
 
     switch (dpid = fork()) {
-	case -1:
+case -1:
 	    perror("sigmet_raw start: could not fork daemon");
 	    exit(EXIT_FAILURE);
 	    break;
@@ -287,6 +287,7 @@ void handler(int signum)
 {
     char *msg;
 
+    msg = "sigmet_raw start exiting                          \n";
     switch (signum) {
 	case SIGTERM:
 	    msg = "sigmet_raw start exiting on termination signal    \n";
