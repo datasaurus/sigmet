@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.105 $ $Date: 2010/12/13 20:18:22 $
+   .	$Revision: 1.106 $ $Date: 2010/12/16 17:54:18 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2372,7 +2372,7 @@ double Sigmet_Vol_VNyquist(struct Sigmet_Vol *vol_p)
 
 float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 {
-    float v;
+    float v = Sigmet_NoData();
 
     if ( !vol_p ) {
 	return Sigmet_NoData();
