@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.352 $ $Date: 2010/12/22 19:32:05 $
+ .	$Revision: 1.353 $ $Date: 2011/01/05 17:04:53 $
  */
 
 #include <limits.h>
@@ -57,7 +57,7 @@
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 35
+#define NCMD 36
 typedef int (callback)(int , char **, char *, int, FILE *, int, FILE *);
 static callback pid_cb;
 static callback data_types_cb;
@@ -87,7 +87,8 @@ static callback bintvls_cb;
 static callback radar_lon_cb;
 static callback radar_lat_cb;
 static callback shift_az_cb;
-static callback proj_cb;
+static callback set_proj_cb;
+static callback get_proj_cb;
 static callback img_app_cb;
 static callback img_sz_cb;
 static callback alpha_cb;
@@ -100,7 +101,8 @@ static char *cmd1v[NCMD] = {
     "near_sweep", "ray_headers", "new_field", "del_field", "set_field",
     "add", "sub", "mul", "div", "log10", "incr_time", "data",
     "bin_outline", "bintvls", "radar_lon", "radar_lat", "shift_az",
-    "proj", "img_app", "img_sz", "alpha", "img_name", "img", "dorade"
+    "set_proj", "get_proj", "img_app", "img_sz", "alpha", "img_name",
+    "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, setcolors_cb, good_cb, list_cb,
@@ -108,7 +110,8 @@ static callback *cb1v[NCMD] = {
     near_sweep_cb, ray_headers_cb, new_field_cb, del_field_cb, set_field_cb,
     add_cb, sub_cb, mul_cb, div_cb, log10_cb, incr_time_cb, data_cb,
     bin_outline_cb, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
-    proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb
+    set_proj_cb, get_proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_name_cb,
+    img_cb, dorade_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -165,7 +168,7 @@ int main(int argc, char *argv[])
      */
 
     SigmetRaw_VolInit();
-    if ( !SigmetRaw_ProjInit() ) {
+    if ( SigmetRaw_ProjInit() != SIGMET_OK ) {
 	fprintf(stderr, "%s (%d): could not set default projection.\n",
 		argv0, pid);
 	exit(EXIT_FAILURE);
@@ -337,7 +340,7 @@ int main(int argc, char *argv[])
 	    close(cl_io_fd);
 	    continue;
 	}
-	if ( argc1 > SIGMET_RAWD_ARGCX ) {
+	if ( argc1 + 1 > SIGMET_RAWD_ARGCX ) {
 	    fprintf(stderr, "%s: cannot parse %d command line arguments for "
 		    "process %d. Maximum is %d.\n",
 		    time_stamp(), argc1, client_pid, SIGMET_RAWD_ARGCX);
@@ -380,6 +383,7 @@ int main(int argc, char *argv[])
 		argv1[++a] = c + 1;
 	    }
 	}
+	argv1[a] = NULL;
 	if ( a > argc1 ) {
 	    fprintf(stderr, "%s: command line garbled for process %d.\n",
 		    time_stamp(), client_pid);
@@ -1949,7 +1953,7 @@ static int shift_az_cb(int argc, char *argv[], char *cl_wd,
     return SIGMET_OK;
 }
 
-static int proj_cb(int argc, char *argv[], char *cl_wd,
+static int set_proj_cb(int argc, char *argv[], char *cl_wd,
 	int i_out, FILE *out, int i_err, FILE *err)
 {
     int status;
@@ -1961,6 +1965,18 @@ static int proj_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, Err_Get());
 	return status;
     }
+    return SIGMET_OK;
+}
+
+static int get_proj_cb(int argc, char *argv[], char *cl_wd,
+	int i_out, FILE *out, int i_err, FILE *err)
+{
+    char **p;
+
+    for (p = SigmetRaw_GetProj(); *p; p++) {
+	fprintf(out, "%s ", *p);
+    }
+    fprintf(out, "\n");
     return SIGMET_OK;
 }
 
@@ -2162,6 +2178,7 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 					   at coords */
     double lon, lat;			/* Geographic coordinates (longitude
 					   latitude) */
+    char **proj_argv;			/* Projection command. */
     double left;			/* Map coordinate of left side */
     double rght;			/* Map coordinate of right side */
     double btm;				/* Map coordinate of bottom */
@@ -2205,13 +2222,8 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 					   message. */
     pid_t p;				/* Return from waitpid */
     int si;				/* Exit status of image generator */
-
     char *img_argv[2];
     int img_wr;
-
-    char *proj_argv[] = {"proj", "-b", "+proj=utm", "+zone=14",
-		    "+ellps=WGS84", "+datum=WGS84", "+units=m", "+no_defs",
-		    (char *)NULL};
 
     /*
        This format string creates a KML file.
@@ -2342,6 +2354,7 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     north = coords[7] * DEG_PER_RAD;
 
     num_bytes = 8 * sizeof(double);
+    proj_argv = SigmetRaw_GetProj();
     if ( !coproc_rw(proj_argv, coords, num_bytes, coords, num_bytes) ) {
 	fprintf(err, "%s %s: Could not convert edge coordinates from "
 		"geographic to map.\n%s\n", argv0, argv1, Err_Get());
@@ -2759,6 +2772,7 @@ static pid_t execvp_pipe(char **argv, int *wr_p, int *rd_p)
 	    close(rd_pfd[1]);
 	    close(rd_pfd[0]);
 	    execvp(argv[0], argv);
+	    fprintf(stderr, "execvp failed.\n%s\n", strerror(errno));
 	    _exit(EXIT_FAILURE);
 	default:
 	    if ( wr_p ) {
