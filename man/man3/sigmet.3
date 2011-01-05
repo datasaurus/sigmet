@@ -4,10 +4,10 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.16 $ $Date: 2010/12/06 21:54:55 $
+.\" $Revision: 1.17 $ $Date: 2010/12/07 20:18:33 $
 .TH sigmet 1 Sigmet "Sigmet C functions"
 .SH NAME
-Sigmet_DataTypeN, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_Unit, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_Vol_Init, Sigmet_Vol_Free, Sigmet_Vol_Good, Sigmet_Vol_ReadHdr, Sigmet_Vol_PrintHdr, Sigmet_Vol_Read, Sigmet_Vol_BadRay, Sigmet_Vol_BinOutl, Sigmet_Vol_ToDorade \- read Sigmet raw data
+Sigmet_DataTypeN, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_Unit, Sigmet_NoData, Sigmet_IsData, Sigmet_IsNoData, Sigmet_DataType_ItoF, Sigmet_Bin4Rad, Sigmet_Bin2Rad, Sigmet_RadBin4, Sigmet_RadBin2, Sigmet_Vol_Init, Sigmet_Vol_Free, Sigmet_Vol_Good, Sigmet_Vol_ReadHdr, Sigmet_Vol_PrintHdr, Sigmet_Vol_Read, Sigmet_Vol_BadRay, Sigmet_Vol_BinOutl, Sigmet_Vol_ToDorade, Sigmet_Vol_IncrTm \- read Sigmet raw data
 .SH VERSION
 1
 .SH SYNOPSIS
@@ -32,6 +32,7 @@ Sigmet_DataTypeN, Sigmet_DataType_Abbrv, Sigmet_DataType_Descr, Sigmet_DataType_
 \fBenum Sigmet_Status Sigmet_Vol_ReadHdr(FILE\fP *\fIf\fP, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
 \fBvoid Sigmet_Vol_PrintHdr(FILE *\fP \fIf\fP, \fBstruct Sigmet_Vol *\fP\fIvol_p\fP);
 \fBenum Sigmet_Status Sigmet_Vol_Read(FILE\fP *\fIf\fP, \fBstruct Sigmet_Vol\fP *\fIvol_p\fP\fB);\fP
+\fBint Sigmet_Vol_IncrTm(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBdouble\fP \fIdt\fP);
 \fBint Sigmet_Vol_BadRay(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP\fB);\fP
 \fBenum Sigmet_Status Sigmet_Vol_BinOutl(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBint\fP \fIr\fP, \fBint\fP \fIb\fP, \fBdouble\fP *\fIll\fP\fB);\fP
 \fBenum Sigmet_Status Sigmet_Vol_ToDorade(struct Sigmet_Vol\fP *\fIvol_p\fP, \fBint\fP \fIs\fP, \fBstruct Dorade_Sweep *\fP\fIswp_p\fP\fB);\fP
@@ -146,6 +147,9 @@ Hierarchies are printed with form:
     ...\fB<\fP\fIparent\fP\fB>.<\fP\fIchild\fP\fB>.<\fP\fIgrandchild\fP\fB>.\fP\fImember\fP
 .fi
 
+.PP
+\fBSigmet_Vol_IncrTm\fP adds \fIdt\fP DAYS to all times in the volume at
+\fIvol_p\fP.
 .PP
 \fBSigmet_Vol_BadRay\fP returns true if the ray in \fIvol_p\fP at index
 \fIs\fP, \fIr\fP is unusable.
