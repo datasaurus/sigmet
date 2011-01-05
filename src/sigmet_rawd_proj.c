@@ -7,54 +7,27 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.3 $ $Date: 2010/12/06 20:50:20 $
- */
-
-/*
-   This interface uses proj4, originally written by Gerald Evenden of the USGS.
-   Ref.
-       proj (1)
-       http://trac.osgeo.org/proj/
-       The package manager for your system
+ .	$Revision: 1.4 $ $Date: 2010/12/07 18:06:20 $
  */
 
 #include "sigmet_raw.h"
 #include "err_msg.h"
 
-static projPJ pj;
-static char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere" };
+static char *dflt_proj[] = { "+proj=aeqd", "+ellps=sphere", NULL};
+static char **proj;
 
 int SigmetRaw_ProjInit(void)
 {
-    if ( !(pj = pj_init(2, dflt_proj)) ) {
-	return 0;
-    }
+    proj = dflt_proj;
     return 1;
 }
 
 int SigmetRaw_SetProj(int argc, char *argv[])
 {
-    projPJ t_pj;
-
-    if ( !(t_pj = pj_init(argc, argv)) ) {
-	int a;
-
-	Err_Append("Unknown projection\n");
-	for (a = argc + 2; a < argc; a++) {
-	    Err_Append(" ");
-	    Err_Append(argv[a]);
-	}
-	Err_Append("\n");
-	return SIGMET_BAD_ARG;
-    }
-    if ( pj ) {
-	pj_free(pj);
-    }
-    pj = t_pj;
     return SIGMET_OK;
 }
 
-projPJ SigmetRaw_GetProj(void)
+char **SigmetRaw_GetProj(void)
 {
-    return pj;
+    return proj;
 }

@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.351 $ $Date: 2010/12/16 20:57:04 $
+ .	$Revision: 1.352 $ $Date: 2010/12/22 19:32:05 $
  */
 
 #include <limits.h>
@@ -119,6 +119,8 @@ static callback *cb1v[NCMD] = {
  */
 
 static char *time_stamp(void);
+static pid_t execvp_pipe(char **, int *, int *);
+static int coproc_rw(char **, void *, size_t , void *, size_t);
 static int abs_name(char *, char *, char *, size_t);
 static int img_name(struct Sigmet_Vol *, char *, int, char *);
 static int handle_signals(void);
@@ -1731,9 +1733,9 @@ static int bintvls_cb(int argc, char *argv[], char *cl_wd,
     struct DataType *data_type;		/* Information about the data type */
     struct Sigmet_DatArr *dat_p;
     int y, s, r, b;			/* data type, sweep, ray, bin */
-    unsigned char n_clrs;		/* number of colors for the data type */
+    unsigned char num_clrs;		/* number of colors for the data type */
     double *bnds;			/* bounds for the type */
-    unsigned char n_bnds;		/* number of bounds = n_clrs + 1 */
+    unsigned char n_bnds;		/* number of bounds = num_clrs + 1 */
     int n;				/* Index from bnds */
     double d;				/* Data value */
 
@@ -1754,8 +1756,8 @@ static int bintvls_cb(int argc, char *argv[], char *cl_wd,
 		argv0, argv1, abbrv);
 	return SIGMET_BAD_ARG;
     }
-    n_clrs = data_type->n_colors;
-    n_bnds = n_clrs + 1;
+    num_clrs = data_type->n_colors;
+    n_bnds = num_clrs + 1;
     bnds = data_type->bounds;
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(err, "%s %s: expected integer for sweep index, got %s\n",
@@ -2151,29 +2153,36 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     struct DataType *data_type;		/* Information about the data type */
     struct Sigmet_DatArr *dat_p;
     int y, s, r, b;			/* Indeces: data type, sweep, ray, bin */
+    double *coords = NULL;		/* Buffer to hold coordinates sent to
+					   and received from coordinate trans-
+					   formation process (proj4 or similar)
+					 */
+    double *coord_p;			/* Next empty location in coords */
+    double *coord_e;			/* Address one past end of allocation
+					   at coords */
+    double lon, lat;			/* Geographic coordinates (longitude
+					   latitude) */
     double left;			/* Map coordinate of left side */
     double rght;			/* Map coordinate of right side */
     double btm;				/* Map coordinate of bottom */
     double top;				/* Map coordinate of top */
-    struct DataType_Color *clrs; 	/* colors array */
-    unsigned n_clrs;			/* Number colors = number bounds - 1 */
+    struct DataType_Color *clrs; 	/* Array of colors */
+    struct DataType_Color *clr; 	/* Point into clrs*/
+    unsigned num_clrs;			/* Number colors = number bounds - 1 */
+    unsigned *clr_idxs = NULL;		/* Array of color indeces */
+    unsigned *clr_idx_p;		/* Next usable location in clr_idxs */
+    unsigned *clr_idx_e;		/* Address one past end of allocation 
+					   at clr_idxs */
     double *bnds;			/* bounds for each color */
-    unsigned char n_bnds;		/* number of bounds = n_clrs + 1 */
+    unsigned char n_bnds;		/* number of bounds = num_clrs + 1 */
+    int i_bnd;				/* Index into bnds, also a color index */
     double d;				/* Data value */
-    projUV radar;			/* Radar location lon-lat or x-y */
-    projUV edge;			/* Point on the edge of the display area,
-					   needed to compute display bounds */
-    double cnrs_ll[8];			/* Corners of a gate, lon-lat */
-    double *ll;				/* Element from cnrs_ll */
     double ray_len;			/* Ray length, meters or great circle
 					   radians */
     double west, east;			/* Display area longitude limits */
     double south, north;		/* Display area latitude limits */
-    projPJ pj;				/* Geographic projection */
-    projUV cnrs_uv[4];			/* Corners of a gate, lon-lat or x-y */
-    projUV *uv;				/* Element from cnrs_uv */
-    double cnrs[8];			/* Coordinates from cnrs_uv */
-    int n;				/* Loop index */
+    size_t num_bytes;			/* Number of bytes to read or write */
+    int num_outlns;			/* Number of bin outlines */
     int yr, mo, da, h, mi;		/* Sweep year, month, day, hour, minute */
     double sec;				/* Sweep second */
     char base_nm[LEN]; 			/* Output file name */
@@ -2188,7 +2197,7 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     char *img_app;			/* External application to draw image */
     char kml_fl_nm[LEN];		/* KML output file name */
     FILE *kml_fl;			/* KML file */
-    pid_t img_pid = -1;			/* Process id for image generator */
+    pid_t img_pid = 0;			/* Process id for image generator */
     FILE *img_out = NULL;		/* Where to send outlines to draw */
     jmp_buf err_jmp;			/* Handle output errors with setjmp,
 					   longjmp */
@@ -2196,8 +2205,13 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 					   message. */
     pid_t p;				/* Return from waitpid */
     int si;				/* Exit status of image generator */
-    int pfd[2];				/* Pipe for data */
-    double px_per_m;			/* Display units per map unit */
+
+    char *img_argv[2];
+    int img_wr;
+
+    char *proj_argv[] = {"proj", "-b", "+proj=utm", "+zone=14",
+		    "+ellps=WGS84", "+datum=WGS84", "+units=m", "+no_defs",
+		    (char *)NULL};
 
     /*
        This format string creates a KML file.
@@ -2221,17 +2235,9 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 	"  </GroundOverlay>\n"
 	"</kml>\n";
 
-    if ( !(pj = SigmetRaw_GetProj()) ) {
-	fprintf(err, "%s %s: geographic projection not set\n", argv0, argv1);
-	return SIGMET_NOT_INIT;
-    }
-    alpha = SigmetRaw_GetImgAlpha();
-    img_app = SigmetRaw_GetImgApp();
-    if ( !img_app || strlen(img_app) == 0 ) {
-	fprintf(err, "%s %s: sweep drawing application not set\n",
-		argv0, argv1);
-	return SIGMET_NOT_INIT;
-    }
+    /*
+       Parse and validate arguments.
+     */
 
     if ( argc != 5 ) {
 	fprintf(err, "Usage: %s %s type sweep sigmet_volume\n", argv0, argv1);
@@ -2240,6 +2246,14 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     abbrv = argv[2];
     s_s = argv[3];
     vol_nm_r = argv[4];
+
+    alpha = SigmetRaw_GetImgAlpha();
+    img_app = SigmetRaw_GetImgApp();
+    if ( !img_app || strlen(img_app) == 0 ) {
+	fprintf(err, "%s %s: sweep drawing application not set\n",
+		argv0, argv1);
+	return SIGMET_NOT_INIT;
+    }
     if ( (status = abs_name(cl_wd, vol_nm_r, vol_nm, LEN)) != SIGMET_OK ) {
 	fprintf(err, "%s %s: Bad volume name %s\n%s\n",
 		argv0, argv1, vol_nm_r, Err_Get());
@@ -2250,12 +2264,16 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 		argv0, argv1, abbrv);
 	return SIGMET_BAD_ARG;
     }
-    n_clrs = data_type->n_colors;
+    num_clrs = data_type->n_colors;
     clrs = data_type->colors;
-    n_bnds = n_clrs + 1;
+    n_bnds = num_clrs + 1;
     bnds = data_type->bounds;
-    if ( n_clrs == 0 || !clrs || n_bnds == 1 || !bnds ) {
-	fprintf(err, "%s %s: colors and bounds not set.\n", argv0, argv1);
+    if ( num_clrs == 0 || !clrs ) {
+	fprintf(err, "%s %s: colors not set for %s.\n", argv0, argv1, abbrv);
+	return SIGMET_NOT_INIT;
+    }
+    if ( n_bnds == 1 || !bnds ) {
+	fprintf(err, "%s %s: bounds not set for %s.\n", argv0, argv1, abbrv);
 	return SIGMET_NOT_INIT;
     }
     if ( sscanf(s_s, "%d", &s) != 1 ) {
@@ -2266,11 +2284,6 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     if ( (status = SigmetRaw_ReadVol(vol_nm, i_err, &vol_p)) != SIGMET_OK ) {
 	return status;
     }
-
-    /*
-       Validate
-     */
-
     if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
 	fprintf(err, "%s %s: no data type named %s\n", argv0, argv1, abbrv);
 	return SIGMET_BAD_ARG;
@@ -2299,85 +2312,159 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
        pi radian / 180 deg * 1 deg / 60 nmi * 1 nmi / 1852 meters 
        This conversion is based on the International Standard Nautical Mile,
        which is 1852 meters.
+
+       Store the display area coordinates as degrees in west, east, south, and
+       north. Also put them into coords and convert them to map coordinates
+       with the external conversion program defined by proj_argv.
      */
 
-    radar.u = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
-    radar.v = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
+    lon = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
+    lat = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
     ray_len = 0.01 * (vol_p->ih.tc.tri.rng_1st_bin
 	    + (vol_p->ih.tc.tri.num_bins_out + 1) * vol_p->ih.tc.tri.step_out);
     ray_len = ray_len * M_PI / (180.0 * 60.0 * 1852.0);
 
-    /*
-       Left (west) side
-     */
+    if ( !(coords = CALLOC(8, sizeof(double))) ) {
+	fprintf(err, "%s %s: could not allocate coordinate buffer to hold map "
+		"edges.\n", argv0, argv1);
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
+    coord_e = coords + 8;
 
-    GeogStep(radar.u, radar.v, 270.0 * RAD_PER_DEG, ray_len, &west, &d);
-    edge.u = west;
-    edge.v = d;
-    edge = pj_fwd(edge, pj);
-    if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
+    GeogStep(lon, lat, 270.0 * RAD_PER_DEG, ray_len, coords, coords + 1);
+    west = coords[0] * DEG_PER_RAD;
+    GeogStep(lon, lat, 90.0 * RAD_PER_DEG, ray_len, coords + 2, coords + 3);
+    east = coords[2] * DEG_PER_RAD;
+    GeogStep(lon, lat, 180.0 * RAD_PER_DEG, ray_len, coords + 4, coords + 5);
+    south = coords[5] * DEG_PER_RAD;
+    GeogStep(lon, lat, 0.0, ray_len, coords + 6, coords + 7);
+    north = coords[7] * DEG_PER_RAD;
+
+    num_bytes = 8 * sizeof(double);
+    if ( !coproc_rw(proj_argv, coords, num_bytes, coords, num_bytes) ) {
+	fprintf(err, "%s %s: Could not convert edge coordinates from "
+		"geographic to map.\n%s\n", argv0, argv1, Err_Get());
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+    left = coords[0];
+    if ( left == HUGE_VAL ) {
 	fprintf(err, "%s %s: west edge of map not defined in current projection\n",
 		argv0, argv1);
-	return SIGMET_RNG_ERR;
+	status = SIGMET_RNG_ERR;
+	goto error;
     }
-    left = edge.u;
-
-    /*
-       Right (east) side
-     */
-
-    GeogStep(radar.u, radar.v, 90.0 * RAD_PER_DEG, ray_len, &east, &d);
-    edge.u = east;
-    edge.v = d;
-    edge = pj_fwd(edge, pj);
-    if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
+    rght = coords[2];
+    if ( rght == HUGE_VAL ) {
 	fprintf(err, "%s %s: east edge of map not defined in current projection\n",
 		argv0, argv1);
-	return SIGMET_RNG_ERR;
+	status = SIGMET_RNG_ERR;
+	goto error;
     }
-    rght = edge.u;
-
-    /*
-       Bottom (south) side
-     */
-
-    GeogStep(radar.u, radar.v, 180.0 * RAD_PER_DEG, ray_len, &d, &south);
-    edge.u = d;
-    edge.v = south;
-    edge = pj_fwd(edge, pj);
-    if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
+    btm = coords[5];
+    if ( btm == HUGE_VAL ) {
 	fprintf(err, "%s %s: south edge of map not defined in current "
 		"projection\n", argv0, argv1);
-	return SIGMET_RNG_ERR;
+	status = SIGMET_RNG_ERR;
+	goto error;
     }
-    btm = edge.v;
-
-    /*
-       Top (north) side
-     */
-
-    GeogStep(radar.u, radar.v, 0.0, ray_len, &d, &north);
-    edge.u = d;
-    edge.v = north;
-    edge = pj_fwd(edge, pj);
-    if ( edge.u == HUGE_VAL || edge.v == HUGE_VAL ) {
+    top = coords[7];
+    if ( top == HUGE_VAL ) {
 	fprintf(err, "%s %s: north edge of map not defined in current "
 		"projection\n",
 		argv0, argv1);
-	return SIGMET_RNG_ERR;
+	status = SIGMET_RNG_ERR;
+	goto error;
     }
-    top = edge.v;
-
-    west *= DEG_PER_RAD;
-    east *= DEG_PER_RAD;
-    south *= DEG_PER_RAD;
-    north *= DEG_PER_RAD;
-
-    SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
-    px_per_m = w_pxl / (rght - left);
 
     /*
-       Attempt to create image file. Fail if it exists.
+       Loop through bins for each ray for sweep s.
+       Determine which interval from bnds each bin value is in.
+       If the bin value is in an interval to display, save its color
+       and the coordinates of its outline.
+     */
+
+    coord_p = coords;
+    if ( !(clr_idxs = CALLOC(100, sizeof(int))) ) {
+	fprintf(err, "%s %s: could not allocate array of color indeces.\n",
+		argv0, argv1);
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
+    clr_idx_p = clr_idxs;
+    clr_idx_e = clr_idxs + 100;
+    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	if ( vol_p->ray_ok[s][r] ) {
+	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
+		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
+		if ( Sigmet_IsData(d)
+			&& (i_bnd = BISearch(d, bnds, n_bnds)) != -1 ) {
+		    if ( clr_idx_p == clr_idx_e ) {
+			unsigned *t;
+			size_t alloc_ints, use_ints, bytes;
+			size_t chunk = 2000 * 120;
+
+			use_ints = (clr_idx_p - clr_idxs);
+			alloc_ints = ((clr_idx_e - clr_idxs) + chunk);
+			bytes = alloc_ints * sizeof(unsigned);
+			if ( !(t = REALLOC(clr_idxs, bytes)) ) {
+			    fprintf(err, "%s %s: could not grow array of color "
+				    "indeces at sweep %d, ray %d, index %d\n",
+				    argv0, argv1, s, r, b);
+			    status = SIGMET_ALLOC_FAIL;
+			    goto error;
+			}
+			clr_idxs = t;
+			clr_idx_e = clr_idxs + alloc_ints;
+			clr_idx_p = clr_idxs + use_ints;
+		    }
+		    *clr_idx_p++ = i_bnd;
+		    if ( coord_p + 8 >= coord_e ) {
+			double *t;
+			size_t alloc_dbls, use_dbls, bytes;
+			size_t chunk = 2000 * 120 * 8;
+
+			use_dbls = (coord_p - coords);
+			alloc_dbls = ((coord_e - coords) + chunk);
+			bytes = alloc_dbls * sizeof(double);
+			if ( !(t = REALLOC(coords, bytes)) ) {
+			    fprintf(err, "%s %s: could not grow array of color "
+				    "indeces at sweep %d, ray %d, index %d\n",
+				    argv0, argv1, s, r, b);
+			    status = SIGMET_ALLOC_FAIL;
+			    goto error;
+			}
+			coords = t;
+			coord_e = coords + alloc_dbls;
+			coord_p = coords + use_dbls;
+		    }
+		    status = Sigmet_Vol_BinOutl(vol_p, s, r, b, coord_p);
+		    if ( status != SIGMET_OK ) {
+			Err_Get();		/* Flush */
+			clr_idx_p--;
+			continue;
+		    }
+		    coord_p += 8;
+		}
+	    }
+	}
+    }
+
+    /*
+       Convert bin outline lat-lon's to map coordinates.
+     */
+
+    num_bytes = (coord_p - coords) * sizeof(double);
+    if ( !coproc_rw(proj_argv, coords, num_bytes, coords, num_bytes) ) {
+	fprintf(err, "%s %s: Could not convert outline coordinates from "
+		"lat-lon's to map.\n%s\n", argv0, argv1, Err_Get());
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+
+    /*
+       Create image file. Fail if it already exists.
      */
 
     if ( (status = img_name(vol_p, abbrv, s, base_nm)) != SIGMET_OK ) {
@@ -2397,70 +2484,28 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
                 argv0, argv1, img_fl_nm, strerror(errno));
         return SIGMET_IO_FAIL;
     }
-    if ( close(i_img_fl) == -1 ) {
-        fprintf(err, "%s %s: could not close image file %s\n%s\n",
-                argv0, argv1, img_fl_nm, strerror(errno));
-	unlink(img_fl_nm);
-        return SIGMET_IO_FAIL;
-    }
+    close(i_img_fl);
 
     /*
-       Launch the external drawing application and create a pipe to it.
+       Write image information to external drawing process, which will
+       send it to the image file.
      */
 
-    if ( pipe(pfd) == -1 ) {
-	fprintf(err, "%s %s: could not connect to image drawing application\n"
-		"%s\n", argv0, argv1, strerror(errno));
-	unlink(img_fl_nm);
+    img_argv[0] = img_app;
+    img_argv[1] = NULL;
+    if ( (img_pid = execvp_pipe(img_argv, &img_wr, NULL)) == 0 ) {
+	fprintf(err, "%s %s: could not spawn image application\n"
+		"%s\n", argv0, argv1, Err_Get());
+	status = SIGMET_HELPER_FAIL;
+	goto error;
+    }
+    if ( !(img_out = fdopen(img_wr, "w"))) {
+	fprintf(err, "%s %s: could not obtain standard stream to write to "
+		"image drawing application\n%s\n",
+		argv0, argv1, strerror(errno));
 	status = SIGMET_IO_FAIL;
 	goto error;
     }
-    img_pid = fork();
-    switch (img_pid) {
-	case -1:
-	    fprintf(err, "%s %s: could not spawn image drawing application\n"
-		    "%s\n", argv0, argv1, strerror(errno));
-	    unlink(img_fl_nm);
-	    return SIGMET_HELPER_FAIL;
-	case 0:
-	    /*
-	       Child.  Close stdout.
-	       Read polygons from stdin (read side of data pipe).
-	     */
-
-	    if ( dup2(pfd[0], STDIN_FILENO) == -1
-		    || close(pfd[0]) == -1 || close(pfd[1]) == -1 ) {
-		fprintf(err, "%s: could not set up %s process",
-			time_stamp(), img_app);
-		_exit(EXIT_FAILURE);
-	    }
-	    if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
-		fprintf(err, "%s: image process could not access error "
-			"stream\n%s\n", time_stamp(), strerror(errno));
-		_exit(EXIT_FAILURE);
-	    }
-	    execl(img_app, img_app, (char *)NULL);
-	    _exit(EXIT_FAILURE);
-	default:
-	    /*
-	       This process.  Send polygons to write side of pipe,
-	       a.k.a. img_out.
-	     */
-
-	    if ( close(pfd[0]) == -1 || !(img_out = fdopen(pfd[1], "w"))) {
-		fprintf(err, "%s %s: could not write to image drawing "
-			"application\n%s\n", argv0, argv1, strerror(errno));
-		unlink(img_fl_nm);
-		img_pid = -1;
-		status = SIGMET_HELPER_FAIL;
-		goto error;
-	    }
-    }
-
-    /*
-       Come back here if write to image generator fails.
-     */
-
     item = "unknown";
     if ( setjmp(err_jmp) == IO_STD_ERROR ) {
 	fprintf(err, "%s %s: could not write %s for image %s\n%s\n",
@@ -2468,16 +2513,12 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 	status = SIGMET_IO_FAIL;
 	goto error;
     }
-
-    /*
-       Send global information about the image to drawing process
-     */
-
     img_fl_nm_l = strlen(img_fl_nm);
     item = "image file name";
     IO_Put_UInt(&img_fl_nm_l, 1, img_out, err_jmp);
     IO_Put_Chars(img_fl_nm, img_fl_nm_l, img_out, err_jmp);
     item = "image dimensions";
+    SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
     IO_Put_UInt(&w_pxl, 1, img_out, err_jmp);
     IO_Put_UInt(&h_pxl, 1, img_out, err_jmp);
     item = "image real bounds";
@@ -2488,65 +2529,46 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     item = "alpha channel value";
     IO_Put_Double(&alpha, 1, img_out, err_jmp);
     item = "colors";
-    IO_Put_UInt(&n_clrs, 1, img_out, err_jmp);
-    for (n = 0; n < n_clrs; n++) {
-	IO_Put_UInt(&clrs[n].red, 1, img_out, err_jmp);
-	IO_Put_UInt(&clrs[n].green, 1, img_out, err_jmp);
-	IO_Put_UInt(&clrs[n].blue, 1, img_out, err_jmp);
+    IO_Put_UInt(&num_clrs, 1, img_out, err_jmp);
+    for (clr = clrs; clr < clrs + num_clrs; clr++) {
+	IO_Put_UInt(&clr->red, 1, img_out, err_jmp);
+	IO_Put_UInt(&clr->green, 1, img_out, err_jmp);
+	IO_Put_UInt(&clr->blue, 1, img_out, err_jmp);
+    }
+    num_outlns = clr_idx_p - clr_idxs;
+    for (clr_idx_p = clr_idxs, coord_p = coords;
+	    clr_idx_p < clr_idxs + num_outlns;
+	    clr_idx_p++, coord_p += 8) {
+	double *c_p;
+	int undef;
+	unsigned npts = 4;
+
+	undef = 0;
+	for (c_p = coord_p; c_p < coord_p + 8; c_p++) {
+	    if ( *c_p == HUGE_VAL ) {
+		undef = 1;
+		break;
+	    }
+	}
+	if ( undef ) {
+	    continue;
+	}
+	item = "polygon color index";
+	IO_Put_UInt(clr_idx_p, 1, img_out, err_jmp);
+	item = "polygon point count";
+	IO_Put_UInt(&npts, 1, img_out, err_jmp);
+	item = "bin corner coordinates";
+	IO_Put_Double(coord_p, 8, img_out, err_jmp);
     }
 
     /*
-       Loop through bins for each ray for sweep s.
-       Determine which interval from bnds each bin value is in.
-       If the bin value is in an interval to display, send the
-       bin outline to the image drawing application.
+       Done creating image.
      */
 
-    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-	if ( vol_p->ray_ok[s][r] ) {
-	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
-		if ( Sigmet_IsData(d)
-			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
-		    int undef = 0;		/* If true, outside map */
-		    unsigned npts = 4;		/* Number of vertices */
-
-		    if ( Sigmet_Vol_BinOutl(vol_p, s, r, b, cnrs_ll)
-			    != SIGMET_OK ) {
-			Err_Get();		/* Flush */
-			continue;
-		    }
-		    for (ll = cnrs_ll, uv = cnrs_uv; uv < cnrs_uv + 4; uv++) {
-			uv->u = *ll++;
-			uv->v = *ll++;
-			*uv = pj_fwd(*uv, pj);
-			if ( uv->u == HUGE_VAL || uv->v == HUGE_VAL ) {
-			    undef = 1;
-			    break;
-			}
-		    }
-		    if ( undef ) {
-			continue;
-		    }
-
-		    item = "polygon color index";
-		    IO_Put_UInt(&n, 1, img_out, err_jmp);
-		    item = "polygon point count";
-		    IO_Put_UInt(&npts, 1, img_out, err_jmp);
-		    item = "bin corner coordinates";
-		    cnrs[0] = cnrs_uv[0].u;
-		    cnrs[1] = cnrs_uv[0].v;
-		    cnrs[2] = cnrs_uv[1].u;
-		    cnrs[3] = cnrs_uv[1].v;
-		    cnrs[4] = cnrs_uv[2].u;
-		    cnrs[5] = cnrs_uv[2].v;
-		    cnrs[6] = cnrs_uv[3].u;
-		    cnrs[7] = cnrs_uv[3].v;
-		    IO_Put_Double(cnrs, 8, img_out, err_jmp);
-		}
-	    }
-	}
-    }
+    FREE(coords);
+    FREE(clr_idxs);
+    clr_idxs = NULL;
+    coords = NULL;
     if ( fclose(img_out) == EOF ) {
 	fprintf(err, "%s: could not close pipe to %d for image file %s.\n%s\n",
 		time_stamp(), img_pid, img_fl_nm, strerror(errno));
@@ -2569,9 +2591,10 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 		time_stamp(), img_fl_nm,
 		(p == -1) ? strerror(errno) : "Unknown error.");
     }
+    img_pid = 0;
 
     /*
-       Image file is done. Make kml file.
+       Make kml file.
      */
 
     if ( snprintf(kml_fl_nm, LEN, "%s/%s.kml", cl_wd, base_nm) >= LEN ) {
@@ -2595,12 +2618,18 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     fprintf(out, "%s\n", img_fl_nm);
     return SIGMET_OK;
 error:
+    FREE(coords);
+    FREE(clr_idxs);
     if ( img_out ) {
 	if ( fclose(img_out) == EOF ) {
 	    fprintf(err, "%s: could not close pipe to %d "
 		    "for image file %s.\n%s\n",
 		    time_stamp(), img_pid, img_fl_nm, strerror(errno));
 	}
+    }
+    if ( img_pid != 0 ) {
+	kill(img_pid, SIGTERM);
+	waitpid(img_pid, NULL, WNOHANG);
     }
     unlink(img_fl_nm);
     return status;
@@ -2686,6 +2715,181 @@ static int dorade_cb(int argc, char *argv[], char *cl_wd,
 error:
     Dorade_Sweep_Free(&swp);
     return status;
+}
+
+/*
+   Spawn a child process with execvp(argv[0], argv).
+   If wr_p is not NULL, it will receive a file descriptor that writes to
+   the child's stdin. If rd_p is not NULL, it will receive a file descriptor
+   that reads from the child's stdout.  If successful, return value will be the
+   process id for the child. Otherwise, error information is generated that can
+   be retreived with Err_Get(), and return value is 0.
+ */
+
+static pid_t execvp_pipe(char **argv, int *wr_p, int *rd_p)
+{
+    int wr_pfd[2] = {-1, -1}, rd_pfd[2] = {-1, -1};
+    pid_t pid;
+
+    if ( wr_p && pipe(wr_pfd) == -1 ) {
+	Err_Append("Could not create pipe to write to child process. ");
+	Err_Append(strerror(errno));
+	return 0;
+    }
+    if ( rd_p && pipe(rd_pfd) == -1 ) {
+	Err_Append("Could not create pipe to read from child process. ");
+	Err_Append(strerror(errno));
+	return 0;
+    }
+    pid = fork();
+    switch (pid) {
+	case -1:
+	    Err_Append("Could not spawn child. ");
+	    Err_Append(strerror(errno));
+	    return 0;
+	case 0:
+	    if ( wr_p && dup2(wr_pfd[0], STDIN_FILENO) == -1 ) {
+		_exit(EXIT_FAILURE);
+	    }
+	    if ( rd_p && dup2(rd_pfd[1], STDOUT_FILENO) == -1 ) {
+		_exit(EXIT_FAILURE);
+	    }
+	    close(wr_pfd[0]);
+	    close(wr_pfd[1]);
+	    close(rd_pfd[1]);
+	    close(rd_pfd[0]);
+	    execvp(argv[0], argv);
+	    _exit(EXIT_FAILURE);
+	default:
+	    if ( wr_p ) {
+		*wr_p = wr_pfd[1];
+		close(wr_pfd[0]);
+	    }
+	    if ( rd_p ) {
+		*rd_p = rd_pfd[0];
+		close(rd_pfd[1]);
+	    }
+    }
+    return pid;
+}
+
+/*
+   This function starts a coprocess with argument vector argv. It then
+   attempts to write n_wr bytes from buf_wr to the coprocess stdin, and
+   read n_rd bytes from the coprocess stdout.
+ */
+
+static int coproc_rw(char **argv, void *buf_wr, size_t n_wr,
+	void *buf_rd, size_t n_rd)
+{
+    char *buf_wr_e, *buf_rd_e;		/* End of bytes to send and receive */
+    pid_t pid;				/* Coprocess */
+    int wr_fd, rd_fd;			/* File descriptors to write to and read
+					   from coprocess */
+    int fd_hwm = -1;			/* File descriptor high water mark */
+    int num_bytes;			/* Number of bytes written or read */
+    fd_set read_set, write_set;		/* Returns from select */
+    fd_set *write_set_p;		/* &write_set when writing to coprocess.
+					   NULL when done writing. */
+
+    pid = 0;
+    wr_fd = rd_fd = -1;
+    buf_wr_e = (char *)buf_wr + n_wr;
+    buf_rd_e = (char *)buf_rd + n_rd;
+
+    /*
+       This process will communicate with the coprocess via a pair of half
+       duplex pipes. It will use select to respond to whichever pipe is ready
+       to transfer data.
+     */
+
+    pid = execvp_pipe(argv, &wr_fd, &rd_fd);
+    if ( pid == 0 ) {
+	Err_Append("Could not spawn helper application. ");
+	Err_Append(strerror(errno));
+	goto error;
+    }
+    if ( rd_fd > fd_hwm ) {
+	fd_hwm = rd_fd;
+    }
+    if ( wr_fd > fd_hwm ) {
+	fd_hwm = wr_fd;
+    }
+    write_set_p = &write_set;
+    while ( (char *)buf_rd < buf_rd_e ) {
+	FD_ZERO(&read_set);
+	FD_SET(rd_fd, &read_set);
+	if ( write_set_p ) {
+	    FD_ZERO(&write_set);
+	    FD_SET(wr_fd, &write_set);
+	}
+	if ( select(fd_hwm + 1, &read_set, write_set_p, NULL, NULL) == -1 ) {
+	    Err_Append("select failed. ");
+	    Err_Append(strerror(errno));
+	    goto error;
+	}
+	if ( write_set_p && FD_ISSET(wr_fd, write_set_p) ) {
+	    num_bytes = write(wr_fd, buf_wr, _POSIX_PIPE_BUF);
+	    if ( num_bytes == -1 ) {
+		Err_Append("write to helper application failed. ");
+		Err_Append(strerror(errno));
+		goto error;
+	    }
+	    buf_wr = (char *)buf_wr + num_bytes;
+	    if ( (char *)buf_wr >= buf_wr_e ) {
+		if ( close(wr_fd) == -1 ) {
+		    Err_Append("could not close pipe to helper application. ");
+		    Err_Append(strerror(errno));
+		}
+		wr_fd = -1;
+		write_set_p = NULL;
+		if ( rd_fd > fd_hwm ) {
+		    fd_hwm = rd_fd;
+		}
+	    }
+	}
+	if ( FD_ISSET(rd_fd, &read_set) ) {
+	    num_bytes = read(rd_fd, buf_rd, buf_rd_e - (char *)buf_rd);
+	    if ( num_bytes == -1 ) {
+		perror("read from helper application failed");
+		Err_Append(strerror(errno));
+		goto error;
+	    }
+	    buf_rd = (char *)buf_rd + num_bytes;
+	}
+    }
+    if ( (char *)buf_rd < buf_rd_e ) {
+	Err_Append("Failed to read expected bytes from coprocess. ");
+	goto error;
+    }
+    if ( (char *)buf_wr < buf_wr_e ) {
+	Err_Append("Unable to write all bytes to coprocess. ");
+	goto error;
+    }
+    if ( rd_fd != -1 ) {
+	close(rd_fd);
+    }
+    if ( wr_fd != -1 ) {
+	close(wr_fd);
+    }
+    if ( pid != 0 ) {
+	kill(pid, SIGTERM);
+	waitpid(pid, NULL, 0);
+    }
+    return 1;
+
+error:
+    if ( rd_fd != -1 ) {
+	close(rd_fd);
+    }
+    if ( wr_fd != -1 ) {
+	close(wr_fd);
+    }
+    if ( pid != 0 ) {
+	kill(pid, SIGTERM);
+	waitpid(pid, NULL, 0);
+    }
+    return 0;
 }
 
 /*

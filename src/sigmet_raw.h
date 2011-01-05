@@ -7,14 +7,13 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.23 $ $Date: 2010/12/07 18:06:20 $
+   .	$Revision: 1.24 $ $Date: 2010/12/07 21:29:56 $
  */
 
 #ifndef SIGMET_RAW_H_
 #define SIGMET_RAW_H_
 
 #include <stdio.h>
-#include <proj_api.h>
 #include "sigmet.h"
 
 /* Default name for daemon socket */
@@ -30,7 +29,7 @@ int SigmetRaw_Cmd(const char *);
 void SigmetRaw_Start(int, char **);
 int SigmetRaw_ProjInit(void);
 int SigmetRaw_SetProj(int, char **);
-projPJ SigmetRaw_GetProj(void);
+char **SigmetRaw_GetProj(void);
 void SigmetRaw_SetImgSz(unsigned, unsigned);
 void SigmetRaw_GetImgSz(unsigned *, unsigned *);
 void SigmetRaw_SetImgAlpha(double);
