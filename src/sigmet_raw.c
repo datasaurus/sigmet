@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.68 $ $Date: 2010/12/07 19:24:38 $
+   .	$Revision: 1.69 $ $Date: 2010/12/16 19:52:41 $
  */
 
 #include <limits.h>
@@ -68,13 +68,12 @@ int main(int argc, char *argv[])
     ssize_t ll;			/* Number of bytes read from server */
     int sstatus;		/* Result of callback */
 
-    strcpy(out_nm, "");
-    strcpy(err_nm, "");
-
     if ( !handle_signals() ) {
 	fprintf(stderr, "%s (%d): could not set up signal management.", argv0, pid);
 	goto error;
     }
+    *out_nm = '\0';
+    *err_nm = '\0';
     if ( argc < 2 ) {
 	fprintf(stderr, "Usage: %s command\n", argv0);
 	goto error;
