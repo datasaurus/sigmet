@@ -7,10 +7,11 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.5 $ $Date: 2011/01/05 17:04:54 $
+ .	$Revision: 1.9 $ $Date: 2011/06/09 16:51:15 $
  */
 
 #include <string.h>
+#include <stdio.h>
 #include "alloc.h"
 #include "err_msg.h"
 #include "sigmet_raw.h"
@@ -20,27 +21,39 @@ static char *dflt_proj[DFLT_PROJ_ARGC] = {
     "proj", "-b", "+proj=aeqd", "+ellps=sphere", (char *)NULL
 };
 static char **proj;
+static int init;
 
-int SigmetRaw_ProjInit(void)
+static void cleanup(void);
+static void cleanup(void)
 {
-    return SigmetRaw_SetProj(DFLT_PROJ_ARGC - 1, dflt_proj);
+    if ( proj ) {
+	FREE(*proj);
+    }
+    FREE(proj);
+    proj = NULL;
 }
 
 int SigmetRaw_SetProj(int argc, char *argv[])
 {
-    char **t, **aa, *a, **pp, *p;
+    char **aa, *a, **pp, *p;
     size_t len;
 
-    if ( !(t = REALLOC(proj, (argc + 1) * sizeof(char *))) ) {
-	Err_Append("Could not allocate space for default projection array. ");
+    if ( !init ) {
+	atexit(cleanup);
+	init = 1;
+    }
+    cleanup();
+    if ( !(proj = CALLOC(argc + 1, sizeof(char *))) ) {
+	Err_Append("Could not allocate space for projection array. ");
 	return SIGMET_ALLOC_FAIL;
     }
-    proj = t;
     for (len = 0, aa = argv; *aa; aa++) {
 	len += strlen(*aa) + 1;
     }
     if ( !(*proj = CALLOC(len, 1)) ) {
-	Err_Append("Could not allocate space for default projection content. ");
+	FREE(proj);
+	proj = NULL;
+	Err_Append("Could not allocate space for projection content. ");
 	return SIGMET_ALLOC_FAIL;
     }
     for (p = *proj, pp = proj, aa = argv; *aa; aa++) {
@@ -56,5 +69,13 @@ int SigmetRaw_SetProj(int argc, char *argv[])
 
 char **SigmetRaw_GetProj(void)
 {
+    if ( !init ) {
+	atexit(cleanup);
+	if ( SigmetRaw_SetProj(DFLT_PROJ_ARGC - 1, dflt_proj) != SIGMET_OK ) {
+	    fprintf(stderr, "Could not set default projection.\n");
+	    exit(EXIT_FAILURE);
+	}
+	init = 1;
+    }
     return proj;
 }

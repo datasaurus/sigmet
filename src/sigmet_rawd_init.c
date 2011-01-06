@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.354 $ $Date: 2011/01/05 21:42:47 $
+ .	$Revision: 1.355 $ $Date: 2011/01/06 17:27:16 $
  */
 
 #include <limits.h>
@@ -168,11 +168,6 @@ int main(int argc, char *argv[])
      */
 
     SigmetRaw_VolInit();
-    if ( SigmetRaw_ProjInit() != SIGMET_OK ) {
-	fprintf(stderr, "%s (%d): could not set default projection.\n",
-		argv0, pid);
-	exit(EXIT_FAILURE);
-    }
     for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
 	int status;
 
