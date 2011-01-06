@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.353 $ $Date: 2011/01/05 17:04:53 $
+ .	$Revision: 1.354 $ $Date: 2011/01/05 21:42:47 $
  */
 
 #include <limits.h>
@@ -2843,7 +2843,11 @@ static int coproc_rw(char **argv, void *buf_wr, size_t n_wr,
 	    goto error;
 	}
 	if ( write_set_p && FD_ISSET(wr_fd, write_set_p) ) {
-	    num_bytes = write(wr_fd, buf_wr, _POSIX_PIPE_BUF);
+	    num_bytes = (buf_wr_e - (char *)buf_wr);
+	    if ( num_bytes > _POSIX_PIPE_BUF ) {
+		num_bytes = _POSIX_PIPE_BUF;
+	    }
+	    num_bytes = write(wr_fd, buf_wr, num_bytes);
 	    if ( num_bytes == -1 ) {
 		Err_Append("write to helper application failed. ");
 		Err_Append(strerror(errno));
