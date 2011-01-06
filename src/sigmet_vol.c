@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.107 $ $Date: 2010/12/16 19:54:01 $
+   .	$Revision: 1.108 $ $Date: 2010/12/16 22:02:07 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -3510,23 +3510,7 @@ struct Sigmet_Task_Scan_Info get_task_scan_info(char *rec)
 {
     struct Sigmet_Task_Scan_Info tsi;
 
-    switch (get_uint16(rec + 0)) {
-	case 1:
-	    tsi.scan_mode = PPI_S;
-	    break;
-	case 2:
-	    tsi.scan_mode = RHI;
-	    break;
-	case 3:
-	    tsi.scan_mode = MAN_SCAN;
-	    break;
-	case 4:
-	    tsi.scan_mode = PPI_C;
-	    break;
-	case 5:
-	    tsi.scan_mode = FILE_SCAN;
-	    break;
-    }
+    tsi.scan_mode = get_uint16(rec + 0);
     tsi.resoln = get_sint16(rec + 2);
     tsi.num_sweeps = get_sint16(rec + 6);
     switch (tsi.scan_mode) {
