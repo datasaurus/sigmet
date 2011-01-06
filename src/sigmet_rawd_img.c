@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.3 $ $Date: 2010/12/06 20:50:05 $
+ .	$Revision: 1.4 $ $Date: 2010/12/07 18:06:20 $
  */
 
 #include <string.h>
@@ -24,6 +24,13 @@ static unsigned h_pxl = 600;		/* Height of image in display units,
 					   pixels, points, cm */
 static double alpha = 1.0;		/* alpha channel. 1.0 => translucent */
 static char *img_app;			/* External application to draw sweeps */
+
+static void cleanup(void);
+static void cleanup(void)
+{
+    FREE(img_app);
+    img_app = NULL;
+}
 
 void SigmetRaw_SetImgSz(unsigned w, unsigned h)
 {
@@ -51,8 +58,12 @@ int SigmetRaw_SetImgApp(char *nm)
 {
     struct stat sbuf;
     mode_t m = S_IXUSR | S_IXGRP | S_IXOTH;	/* Executable mode */
-    char *t;
+    static int init;
 
+    if ( !init ) {
+	atexit(cleanup);
+	init = 1;
+    }
     if ( stat(nm, &sbuf) == -1 ) {
 	Err_Append("Could not get information about ");
 	Err_Append(nm);
@@ -65,11 +76,11 @@ int SigmetRaw_SetImgApp(char *nm)
 	Err_Append(" is not executable. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(t = REALLOC(img_app, strlen(nm) + 1)) ) {
+    cleanup();
+    if ( !(img_app = CALLOC(strlen(nm) + 1, 1)) ) {
 	Err_Append("Could not allocate memory for image app name. ");
 	return SIGMET_ALLOC_FAIL;
     }
-    img_app = t;
     strcpy(img_app, nm);
     return SIGMET_OK;
 }
