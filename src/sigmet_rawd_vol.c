@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.54 $ $Date: 2010/12/07 21:30:45 $
+ .	$Revision: 1.55 $ $Date: 2010/12/16 18:00:30 $
  */
 
 #include <unistd.h>
@@ -25,6 +25,12 @@
 #include "err_msg.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
+
+/*
+   If init is true, this interface has been initialized.
+ */
+
+static int init;
 
 /*
    Structures of this type store a Sigmet volume with additonal data
@@ -84,6 +90,8 @@ static struct sig_vol *vols[N_VOLS];
    Other functions.
  */
 
+static void init_app(void);
+static void cleanup(void);
 static struct sig_vol *sig_vol_get(char *vol_nm);
 static void sig_vol_free(struct sig_vol *);
 static void tunlink(struct sig_vol *);
@@ -96,10 +104,9 @@ static FILE *vol_open(const char *, pid_t *, int);
    Initialize this interface
  */
 
-void SigmetRaw_VolInit(void)
+static void init_app(void)
 {
     int n;
-    static int init;
 
     if ( init ) {
 	return;
@@ -108,6 +115,7 @@ void SigmetRaw_VolInit(void)
     for (n = 0; n < N_VOLS; n++) {
 	vols[n] = NULL;
     }
+    atexit(cleanup);
     init = 1;
 }
 
@@ -115,11 +123,14 @@ void SigmetRaw_VolInit(void)
    Free memory and reinitialize this interface.
  */
 
-void SigmetRaw_VolFree(void)
+static void cleanup(void)
 {
     struct sig_vol *sv_p, *tnext;
     int n;
 
+    if ( !init ) {
+	return;
+    }
     for (n = 0; n < N_VOLS; n++) {
 	for (sv_p = tnext = vols[n]; sv_p; sv_p = tnext) {
 	    tnext = sv_p->tnext;
@@ -153,6 +164,9 @@ static void tunlink(struct sig_vol *sv_p)
 
     if ( !sv_p ) {
 	return;
+    }
+    if ( !init ) {
+	init_app();
     }
     if ( sv_p->tprev ) {
 	sv_p->tprev->tnext = sv_p->tnext;
@@ -253,6 +267,9 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
     int h;			/* Index into vols */
     struct sig_vol *sv_p;	/* Return value */
 
+    if ( !init ) {
+	init_app();
+    }
 
     /*
        Search for the volume in vols. If present, move it to the end of the
@@ -542,6 +559,9 @@ void SigmetRaw_VolList(FILE *out)
     int n;
     struct sig_vol *sv_p;
 
+    if ( !init ) {
+	init_app();
+    }
     for (n = 0; n < N_VOLS; n++) {
 	for (sv_p = vols[n]; sv_p; sv_p = sv_p->tnext) {
 	    fprintf(out, "%s %s. %d out of %d sweeps. %8.4f MB.\n",
@@ -593,6 +613,9 @@ int SigmetRaw_Delete(char *vol_nm)
     int h;			/* Index into vols */
     struct sig_vol *sv_p;	/* Volume to delete */
 
+    if ( !init ) {
+	init_app();
+    }
     if ( !hash(vol_nm, &d, &i, &h) ) {
 	return SIGMET_BAD_ARG;
     }
