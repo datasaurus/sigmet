@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.27 $ $Date: 2010/12/16 19:52:04 $
+   .	$Revision: 1.28 $ $Date: 2011/01/07 20:16:18 $
  */
 
 #include <string.h>
@@ -320,7 +320,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	ryib_p->hour = hr;
 	ryib_p->minute = min;
 	ryib_p->second = sec;
-	ryib_p->millisecond = (sec - ryib_p->second) * 1000;
+	ryib_p->millisecond = (sec - ryib_p->second) * 1000 + 0.5;
 	az0 = vol_p->ray_az0[s][r];
 	az1 = vol_p->ray_az1[s][r];
 	ryib_p->azimuth = 0.5 * (az0 + GeogLonR(az1, az0));
