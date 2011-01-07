@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.4 $ $Date: 2010/12/07 18:06:20 $
+ .	$Revision: 1.5 $ $Date: 2011/01/06 19:50:03 $
  */
 
 #include <string.h>
@@ -59,6 +59,7 @@ int SigmetRaw_SetImgApp(char *nm)
     struct stat sbuf;
     mode_t m = S_IXUSR | S_IXGRP | S_IXOTH;	/* Executable mode */
     static int init;
+    size_t sz;
 
     if ( !init ) {
 	atexit(cleanup);
@@ -77,11 +78,12 @@ int SigmetRaw_SetImgApp(char *nm)
 	return SIGMET_BAD_ARG;
     }
     cleanup();
-    if ( !(img_app = CALLOC(strlen(nm) + 1, 1)) ) {
+    sz = strlen(nm) + 1;
+    if ( !(img_app = CALLOC(sz, 1)) ) {
 	Err_Append("Could not allocate memory for image app name. ");
 	return SIGMET_ALLOC_FAIL;
     }
-    strcpy(img_app, nm);
+    strlcpy(img_app, nm, sz);
     return SIGMET_OK;
 }
 
