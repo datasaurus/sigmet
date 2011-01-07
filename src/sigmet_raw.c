@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.70 $ $Date: 2011/01/05 17:01:27 $
+   .	$Revision: 1.71 $ $Date: 2011/01/06 20:15:28 $
  */
 
 #include <limits.h>
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
     }
     memset(&sa, '\0', SA_UN_SZ);
     sa.sun_family = AF_UNIX;
-    strncpy(sa.sun_path, dsock, SA_PLEN);
+    strlcpy(sa.sun_path, dsock, SA_PLEN);
     if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create socket to connect with daemon\n"
 		"%s\n", argv0, pid, strerror(errno));

@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.26 $ $Date: 2010/12/13 20:18:22 $
+   .	$Revision: 1.27 $ $Date: 2010/12/16 19:52:04 $
  */
 
 #include <string.h>
@@ -87,7 +87,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     sswb_p->i_start_time = (vol_p->sweep_time[s] - epoch) * 86400 + 0.5;
     sswb_p->compression_flag = 0;
     num_parms = sswb_p->num_parms = vol_p->num_types;
-    strncpy(sswb_p->radar_name, vol_p->ih.ic.su_site_name, 8);
+    strlcpy(sswb_p->radar_name, vol_p->ih.ic.su_site_name, 9);
 
     /*
        Populate vold block
@@ -120,7 +120,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
      */
 
     radd_p = &sensor_p->radd;
-    strncpy(radd_p->radar_name, vol_p->ih.ic.su_site_name, 8);
+    strlcpy(radd_p->radar_name, vol_p->ih.ic.su_site_name, 9);
     radd_p->radar_const
 	= 0.01 * vol_p->ih.tc.tci.hpol_radar_const;	/* Ignore vpol */
     radd_p->peak_power = 0.001 * vol_p->ih.tc.tmi.power;
@@ -253,7 +253,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
      */
 
     swib_p = &swp_p->swib;
-    strncpy(swib_p->radar_name, sswb_p->radar_name, 8);
+    strncpy(swib_p->radar_name, sswb_p->radar_name, 9);
     swib_p->sweep_num = 1;
     num_rays = swib_p->num_rays = vol_p->ih.ic.num_rays;
     switch (vol_p->ih.tc.tni.scan_mode) {
