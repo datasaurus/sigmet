@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.56 $ $Date: 2011/01/06 20:15:28 $
+ .	$Revision: 1.57 $ $Date: 2011/01/07 19:37:37 $
  */
 
 #include <unistd.h>
@@ -266,6 +266,7 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
     ino_t i;			/* Inode number for file named vol_nm*/
     int h;			/* Index into vols */
     struct sig_vol *sv_p;	/* Return value */
+    size_t sz;
 
     if ( !init ) {
 	init_app();
@@ -291,13 +292,14 @@ static struct sig_vol *sig_vol_get(char *vol_nm)
 	Err_Append("Could not allocate memory for volume entry. ");
 	return NULL;
     }
-    if ( !(sv_p->vol_nm = MALLOC(strlen(vol_nm) + 1)) ) {
+    sz = strlen(vol_nm) + 1;
+    if ( !(sv_p->vol_nm = MALLOC(sz)) ) {
 	Err_Append("Could not allocate memory for volume entry. ");
 	FREE(sv_p);
 	return NULL;
     }
     Sigmet_Vol_Init(&sv_p->vol);
-    strcpy(sv_p->vol_nm, vol_nm);
+    strlcpy(sv_p->vol_nm, vol_nm, sz);
     sv_p->st_dev = d;
     sv_p->st_ino = i;
     sv_p->h = h;
