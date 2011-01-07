@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.355 $ $Date: 2011/01/06 17:27:16 $
+ .	$Revision: 1.356 $ $Date: 2011/01/06 19:51:42 $
  */
 
 #include <limits.h>
@@ -164,10 +164,9 @@ int main(int argc, char *argv[])
     }
 
     /*
-       Initialize internal interfaces and data structures
+       Register Sigmet data types.
      */
 
-    SigmetRaw_VolInit();
     for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
 	int status;
 
@@ -477,7 +476,6 @@ int main(int argc, char *argv[])
      */
 
     unlink(SIGMET_RAWD_IN);
-    SigmetRaw_VolFree();
     FREE(cl_wd);
     FREE(cmd_ln);
     fprintf(stderr, "%s: exiting.\n", time_stamp());
@@ -485,7 +483,6 @@ int main(int argc, char *argv[])
 
 error:
     unlink(SIGMET_RAWD_IN);
-    SigmetRaw_VolFree();
     fprintf(stderr, "%s: sigmet_rawd failed.\n", time_stamp());
     exit(EXIT_FAILURE);
 }
@@ -2762,10 +2759,18 @@ static pid_t execvp_pipe(char **argv, int *wr_p, int *rd_p)
 	    if ( rd_p && dup2(rd_pfd[1], STDOUT_FILENO) == -1 ) {
 		_exit(EXIT_FAILURE);
 	    }
-	    close(wr_pfd[0]);
-	    close(wr_pfd[1]);
-	    close(rd_pfd[1]);
-	    close(rd_pfd[0]);
+	    if ( wr_pfd[0] != -1 ) {
+		close(wr_pfd[0]);
+	    }
+	    if ( wr_pfd[1] != -1 ) {
+		close(wr_pfd[1]);
+	    }
+	    if ( rd_pfd[1] != -1 ) {
+		close(rd_pfd[1]);
+	    }
+	    if ( rd_pfd[0] != -1 ) {
+		close(rd_pfd[0]);
+	    }
 	    execvp(argv[0], argv);
 	    fprintf(stderr, "execvp failed.\n%s\n", strerror(errno));
 	    _exit(EXIT_FAILURE);
@@ -2786,7 +2791,7 @@ static pid_t execvp_pipe(char **argv, int *wr_p, int *rd_p)
    This function starts a coprocess with argument vector argv. It then
    attempts to write n_wr bytes from buf_wr to the coprocess stdin, and
    read n_rd bytes from the coprocess stdout.
- */
+   */
 
 static int coproc_rw(char **argv, void *buf_wr, size_t n_wr,
 	void *buf_rd, size_t n_rd)
