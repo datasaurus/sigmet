@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.356 $ $Date: 2011/01/06 19:51:42 $
+ .	$Revision: 1.357 $ $Date: 2011/01/07 14:30:17 $
  */
 
 #include <limits.h>
@@ -223,6 +223,12 @@ int main(int argc, char *argv[])
 	    || listen(i_dmn, SOMAXCONN) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create io socket.\n%s\n",
 		argv0, pid, strerror(errno));
+	goto error;
+    }
+    if ( (flags = fcntl(i_dmn, F_GETFD)) == -1
+	    || fcntl(i_dmn, F_SETFD, flags | FD_CLOEXEC) == -1 ) {
+	fprintf(stderr, "%s: could not set flags on io socket.\n"
+		"%s\n", time_stamp(), strerror(errno));
 	goto error;
     }
 
@@ -2633,7 +2639,7 @@ error:
 	}
     }
     if ( img_pid != 0 ) {
-	kill(img_pid, SIGTERM);
+	kill(img_pid, SIGKILL);
 	waitpid(img_pid, NULL, WNOHANG);
     }
     unlink(img_fl_nm);
@@ -2891,7 +2897,6 @@ static int coproc_rw(char **argv, void *buf_wr, size_t n_wr,
 	close(wr_fd);
     }
     if ( pid != 0 ) {
-	kill(pid, SIGTERM);
 	waitpid(pid, NULL, 0);
     }
     return 1;
@@ -2904,8 +2909,8 @@ error:
 	close(wr_fd);
     }
     if ( pid != 0 ) {
-	kill(pid, SIGTERM);
-	waitpid(pid, NULL, 0);
+	kill(pid, SIGKILL);
+	waitpid(pid, NULL, WNOHANG);
     }
     return 0;
 }
