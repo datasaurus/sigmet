@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.55 $ $Date: 2010/12/16 18:00:30 $
+ .	$Revision: 1.56 $ $Date: 2011/01/06 20:15:28 $
  */
 
 #include <unistd.h>
@@ -808,7 +808,8 @@ static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err)
 
 error:
     if ( ch_pid != -1 ) {
-	kill(ch_pid, SIGTERM);
+	kill(ch_pid, SIGKILL);
+	waitpid(ch_pid, NULL, WNOHANG);
 	ch_pid = -1;
     }
     if ( in ) {
