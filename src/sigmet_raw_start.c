@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.12 $ $Date: 2010/12/07 19:24:38 $
+   .	$Revision: 1.13 $ $Date: 2010/12/16 19:53:10 $
  */
 
 #include <stdio.h>
@@ -134,7 +134,7 @@ case -1:
 
     if ( (chpid = wait(&si)) == -1 ) {
 	perror("sigmet_raw start: unable to wait for children");
-	kill(0, SIGTERM);
+	kill(0, SIGKILL);
 	exit(EXIT_FAILURE);
     }
     if ( chpid == upid ) {
@@ -173,7 +173,7 @@ case -1:
 	    fprintf(stderr, "daemon exited on signal %d\n",
 		    WTERMSIG(si));
 	}
-	kill(0, SIGTERM);
+	kill(0, SIGKILL);
 	exit(EXIT_FAILURE);
     }
 }
