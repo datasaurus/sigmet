@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.357 $ $Date: 2011/01/07 14:30:17 $
+ .	$Revision: 1.358 $ $Date: 2011/01/07 19:39:09 $
  */
 
 #include <limits.h>
@@ -1897,7 +1897,7 @@ static int shift_az_cb(int argc, char *argv[], char *cl_wd,
     int status;				/* Result of SigmetRaw_ReadVol */
     char *daz_s;			/* Degrees to add to each azimuth */
     double daz;				/* Radians to add to each azimuth */
-    double idaz;			/* Binary angle to add to each azimuth */
+    unsigned long idaz;			/* Binary angle to add to each azimuth */
     int s, r;				/* Loop indeces */
 
     if ( argc != 4 ) {
