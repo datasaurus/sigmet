@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.71 $ $Date: 2011/01/06 20:15:28 $
+   .	$Revision: 1.72 $ $Date: 2011/01/07 20:16:43 $
  */
 
 #include <limits.h>
@@ -25,6 +25,7 @@
 #include <sys/wait.h>
 #include <sys/select.h>
 #include "alloc.h"
+#include "strlcpy.h"
 #include "sigmet_raw.h"
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -462,6 +463,7 @@ int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
+    ssize_t dum;
 
     unlink(out_nm);
     unlink(err_nm);
@@ -492,6 +494,6 @@ void handler(int signum)
 	    msg = "sigmet_raw command exiting: file size limit exceeded\n";
 	    break;
     }
-    write(STDERR_FILENO, msg, 53);
+    dum = write(STDERR_FILENO, msg, 53);
     _exit(EXIT_FAILURE);
 }
