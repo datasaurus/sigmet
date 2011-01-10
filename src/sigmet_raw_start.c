@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.13 $ $Date: 2010/12/16 19:53:10 $
+   .	$Revision: 1.14 $ $Date: 2011/01/07 19:36:57 $
  */
 
 #include <stdio.h>
@@ -286,6 +286,7 @@ int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
+    ssize_t dum;
 
     msg = "sigmet_raw start exiting                          \n";
     switch (signum) {
@@ -314,7 +315,7 @@ void handler(int signum)
 	    msg = "sigmet_raw start exiting: file size limit exceeded\n";
 	    break;
     }
-    write(STDERR_FILENO, msg, 51);
+    dum = write(STDERR_FILENO, msg, 51);
     kill(0, SIGTERM);
     _exit(EXIT_FAILURE);
 }

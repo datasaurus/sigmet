@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.358 $ $Date: 2011/01/07 19:39:09 $
+ .	$Revision: 1.359 $ $Date: 2011/01/08 01:14:54 $
  */
 
 #include <limits.h>
@@ -3008,13 +3008,14 @@ static int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
+    ssize_t dum;
 
     msg = "sigmet_rawd daemon exiting                          \n";
     unlink(SIGMET_RAWD_IN);
     switch (signum) {
 	case SIGTERM:
 	    msg = "sigmet_rawd daemon exiting on termination signal    \n";
-	    write(STDOUT_FILENO, msg, 53);
+	    dum = write(STDOUT_FILENO, msg, 53);
 	    _exit(EXIT_SUCCESS);
 	case SIGFPE:
 	    msg = "sigmet_rawd daemon exiting arithmetic exception     \n";
@@ -3029,6 +3030,6 @@ void handler(int signum)
 	    msg = "sigmet_rawd daemon exiting: file size limit exceeded\n";
 	    break;
     }
-    write(STDERR_FILENO, msg, 53);
+    dum = write(STDERR_FILENO, msg, 53);
     _exit(EXIT_FAILURE);
 }
