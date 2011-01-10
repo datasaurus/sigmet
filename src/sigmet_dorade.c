@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.29 $ $Date: 2011/01/07 23:16:33 $
+   .	$Revision: 1.30 $ $Date: 2011/01/08 01:14:54 $
  */
 
 #include <string.h>
@@ -16,6 +16,7 @@
 #include "sigmet.h"
 #include "alloc.h"
 #include "err_msg.h"
+#include "strlcpy.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "data_types.h"

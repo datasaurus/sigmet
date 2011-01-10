@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.5 $ $Date: 2011/01/06 19:50:03 $
+ .	$Revision: 1.6 $ $Date: 2011/01/07 20:17:11 $
  */
 
 #include <string.h>
@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include "sigmet_raw.h"
 #include "alloc.h"
+#include "strlcpy.h"
 #include "err_msg.h"
 
 static unsigned w_pxl = 600;		/* Width of image in display units,

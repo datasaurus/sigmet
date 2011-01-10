@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.57 $ $Date: 2011/01/07 19:37:37 $
+ .	$Revision: 1.58 $ $Date: 2011/01/07 20:17:30 $
  */
 
 #include <unistd.h>
@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include "alloc.h"
 #include "err_msg.h"
+#include "strlcpy.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
