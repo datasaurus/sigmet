@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.109 $ $Date: 2011/01/06 18:48:00 $
+   .	$Revision: 1.110 $ $Date: 2011/01/14 22:20:47 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -998,6 +998,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 
 	    sec = get_sint32(rec_buf1 + 24);
 	    msec = get_uint16(rec_buf1 + 28);
+	    msec &= 0x3ff;
 	    year = get_sint16(rec_buf1 + 30);
 	    month = get_sint16(rec_buf1 + 32);
 	    day = get_sint16(rec_buf1 + 34);
