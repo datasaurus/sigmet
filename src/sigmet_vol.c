@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.108 $ $Date: 2010/12/16 22:02:07 $
+   .	$Revision: 1.109 $ $Date: 2011/01/06 18:48:00 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -747,13 +747,12 @@ int Sigmet_Vol_Good(FILE *f)
 
 int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 {
-    char rec[REC_LEN];			/* Input record from file */
     int status;
 
-
-    U16BIT *recP;			/* Pointer into rec */
-    U16BIT *recN;			/* Stopping point in rec */
-    U16BIT *recEnd = (U16BIT *)(rec + REC_LEN); /* End rec */
+    U1BYT rec_buf1[REC_LEN];		/* Input record from file */
+    U16BIT *rec_p2;			/* Pointer into rec_buf1 */
+    U16BIT *rec_n2;			/* Stopping point in rec_buf1 */
+    U16BIT *rec_e2;			/* End rec_buf1 */
     int rec_idx;			/* Current record index (0 is first) */
     int sweep_num;			/* Current sweep number (1 is first) */
 
@@ -770,12 +769,13 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     double swpTm = 0.0;
     double angle;			/* Sweep angle */
 
-    U16BIT *ray = NULL;			/* Buffer, receives data from rec */
-    U16BIT *rayP = NULL;		/* Point into ray while looping */
-    U16BIT *rayEnd = NULL;		/* End of allocation at ray */
+    U16BIT *ray_buf2 = NULL;		/* Buffer, receives data from rec_buf1 */
+    U16BIT *ray_p2 = NULL;		/* Point into ray_buf2 while looping */
+    U16BIT *ray_e2 = NULL;		/* End of allocation at ray_buf2 */
 
-    size_t raySz;			/* Allocation size for a ray */
-    unsigned char *rayd;		/* Pointer to start of data in ray */
+    size_t raySz;			/* Allocation size for a ray_buf2 */
+    U1BYT *u1;				/* Pointer to start of data in ray_buf2 */
+    U2BYT *u2;				/* Pointer to start of data in ray_buf2 */
     unsigned numWds;			/* Number of words in a run of data */
     int s, r, b;			/* Sweep, ray, bin indeces */
     int yf, y;				/* Indeces for type in file, type in dat */
@@ -925,35 +925,37 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     }
 
     /*
-       Allocate and partition largest possible ray buffer.
-       Data will be decompressed from rec and copied into ray.
+       Allocate and partition largest possible ray_buf2 buffer.
+       Data will be decompressed from rec_buf1 and copied into ray_buf2.
      */
 
     raySz = SZ_RAY_HDR + vol_p->ih.ic.extended_ray_headers_sz
 	+ num_bins * sizeof(U16BIT);
-    ray = (U16BIT *)MALLOC(raySz);
-    if ( !ray ) {
+    ray_buf2 = (U16BIT *)MALLOC(raySz);
+    if ( !ray_buf2 ) {
 	Err_Append("Could not allocate input ray buffer.  ");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
-    rayd = (unsigned char *)ray + SZ_RAY_HDR;
-    rayEnd = (U16BIT *)((unsigned char *)ray + raySz);
+    u1 = (U1BYT *)ray_buf2 + SZ_RAY_HDR;
+    u2 = (U2BYT *)((U1BYT *)ray_buf2 + SZ_RAY_HDR);
+    ray_e2 = (U16BIT *)((U1BYT *)ray_buf2 + raySz);
 
     /*
        Process data records.
      */
 
+    rec_e2 = (U16BIT *)(rec_buf1 + REC_LEN);
     rec_idx = 1;
     sweep_num = 0;
-    while (fread(rec, 1, REC_LEN, f) == REC_LEN) {
+    while (fread(rec_buf1, 1, REC_LEN, f) == REC_LEN) {
 
 	/*
 	   Get record number and sweep number from <raw_prod_bhdr>.
 	 */
 
-	i = get_sint16(rec);
-	n = get_sint16(rec + 2);
+	i = get_sint16(rec_buf1);
+	n = get_sint16(rec_buf1 + 2);
 
 	if (i != rec_idx + 1) {
 	    Err_Append(
@@ -984,7 +986,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	       there are no more sweeps in volume.
 	     */
 
-	    n = get_sint16(rec + 36);
+	    n = get_sint16(rec_buf1 + 36);
 	    if (n == 0) {
 		vol_p->ih.tc.tni.num_sweeps = sweep_num - 1;
 		break;
@@ -994,11 +996,11 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	       Store sweep time and angle (from first <ingest_data_header>).
 	     */
 
-	    sec = get_sint32(rec + 24);
-	    msec = get_uint16(rec + 28);
-	    year = get_sint16(rec + 30);
-	    month = get_sint16(rec + 32);
-	    day = get_sint16(rec + 34);
+	    sec = get_sint32(rec_buf1 + 24);
+	    msec = get_uint16(rec_buf1 + 28);
+	    year = get_sint16(rec_buf1 + 30);
+	    month = get_sint16(rec_buf1 + 32);
+	    day = get_sint16(rec_buf1 + 34);
 	    if (year == 0 || month == 0 || day == 0) {
 		Err_Append("Sweep date is 0000/00/00.  ");
 		status = SIGMET_BAD_FILE;
@@ -1010,7 +1012,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	     */
 
 	    swpTm = Tm_CalToJul(year, month, day, 0, 0, sec + 0.001 * msec);
-	    angle = Sigmet_Bin2Rad(get_uint16(rec + 46));
+	    angle = Sigmet_Bin2Rad(get_uint16(rec_buf1 + 46));
 	    vol_p->sweep_time[s] = swpTm;
 	    vol_p->sweep_angle[s] = angle;
 
@@ -1018,16 +1020,16 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	       Byte swap data segment in record, if necessary.
 	     */
 
-	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR
+	    rec_p2 = (U16BIT *)(rec_buf1 + SZ_RAW_PROD_BHDR
 		    + num_types_fl * SZ_INGEST_DATA_HDR);
-	    swap_arr16(recP, recEnd - recP);
+	    swap_arr16(rec_p2, rec_e2 - rec_p2);
 
 	    /*
 	       Initialize ray.
 	     */
 
-	    memset(ray, 0, raySz);
-	    rayP = ray;
+	    memset(ray_buf2, 0, raySz);
+	    ray_p2 = ray_buf2;
 	    yf = 0;
 
 	} else {
@@ -1037,8 +1039,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	       swap data segment in record, if necessary.
 	     */
 
-	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
-	    swap_arr16(recP, recEnd - recP);
+	    rec_p2 = (U16BIT *)(rec_buf1 + SZ_RAW_PROD_BHDR);
+	    swap_arr16(rec_p2, rec_e2 - rec_p2);
 
 	}
 
@@ -1046,40 +1048,40 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	   Decompress and store ray data.  See IRIS/Open Programmers Manual.
 	 */
 
-	while (recP < recEnd) {
+	while (rec_p2 < rec_e2) {
 
-	    if ((0x8000 & *recP) == 0x8000) {
+	    if ((0x8000 & *rec_p2) == 0x8000) {
 		/*
 		   Run of data words
 		 */
 
-		numWds = 0x7FFF & *recP;
-		if (numWds > recEnd - recP - 1) {
+		numWds = 0x7FFF & *rec_p2;
+		if (numWds > rec_e2 - rec_p2 - 1) {
 		    /*
 		       Data run crosses record boundary. Store number of
 		       words in second part of data run. We will need this
 		       when we get to the next record.
 		     */
 
-		    numWds = numWds - (recEnd - recP - 1);
+		    numWds = numWds - (rec_e2 - rec_p2 - 1);
 
 		    /*
 		       Read rest of current record.
 		     */
 
-		    for (recP++; recP < recEnd; recP++, rayP++) {
-			*rayP = *recP;
+		    for (rec_p2++; rec_p2 < rec_e2; rec_p2++, ray_p2++) {
+			*ray_p2 = *rec_p2;
 		    }
 
 		    /*
 		       Get next record.
 		     */
 
-		    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
+		    if (fread(rec_buf1, 1, REC_LEN, f) != REC_LEN) {
 			vol_p->truncated = 1;
 			break;
 		    }
-		    i = get_sint16(rec);
+		    i = get_sint16(rec_buf1);
 		    if (i != rec_idx + 1) {
 			Err_Append("Sigmet raw product file records "
 				" out of sequence.  ");
@@ -1093,15 +1095,23 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		       byte swap data segment in record, if necessary.
 		     */
 
-		    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
-		    swap_arr16(recP, recEnd - recP);
+		    rec_p2 = (U16BIT *)(rec_buf1 + SZ_RAW_PROD_BHDR);
+		    swap_arr16(rec_p2, rec_e2 - rec_p2);
 
 		    /*
 		       Get second part of data run from the new record.
 		     */
 
-		    for (recN = recP + numWds; recP < recN; recP++, rayP++) {
-			*rayP = *recP;
+		    if ( numWds > ray_e2 - ray_p2 ) {
+			Err_Append("Corrupt volume.  "
+				"Run of zeros tried to go past end of ray.  ");
+			status = SIGMET_BAD_FILE;
+			goto error;
+		    }
+		    for (rec_n2 = rec_p2 + numWds;
+			    rec_p2 < rec_n2;
+			    rec_p2++, ray_p2++) {
+			*ray_p2 = *rec_p2;
 		    }
 
 		} else {
@@ -1109,12 +1119,12 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		       Current record contains entire data run.
 		     */
 
-		    for (recP++, recN = recP + numWds; recP < recN;
-			    recP++, rayP++) {
-			*rayP = *recP;
+		    for (rec_p2++, rec_n2 = rec_p2 + numWds; rec_p2 < rec_n2;
+			    rec_p2++, ray_p2++) {
+			*ray_p2 = *rec_p2;
 		    }
 		}
-	    } else if (*recP == 1) {
+	    } else if (*rec_p2 == 1) {
 		/*
 		   End of ray
 		 */
@@ -1130,13 +1140,13 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    goto error;
 		}
 		vol_p->ray_ok[s][r] = 1;
-		vol_p->ray_az0[s][r] = Sigmet_Bin2Rad(ray[0]);
-		vol_p->ray_tilt0[s][r] = Sigmet_Bin2Rad(ray[1]);
-		vol_p->ray_az1[s][r] = Sigmet_Bin2Rad(ray[2]);
-		vol_p->ray_tilt1[s][r] = Sigmet_Bin2Rad(ray[3]);
-		nbins = vol_p->ray_num_bins[s][r] = ray[4];
+		vol_p->ray_az0[s][r] = Sigmet_Bin2Rad(ray_buf2[0]);
+		vol_p->ray_tilt0[s][r] = Sigmet_Bin2Rad(ray_buf2[1]);
+		vol_p->ray_az1[s][r] = Sigmet_Bin2Rad(ray_buf2[2]);
+		vol_p->ray_tilt1[s][r] = Sigmet_Bin2Rad(ray_buf2[3]);
+		nbins = vol_p->ray_num_bins[s][r] = ray_buf2[4];
 		if ( !vol_p->xhdr ) {
-		    vol_p->ray_time[s][r] = swpTm + ray[5];
+		    vol_p->ray_time[s][r] = swpTm + ray_buf2[5];
 		}
 
 		/*
@@ -1150,19 +1160,19 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		       above, then apply byte swapping to the raw input.
 		     */
 
-		    swap_arr16((U16BIT *)((char *)ray + SZ_RAY_HDR), 2);
-		    tm_incr = get_sint32((char *)ray + SZ_RAY_HDR);
+		    swap_arr16((U16BIT *)((U1BYT *)ray_buf2 + SZ_RAY_HDR), 2);
+		    tm_incr = get_sint32((U1BYT *)ray_buf2 + SZ_RAY_HDR);
 		    vol_p->ray_time[s][r] = swpTm + tm_incr * 0.001 / 86400.0;
 		} else {
 		    switch (Sigmet_DataType_StorFmt(vol_p->types_fl[yf])) {
 			case DATA_TYPE_U1:
 			    for (b = 0; b < nbins; b++)  {
-				vol_p->dat[y].arr.u1[s][r][b] = rayd[b];
+				vol_p->dat[y].arr.u1[s][r][b] = u1[b];
 			    }
 			    break;
 			case DATA_TYPE_U2:
 			    for (b = 0; b < nbins; b++)  {
-				vol_p->dat[y].arr.u2[s][r][b] = ((U2BYT *)rayd)[b];
+				vol_p->dat[y].arr.u2[s][r][b] = ((U2BYT *)u1)[b];
 			    }
 			    break;
 			default:
@@ -1177,27 +1187,27 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		   Reset for next ray.
 		 */
 
-		memset(ray, 0, raySz);
-		rayP = ray;
+		memset(ray_buf2, 0, raySz);
+		ray_p2 = ray_buf2;
 		if (++yf == num_types_fl) {
 		    r++;
 		    yf = 0;
 		}
-		recP++;
+		rec_p2++;
 	    } else {
 		/*
 		   Run of zeros
 		 */
 
-		numWds = 0x7FFF & *recP;
-		if ( numWds > rayEnd - rayP ) {
+		numWds = 0x7FFF & *rec_p2;
+		if ( numWds > ray_e2 - ray_p2 ) {
 		    Err_Append("Corrupt volume.  "
 			    "Run of zeros tried to go past end of ray.  ");
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
-		rayP += numWds;
-		recP++;
+		ray_p2 += numWds;
+		rec_p2++;
 	    }
 	}
     }
@@ -1208,13 +1218,13 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     if ( vol_p->truncated && feof(f) ) {
 	status = SIGMET_BAD_FILE;
     }
-    FREE(ray);
+    FREE(ray_buf2);
     vol_p->num_sweeps_ax = s;
 
     return SIGMET_OK;
 
 error:
-    FREE(ray);
+    FREE(ray_buf2);
     Sigmet_Vol_Free(vol_p);
     return status;
 }
