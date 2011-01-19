@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.27 $ $Date: 2010/12/08 15:57:44 $
+   .	$Revision: 1.28 $ $Date: 2011/01/08 01:14:54 $
  */
 
 #include <stdlib.h>
@@ -262,9 +262,12 @@ static double stor_comp_VEL(double v, void *meta)
 static double stor_comp_WIDTH(double v, void *meta)
 {
     struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
+    double wav_len, prf;
 
-    return (v == 0 || v > 255)
-	? Sigmet_NoData() : Sigmet_Vol_VNyquist(vol_p) * v / 256.0;
+    prf = vol_p->ih.tc.tdi.prf;
+    wav_len = 0.01 * 0.01 * vol_p->ih.tc.tmi.wave_len;
+    return (v == 0 || v > 255) ? Sigmet_NoData()
+	: 0.25 * wav_len * prf * v / 256.0;
 }
 
 static double stor_comp_ZDR(double v, void *meta)
