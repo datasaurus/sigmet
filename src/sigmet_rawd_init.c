@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.360 $ $Date: 2011/01/10 17:10:18 $
+ .	$Revision: 1.361 $ $Date: 2011/01/25 17:57:37 $
  */
 
 #include <limits.h>
@@ -34,7 +34,7 @@
 #include "geog_lib.h"
 #include "bisearch_lib.h"
 #include "data_types.h"
-#include "xdrx.h"
+#include "io_std.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
@@ -2215,7 +2215,6 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     FILE *kml_fl;			/* KML file */
     pid_t img_pid = 0;			/* Process id for image generator */
     FILE *img_out = NULL;		/* Where to send outlines to draw */
-    struct XDRX_Stream xout;		/* XDR stream for img_out */
     jmp_buf err_jmp;			/* Handle output errors with setjmp,
 					   longjmp */
     volatile char *item = NULL;		/* Item being written. Needed for error
@@ -2521,37 +2520,30 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 	goto error;
     }
     item = "unknown";
-    switch (setjmp(err_jmp)) {
-	case XDRX_OK:
-	    break;
-	case XDRX_ERR:
-	    fprintf(err, "%s %s: could not write %s for image %s\n%s\n",
-		    argv0, argv1, item, img_fl_nm, Err_Get());
-	    status = SIGMET_IO_FAIL;
-	    goto error;
-	    break;
-	case XDRX_EOF:
-	    break;
+    if ( setjmp(err_jmp) == IO_STD_ERROR ) {
+	fprintf(err, "%s %s: could not write %s for image %s\n%s\n",
+		argv0, argv1, item, img_fl_nm, Err_Get());
+	status = SIGMET_IO_FAIL;
+	goto error;
     }
-    XDRX_StdIO_Create(&xout, img_out, XDR_ENCODE);
     item = "image dimensions";
     SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
-    XDRX_Put_UInt(w_pxl, &xout, err_jmp);
-    XDRX_Put_UInt(h_pxl, &xout, err_jmp);
+    IO_Put_UInt(&w_pxl, 1, img_out, err_jmp);
+    IO_Put_UInt(&h_pxl, 1, img_out, err_jmp);
     item = "image real bounds";
-    XDRX_Put_Double(left, &xout, err_jmp);
-    XDRX_Put_Double(rght, &xout, err_jmp);
-    XDRX_Put_Double(top, &xout, err_jmp);
-    XDRX_Put_Double(btm, &xout, err_jmp);
+    IO_Put_Double(&left, 1, img_out, err_jmp);
+    IO_Put_Double(&rght, 1, img_out, err_jmp);
+    IO_Put_Double(&top, 1, img_out, err_jmp);
+    IO_Put_Double(&btm, 1, img_out, err_jmp);
     item = "alpha channel value";
-    XDRX_Put_Double(alpha, &xout, err_jmp);
+    IO_Put_Double(&alpha, 1, img_out, err_jmp);
 
     item = "colors";
-    XDRX_Put_UInt(num_clrs, &xout, err_jmp);
+    IO_Put_UInt(&num_clrs, 1, img_out, err_jmp);
     for (clr = clrs; clr < clrs + num_clrs; clr++) {
-	XDRX_Put_UInt(clr->red, &xout, err_jmp);
-	XDRX_Put_UInt(clr->green, &xout, err_jmp);
-	XDRX_Put_UInt(clr->blue, &xout, err_jmp);
+	IO_Put_UInt(&clr->red, 1, img_out, err_jmp);
+	IO_Put_UInt(&clr->green, 1, img_out, err_jmp);
+	IO_Put_UInt(&clr->blue, 1, img_out, err_jmp);
     }
     num_outlns = clr_idx_p - clr_idxs;
     for (clr_idx_p = clr_idxs, coord_p = coords;
@@ -2572,18 +2564,11 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 	    continue;
 	}
 	item = "polygon color index";
-	XDRX_Put_Int(*clr_idx_p, &xout, err_jmp);
+	IO_Put_Int(clr_idx_p, 1, img_out, err_jmp);
 	item = "polygon point count";
-	XDRX_Put_UInt(npts, &xout, err_jmp);
+	IO_Put_UInt(&npts, 1, img_out, err_jmp);
 	item = "bin corner coordinates";
-	XDRX_Put_Double(coord_p[0], &xout, err_jmp);
-	XDRX_Put_Double(coord_p[1], &xout, err_jmp);
-	XDRX_Put_Double(coord_p[2], &xout, err_jmp);
-	XDRX_Put_Double(coord_p[3], &xout, err_jmp);
-	XDRX_Put_Double(coord_p[4], &xout, err_jmp);
-	XDRX_Put_Double(coord_p[5], &xout, err_jmp);
-	XDRX_Put_Double(coord_p[6], &xout, err_jmp);
-	XDRX_Put_Double(coord_p[7], &xout, err_jmp);
+	IO_Put_Double(coord_p, 8, img_out, err_jmp);
     }
 
     /*
@@ -2594,7 +2579,6 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     FREE(clr_idxs);
     clr_idxs = NULL;
     coords = NULL;
-    XDRX_Destroy(&xout);
     if ( fclose(img_out) == EOF ) {
 	fprintf(err, "%s: could not close pipe to %d for image file %s.\n%s\n",
 		time_stamp(), img_pid, img_fl_nm, strerror(errno));
