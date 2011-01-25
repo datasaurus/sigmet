@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.111 $ $Date: 2011/01/14 23:14:35 $
+   .	$Revision: 1.112 $ $Date: 2011/01/25 18:32:17 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -738,9 +738,9 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 {
     int status;
 
-    char rec[REC_LEN];			/* Input record from file */
-    char *rec_p;			/* Pointer into rec */
-    char *rec_e = rec + REC_LEN;	/* End rec */
+    U1BYT rec[REC_LEN];			/* Input record from file */
+    U1BYT *rec_p;			/* Pointer into rec */
+    U1BYT *rec_e = rec + REC_LEN;	/* End rec */
     int rec_idx;			/* Current record index (0 is first) */
     int sweep_num;			/* Current sweep number (1 is first) */
 
@@ -759,9 +759,9 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 
     U2BYT cc;				/* Compression code to navigate ray
 					   segment in rec */
-    char *ray_buf = NULL;		/* Receive ray header and data */
-    char *ray_p = NULL;			/* Point into ray_buf */
-    char *ray_e = NULL;			/* End of allocation at ray_buf */
+    U1BYT *ray_buf = NULL;		/* Receive ray header and data */
+    U1BYT *ray_p = NULL;		/* Point into ray_buf */
+    U1BYT *ray_e = NULL;		/* End of allocation at ray_buf */
 
     size_t raySz;			/* Allocation size for a ray_buf */
     U1BYT *u1;				/* Pointer to start of data in ray_buf */
@@ -920,7 +920,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
      */
 
     raySz = SZ_RAY_HDR + vol_p->ih.ic.extended_ray_headers_sz + num_bins;
-    ray_buf = (char *)MALLOC(raySz);
+    ray_buf = (U1BYT *)MALLOC(raySz);
     if ( !ray_buf ) {
 	Err_Append("Could not allocate input ray buffer.  ");
 	status = SIGMET_ALLOC_FAIL;
