@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.359 $ $Date: 2011/01/08 01:14:54 $
+ .	$Revision: 1.360 $ $Date: 2011/01/10 17:10:18 $
  */
 
 #include <limits.h>
@@ -34,7 +34,7 @@
 #include "geog_lib.h"
 #include "bisearch_lib.h"
 #include "data_types.h"
-#include "io_std.h"
+#include "xdrx.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
 		continue;
 	    }
 	    cl_wd = t;
-	    cl_wd_lx = cl_wd_l;
+	    cl_wd_lx = cl_wd_l + 1;
 	}
 	memset(cl_wd, 0, cl_wd_lx);
 	if ( read(cl_io_fd, cl_wd, cl_wd_l) == -1 ) {
@@ -326,6 +326,7 @@ int main(int argc, char *argv[])
 	    close(cl_io_fd);
 	    continue;
 	}
+	*(cl_wd + cl_wd_l) = '\0';
 	if ( *cl_wd != '/' ) {
 	    fprintf(stderr, "%s: client working directory must be absolute, "
 		    "not %s, for process %d.\n%s\n",
@@ -354,7 +355,7 @@ int main(int argc, char *argv[])
 	    continue;
 	}
 	if ( cmd_ln_l > cmd_ln_lx ) {
-	    if ( !(t = REALLOC(cmd_ln, cmd_ln_l)) ) {
+	    if ( !(t = REALLOC(cmd_ln, cmd_ln_l + 1)) ) {
 		fprintf(stderr, "%s: allocation failed for command line of "
 			"%lu bytes for process %ld.\n",
 			time_stamp(), (unsigned long)cmd_ln_l, (long)client_pid);
@@ -362,7 +363,7 @@ int main(int argc, char *argv[])
 		continue;
 	    }
 	    cmd_ln = t;
-	    cmd_ln_lx = cmd_ln_l;
+	    cmd_ln_lx = cmd_ln_l + 1;
 	}
 	memset(cmd_ln, 0, cmd_ln_lx);
 	if ( read(cl_io_fd, cmd_ln, cmd_ln_l) == -1 ) {
@@ -371,6 +372,7 @@ int main(int argc, char *argv[])
 	    close(cl_io_fd);
 	    continue;
 	}
+	*(cmd_ln + cmd_ln_l) = '\0';
 
 	/*
 	   Break command line into arguments at nul boundaries.
@@ -2184,9 +2186,9 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     struct DataType_Color *clrs; 	/* Array of colors */
     struct DataType_Color *clr; 	/* Point into clrs*/
     unsigned num_clrs;			/* Number colors = number bounds - 1 */
-    unsigned *clr_idxs = NULL;		/* Array of color indeces */
-    unsigned *clr_idx_p;		/* Next usable location in clr_idxs */
-    unsigned *clr_idx_e;		/* Address one past end of allocation 
+    int *clr_idxs = NULL;		/* Array of color indeces */
+    int *clr_idx_p;			/* Next usable location in clr_idxs */
+    int *clr_idx_e;			/* Address one past end of allocation 
 					   at clr_idxs */
     double *bnds;			/* bounds for each color */
     unsigned char n_bnds;		/* number of bounds = num_clrs + 1 */
@@ -2205,7 +2207,6 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 					   units */
     double alpha;			/* Image alpha channel */
     char img_fl_nm[LEN]; 		/* Image output file name */
-    unsigned img_fl_nm_l;		/* strlen(img_fl_nm) */
     int flags;                  	/* Image file creation flags */
     mode_t mode;                	/* Image file permissions */
     int i_img_fl;			/* Image file descriptor, not used */
@@ -2214,13 +2215,14 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     FILE *kml_fl;			/* KML file */
     pid_t img_pid = 0;			/* Process id for image generator */
     FILE *img_out = NULL;		/* Where to send outlines to draw */
+    struct XDRX_Stream xout;		/* XDR stream for img_out */
     jmp_buf err_jmp;			/* Handle output errors with setjmp,
 					   longjmp */
     volatile char *item = NULL;		/* Item being written. Needed for error
 					   message. */
     pid_t p;				/* Return from waitpid */
     int si;				/* Exit status of image generator */
-    char *img_argv[2];
+    char *img_argv[3];
     int img_wr;
 
     /*
@@ -2412,13 +2414,13 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 		if ( Sigmet_IsData(d)
 			&& (i_bnd = BISearch(d, bnds, n_bnds)) != -1 ) {
 		    if ( clr_idx_p == clr_idx_e ) {
-			unsigned *t;
+			int *t;
 			size_t alloc_ints, use_ints, bytes;
 			size_t chunk = 2000 * 120;
 
 			use_ints = (clr_idx_p - clr_idxs);
 			alloc_ints = ((clr_idx_e - clr_idxs) + chunk);
-			bytes = alloc_ints * sizeof(unsigned);
+			bytes = alloc_ints * sizeof(int);
 			if ( !(t = REALLOC(clr_idxs, bytes)) ) {
 			    fprintf(err, "%s %s: could not grow array of color "
 				    "indeces at sweep %d, ray %d, index %d\n",
@@ -2503,7 +2505,8 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
      */
 
     img_argv[0] = img_app;
-    img_argv[1] = NULL;
+    img_argv[1] = img_fl_nm;
+    img_argv[2] = NULL;
     if ( (img_pid = execvp_pipe(img_argv, &img_wr, NULL)) == 0 ) {
 	fprintf(err, "%s %s: could not spawn image application\n"
 		"%s\n", argv0, argv1, Err_Get());
@@ -2518,33 +2521,37 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 	goto error;
     }
     item = "unknown";
-    if ( setjmp(err_jmp) == IO_STD_ERROR ) {
-	fprintf(err, "%s %s: could not write %s for image %s\n%s\n",
-		argv0, argv1, item, img_fl_nm, Err_Get());
-	status = SIGMET_IO_FAIL;
-	goto error;
+    switch (setjmp(err_jmp)) {
+	case XDRX_OK:
+	    break;
+	case XDRX_ERR:
+	    fprintf(err, "%s %s: could not write %s for image %s\n%s\n",
+		    argv0, argv1, item, img_fl_nm, Err_Get());
+	    status = SIGMET_IO_FAIL;
+	    goto error;
+	    break;
+	case XDRX_EOF:
+	    break;
     }
-    img_fl_nm_l = strlen(img_fl_nm);
-    item = "image file name";
-    IO_Put_UInt(&img_fl_nm_l, 1, img_out, err_jmp);
-    IO_Put_Chars(img_fl_nm, img_fl_nm_l, img_out, err_jmp);
+    XDRX_StdIO_Create(&xout, img_out, XDR_ENCODE);
     item = "image dimensions";
     SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
-    IO_Put_UInt(&w_pxl, 1, img_out, err_jmp);
-    IO_Put_UInt(&h_pxl, 1, img_out, err_jmp);
+    XDRX_Put_UInt(w_pxl, &xout, err_jmp);
+    XDRX_Put_UInt(h_pxl, &xout, err_jmp);
     item = "image real bounds";
-    IO_Put_Double(&left, 1, img_out, err_jmp);
-    IO_Put_Double(&rght, 1, img_out, err_jmp);
-    IO_Put_Double(&top, 1, img_out, err_jmp);
-    IO_Put_Double(&btm, 1, img_out, err_jmp);
+    XDRX_Put_Double(left, &xout, err_jmp);
+    XDRX_Put_Double(rght, &xout, err_jmp);
+    XDRX_Put_Double(top, &xout, err_jmp);
+    XDRX_Put_Double(btm, &xout, err_jmp);
     item = "alpha channel value";
-    IO_Put_Double(&alpha, 1, img_out, err_jmp);
+    XDRX_Put_Double(alpha, &xout, err_jmp);
+
     item = "colors";
-    IO_Put_UInt(&num_clrs, 1, img_out, err_jmp);
+    XDRX_Put_UInt(num_clrs, &xout, err_jmp);
     for (clr = clrs; clr < clrs + num_clrs; clr++) {
-	IO_Put_UInt(&clr->red, 1, img_out, err_jmp);
-	IO_Put_UInt(&clr->green, 1, img_out, err_jmp);
-	IO_Put_UInt(&clr->blue, 1, img_out, err_jmp);
+	XDRX_Put_UInt(clr->red, &xout, err_jmp);
+	XDRX_Put_UInt(clr->green, &xout, err_jmp);
+	XDRX_Put_UInt(clr->blue, &xout, err_jmp);
     }
     num_outlns = clr_idx_p - clr_idxs;
     for (clr_idx_p = clr_idxs, coord_p = coords;
@@ -2565,11 +2572,18 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
 	    continue;
 	}
 	item = "polygon color index";
-	IO_Put_UInt(clr_idx_p, 1, img_out, err_jmp);
+	XDRX_Put_Int(*clr_idx_p, &xout, err_jmp);
 	item = "polygon point count";
-	IO_Put_UInt(&npts, 1, img_out, err_jmp);
+	XDRX_Put_UInt(npts, &xout, err_jmp);
 	item = "bin corner coordinates";
-	IO_Put_Double(coord_p, 8, img_out, err_jmp);
+	XDRX_Put_Double(coord_p[0], &xout, err_jmp);
+	XDRX_Put_Double(coord_p[1], &xout, err_jmp);
+	XDRX_Put_Double(coord_p[2], &xout, err_jmp);
+	XDRX_Put_Double(coord_p[3], &xout, err_jmp);
+	XDRX_Put_Double(coord_p[4], &xout, err_jmp);
+	XDRX_Put_Double(coord_p[5], &xout, err_jmp);
+	XDRX_Put_Double(coord_p[6], &xout, err_jmp);
+	XDRX_Put_Double(coord_p[7], &xout, err_jmp);
     }
 
     /*
@@ -2580,6 +2594,7 @@ static int img_cb(int argc, char *argv[], char *cl_wd, int i_out,
     FREE(clr_idxs);
     clr_idxs = NULL;
     coords = NULL;
+    XDRX_Destroy(&xout);
     if ( fclose(img_out) == EOF ) {
 	fprintf(err, "%s: could not close pipe to %d for image file %s.\n%s\n",
 		time_stamp(), img_pid, img_fl_nm, strerror(errno));
