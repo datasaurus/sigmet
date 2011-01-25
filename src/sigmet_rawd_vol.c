@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.58 $ $Date: 2011/01/07 20:17:30 $
+ .	$Revision: 1.59 $ $Date: 2011/01/10 17:11:14 $
  */
 
 #include <unistd.h>
@@ -361,7 +361,7 @@ int SigmetRaw_ReadHdr(char *vol_nm, int i_err, struct Sigmet_Vol ** vol_pp)
     int loaded;			/* If true, volume is loaded */
     int try;			/* Number of attempts to read volume */
     int max_try = 3;		/* Maximum tries */
-    int status;			/* Result of a read call */
+    int status = SIGMET_OK;	/* Result of a read call */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
 
@@ -463,7 +463,7 @@ int SigmetRaw_ReadVol(char *vol_nm, int i_err, struct Sigmet_Vol **vol_pp)
     int loaded;			/* If true, volume is loaded */
     int try;			/* Number of attempts to read volume */
     int max_try = 3;		/* Maximum tries */
-    int status;			/* Result of a read call */
+    int status = SIGMET_OK;	/* Result of a read call */
     FILE *in;			/* Stream from Sigmet raw file */
     pid_t in_pid = -1;		/* Process providing in, if any */
 
