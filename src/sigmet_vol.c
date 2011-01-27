@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.113 $ $Date: 2011/01/25 19:00:54 $
+   .	$Revision: 1.114 $ $Date: 2011/01/27 15:28:34 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1069,16 +1069,20 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    tm_incr = get_sint32(ray_buf + SZ_RAY_HDR);
 		    vol_p->ray_time[s][r] = swpTm + tm_incr * 0.001 / 86400.0;
 		} else {
+		    U1BYT *vol_u1;
+		    U2BYT *vol_u2;
+
 		    switch (Sigmet_DataType_StorFmt(vol_p->types_fl[yf])) {
 			case DATA_TYPE_U1:
+			    vol_u1 = vol_p->dat[y].arr.u1[s][r];
 			    for (b = 0; b < nbins; b++)  {
-				vol_p->dat[y].arr.u1[s][r][b] = u1[b];
+				vol_u1[b] = u1[b];
 			    }
 			    break;
 			case DATA_TYPE_U2:
+			    vol_u2 = vol_p->dat[y].arr.u2[s][r];
 			    for (b = 0; b < nbins; b++)  {
-				vol_p->dat[y].arr.u2[s][r][b]
-				    = get_uint16(u2 + b);
+				vol_u2[b] = get_uint16(u2 + b);
 			    }
 			    break;
 			default:
