@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.112 $ $Date: 2011/01/25 18:32:17 $
+   .	$Revision: 1.113 $ $Date: 2011/01/25 19:00:54 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -479,6 +479,8 @@ int Sigmet_Vol_Good(FILE *f)
 {
     struct Sigmet_Vol vol;
     char rec[REC_LEN];			/* Input record from file */
+    char *rec_p;			/* Pointer into rec */
+    char *rec_e = rec + REC_LEN;	/* End rec */
     int num_types_fl;
     int num_types;
     static unsigned type_mask_bit[SIGMET_NTYPES] = {
@@ -490,48 +492,42 @@ int Sigmet_Vol_Good(FILE *f)
 	(1 << 26), (1 << 27), (1 << 28)
     };
     unsigned vol_type_mask;
-    U16BIT *recP;			/* Pointer into rec */
-    U16BIT *recN;			/* Stopping point in rec */
-    U16BIT *recEnd = (U16BIT *)(rec + REC_LEN); /* End rec */
     int rec_idx;			/* Current record index (0 is first) */
     int sweep_num;			/* Current sweep number (1 is first) */
-
     int num_sweeps;			/* Number of sweeps in volume */
     unsigned num_rays;			/* Number of rays per sweep */
     int num_bins;			/* Number of output bins */
-
     int year, month, day, sec;
     unsigned msec;
-
     unsigned numWds;			/* Number of words in a run of data */
     enum Sigmet_DataTypeN type;
-    int s, r;				/* Sweep, ray indeces */
+    int yf, s, r;			/* Type, sweep, ray indeces */
     int i, n;				/* Temporary values */
+    U2BYT cc;				/* Compression code to navigate ray
+					   segment in rec */
+
+    if ( !f ) {
+	return SIGMET_BAD_FILE;
+    }
 
     s = type = r = 0;
     Sigmet_Vol_Init(&vol);
 
     /*
        record 1, <product_header>
+       If first 16 bits of product header != 27, turn on byte swapping
+       and check again. If still not 27, give up.
      */
 
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 	return SIGMET_IO_FAIL;
     }
-
-    /*
-       If first 16 bits of product header != 27, turn on byte swapping
-       and check again. If still not 27, give up.
-     */
-
     if (get_sint16(rec) != 27) {
 	Toggle_Swap();
 	if (get_sint16(rec) != 27) {
 	    return SIGMET_BAD_FILE;
 	}
     }
-
-    vol.ph = get_product_hdr(rec);
 
     /*
        record 2, <ingest_header>
@@ -559,15 +555,17 @@ int Sigmet_Vol_Good(FILE *f)
 	}
     }
     vol.num_types = num_types;
-
-    num_types = vol.num_types;
-    num_types_fl = num_types + vol.xhdr;
+    if ( num_types_fl != num_types + vol.xhdr ) {
+	return SIGMET_BAD_FILE;
+    }
     num_sweeps = vol.ih.tc.tni.num_sweeps;
     num_rays = vol.ih.ic.num_rays;
     num_bins = vol.ih.tc.tri.num_bins_out;
+    s = r = 0;
+    yf = 0;
 
     /*
-       Process data records
+       Process data records.
      */
 
     rec_idx = 1;
@@ -580,12 +578,10 @@ int Sigmet_Vol_Good(FILE *f)
 
 	i = get_sint16(rec);
 	n = get_sint16(rec + 2);
-
 	if (i != rec_idx + 1) {
 	    return SIGMET_BAD_FILE;
 	}
 	rec_idx = i;
-
 	if (n != sweep_num) {
 	    /*
 	       Record is start of new sweep.
@@ -605,103 +601,71 @@ int Sigmet_Vol_Good(FILE *f)
 
 	    n = get_sint16(rec + 36);
 	    if (n == 0) {
-		vol.ih.tc.tni.num_sweeps = sweep_num - 1;
 		break;
 	    }
 
 	    /*
-	       Store sweep time and angle (from first <ingest_data_header>).
+	       Check sweep time and angle (from first <ingest_data_header>).
 	     */
 
 	    sec = get_sint32(rec + 24);
 	    msec = get_uint16(rec + 28);
+	    msec &= 0x3ff;
 	    year = get_sint16(rec + 30);
 	    month = get_sint16(rec + 32);
 	    day = get_sint16(rec + 34);
 	    if (year == 0 || month == 0 || day == 0) {
 		return SIGMET_BAD_FILE;
 	    }
-	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR
-		    + num_types_fl * SZ_INGEST_DATA_HDR);
-	    type = 0;
-
+	    rec_p = rec + SZ_RAW_PROD_BHDR + num_types_fl * SZ_INGEST_DATA_HDR;
+	    yf = 0;
 	} else {
-
 	    /*
 	       Record continues a sweep started in an earlier record.
 	     */
 
-	    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
-
+	    rec_p = rec + SZ_RAW_PROD_BHDR;
 	}
 
 	/*
-	   Decompress and store ray data.
-	   See IRIS/Open Programmers Manual, April 2000, p. 3-38 to 3-40.
+	   Decompress and discard ray data.
+	   See IRIS/Open Programmers Manual.
 	 */
 
-	while (recP < recEnd) {
+	while (rec_p < rec_e) {
 
-	    if ((0x8000 & *recP) == 0x8000) {
+	    cc = get_uint16(rec_p);
+	    if ( (0x8000 & cc) == 0x8000 ) {
 		/*
 		   Run of data words
 		 */
 
-		numWds = 0x7FFF & *recP;
-		if (numWds > recEnd - recP - 1) {
-		    /*
-		       Data run crosses record boundary. Store number of
-		       words in second part of data run. We will need this
-		       when we get to the next record.
-		     */
+		numWds = 0x7FFF & cc;
+		for (rec_p += 2; numWds > 0; ) {
+		    if ( rec_p == rec_e ) {
+			/*
+			   Data run crosses record boundary.  
+			   Read the next record.
+			 */
 
-		    numWds = numWds - (recEnd - recP - 1);
+			if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
+			    return SIGMET_BAD_FILE;
+			}
+			i = get_sint16(rec);
+			if (i != rec_idx + 1) {
+			    return SIGMET_BAD_FILE;
+			}
+			rec_idx = i;
+			rec_p = rec + SZ_RAW_PROD_BHDR;
 
-		    /*
-		       Skip rest of current record.
-		     */
-
-		    for (recP++; recP < recEnd; recP++) {
 		    }
-
-		    /*
-		       Get next record. Record number from <raw_prod_bhdr>
-		       should agree with counter.
-		     */
-
-		    if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
-			return SIGMET_IO_FAIL;
-		    }
-		    i = get_sint16(rec);
-		    if (i != rec_idx + 1) {
-			return SIGMET_BAD_FILE;
-		    }
-		    rec_idx = i;
-
-		    /*
-		       Position record pointer at start of data segment.
-		     */
-
-		    recP = (U16BIT *)(rec + SZ_RAW_PROD_BHDR);
-
-		    /*
-		       Skip second part of data run from the new record.
-		     */
-
-		    for (recN = recP + numWds; recP < recN; recP++) {
-		    }
-
-		} else {
-		    /*
-		       Current record contains entire data run. Skip it.
-		     */
-
-		    for (recP++, recN = recP + numWds; recP < recN; recP++) {
-		    }
+		    rec_p++;
+		    rec_p++;
+		    numWds--;
 		}
-	    } else if (*recP == 1) {
+	    } else if ( cc == 1 ) {
 		/*
-		   End of ray. Skip ray data. Reset for next ray.
+		   End of ray
 		 */
 
 		if (s > num_sweeps) {
@@ -710,22 +674,22 @@ int Sigmet_Vol_Good(FILE *f)
 		if (r > num_rays) {
 		    return SIGMET_BAD_FILE;
 		}
-		if (++type == num_types_fl) {
+		if (++yf == num_types_fl) {
 		    r++;
-		    type = 0;
+		    yf = 0;
 		}
-		recP++;
+		rec_p += 2;
 	    } else {
 		/*
 		   Run of zeros
 		 */
 
-		numWds = 0x7FFF & *recP;
-		recP++;
+		numWds = 0x7FFF & cc;
+		rec_p += 2;
 	    }
 	}
     }
-    if (s + 1 != num_sweeps) {
+    if ( r + 1 < num_rays ) {
 	return SIGMET_BAD_FILE;
     }
     if ( !feof(f) ) {
