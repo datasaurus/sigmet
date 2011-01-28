@@ -1,0 +1,160 @@
+.\"
+.\" Copyright (c) 2011 Gordon D. Carrie
+.\" All rights reserved.
+.\"
+.\" Please send feedback to dev0@trekix.net
+.\"
+.\" $Revision: $ $Date: $
+.Pp
+.Dd $Mdocdate$
+.Dt SIGMET 3
+.Os UNIX
+.Sh NAME
+.Nm Sigmet_NoData,
+.Nm Sigmet_IsData,
+.Nm Sigmet_IsNoData,
+.Nm Sigmet_Bin4Rad,
+.Nm Sigmet_Bin2Rad,
+.Nm Sigmet_RadBin4,
+.Nm Sigmet_RadBin2,
+.Nm Sigmet_DataType_GetN,
+.Nm Sigmet_DataType_Abbrv,
+.Nm Sigmet_DataType_Descr,
+.Nm Sigmet_DataType_Unit,
+.Nm Sigmet_DataType_StorFmt,
+.Nm Sigmet_DataType_StorToComp,
+.Nd represent Sigmet raw data
+.Sh SYNOPSIS
+.Fd "#include <sigmet.h>"
+.Ft int
+.Fn Sigmet_DataType_GetN "char *field_name" "enum Sigmet_DataTypeN *y_p"
+.Ft char *
+.Fn Sigmet_DataType_Abbrv "enum Sigmet_DataTypeN y"
+.Ft char *
+.Fn Sigmet_DataType_Descr "enum Sigmet_DataTypeN y"
+.Ft char *
+.Fn Sigmet_DataType_Unit "enum Sigmet_DataTypeN y"
+.Ft enum DataType_StorFmt
+.Fn Sigmet_DataType_StorFmt "enum Sigmet_DataTypeN y"
+.Ft DataType_StorToCompFn
+.Fn Sigmet_DataType_StorToComp "enum Sigmet_DataTypeN y"
+.Ft float
+.Fn Sigmet_NoData "void"
+.Ft int
+.Fn Sigmet_IsData "float v"
+.Ft int
+.Fn Sigmet_IsNoData "float v"
+.Ft double
+.Fn Sigmet_Bin4Rad "unsigned long b"
+.Ft double
+.Fn Sigmet_Bin2Rad "unsigned short b"
+.Ft unsigned long
+.Fn Sigmet_RadBin4 "double a"
+.Ft unsigned long
+.Fn Sigmet_RadBin2 "double a"
+.Sh DESCRIPTION
+These structures and functions identify and manipulate data obtained
+from Sigmet raw product volumes.  See
+.Rs
+.%R IRIS Programmer's Manual
+.%D September 2002
+.Re
+for more information.
+.Pp
+A Sigmet data type is identified by an integer constant which must
+be member of:
+.Bd -literal -offset indent
+enum Sigmet_DataTypeN {
+    DB_XHDR,    DB_DBT,         DB_DBZ,         DB_VEL,         DB_WIDTH,
+    DB_ZDR,     DB_DBZC,        DB_DBT2,        DB_DBZ2,        DB_VEL2,
+    DB_WIDTH2,  DB_ZDR2,        DB_RAINRATE2,   DB_KDP,         DB_KDP2,
+    DB_PHIDP,   DB_VELC,        DB_SQI,         DB_RHOHV,       DB_RHOHV2,
+    DB_DBZC2,   DB_VELC2,       DB_SQI2,        DB_PHIDP2,      DB_LDRH,
+    DB_LDRH2,   DB_LDRV,        DB_LDRV2
+};
+
+.Ed
+.Pp
+.Fn Sigmet_DataType_GetN
+finds the Sigmet data type enumerator corresponding to field name
+.Fa field_name
+which must be a string whose contents are the name of a Sigmet_DataTypeN enumerator.
+If there is one, it places it the enumerator value at
+.Fa y_p
+and returns true. Otherwise it returns false.
+.Pp
+.Fn Sigmet_DataType_Abbrv
+returns a field name describing type
+.Fa y ,
+which must be a Sigmet_DataTypeN enumerator.
+.Pp
+.Fn Sigmet_DataType_Descr
+returns a longer description for
+.Fa y .
+.Pp
+.Fn Sigmet_DataType_Unit
+returns a physical unit, which could be
+.Li \&"none\&" .
+.Pp
+.Fn Sigmet_DataType_Abbrv ,
+.Fn Sigmet_DataType_Descr ,
+and
+.Fn Sigmet_DataType_Unit
+return
+.Li NULL
+if
+.Fa y
+is out of range.  Return values of these functions should not be modified by the user.
+.Pp
+.Fn Sigmet_DataType_StorFmt
+returns the storage format for data type
+.Fa y ,
+as described in
+.Xr data_types 3 .
+.Pp
+.Fn Sigmet_DataType_StorToComp
+returns a function that converts a storage value to a computational value
+(measurement).
+.Pp
+.Fn Sigmet_NoData
+returns a value indicating missing of invalid data.
+.Pp
+.Fn Sigmet_IsData
+returns true if
+.Fa v
+is not the return value from
+.Fn Sigmet_NoData .
+.Pp
+.Fn Sigmet_IsNoData
+returns true if
+.Fa v
+is the return value from
+.Fn Sigmet_NoData .
+.Pp
+.Fn Sigmet_Bin4Rad
+returns the angle in radians corresponding to Sigmet four byte binary angle
+.Fa b .
+.Pp
+.Fn Sigmet_Bin2Rad
+returns the angle in radians corresponding to Sigmet two byte binary angle
+.Fa b .
+.Pp
+.Fn Sigmet_RadBin4
+returns the Sigmet four byte binary angle
+.Fa a
+corresponding to angle in radians.
+.Pp
+.Fn Sigmet_RadBin2
+returns the Sigmet two byte binary angle
+.Fa a
+corresponding to angle in radians.
+.Sh KEYWORDS
+radar sigmet data
+.Sh SEE ALSO
+.Xr Err_Get 3 ,
+.Xr sigmet_raw 1
+.Rs
+.%B IRIS Programmer's Manual
+.Re
+.Sh AUTHOR
+Gordon Carrie (dev0@trekix.net)
