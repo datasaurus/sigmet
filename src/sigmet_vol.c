@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.114 $ $Date: 2011/01/27 15:28:34 $
+   .	$Revision: 1.115 $ $Date: 2011/01/27 15:49:15 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -65,6 +65,7 @@ static unsigned get_uint16(void *);
 static int get_sint32(void *);
 static unsigned get_uint32(void *);
 static int type_tbl_set(struct Sigmet_Vol *);
+static int vol_good(FILE *);
 
 /*
    Default length for character strings
@@ -475,7 +476,7 @@ void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
 	    vol_p->truncated, "truncated", "If true, volume is truncated");
 }
 
-int Sigmet_Vol_Good(FILE *f)
+static int vol_good(FILE *f)
 {
     struct Sigmet_Vol vol;
     char rec[REC_LEN];			/* Input record from file */
@@ -743,9 +744,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	goto error;
     }
     if ( !vol_p ) {
-	Err_Append("Read header function called with bogus volume. ");
-	status = SIGMET_BAD_ARG;
-	goto error;
+	return vol_good(f);
     }
 
     s = r = b = 0;
@@ -3832,7 +3831,7 @@ void print_ymds_time(FILE *out, struct Sigmet_YMDS_Time tm, char *prefix,
     fhour = modf(sec / 3600.0, &ihour);
     fmin = modf(fhour * 60.0, &imin);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
-    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f. " FS " %s " FS " %s\n",
+    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f " FS " %s " FS " %s\n",
 	    tm.year, tm.month, tm.day,
 	    (int)ihour, (int)imin, fmin * 60.0,
 	    struct_path, desc);

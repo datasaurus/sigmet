@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.60 $ $Date: 2011/01/25 17:52:26 $
+ .	$Revision: 1.61 $ $Date: 2011/01/27 15:30:32 $
  */
 
 #include <unistd.h>
@@ -340,7 +340,7 @@ int SigmetRaw_GoodVol(char *vol_nm, int i_err)
 	Err_Append(". ");
 	return SIGMET_IO_FAIL;
     }
-    status = Sigmet_Vol_Good(in);
+    status = Sigmet_Vol_Read(in, NULL);
     fclose(in);
     if ( p != -1 ) {
 	waitpid(p, NULL, 0);
