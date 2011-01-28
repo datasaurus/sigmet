@@ -1,0 +1,451 @@
+.\"
+.\" Copyright (c) 2010 Gordon D. Carrie
+.\" All rights reserved.
+.\"
+.\" Please send feedback to dev0@trekix.net
+.\"
+.\" $Revision: $ $Date: $
+.Pp
+.Dd $Mdocdate$
+.Dt SIGMET_VOL 3
+.Os UNIX
+.Sh NAME
+.Nm Sigmet_Vol_Init,
+.Nm Sigmet_Vol_Free,
+.Nm Sigmet_Vol_Good,
+.Nm Sigmet_Vol_ReadHdr,
+.Nm Sigmet_Vol_PrintHdr,
+.Nm Sigmet_Vol_Read,
+.Nm Sigmet_Vol_BadRay,
+.Nm Sigmet_Vol_BinOutl,
+.Nm Sigmet_Vol_NewField,
+.Nm Sigmet_Vol_DelField,
+.Nm Sigmet_Vol_Fld_SetVal,
+.Nm Sigmet_Vol_Fld_SetRBeam,
+.Nm Sigmet_Vol_Fld_Copy,
+.Nm Sigmet_Vol_Fld_AddVal,
+.Nm Sigmet_Vol_Fld_AddFld,
+.Nm Sigmet_Vol_Fld_SubVal,
+.Nm Sigmet_Vol_Fld_SubFld,
+.Nm Sigmet_Vol_Fld_MulVal,
+.Nm Sigmet_Vol_Fld_MulFld,
+.Nm Sigmet_Vol_Fld_DivVal,
+.Nm Sigmet_Vol_Fld_DivFld,
+.Nm Sigmet_Vol_Fld_Log10,
+.Nm Sigmet_Vol_IncrTm,
+.Nm Sigmet_Vol_VNyquist,
+.Nm Sigmet_Vol_GetDat,
+.Nm Sigmet_Vol_GetRayDat,
+.Nm Sigmet_Vol_ToDorade,
+.Nd read and manipulate data from Sigmet raw product files
+.Sh SYNOPSIS
+.Fd "#include <sigmet.h>"
+.Ft void
+.Fn Sigmet_Vol_Init "struct Sigmet_Vol *vol_p"
+.Ft void
+.Fn Sigmet_Vol_Free "struct Sigmet_Vol *vol_p"
+.Ft int
+.Fn Sigmet_Vol_Good "FILE *f"
+.Ft int
+.Fn Sigmet_Vol_ReadHdr "FILE *f" "struct Sigmet_Vol *vol_p"
+.Ft void
+.Fn Sigmet_Vol_PrintHdr "FILE * f" "struct Sigmet_Vol *vol_p"
+.Ft int
+.Fn Sigmet_Vol_Read "FILE *f" "struct Sigmet_Vol *vol_p"
+.Ft int
+.Fn Sigmet_Vol_BadRay "struct Sigmet_Vol *vol_p" "int s" "int r"
+.Ft int
+.Fn Sigmet_Vol_BinOutl "struct Sigmet_Vol *vol_p" "int s" "int r" "int b" "double *lonlats"
+.Ft int
+.Fn Sigmet_Vol_NewField "struct Sigmet_Vol *vol_p" "char *field_name"
+.Ft int
+.Fn Sigmet_Vol_DelField "struct Sigmet_Vol *vol_p" "char *field_name"
+.Ft int
+.Fn Sigmet_Vol_Fld_SetVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
+.Ft int
+.Fn Sigmet_Vol_Fld_SetRBeam "struct Sigmet_Vol *vol_p" "char *field_name"
+.Ft int
+.Fn Sigmet_Vol_Fld_Copy "struct Sigmet_Vol *vol_p" "char *dest_field" "char *src_field"
+.Ft int
+.Fn Sigmet_Vol_Fld_AddVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
+.Ft int
+.Fn Sigmet_Vol_Fld_AddFld "struct Sigmet_Vol *vol_p" "char *field_name" "char *addend_field"
+.Ft int
+.Fn Sigmet_Vol_Fld_SubVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
+.Ft int
+.Fn Sigmet_Vol_Fld_SubFld "struct Sigmet_Vol *vol_p" "char *field_name" "char *subt_field"
+.Ft int
+.Fn Sigmet_Vol_Fld_MulVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
+.Ft int
+.Fn Sigmet_Vol_Fld_MulFld "struct Sigmet_Vol *vol_p" "char *field_name" "char *factor_field"
+.Ft int
+.Fn Sigmet_Vol_Fld_DivVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
+.Ft int
+.Fn Sigmet_Vol_Fld_DivFld "struct Sigmet_Vol *vol_p" "char *field_name" "char *divs_field"
+.Ft int
+.Fn Sigmet_Vol_Fld_Log10 "struct Sigmet_Vol *vol_p" "char *field_name"
+.Ft int
+.Fn Sigmet_Vol_IncrTm "struct Sigmet_Vol *vol_p" "double dt"
+.Ft double
+.Fn Sigmet_Vol_VNyquist "struct Sigmet_Vol *vol_p"
+.Ft float
+.Fn Sigmet_Vol_GetDat "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "int b"
+.Ft int
+.Fn Sigmet_Vol_GetRayDat "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "float **ray_p" "int *n"
+.Ft int
+.Fn Sigmet_Vol_ToDorade "struct Sigmet_Vol *vol_p" "int s" "struct Dorade_Sweep *swp_p"
+.Sh DESCRIPTION
+Data from Sigmet raw product volumes are stored in structures of type
+.Li struct\ Sigmet_Vol ,
+which is declared in
+.Li sigmet.h .
+.Pp
+.Fn Sigmet_Vol_Init
+initializes a Sigmet volume structure at
+.Fa vol_p ,
+whose previous contents are assumed to be garbage.  Upon return,
+.Fa vol_p
+can be safely passed to
+.Fn Sigmet_Vol_Free .
+.Pp
+.Fn Sigmet_Vol_Free
+frees memory associated with a Sigmet volume structure at
+.Fa vol_p
+and reinitializes the structure.
+.Pp
+.Fn Sigmet_Vol_Good
+returns true if the file at
+.Fa f
+is a readable Sigmet raw product volume.
+.Pp
+.Fn Sigmet_Vol_ReadHdr
+reads and stores volume headers for a Sigmet raw product file from stream
+.Fa f
+into the volume structure at
+.Fa vol_p .
+Volume headers in this context mean members from the product header and
+ingest header in the first two records of a raw product file. These headers
+give information about the volume time, radar location, and task configuration.
+.Fn Sigmet_Vol_ReadHdr
+does not store ray headers or data. For all data and meta-data, use
+.Fn Simget_Vol_Read .
+.Fa f
+should be at the start of a raw product file.
+.Fa vol_p
+should have been initialized at least once with a call to
+.Fn Sigmet_Vol_Init .
+Upon entry,
+.Fn Sigmet_Vol_ReadHdr
+will free the contents of
+.Fa vol_p
+with a call to
+.Fn Sigmet_Vol_Free .
+If something goes wrong,
+.Fn Sigmet_Vol_ReadHdr
+stores nothing and re-initializes the structure at
+.Fa vol_p
+with a call to
+.Fn Sigmet_Vol_Init .
+.Pp
+.Fn Sigmet_Vol_PrintHdr
+prints volume headers from
+.Fa vol
+to output stream
+.Fa f
+\&.  Each line of output will have form:
+.Bd -literal -offset indent
+value|hierarchy|description
+
+.Ed
+where
+.Li hierarchy
+refers to a member's position in Sigmet's file hierarchy, as described in section 3.2 of the IRIS Programmer's Manual.  Hierarchies are printed with form:
+.Bd -literal -offset indent
+\&...<parent>.<child>.<grandchild>.member
+
+.Ed
+For example, volume start time from the ingest_configuration member of ingest_header will be identified as
+.Li <ingest_header>.<ingest_configuration>.vol_start_time
+so the line of output would look something like
+.Bd -literal -offset indent
+2010/06/12 23:39:19.79 | <ingest_header>.<ingest_configuration>.vol_start_time | Time that volume scan was started, TZ spec in bytes 166 & 224
+
+.Ed .
+.Pp
+.Fn Sigmet_Vol_Read
+reads and stores everything from a Sigmet raw product file from stream
+.Fa f
+into the volume structure at
+.Fa vol_p .
+.Fa f
+should be at the start of a raw product file.
+.Fa vol_p
+should have already been initialized with a call to
+.Fn Sigmet_Vol_Init .
+Upon entry,
+.Fn Sigmet_Vol_ReadHdr
+will free the contents of
+.Fa f
+with a call to
+.Fn Sigmet_Vol_Free .
+If
+.Fn Sigmet_Vol_Read
+returns
+.Li SIGMET_READ_OK .
+or
+.Li SIGMET_INPUT_FAIL
+(see below) then it read all or possibly some of the volume, and populated
+.Fa vol_p .
+In both of these cases, memory allocated should eventually be freed with a call
+to
+.Fa Sigmet_Vol_Free .
+In all other cases, the function stores nothing, frees any memory it has
+allocated, and re-initializes the structure at
+.Fa vol_p
+with a call to
+.Fn Sigmet_Vol_Init .
+.Pp
+.Fn Sigmet_Vol_BadRay
+returns true if the ray in
+.Fa vol_p
+at index
+.Fa s
+,
+.Fa r
+is unusable.
+.Pp
+.Fn Sigmet_Vol_BinOutl
+computes the geographic coordinates of the bin for sweep
+.Fa s
+, ray
+.Fa r
+, bin
+.Fa b
+in the Sigmet volume at
+.Fa vol_p
+\&. The coordinates are placed into array
+.Fa lonlats
+as lon1\ lat1\ lon2\ lat2\ lon3\ lat3\ lon4\ lat4, denoting the corners of the bin.  Array
+.Fa lonlats
+must point to space for eight double values.
+.Pp
+.Fn Sigmet_Vol_NewField
+creates a new field named
+.Fa field_name
+to the volume at
+.Fa vol_p .
+All bins in the new field will be initialized to
+.Li Sigmet_NoData() .
+.Pp
+.Fn Sigmet_Vol_DelField
+removes field
+.Fa field_name
+from the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_SetVal
+assigns value
+.Fa v
+to all bins of field
+.Fa field_name
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_SetRBeam
+sets bin values for
+.Fa field_name
+in the volume at
+.Fa vol_p .
+to distance in meters along the beam to the center of the bin.
+.Pp
+.Fn Sigmet_Vol_Fld_Copy
+replaces the contents of field
+.Fa dest_field
+with those of
+.Fa src_field
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_AddVal
+adds scalar
+.Fa v
+to field
+.Fa field_name
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_AddFld
+replaces
+.Fa field_name
+with
+.Fa field_name
+\&+
+.Fa addend_field
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_SubVal
+subtracts scalar
+.Fa v
+from field
+.Fa field_name
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_SubFld
+replaces
+.Fa field_name
+with
+.Fa field_name
+\-
+.Fa subt_field
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_MulVal
+multiplies
+.Fa field_name
+by scalar
+.Fa v
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_MulFld
+replaces
+.Fa field_name
+with
+.Fa field_name \&*
+.Fa factor_field
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_DivVal
+divides
+.Fa field_name
+by scalar
+.Fa v
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_DivFld
+replaces
+.Fa field_name
+with
+.Fa field_name \&/
+.Fa divs_field
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_Log10
+replaces all bin values for
+.Fa field_name
+in the volume at
+.Fa vol_p
+with the common log value. Bins with values for which common log is not defined
+are set to
+.Li Sigmet_NoData() .
+.Pp
+.Fn Sigmet_Vol_IncrTm
+adds
+.Fa dt
+days to all times in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_VNyquist
+returns the Nyquist (unambiguous) velocity for the volume at
+.Fa vol_p
+.Pp
+.Fn Sigmet_Vol_GetDat
+returns the bin value for type index
+.Fa y ,
+sweep index
+.Fa s ,
+ray index
+.Fa r ,
+bin index
+.Fa b ,
+from the volume at
+.Fa vol_p .
+Indeces are
+.Li 0
+based. The return value is the actual measurement (computational) value, not the
+storage value from the raw product file.
+.Pp
+.Fn Sigmet_Vol_GetRayDat
+assigns measurement values from the ray of type index
+.Fa y ,
+sweep index
+.Fa s ,
+ray index
+.Fa r ,
+from the volume at
+.Fa vol_p
+to
+.Fa *ray_p .
+Receiving array
+.Fa *ray_p
+should point to space for
+.Fa *n
+float values.
+If
+.Fa *n
+is insufficient, a possibly new allocation is obtained with a call to
+.Li REALLOC
+and
+.Fa ray_p
+and
+.Fa n
+are updated.
+.Pp
+.Fn Sigmet_Vol_ToDorade
+transfers information from sweep
+.Fa s
+of the Sigmet volume at
+.Fa vol_p
+to the DORADE sweep structure at
+.Fa swp_p .
+The DORADE sweep should have been initialized with a call to
+.Fn Dorade_Sweep_Init .
+.Sh RETURN VALUES
+The Sigmet volume access functions return an integer indicates whether the
+function succeeded, or how it failed. The return values are declared in
+sigmet.h.
+They are:
+.Bl -inset -offset indent
+.It Em SIGMET_OK
+Success
+.It Em SIGMET_NOT_INIT
+A resource or interface is not initialized
+.It Em SIGMET_IO_FAIL
+Failed communication with file or process
+.It Em SIGMET_HELPER_FAIL
+Helper process failed
+.It Em SIGMET_BAD_FILE
+An input file is not in expected format
+.It Em SIGMET_BAD_VOL
+Corrupt volume in memory
+.It Em SIGMET_ALLOC_FAIL
+Failed to allocate memory
+.It Em SIGMET_FLUSH_FAIL
+Failed to free desired amount of memory
+.It Em SIGMET_BAD_ARG
+An argument to a function could not be parsed or referred to something that does not exist
+.It Em SIGMET_RNG_ERR
+A value is too large or out of range
+.It Em SIGMET_BAD_TIME
+A time computation failed
+
+.El
+In case of error, the function appends information to the global error string which can be retrieved with a call to
+.Fn Err_Get .
+.Sh KEYWORDS
+radar sigmet data
+.Sh SEE ALSO
+.Xr alloc 3 ,
+.Xr Err_Get 3 ,
+.Xr sigmet_raw 1
+.Rs
+.%B IRIS Programmer's Manual
+.Re
+.Sh AUTHOR
+Gordon Carrie (dev0@trekix.net)
