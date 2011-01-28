@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.18 $ $Date: 2011/01/05 17:00:07 $
+.\" $Revision: 1.19 $ $Date: 2011/01/27 21:30:42 $
 .Dd $Mdocdate$
 .Dt SIGMET 3
 .Os UNIX
@@ -49,12 +49,11 @@
 .Nm Sigmet_Vol_GetDat,
 .Nm Sigmet_Vol_GetRayDat,
 .Nm Sigmet_Vol_ToDorade,
-.Nm Sigmet_Vol_IncrTm
 .Nd read Sigmet raw data
 .Sh SYNOPSIS
 .Fd "#include <sigmet.h>"
 .Ft int
-.Fn Sigmet_DataType_GetN "char *a" "enum Sigmet_DataTypeN *y_p"
+.Fn Sigmet_DataType_GetN "char *field_name" "enum Sigmet_DataTypeN *y_p"
 .Ft char *
 .Fn Sigmet_DataType_Abbrv "enum Sigmet_DataTypeN y"
 .Ft char *
@@ -92,8 +91,6 @@
 .Ft int
 .Fn Sigmet_Vol_Read "FILE *f" "struct Sigmet_Vol *vol_p"
 .Ft int
-.Fn Sigmet_Vol_IncrTm "struct Sigmet_Vol *vol_p" "double dt"
-.Ft int
 .Fn Sigmet_Vol_BadRay "struct Sigmet_Vol *vol_p" "int s" "int r"
 .Ft int
 .Fn Sigmet_Vol_BinOutl "struct Sigmet_Vol *vol_p" "int s" "int r" "int b" "double *lonlats"
@@ -102,11 +99,11 @@
 .Ft int
 .Fn Sigmet_Vol_DelField "struct Sigmet_Vol *vol_p" "char *field_name"
 .Ft int
-.Fn Sigmet_Vol_Fld_SetVal "struct Sigmet_Vol *vol_p" "char *field_name" "float"
+.Fn Sigmet_Vol_Fld_SetVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
 .Ft int
 .Fn Sigmet_Vol_Fld_SetRBeam "struct Sigmet_Vol *vol_p" "char *field_name"
 .Ft int
-.Fn Sigmet_Vol_Fld_Copy "struct Sigmet_Vol *vol_p" "char *src_field" "char *dest_field"
+.Fn Sigmet_Vol_Fld_Copy "struct Sigmet_Vol *vol_p" "char *dest_field" "char *src_field"
 .Ft int
 .Fn Sigmet_Vol_Fld_AddVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
 .Ft int
@@ -116,7 +113,7 @@
 .Ft int
 .Fn Sigmet_Vol_Fld_SubFld "struct Sigmet_Vol *vol_p" "char *field_name" "char *subt_field"
 .Ft int
-.Fn Sigmet_Vol_Fld_MulVal "struct Sigmet_Vol *vol_p" "char *field_name" "float"
+.Fn Sigmet_Vol_Fld_MulVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
 .Ft int
 .Fn Sigmet_Vol_Fld_MulFld "struct Sigmet_Vol *vol_p" "char *field_name" "char *factor_field"
 .Ft int
@@ -132,14 +129,17 @@
 .Ft float
 .Fn Sigmet_Vol_GetDat "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "int b"
 .Ft int
-.Fn Sigmet_Vol_GetRayDat "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "float **ray_y" "int *n"
+.Fn Sigmet_Vol_GetRayDat "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "float **ray_p" "int *n"
 .Ft int
 .Fn Sigmet_Vol_ToDorade "struct Sigmet_Vol *vol_p" "int s" "struct Dorade_Sweep *swp_p"
 .Sh DESCRIPTION
 These functions read and access data obtained from Sigmet raw product
 volumes.  The functions, structures, and nomenclature are based on
-the IRIS Programmer's Manual, September 2002.
-.SH SIGMET DATA TYPES
+.Rs
+.%R IRIS Programmer's Manual
+.%D September 2002
+.Re
+.Ss SIGMET DATA TYPES
 A Sigmet data type is identified by an integer constant which must
 be member of:
 .Bd -literal -offset indent
@@ -156,30 +156,27 @@ enum Sigmet_DataTypeN {
 See the Sigmet Programmer's Manual for more information on these data types.
 .Pp
 .Fn Sigmet_DataType_GetN
-finds the Sigmet data type enumerator corresponding to short abbreviation
-.Fa a
-\&.
+finds the Sigmet data type enumerator corresponding to field name
+.Fa field_name .
 If there is one, it places it a
 .Fa y_p
 and returns true. Otherwise it returns false.
 .Fn Sigmet_DataType_Abbrv
 returns a short abbreviation describing type
-.Fa y
-\&.
+.Fa y .
 .Fn Sigmet_DataType_Descr
 returns a longer description.
 .Fn Sigmet_DataType_Unit
 returns a physical unit, which could be
-.Li none
-\&. These functions return
+.Li none .
+These functions return
 .Li NULL
 if
 .Fa y
 is out of range.  Return values of these functions should not be modified by the user.
 .Fn Sigmet_DataType_StorFmt
 returns the storage format for data type
-.Fa y
-\&.
+.Fa y .
 .Fn Sigmet_DataType_StorToComp
 returns a function that converts a storage value to a computational value (measurement).
 See data_types (3) for more information on data storage and conversions.
@@ -190,24 +187,20 @@ returns a value indicating missing of invalid data.
 returns true if
 .Fa v
 is not the return value from
-.Fn Sigmet_NoData
-\&.
+.Fn Sigmet_NoData .
 .Fn Sigmet_IsNoData
 returns true if
 .Fa v
 is the return value from
-.Fn Sigmet_NoData
-\&.
+.Fn Sigmet_NoData .
 .Pp
 .Fn Sigmet_Bin4Rad
 returns the angle in radians corresponding to Sigmet four byte binary angle
-.Fa b
-\&.
+.Fa b .
 .Pp
 .Fn Sigmet_Bin2Rad
 returns the angle in radians corresponding to Sigmet two byte binary angle
-.Fa b
-\&.
+.Fa b .
 .Pp
 .Fn Sigmet_RadBin4
 returns the Sigmet four byte binary angle
@@ -218,12 +211,11 @@ corresponding to angle in radians.
 returns the Sigmet two byte binary angle
 .Fa a
 corresponding to angle in radians.
-.SH SIGMET RAW VOLUMES
+.Ss SIGMET RAW VOLUMES
 Data from Sigmet raw product volumes are stored in structures of type
 .Li struct\ Sigmet_Vol
 , which is declared in
-.Li sigmet.h
-\&.
+.Li sigmet.h .
 .Pp
 .Fn Sigmet_Vol_Init
 initializes a Sigmet volume structure at
@@ -231,8 +223,7 @@ initializes a Sigmet volume structure at
 , whose previous contents are assumed to be garbage.  Upon return,
 .Fa vol_p
 can be safely passed to
-.Fn Sigmet_Vol_Free
-\&.
+.Fn Sigmet_Vol_Free .
 .Pp
 .Fn Sigmet_Vol_Free
 frees memory associated with a Sigmet volume structure at
@@ -248,93 +239,89 @@ is a readable Sigmet raw product volume.
 reads and stores volume headers for a Sigmet raw product file from stream
 .Fa f
 into the volume structure at
-.Fa vol_p
-\&.
+.Fa vol_p .
+Volume headers in this context mean members from the product header and
+ingest header in the first two records of a raw product file. These headers
+give information about the volume time, radar location, and task configuration.
+.Fn Sigmet_Vol_ReadHdr
+does not store ray headers or data. For all data and meta-data, use
+.Fn Simget_Vol_Read .
 .Fa f
 should be at the start of a raw product file.
 .Fa vol_p
 should have been initialized at least once with a call to
-.Fn Sigmet_Vol_Init
-\&.
+.Fn Sigmet_Vol_Init .
 Upon entry,
 .Fn Sigmet_Vol_ReadHdr
 will free the contents of
-.Fa f
+.Fa vol_p
 with a call to
-.Fn Sigmet_Vol_Free
-\&.  This function only reads volume headers. Sweep headers and rays are left in their bogus initialized state.  If successful,
+.Fn Sigmet_Vol_Free .
+If something goes wrong,
 .Fn Sigmet_Vol_ReadHdr
-returns
-.Li SIGMET_READ_OK
-/&.  Otherwise, the function stores nothing, it re-initializes the structure at
+stores nothing and re-initializes the structure at
 .Fa vol_p
 with a call to
-.Fn Sigmet_Vol_Init
-, leaves an error message that can be retrieved with
-.Fn err_get
-, and returns an error code described in the RETURN VALUES section below.
-.Pp
-.Fn Sigmet_Vol_Read
-reads and stores a Sigmet raw product file from stream
-.Fa f
-into the volume structure at
-.Fa vol_p
-\&.
-.Fa f
-should be at the start of a raw product file.
-.Fa vol_p
-should have already been initialized with a call to
-.Fn Sigmet_Vol_Init
-\&.
-Upon entry,
-.Fn Sigmet_Vol_ReadHdr
-will free the contents of
-.Fa f
-with a call to
-.Fn Sigmet_Vol_Free
-\&.
-If successful,
-.Fn Sigmet_Vol_Read
-returns
-.Li SIGMET_READ_OK
-\&.  If the return value is
-.Li SIGMET_INPUT_FAIL
-, input ended unexpectedly, but some or all of the volume is stored at
-.Fa vol_p
-\&.
-In both cases, memory allocated should eventually be freed with a call to
-.Fa Sigmet_Vol_Free
-\&. Otherwise, the function stores nothing, it re-initializes the structure at
-.Fa vol_p
-with a call to
-.Fn Sigmet_Vol_Init
-, leaves an error message that can be retrieved with
-.Fn err_get
-, and returns an error code described in the RETURN VALUES section below.
+.Fn Sigmet_Vol_Init .
+Return values are described in RETURN VALUES below.
 .Pp
 .Fn Sigmet_Vol_PrintHdr
 prints volume headers from
 .Fa vol
 to output stream
-.Fa out
+.Fa f
 \&.  Each line of output will have form:
 .Bd -literal -offset indent
 value|hierarchy|description
 
 .Ed
 where
-.Fa hierarchy
+.Li hierarchy
 refers to a member's position in Sigmet's file hierarchy, as described in section 3.2 of the IRIS Programmer's Manual.  Hierarchies are printed with form:
 .Bd -literal -offset indent
 \&...<parent>.<child>.<grandchild>.member
+
 .Ed
+For example, volume start time from the ingest_configuration member of ingest_header will be identified as
+.Li <ingest_header>.<ingest_configuration>.vol_start_time
+so the line of output would look something like
+.Bd -literal -offset indent
+2010/06/12 23:39:19.79 | <ingest_header>.<ingest_configuration>.vol_start_time | Time that volume scan was started, TZ spec in bytes 166 & 224
+
+.Ed .
 .Pp
-.Fn Sigmet_Vol_IncrTm
-adds
-.Fa dt
-DAYS to all times in the volume at
+.Fn Sigmet_Vol_Read
+reads and stores everything from a Sigmet raw product file from stream
+.Fa f
+into the volume structure at
+.Fa vol_p .
+.Fa f
+should be at the start of a raw product file.
 .Fa vol_p
-\&.
+should have already been initialized with a call to
+.Fn Sigmet_Vol_Init .
+Upon entry,
+.Fn Sigmet_Vol_ReadHdr
+will free the contents of
+.Fa f
+with a call to
+.Fn Sigmet_Vol_Free .
+If successful,
+.Fn Sigmet_Vol_Read
+returns
+.Li SIGMET_READ_OK .
+If the return value is
+.Li SIGMET_INPUT_FAIL ,
+input ended unexpectedly, but some or all of the volume is stored at
+.Fa vol_p .
+In both of these cases, memory allocated should eventually be freed with a call
+to
+.Fa Sigmet_Vol_Free .
+In all other cases, the function stores nothing, frees any memory it has
+allocated, and re-initializes the structure at
+.Fa vol_p
+with a call to
+.Fn Sigmet_Vol_Init .
 .Pp
 .Fn Sigmet_Vol_BadRay
 returns true if the ray in
@@ -362,17 +349,183 @@ must point to space for eight double values.
 .Fn Sigmet_Vol_BinOutl
 returns true if it succeeds.  Return value is described in the RETURN VALUES section below.
 .Pp
+.Fn Sigmet_Vol_NewField
+creates a new field named
+.Fa field_name
+to the volume at
+.Fa vol_p .
+All bins in the new field will be initialized to
+.Li Sigmet_NoData() .
+.Pp
+.Fn Sigmet_Vol_DelField
+removes field
+.Fa field_name
+from the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_SetVal
+assigns value
+.Fa v
+to all bins of field
+.Fa field_name
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_SetRBeam
+sets bin values for
+.Fa field_name
+in the volume at
+.Fa vol_p .
+to distance in meters along the beam to the center of the bin.
+.Pp
+.Fn Sigmet_Vol_Fld_Copy
+replaces the contents of field
+.Fa dest_field
+with those of
+.Fa src_field
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_AddVal
+adds scalar
+.Fa v
+to field
+.Fa field_name
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_AddFld
+replaces
+.Fa field_name
+with
+.Fa field_name
+\&+
+.Fa addend_field
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_SubVal
+subtracts scalar
+.Fa v
+from field
+.Fa field_name
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_SubFld
+replaces
+.Fa field_name
+with
+.Fa field_name
+\-
+.Fa subt_field
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_MulVal
+multiplies
+.Fa field_name
+by scalar
+.Fa v
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_MulFld
+replaces
+.Fa field_name
+with
+.Fa field_name \&*
+.Fa factor_field
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_DivVal
+divides
+.Fa field_name
+by scalar
+.Fa v
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_DivFld
+replaces
+.Fa field_name
+with
+.Fa field_name \&/
+.Fa divs_field
+in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_Fld_Log10
+replaces all bin values for
+.Fa field_name
+in the volume at
+.Fa vol_p
+with the common log value. Bins with values for which common log is not defined
+are set to
+.Li Sigmet_NoData() .
+.Pp
+.Fn Sigmet_Vol_IncrTm
+adds
+.Fa dt
+days to all times in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_VNyquist
+returns the Nyquist (unambiguous) velocity for the volume at
+.Fa vol_p
+.Pp
+.Fn Sigmet_Vol_GetDat
+returns the bin value for type index
+.Fa y ,
+sweep index
+.Fa s ,
+ray index
+.Fa r ,
+bin index
+.Fa b ,
+from the volume at
+.Fa vol_p .
+Indeces are
+.Li 0
+based. The return value is the actual measurement (computational) value, not the
+storage value from the raw product file.
+.Pp
+.Fn Sigmet_Vol_GetRayDat
+assigns measurement values from the ray of type index
+.Fa y ,
+sweep index
+.Fa s ,
+ray index
+.Fa r ,
+from the volume at
+.Fa vol_p
+to
+.Fa *ray_p .
+Receiving array
+.Fa *ray_p
+should point to space for
+.Fa *n
+float values.
+If
+.Fa *n
+is insufficient, a possibly new allocation is obtained with a call to
+.Li REALLOC
+and
+.Fa ray_p
+and
+.Fa n
+are updated.
+.Pp
 .Fn Sigmet_Vol_ToDorade
 transfers information from sweep
 .Fa s
 of the Sigmet volume at
 .Fa vol_p
 to the DORADE sweep structure at
-.Fa swp_p
-\&.
+.Fa swp_p .
 The DORADE sweep should have been initialized with a call to
-.Fn Dorade_Sweep_Init
-\&.
+.Fn Dorade_Sweep_Init .
 .Fn Sigmet_Vol_ToDorade
 returns true if it succeeds.  Return value is an integer described under RETURN VALUES, below.
 .Sh RETURN VALUES
@@ -402,9 +555,15 @@ A value is too large or out of range
 A time computation failed
 .El
 In case of error, the function appends information to the global error string which can be retrieved with a call to
-.Fn Err_Get
-\&.
+.Fn Err_Get .
 .Sh KEYWORDS
 radar sigmet data
+.Sh SEE ALSO
+.Xr alloc 3 ,
+.Xr Err_Get 3 ,
+.Xr sigmet_raw 1
+.Rs
+.%B IRIS Programmer's Manual
+.Re
 .Sh AUTHOR
 Gordon Carrie (dev0@trekix.net)
