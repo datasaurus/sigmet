@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.30 $ $Date: 2011/01/08 01:14:54 $
+   .	$Revision: 1.31 $ $Date: 2011/01/10 17:08:17 $
  */
 
 #include <string.h>
@@ -19,7 +19,6 @@
 #include "strlcpy.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
-#include "data_types.h"
 #include "dorade_lib.h"
 
 /*
