@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.28 $ $Date: 2011/01/08 01:14:54 $
+   .	$Revision: 1.29 $ $Date: 2011/01/19 17:40:09 $
  */
 
 #include <stdlib.h>
@@ -92,7 +92,7 @@ static char *unit[SIGMET_NTYPES] = {
     "none",		"dBZ",		"dBZ",		"m/s",
     "m/s",		"dBZ",		"dBZ",		"dBZ",
     "dBZ",		"m/s",		"m/s",		"dBZ",
-    "mm/hr",		"none",		"none",		"degrees",
+    "mm/hr",		"deg/km",	"deg/km",	"degrees",
     "m/s",		"none",		"none",		"none",
     "dBZ",		"m/s",		"none",		"degrees",
     "none",		"none",		"none",		"none",
