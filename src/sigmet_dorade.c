@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.32 $ $Date: 2011/02/06 04:38:39 $
+   .	$Revision: 1.33 $ $Date: 2011/02/07 21:35:29 $
  */
 
 #include <string.h>
@@ -117,6 +117,9 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     swp_p->vold.data_set_minute = min;
     swp_p->vold.data_set_second = n_int(sec);
     strncpy(swp_p->vold.gen_facility, vol_p->ih.ic.su_site_name, 8);
+    swp_p->vold.gen_year = vol_p->ph.pc.ingest_sweep_tm.year;
+    swp_p->vold.gen_month = vol_p->ph.pc.ingest_sweep_tm.month;
+    swp_p->vold.gen_day = vol_p->ph.pc.ingest_sweep_tm.day;
     swp_p->vold.num_sensors = 1;
 
     /*
