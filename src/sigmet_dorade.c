@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.31 $ $Date: 2011/01/10 17:08:17 $
+   .	$Revision: 1.32 $ $Date: 2011/02/06 04:38:39 $
  */
 
 #include <string.h>
@@ -239,7 +239,8 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     /*
        Populate csfd block. Assume cell geometry for last parameter applies
-       to all (parm_p). Initialize csfd member since dorade_lib assumes CFAC.
+       to all (parm_p). Initialize csfd member since dorade_lib arbitrarily
+       initializes celv.
      */
 
     if ( !parm_p ) {
