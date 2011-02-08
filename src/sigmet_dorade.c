@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.33 $ $Date: 2011/02/07 21:35:29 $
+   .	$Revision: 1.34 $ $Date: 2011/02/07 22:18:48 $
  */
 
 #include <string.h>
@@ -331,7 +331,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	    goto error;
 	}
 	julian0 = Tm_CalToJul(year, 1, 1, 0, 0, 0.0);
-	ryib_p->julian_day = vol_p->ray_time[s][r] - julian0;
+	ryib_p->julian_day = vol_p->ray_time[s][r] - julian0 + 1;
 	ryib_p->hour = hr;
 	ryib_p->minute = min;
 	ryib_p->second = sec;
