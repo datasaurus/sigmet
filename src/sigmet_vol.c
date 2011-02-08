@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.115 $ $Date: 2011/01/27 15:49:15 $
+   .	$Revision: 1.116 $ $Date: 2011/01/28 21:29:57 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1056,7 +1056,9 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		vol_p->ray_tilt1[s][r] = Sigmet_Bin2Rad(get_uint16(ray_buf + 6));
 		nbins = vol_p->ray_num_bins[s][r] = get_sint16(ray_buf + 8);
 		if ( !vol_p->xhdr ) {
-		    vol_p->ray_time[s][r] = swpTm + get_uint16(ray_buf + 10);
+		    unsigned sec = get_uint16(ray_buf + 10);
+
+		    vol_p->ray_time[s][r] = swpTm + sec / 86400.0;
 		}
 
 		/*
