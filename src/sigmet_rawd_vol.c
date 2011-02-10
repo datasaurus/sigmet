@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.61 $ $Date: 2011/01/27 15:30:32 $
+ .	$Revision: 1.62 $ $Date: 2011/01/28 21:29:57 $
  */
 
 #include <unistd.h>
@@ -99,7 +99,6 @@ static void tunlink(struct sig_vol *);
 static void uunlink(struct sig_vol *sv_p);
 static void uappend(struct sig_vol *sv_p);
 static int hash(char *, dev_t *, ino_t *, int *);
-static FILE *vol_open(const char *, pid_t *, int);
 
 /*
    Initialize this interface
@@ -334,7 +333,7 @@ int SigmetRaw_GoodVol(char *vol_nm, int i_err)
     }
 
     /* Volume not loaded. Inspect vol_nm with Sigmet_Vol_Good. */
-    if ( !(in = vol_open(vol_nm, &p, i_err)) ) {
+    if ( !(in = SigmetRaw_VolOpen(vol_nm, &p, i_err)) ) {
 	Err_Append("Could not open ");
 	Err_Append(vol_nm);
 	Err_Append(". ");
@@ -394,7 +393,7 @@ int SigmetRaw_ReadHdr(char *vol_nm, int i_err, struct Sigmet_Vol ** vol_pp)
     sv_p->keep = 1;
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	in_pid = -1;
-	if ( !(in = vol_open(vol_nm, &in_pid, i_err)) ) {
+	if ( !(in = SigmetRaw_VolOpen(vol_nm, &in_pid, i_err)) ) {
 	    Err_Append("Could not open ");
 	    Err_Append(vol_nm);
 	    Err_Append(". ");
@@ -498,7 +497,7 @@ int SigmetRaw_ReadVol(char *vol_nm, int i_err, struct Sigmet_Vol **vol_pp)
     sv_p->keep = 1;
     for (try = 0, loaded = 0; !loaded && try < max_try; try++) {
 	in_pid = -1;
-	if ( !(in = vol_open(vol_nm, &in_pid, i_err)) ) {
+	if ( !(in = SigmetRaw_VolOpen(vol_nm, &in_pid, i_err)) ) {
 	    Err_Append("Could not open ");
 	    Err_Append(vol_nm);
 	    Err_Append(". ");
@@ -697,7 +696,7 @@ size_t SigmetRaw_MaxSize(size_t sz)
    to i_err.
  */
 
-static FILE *vol_open(const char *vol_nm, pid_t *pid_p, int i_err)
+FILE *SigmetRaw_VolOpen(const char *vol_nm, pid_t *pid_p, int i_err)
 {
     FILE *in = NULL;		/* Return value */
     char *sfx;			/* Filename suffix */
