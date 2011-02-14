@@ -7,7 +7,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.27 $ $Date: 2011/01/06 20:15:28 $
+   .	$Revision: 1.28 $ $Date: 2011/02/14 19:11:22 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -44,8 +44,5 @@ void SigmetRaw_SetImgAlpha(double);
 double SigmetRaw_GetImgAlpha(void);
 int SigmetRaw_SetImgApp(char *);
 char * SigmetRaw_GetImgApp(void);
-int SigmetRaw_GoodVol(char *, int);
-int SigmetRaw_ReadHdr(char *, int, struct Sigmet_Vol **);
-int SigmetRaw_ReadVol(char *, int, struct Sigmet_Vol **);
 
 #endif
