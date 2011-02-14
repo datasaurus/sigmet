@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.116 $ $Date: 2011/01/28 21:29:57 $
+   .	$Revision: 1.117 $ $Date: 2011/02/08 16:57:58 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -442,7 +442,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
-    vol_p->size += vol_p->num_types + sizeof(struct Sigmet_DatArr);
+    vol_p->size += sz;
     vol_p->has_headers = 1;
     return SIGMET_OK;
 
@@ -1208,6 +1208,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
 	return SIGMET_ALLOC_FAIL;
     }
     dat_p->arr.flt = flt_p;
+    vol_p->size += num_sweeps * num_rays * num_bins * sizeof(float);
     vol_p->num_types++;
     return SIGMET_OK;
 }
@@ -1217,6 +1218,7 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
     struct DataType *data_type;
     size_t sz;
     struct Sigmet_DatArr *d_p, *d1_p;
+    int num_sweeps, num_rays, num_bins;
 
     if ( !abbrv ) {
 	Err_Append("Attempted to remove a bogus field. ");
@@ -1239,6 +1241,10 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 	return SIGMET_BAD_ARG;
     }
     free3_flt(d_p->arr.flt);
+    num_sweeps = vol_p->ih.tc.tni.num_sweeps;
+    num_rays = vol_p->ih.ic.num_rays;
+    num_bins = vol_p->ih.tc.tri.num_bins_out;
+    vol_p->size -= num_sweeps * num_rays * num_bins * sizeof(float);
     Hash_Rm(&vol_p->types_tbl, abbrv);
 
     /*

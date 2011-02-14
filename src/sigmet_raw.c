@@ -1,104 +1,498 @@
 /*
    -	sigmet_raw.c --
-   -		Client to sigmet_rawd. See sigmet_raw (1).
+   -		Command line access to sigmet raw product volumes.
+   -		See sigmet_raw (1).
    -
-   .	Copyright (c) 2009 Gordon D. Carrie
+   .	Copyright (c) 2011 Gordon D. Carrie
    .	All rights reserved.
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.72 $ $Date: 2011/01/07 20:16:43 $
+   .	$Revision: $ $Date: $
  */
 
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <sys/stat.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/select.h>
 #include "alloc.h"
+#include "err_msg.h"
 #include "strlcpy.h"
+#include "geog_lib.h"
 #include "sigmet_raw.h"
+
+/*
+   Size of various objects
+ */
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
 #define SA_PLEN (sizeof(sa.sun_path))
+#define LEN 4096
 
 /*
    Names of fifos that will receive standard output and error output from
-   the sigmet_rawd daemon. (These variables are global because signal
-   handlers need them)
+   the sigmet_rawd daemon. (These variables are global for cleanup).
  */
 
-static char out_nm[LINE_MAX];
-static char err_nm[LINE_MAX];
+static char out_nm[LEN];
+static char err_nm[LEN];
 
 /*
-   Local signal handlers.
+   Local functions
  */
 
 static int handle_signals(void);
 static void handler(int signum);
+static void cleanup(void);
+static int daemon_task(int argc, char *argv[]);
+static int print_vol_hdr(struct Sigmet_Vol *vol_p);
+static void reg_types(void);
 
 int main(int argc, char *argv[])
 {
     char *argv0 = argv[0];
-    char *ddir;			/* Name of daemon working directory */
-    char *dsock;		/* Name of daemon socket */
-    char cwd[LINE_MAX];		/* Current working directory */
-    size_t cwd_l;		/* strlen(cwd) */
+    char *argv1;
+    char *vol_fl_nm;		/* Name of Sigmet raw product file */
+    FILE *in;
+    pid_t chpid;
+    struct Sigmet_Vol vol;
+    int status;
+
+    if ( !handle_signals() ) {
+	fprintf(stderr, "%s (%d): could not set up signal management.",
+		argv0, getpid());
+	return EXIT_FAILURE;
+    }
+    if ( argc < 2 ) {
+	fprintf(stderr, "Usage: %s command\n", argv0);
+	exit(EXIT_FAILURE);
+    }
+    argv1 = argv[1];
+
+    /*
+       Branch according to subcommand - second word of command line.
+     */
+
+    if ( strcmp(argv1, "data_types") == 0 ) {
+	size_t n;
+	char **abbrvs, **a;
+	struct DataType *data_type;
+
+	if ( argc != 2 ) {
+	    fprintf(stderr, "Usage: %s data_types\n", argv0);
+	    exit(EXIT_FAILURE);
+	}
+
+	/*
+	   If current working directory contains a daemon socket, send this
+	   command to it. Otherwise, just list data types from the Sigmet
+	   programmers manual.
+	 */
+
+	if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
+	    return daemon_task(argc, argv);
+	}
+	reg_types();
+	abbrvs = DataType_Abbrvs(&n);
+	if ( abbrvs ) {
+	    for (a = abbrvs; a < abbrvs + n; a++) {
+		data_type = DataType_Get(*a);
+		assert(data_type);
+		printf("%s | %s | %s\n",
+			*a, data_type->descr, data_type->unit);
+	    }
+	}
+    } else if ( strcmp(argv1, "load") == 0 ) {
+	/*
+	   Start a raw volume daemon.
+	 */
+
+	if ( argc != 3 ) {
+	    fprintf(stderr, "Usage: %s load raw_file\n", argv0);
+	    exit(EXIT_FAILURE);
+	}
+	vol_fl_nm = argv[2];
+	SigmetRaw_Load(vol_fl_nm);
+    } else if ( strcmp(argv1, "good") == 0 ) {
+	/*
+	   Determine if file given as stdin is navigable Sigmet volume.
+	 */
+
+	reg_types();
+	if ( argc == 2 ) {
+	    return Sigmet_Vol_Read(stdin, NULL);
+	} else if ( argc == 3 ) {
+	    vol_fl_nm = argv[2];
+	    if ( (in = SigmetRaw_VolOpen(vol_fl_nm, &chpid, STDERR_FILENO)) ) {
+		return Sigmet_Vol_Read(in, NULL);
+	    } else {
+		return SIGMET_IO_FAIL;
+	    }
+	} else {
+	    fprintf(stderr, "Usage: %s %s [raw_file]\n", argv0, argv1);
+	    exit(EXIT_FAILURE);
+	}
+    } else if ( strcmp(argv1, "volume_headers") == 0 ) {
+	/*
+	   If call is of form "sigmet_raw volume_headers" and current
+	   directory contains a daemon socket, send this command to it.
+	   If call is of form "sigmet_raw volume_headers", read volume from
+	   stdin and print headers.
+	   If call is of form "sigmet_raw volume_headers file", print headers
+	   from file.
+	 */
+
+	reg_types();
+	Sigmet_Vol_Init(&vol);
+	if ( argc == 2) {
+	    if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
+		return daemon_task(argc, argv);
+	    }
+	    in = stdin;
+	} else if ( argc == 3 ) {
+	    vol_fl_nm = argv[2];
+	    in = SigmetRaw_VolOpen(vol_fl_nm, &chpid, STDERR_FILENO);
+	    if ( !in ) {
+		fprintf(stderr, "%s: could not open %s for input\n%s\n",
+			argv0, vol_fl_nm, Err_Get());
+		return SIGMET_IO_FAIL;
+	    }
+	} else {
+	    fprintf(stderr, "Usage: %s %s [raw_product_file]\n", argv0, argv1);
+	    exit(EXIT_FAILURE);
+	}
+	if ( (status = Sigmet_Vol_ReadHdr(in, &vol)) != SIGMET_OK ) {
+	    fprintf(stderr, "%s: could not get headers from standard "
+		    "input\n%s\n", argv0, Err_Get());
+	    exit(status);
+	}
+	Sigmet_Vol_PrintHdr(stdout, &vol);
+    } else if ( strcmp(argv1, "vol_hdr") == 0 ) {
+	/*
+	   If call is of form "sigmet_raw vol_hdr" and current
+	   directory contains a daemon socket, send this command to it.
+	   If call is of form "sigmet_raw vol_hdr", read volume from
+	   stdin and print headers.
+	   If call is of form "sigmet_raw vol_hdr file", print headers
+	   from file.
+	 */
+
+	reg_types();
+	Sigmet_Vol_Init(&vol);
+	if ( argc == 2) {
+	    if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
+		return daemon_task(argc, argv);
+	    }
+	    in = stdin;
+	} else if ( argc == 3 ) {
+	    vol_fl_nm = argv[2];
+	    in = SigmetRaw_VolOpen(vol_fl_nm, &chpid, STDERR_FILENO);
+	    if ( !in ) {
+		fprintf(stderr, "%s: could not open %s for input\n%s\n",
+			argv0, vol_fl_nm, Err_Get());
+		return SIGMET_IO_FAIL;
+	    }
+	} else {
+	    fprintf(stderr, "Usage: %s %s [path]\n", argv0, argv1);
+	    exit(EXIT_FAILURE);
+	}
+	if ( (status = Sigmet_Vol_ReadHdr(in, &vol)) != SIGMET_OK ) {
+	    fprintf(stderr, "%s: could not get headers from standard "
+		    "input\n%s\n", argv0, Err_Get());
+	    exit(status);
+	}
+	print_vol_hdr(&vol);
+    } else {
+	return daemon_task(argc, argv);
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/*
+   Register Sigmet data types.
+ */
+
+static void reg_types(void)
+{
+    int sig_type;		/* Loop index */
+
+    for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
+	int status;
+
+	status = DataType_Add( Sigmet_DataType_Abbrv(sig_type),
+		Sigmet_DataType_Descr(sig_type),
+		Sigmet_DataType_Unit(sig_type),
+		Sigmet_DataType_StorFmt(sig_type),
+		Sigmet_DataType_StorToComp(sig_type));
+	if ( status != DATATYPE_SUCCESS ) {
+	    fprintf(stderr, "could not register data type %s\n%s\n",
+		    Sigmet_DataType_Abbrv(sig_type), Err_Get());
+	    switch (status) {
+		case DATATYPE_INPUT_FAIL:
+		    status = SIGMET_IO_FAIL;
+		    break;
+		case DATATYPE_ALLOC_FAIL:
+		    status = SIGMET_ALLOC_FAIL;
+		    break;
+		case DATATYPE_BAD_ARG:
+		    status = SIGMET_BAD_ARG;
+		    break;
+	    }
+	    exit(status);
+	}
+    }
+}
+
+/*
+   Open volume file vol_nm.  If vol_nm suffix indicates a compressed file, open
+   a pipe to a decompression process.  Return a file handle to the file or
+   decompression process, or NULL if failure. If return value is output from a
+   decompression process, put the process id at pid_p. Set *pid_p to -1 if
+   there is no decompression process (i.e. vol_nm is a plain file).
+   Propagate error messages with Err_Append.  Have child send its error messages
+   to i_err.
+ */
+
+FILE *SigmetRaw_VolOpen(const char *vol_nm, pid_t *pid_p, int i_err)
+{
+    FILE *in = NULL;		/* Return value */
+    char *sfx;			/* Filename suffix */
+    int pfd[2] = {-1};		/* Pipe for data */
+    pid_t ch_pid = -1;		/* Child process id */
+
+    *pid_p = -1;
+    sfx = strrchr(vol_nm, '.');
+    if ( sfx && strcmp(sfx, ".gz") == 0 ) {
+	/*
+	   If filename ends with ".gz", read from gunzip pipe
+	 */
+
+	if ( pipe(pfd) == -1 ) {
+	    Err_Append("Could not create pipe for gzip\n");
+	    Err_Append(strerror(errno));
+	    Err_Append("\n");
+	    goto error;
+	}
+	ch_pid = fork();
+	switch (ch_pid) {
+	    case -1:
+		Err_Append("Could not spawn gzip. ");
+		goto error;
+	    case 0:
+		/*
+		   Child process - gzip.  Send child stdout to pipe and child
+		   stderr to i_err.
+		 */
+
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
+			|| close(pfd[0]) == -1 ) {
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
+		    _exit(EXIT_FAILURE);
+		}
+		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
+		_exit(EXIT_FAILURE);
+	    default:
+		/*
+		   This process.  Read output from gzip.
+		 */
+
+		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
+		    Err_Append("Could not read gzip process\n%s\n");
+		    Err_Append(strerror(errno));
+		    Err_Append("\n");
+		    goto error;
+		} else {
+		    *pid_p = ch_pid;
+		    return in;
+		}
+	}
+    } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
+	/*
+	   If filename ends with ".bz2", read from bunzip2 pipe
+	 */
+
+	if ( pipe(pfd) == -1 ) {
+	    Err_Append("Could not create pipe for bzip2\n");
+	    Err_Append(strerror(errno));
+	    Err_Append("\n");
+	    goto error;
+	}
+	ch_pid = fork();
+	switch (ch_pid) {
+	    case -1:
+		Err_Append("Could not spawn bzip2. ");
+		goto error;
+	    case 0:
+		/*
+		   Child process - bzip2.  Send child stdout to pipe and child
+		   stderr to i_err.
+		 */
+
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
+			|| close(pfd[0]) == -1 ) {
+		    _exit(EXIT_FAILURE);
+		}
+		if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
+		    _exit(EXIT_FAILURE);
+		}
+		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
+		_exit(EXIT_FAILURE);
+	    default:
+		/*
+		   This process.  Read output from bzip2.
+		 */
+
+		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
+		    goto error;
+		} else {
+		    *pid_p = ch_pid;
+		    return in;
+		}
+	}
+    } else if ( !(in = fopen(vol_nm, "r")) ) {
+	/*
+	   Uncompressed file
+	 */
+
+	Err_Append("Could not open ");
+	Err_Append(vol_nm);
+	Err_Append(" ");
+	Err_Append(strerror(errno));
+	Err_Append("\n");
+	return NULL;
+    }
+    return in;
+
+error:
+    if ( ch_pid != -1 ) {
+	kill(ch_pid, SIGKILL);
+	waitpid(ch_pid, NULL, WNOHANG);
+	ch_pid = -1;
+    }
+    if ( in ) {
+	fclose(in);
+	pfd[0] = -1;
+    }
+    if ( pfd[0] != -1 ) {
+	close(pfd[0]);
+    }
+    if ( pfd[1] != -1 ) {
+	close(pfd[1]);
+    }
+    return NULL;
+}
+
+/*
+   Print selected headers from vol_p.
+ */
+
+static int print_vol_hdr(struct Sigmet_Vol *vol_p)
+{
+    int y;
+    double wavlen, prf, vel_ua;
+    enum Sigmet_Multi_PRF mp;
+    char *mp_s = "unknown";
+
+    printf("site_name=\"%s\"\n", vol_p->ih.ic.su_site_name);
+    printf("radar_lon=%.4lf\n",
+	   GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0) * DEG_PER_RAD);
+    printf("radar_lat=%.4lf\n",
+	   GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.latitude), 0.0) * DEG_PER_RAD);
+    printf("task_name=\"%s\"\n", vol_p->ph.pc.task_name);
+    printf("types=\"");
+    if ( vol_p->dat[0].data_type->abbrv ) {
+	printf("%s", vol_p->dat[0].data_type->abbrv);
+    }
+    for (y = 1; y < vol_p->num_types; y++) {
+	if ( vol_p->dat[y].data_type->abbrv ) {
+	    printf(" %s", vol_p->dat[y].data_type->abbrv);
+	}
+    }
+    printf("\"\n");
+    printf("num_sweeps=%d\n", vol_p->ih.ic.num_sweeps);
+    printf("num_rays=%d\n", vol_p->ih.ic.num_rays);
+    printf("num_bins=%d\n", vol_p->ih.tc.tri.num_bins_out);
+    printf("range_bin0=%d\n", vol_p->ih.tc.tri.rng_1st_bin);
+    printf("bin_step=%d\n", vol_p->ih.tc.tri.step_out);
+    wavlen = 0.01 * 0.01 * vol_p->ih.tc.tmi.wave_len; 	/* convert -> cm > m */
+    prf = vol_p->ih.tc.tdi.prf;
+    mp = vol_p->ih.tc.tdi.m_prf_mode;
+    vel_ua = -1.0;
+    switch (mp) {
+	case ONE_ONE:
+	    mp_s = "1:1";
+	    vel_ua = 0.25 * wavlen * prf;
+	    break;
+	case TWO_THREE:
+	    mp_s = "2:3";
+	    vel_ua = 2 * 0.25 * wavlen * prf;
+	    break;
+	case THREE_FOUR:
+	    mp_s = "3:4";
+	    vel_ua = 3 * 0.25 * wavlen * prf;
+	    break;
+	case FOUR_FIVE:
+	    mp_s = "4:5";
+	    vel_ua = 3 * 0.25 * wavlen * prf;
+	    break;
+    }
+    printf("prf=%.2lf\n", prf);
+    printf("prf_mode=%s\n", mp_s);
+    printf("vel_ua=%.3lf\n", vel_ua);
+    return SIGMET_OK;
+}
+
+/*
+   Send a command to raw product daemon.
+ */
+
+static int daemon_task(int argc, char *argv[])
+{
+    char *argv0 = argv[0];
+    mode_t m;			/* File permissions */
     struct sockaddr_un sa;	/* Address of socket that connects with daemon */
     int i_dmn = -1;		/* File descriptor associated with sa */
     FILE *dmn;			/* File associated with sa */
     pid_t pid = getpid();	/* Id for this process */
-    char buf[LINE_MAX];		/* Line sent to or received from daemon */
+    char buf[LEN];		/* Line sent to or received from daemon */
     char **a;			/* Pointer into argv */
     size_t cmd_ln_l;		/* Command line length */
     int i_out = -1;		/* File descriptor for standard output from daemon*/
     int i_err = -1;		/* File descriptors error output from daemon */
-    mode_t m;			/* File permissions */
     fd_set set, read_set;	/* Give i_dmn, i_out, and i_err to select */
     int fd_hwm = 0;		/* Highest file descriptor */
     ssize_t ll;			/* Number of bytes read from server */
     int sstatus;		/* Result of callback */
 
-    if ( !handle_signals() ) {
-	fprintf(stderr, "%s (%d): could not set up signal management.", argv0, pid);
-	goto error;
-    }
-    *out_nm = '\0';
-    *err_nm = '\0';
-    if ( argc < 2 ) {
-	fprintf(stderr, "Usage: %s command\n", argv0);
-	goto error;
-    }
-    if ( strcmp(argv[1], "start") == 0 ) {
-	SigmetRaw_Start(argc - 2, argv + 2);
-    }
     if ( argc > SIGMET_RAWD_ARGCX ) {
 	fprintf(stderr, "%s: cannot parse %d arguments. Maximum argument "
 		"count is %d\n", argv0, argc, SIGMET_RAWD_ARGCX);
 	goto error;
     }
+    *out_nm = '\0';
+    *err_nm = '\0';
+    atexit(cleanup);
 
     /*
        Create input and output fifo's in daemon working directory.
      */
 
-    if ( !(ddir = SigmetRaw_GetDDir()) ) {
-	fprintf(stderr, "%s (%d): could not identify daemon working directory.\n",
-		argv0, pid);
-	exit(EXIT_FAILURE);
-    }
     m = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-    if ( snprintf(out_nm, LINE_MAX, "%s/%d.1", ddir, pid) > LINE_MAX ) {
+    if ( snprintf(out_nm, LEN, "%d.1", pid) > LEN ) {
 	fprintf(stderr, "%s (%d): could not create name for result pipe.\n",
 		argv0, pid);
 	goto error;
@@ -108,7 +502,7 @@ int main(int argc, char *argv[])
 		"%s\n", argv0, pid, strerror(errno));
 	goto error;
     }
-    if ( snprintf(err_nm, LINE_MAX, "%s/%d.2", ddir, pid) > LINE_MAX ) {
+    if ( snprintf(err_nm, LEN, "%d.2", pid) > LEN ) {
 	fprintf(stderr, "%s (%d): could not create name for error pipe.\n",
 		argv0, pid);
 	goto error;
@@ -123,13 +517,9 @@ int main(int argc, char *argv[])
        Connect to daemon via socket in daemon directory
      */
 
-    if ( !(dsock = SigmetRaw_GetSock()) ) {
-	fprintf(stderr, "%s (%d): could not identify daemon socket.\n", argv0, pid);
-	goto error;
-    }
     memset(&sa, '\0', SA_UN_SZ);
     sa.sun_family = AF_UNIX;
-    strlcpy(sa.sun_path, dsock, SA_PLEN);
+    strlcpy(sa.sun_path, SIGMET_RAWD_IN, SA_PLEN);
     if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create socket to connect with daemon\n"
 		"%s\n", argv0, pid, strerror(errno));
@@ -143,37 +533,19 @@ int main(int argc, char *argv[])
     }
 
     /*
-       Send server input to socket.  Server intput consists of:
+       Send to input socket of volume daemon:
 	   Id of this process.
-	   Path length of current working directory for this process.
-	   Current working directory for this process.
 	   Argument count.
 	   Command line length.
 	   Arguments.
      */
 
-    if ( !getcwd(cwd, LINE_MAX - 1) ) {
-	fprintf(stderr, "%s (%d): could not store current working directory\n%s.\n",
-		argv0, pid, strerror(errno));
-	goto error;
-    }
-    cwd_l = strlen(cwd);
     for (cmd_ln_l = 0, a = argv; *a; a++) {
 	cmd_ln_l += strlen(*a) + 1;
     }
     if ( fwrite(&pid, sizeof(pid_t), 1, dmn) != 1 ) {
 	fprintf(stderr, "%s (%d): could not send process id to daemon\n%s\n",
 		argv0, pid, strerror(errno));
-	goto error;
-    }
-    if ( fwrite(&cwd_l, sizeof(size_t), 1, dmn) != 1 ) {
-	fprintf(stderr, "%s (%d): could not send working directory length to "
-		"daemon\n%s\n", argv0, pid, strerror(errno));
-	goto error;
-    }
-    if ( fwrite(cwd, 1, cwd_l, dmn) != cwd_l ) {
-	fprintf(stderr, "%s (%d): could not send working directory name to "
-		"daemon\n%s\n", argv0, pid, strerror(errno));
 	goto error;
     }
     if ( fwrite(&argc, sizeof(int), 1, dmn) != 1 ) {
@@ -238,7 +610,7 @@ int main(int argc, char *argv[])
 	       Daemon has sent standard output
 	     */
 
-	    if ( (ll = read(i_out, buf, LINE_MAX)) == -1 ) {
+	    if ( (ll = read(i_out, buf, LEN)) == -1 ) {
 		fprintf(stderr, "%s (%d): could not get standard output from "
 			"daemon\n%s\n", argv0, pid, strerror(errno));
 		goto error;
@@ -277,7 +649,7 @@ int main(int argc, char *argv[])
 	       Daemon has sent error output
 	     */
 
-	    if ( (ll = read(i_err, buf, LINE_MAX)) == -1 ) {
+	    if ( (ll = read(i_err, buf, LEN)) == -1 ) {
 		fprintf(stderr, "%s (%d): could not get error output from "
 			"daemon\n%s\n", argv0, pid, strerror(errno));
 		goto error;
@@ -312,8 +684,8 @@ int main(int argc, char *argv[])
 	    }
 	} else if ( i_dmn != -1 && FD_ISSET(i_dmn, &read_set) ) {
 	    /*
-	       Daemon is done with this command and has send return status.
-	       Clean up and return the status as exit status of this process.
+	       Daemon is done with this command and has sent return status.
+	       Clean up and return the status.
 	     */
 
 	    if ( (ll = read(i_dmn, &sstatus, sizeof(int))) == -1 || ll == 0 ) {
@@ -333,11 +705,9 @@ int main(int argc, char *argv[])
 	    if ( i_err != -1 ) {
 		close(i_err);
 	    }
-	    exit(sstatus);
+	    return sstatus;
 	}
     }
-
-    return EXIT_FAILURE;
 
 error:
     if ( strcmp(out_nm, "") != 0 ) {
@@ -356,6 +726,12 @@ error:
 	close(i_err);
     }
     return EXIT_FAILURE;
+}
+
+static void cleanup(void)
+{
+    unlink(out_nm);
+    unlink(err_nm);
 }
 
 /*

@@ -7,26 +7,35 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.26 $ $Date: 2011/01/06 19:49:16 $
+   .	$Revision: 1.27 $ $Date: 2011/01/06 20:15:28 $
  */
 
 #ifndef SIGMET_RAW_H_
 #define SIGMET_RAW_H_
 
 #include <stdio.h>
+#include <unistd.h>
 #include "sigmet.h"
 
-/* Default name for daemon socket */
-#define SIGMET_RAWD_IN "sigmet.in"
+/*
+   Default name for daemon socket
+ */
+
+#define SIGMET_RAWD_IN ".sigmet.in"
+
+/*
+   Names of files for daemon output and error messages
+ */
+
+#define SIGMET_RAWD_LOG ".sigmet.log"
+#define SIGMET_RAWD_ERR ".sigmet.err"
 
 /* Maximum number of arguments */
 #define SIGMET_RAWD_ARGCX	512
 
-void SigmetRaw_MkDDir(void);
-char *SigmetRaw_GetDDir(void);
-char *SigmetRaw_GetSock(void);
+FILE *SigmetRaw_VolOpen(const char *, pid_t *, int);
+void SigmetRaw_Load(const char *);
 int SigmetRaw_Cmd(const char *);
-void SigmetRaw_Start(int, char **);
 int SigmetRaw_SetProj(int, char **);
 char **SigmetRaw_GetProj(void);
 void SigmetRaw_SetImgSz(unsigned, unsigned);
@@ -38,11 +47,5 @@ char * SigmetRaw_GetImgApp(void);
 int SigmetRaw_GoodVol(char *, int);
 int SigmetRaw_ReadHdr(char *, int, struct Sigmet_Vol **);
 int SigmetRaw_ReadVol(char *, int, struct Sigmet_Vol **);
-void SigmetRaw_Keep(char *);
-void SigmetRaw_Release(char *);
-int SigmetRaw_Delete(char *);
-void SigmetRaw_VolList(FILE *);
-int SigmetRaw_Flush(void);
-size_t SigmetRaw_MaxSize(size_t);
 
 #endif
