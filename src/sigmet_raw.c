@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: $ $Date: $
+   .	$Revision: 1.74 $ $Date: 2011/02/14 19:11:22 $
  */
 
 #include <limits.h>
@@ -162,7 +162,11 @@ int main(int argc, char *argv[])
 	    in = stdin;
 	} else if ( argc == 3 ) {
 	    vol_fl_nm = argv[2];
-	    in = SigmetRaw_VolOpen(vol_fl_nm, &chpid, STDERR_FILENO);
+	    if ( strcmp(vol_fl_nm, "-") == 0 ) {
+		in = stdin;
+	    } else {
+		in = SigmetRaw_VolOpen(vol_fl_nm, &chpid, STDERR_FILENO);
+	    }
 	    if ( !in ) {
 		fprintf(stderr, "%s: could not open %s for input\n%s\n",
 			argv0, vol_fl_nm, Err_Get());
@@ -197,7 +201,11 @@ int main(int argc, char *argv[])
 	    in = stdin;
 	} else if ( argc == 3 ) {
 	    vol_fl_nm = argv[2];
-	    in = SigmetRaw_VolOpen(vol_fl_nm, &chpid, STDERR_FILENO);
+	    if ( strcmp(vol_fl_nm, "-") == 0 ) {
+		in = stdin;
+	    } else {
+		in = SigmetRaw_VolOpen(vol_fl_nm, &chpid, STDERR_FILENO);
+	    }
 	    if ( !in ) {
 		fprintf(stderr, "%s: could not open %s for input\n%s\n",
 			argv0, vol_fl_nm, Err_Get());
