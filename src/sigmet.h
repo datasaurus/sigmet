@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.82 $ $Date: 2010/12/16 17:53:22 $
+   .	$Revision: 1.83 $ $Date: 2011/01/28 21:29:57 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -537,6 +537,7 @@ DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 
 void Sigmet_Vol_Init(struct Sigmet_Vol *);
 void Sigmet_Vol_Free(struct Sigmet_Vol *);
+FILE *Sigmet_VolOpen(const char *, pid_t *);
 int Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);

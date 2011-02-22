@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.363 $ $Date: 2011/02/14 19:11:22 $
+ .	$Revision: 1.364 $ $Date: 2011/02/22 20:21:51 $
  */
 
 #include <limits.h>
@@ -218,7 +218,7 @@ void SigmetRaw_Load(const char *vol_fl_nm)
      */
 
     in_pid = -1;
-    if ( !(in = SigmetRaw_VolOpen(vol_fl_nm, &in_pid, STDERR_FILENO)) ) {
+    if ( !(in = Sigmet_VolOpen(vol_fl_nm, &in_pid)) ) {
 	fprintf(stderr, "Could not open %s for input.\n%s\n",
 		vol_fl_nm, Err_Get());
 	xstatus = SIGMET_IO_FAIL;

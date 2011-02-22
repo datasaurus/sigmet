@@ -7,7 +7,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.28 $ $Date: 2011/02/14 19:11:22 $
+   .	$Revision: 1.29 $ $Date: 2011/02/14 19:14:03 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -33,7 +33,6 @@
 /* Maximum number of arguments */
 #define SIGMET_RAWD_ARGCX	512
 
-FILE *SigmetRaw_VolOpen(const char *, pid_t *, int);
 void SigmetRaw_Load(const char *);
 int SigmetRaw_Cmd(const char *);
 int SigmetRaw_SetProj(int, char **);

@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.74 $ $Date: 2011/02/14 19:11:22 $
+   .	$Revision: 1.75 $ $Date: 2011/02/14 20:16:45 $
  */
 
 #include <limits.h>
@@ -16,7 +16,6 @@
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -24,7 +23,6 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <signal.h>
-#include <sys/wait.h>
 #include <sys/select.h>
 #include "alloc.h"
 #include "err_msg.h"
@@ -134,7 +132,7 @@ int main(int argc, char *argv[])
 	    return Sigmet_Vol_Read(stdin, NULL);
 	} else if ( argc == 3 ) {
 	    vol_fl_nm = argv[2];
-	    if ( (in = SigmetRaw_VolOpen(vol_fl_nm, &chpid, STDERR_FILENO)) ) {
+	    if ( (in = Sigmet_VolOpen(vol_fl_nm, &chpid)) ) {
 		return Sigmet_Vol_Read(in, NULL);
 	    } else {
 		return SIGMET_IO_FAIL;
@@ -165,7 +163,7 @@ int main(int argc, char *argv[])
 	    if ( strcmp(vol_fl_nm, "-") == 0 ) {
 		in = stdin;
 	    } else {
-		in = SigmetRaw_VolOpen(vol_fl_nm, &chpid, STDERR_FILENO);
+		in = Sigmet_VolOpen(vol_fl_nm, &chpid);
 	    }
 	    if ( !in ) {
 		fprintf(stderr, "%s: could not open %s for input\n%s\n",
@@ -204,7 +202,7 @@ int main(int argc, char *argv[])
 	    if ( strcmp(vol_fl_nm, "-") == 0 ) {
 		in = stdin;
 	    } else {
-		in = SigmetRaw_VolOpen(vol_fl_nm, &chpid, STDERR_FILENO);
+		in = Sigmet_VolOpen(vol_fl_nm, &chpid);
 	    }
 	    if ( !in ) {
 		fprintf(stderr, "%s: could not open %s for input\n%s\n",
@@ -261,147 +259,6 @@ static void reg_types(void)
 	    exit(status);
 	}
     }
-}
-
-/*
-   Open volume file vol_nm.  If vol_nm suffix indicates a compressed file, open
-   a pipe to a decompression process.  Return a file handle to the file or
-   decompression process, or NULL if failure. If return value is output from a
-   decompression process, put the process id at pid_p. Set *pid_p to -1 if
-   there is no decompression process (i.e. vol_nm is a plain file).
-   Propagate error messages with Err_Append.  Have child send its error messages
-   to i_err.
- */
-
-FILE *SigmetRaw_VolOpen(const char *vol_nm, pid_t *pid_p, int i_err)
-{
-    FILE *in = NULL;		/* Return value */
-    char *sfx;			/* Filename suffix */
-    int pfd[2] = {-1};		/* Pipe for data */
-    pid_t ch_pid = -1;		/* Child process id */
-
-    *pid_p = -1;
-    sfx = strrchr(vol_nm, '.');
-    if ( sfx && strcmp(sfx, ".gz") == 0 ) {
-	/*
-	   If filename ends with ".gz", read from gunzip pipe
-	 */
-
-	if ( pipe(pfd) == -1 ) {
-	    Err_Append("Could not create pipe for gzip\n");
-	    Err_Append(strerror(errno));
-	    Err_Append("\n");
-	    goto error;
-	}
-	ch_pid = fork();
-	switch (ch_pid) {
-	    case -1:
-		Err_Append("Could not spawn gzip. ");
-		goto error;
-	    case 0:
-		/*
-		   Child process - gzip.  Send child stdout to pipe and child
-		   stderr to i_err.
-		 */
-
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
-			|| close(pfd[0]) == -1 ) {
-		    _exit(EXIT_FAILURE);
-		}
-		if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
-		    _exit(EXIT_FAILURE);
-		}
-		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
-		_exit(EXIT_FAILURE);
-	    default:
-		/*
-		   This process.  Read output from gzip.
-		 */
-
-		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-		    Err_Append("Could not read gzip process\n%s\n");
-		    Err_Append(strerror(errno));
-		    Err_Append("\n");
-		    goto error;
-		} else {
-		    *pid_p = ch_pid;
-		    return in;
-		}
-	}
-    } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
-	/*
-	   If filename ends with ".bz2", read from bunzip2 pipe
-	 */
-
-	if ( pipe(pfd) == -1 ) {
-	    Err_Append("Could not create pipe for bzip2\n");
-	    Err_Append(strerror(errno));
-	    Err_Append("\n");
-	    goto error;
-	}
-	ch_pid = fork();
-	switch (ch_pid) {
-	    case -1:
-		Err_Append("Could not spawn bzip2. ");
-		goto error;
-	    case 0:
-		/*
-		   Child process - bzip2.  Send child stdout to pipe and child
-		   stderr to i_err.
-		 */
-
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
-			|| close(pfd[0]) == -1 ) {
-		    _exit(EXIT_FAILURE);
-		}
-		if ( dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
-		    _exit(EXIT_FAILURE);
-		}
-		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
-		_exit(EXIT_FAILURE);
-	    default:
-		/*
-		   This process.  Read output from bzip2.
-		 */
-
-		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-		    goto error;
-		} else {
-		    *pid_p = ch_pid;
-		    return in;
-		}
-	}
-    } else if ( !(in = fopen(vol_nm, "r")) ) {
-	/*
-	   Uncompressed file
-	 */
-
-	Err_Append("Could not open ");
-	Err_Append(vol_nm);
-	Err_Append(" ");
-	Err_Append(strerror(errno));
-	Err_Append("\n");
-	return NULL;
-    }
-    return in;
-
-error:
-    if ( ch_pid != -1 ) {
-	kill(ch_pid, SIGKILL);
-	waitpid(ch_pid, NULL, WNOHANG);
-	ch_pid = -1;
-    }
-    if ( in ) {
-	fclose(in);
-	pfd[0] = -1;
-    }
-    if ( pfd[0] != -1 ) {
-	close(pfd[0]);
-    }
-    if ( pfd[1] != -1 ) {
-	close(pfd[1]);
-    }
-    return NULL;
 }
 
 /*
