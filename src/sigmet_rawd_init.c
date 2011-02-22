@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.364 $ $Date: 2011/02/22 20:21:51 $
+ .	$Revision: 1.365 $ $Date: 2011/02/22 20:44:51 $
  */
 
 #include <limits.h>
@@ -118,7 +118,6 @@ static callback *cb1v[NCMD] = {
  */
 
 static char *time_stamp(void);
-static pid_t execvp_pipe(char **, int *, int *);
 static int coproc_rw(char **, void *, size_t , void *, size_t);
 static int img_name(char *, int, char *);
 static int handle_signals(void);
@@ -134,7 +133,7 @@ static void handler(int);
    to stderr and exits this process.
  */
 
-void SigmetRaw_Load(const char *vol_fl_nm)
+void SigmetRaw_Load(char *vol_fl_nm)
 {
     pid_t in_pid;		/* Process that provides a volume */
     FILE *in;			/* Stream that provides a volume */
@@ -2138,7 +2137,7 @@ static int img_cb(int argc, char *argv[])
     img_argv[0] = img_app;
     img_argv[1] = img_fl_nm;
     img_argv[2] = NULL;
-    if ( (img_pid = execvp_pipe(img_argv, &img_wr, NULL)) == 0 ) {
+    if ( (img_pid = Sigmet_Execvp_Pipe(img_argv, &img_wr, NULL)) == 0 ) {
 	fprintf(stderr, "%s %s: could not spawn image application\n"
 		"%s\n", argv0, argv1, Err_Get());
 	status = SIGMET_HELPER_FAIL;
@@ -2347,70 +2346,6 @@ error:
 }
 
 /*
-   Spawn a child process with execvp(argv[0], argv).
-   If wr_p is not NULL, it will receive a file descriptor that writes to
-   the child's stdin. If rd_p is not NULL, it will receive a file descriptor
-   that reads from the child's stdout.  If successful, return value will be the
-   process id for the child. Otherwise, error information is generated that can
-   be retreived with Err_Get(), and return value is 0.
- */
-
-static pid_t execvp_pipe(char **argv, int *wr_p, int *rd_p)
-{
-    int wr_pfd[2] = {-1, -1}, rd_pfd[2] = {-1, -1};
-    pid_t pid;
-
-    if ( wr_p && pipe(wr_pfd) == -1 ) {
-	Err_Append("Could not create pipe to write to child process. ");
-	Err_Append(strerror(errno));
-	return 0;
-    }
-    if ( rd_p && pipe(rd_pfd) == -1 ) {
-	Err_Append("Could not create pipe to read from child process. ");
-	Err_Append(strerror(errno));
-	return 0;
-    }
-    pid = fork();
-    switch (pid) {
-	case -1:
-	    Err_Append("Could not spawn child. ");
-	    Err_Append(strerror(errno));
-	    return 0;
-	case 0:
-	    if ( wr_p && dup2(wr_pfd[0], STDIN_FILENO) == -1 ) {
-		_exit(EXIT_FAILURE);
-	    }
-	    if ( rd_p && dup2(rd_pfd[1], STDOUT_FILENO) == -1 ) {
-		_exit(EXIT_FAILURE);
-	    }
-	    if ( wr_pfd[0] != -1 ) {
-		close(wr_pfd[0]);
-	    }
-	    if ( wr_pfd[1] != -1 ) {
-		close(wr_pfd[1]);
-	    }
-	    if ( rd_pfd[1] != -1 ) {
-		close(rd_pfd[1]);
-	    }
-	    if ( rd_pfd[0] != -1 ) {
-		close(rd_pfd[0]);
-	    }
-	    execvp(argv[0], argv);
-	    _exit(EXIT_FAILURE);
-	default:
-	    if ( wr_p ) {
-		*wr_p = wr_pfd[1];
-		close(wr_pfd[0]);
-	    }
-	    if ( rd_p ) {
-		*rd_p = rd_pfd[0];
-		close(rd_pfd[1]);
-	    }
-    }
-    return pid;
-}
-
-/*
    This function starts a coprocess with argument vector argv. It then
    attempts to write n_wr bytes from buf_wr to the coprocess stdin, and
    read n_rd bytes from the coprocess stdout.
@@ -2440,7 +2375,7 @@ static int coproc_rw(char **argv, void *buf_wr, size_t n_wr,
        to transfer data.
      */
 
-    pid = execvp_pipe(argv, &wr_fd, &rd_fd);
+    pid = Sigmet_Execvp_Pipe(argv, &wr_fd, &rd_fd);
     if ( pid == 0 ) {
 	Err_Append("Could not spawn helper application. ");
 	Err_Append(strerror(errno));

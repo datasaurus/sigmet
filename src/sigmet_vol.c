@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.118 $ $Date: 2011/02/14 19:11:22 $
+   .	$Revision: 1.119 $ $Date: 2011/02/22 20:44:51 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -278,102 +278,58 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
    Open volume file vol_nm.  If vol_nm suffix indicates a compressed file, open
    a pipe to a decompression process.  Return a file handle to the file or
    decompression process, or NULL if failure. If return value is output from a
-   decompression process, put the process id at pid_p. Set *pid_p to -1 if
+   decompression process, put the process id at pid_p. Set *pid_p to 0 if
    there is no decompression process (i.e. vol_nm is a plain file).
    Propagate error messages with Err_Append.  Have child send its error messages
    to i_err.
  */
 
-FILE *Sigmet_VolOpen(const char *vol_nm, pid_t *pid_p)
+FILE *Sigmet_VolOpen(char *vol_nm, pid_t *pid_p)
 {
+    int i_in;			/* Descriptor for return value */
     FILE *in = NULL;		/* Return value */
+    char *argv[4];
     char *sfx;			/* Filename suffix */
-    int pfd[2] = {-1};		/* Pipe for data */
-    pid_t ch_pid = -1;		/* Child process id */
+    pid_t ch_pid = 0;		/* Child process id */
 
-    *pid_p = -1;
+    *pid_p = 0;
     sfx = strrchr(vol_nm, '.');
     if ( sfx && strcmp(sfx, ".gz") == 0 ) {
 	/*
 	   If filename ends with ".gz", read from gunzip pipe
 	 */
 
-	if ( pipe(pfd) == -1 ) {
-	    Err_Append("Could not create pipe for gzip\n");
+	argv[0] = "gunzip";
+	argv[1] = "-c";
+	argv[2] = vol_nm;
+	argv[3] = NULL;
+	if ( (ch_pid = Sigmet_Execvp_Pipe(argv, NULL, &i_in)) == 0 ||
+		!(in = fdopen(i_in, "r")) ) {
+	    Err_Append("Could not set up gzip pipe. ");
 	    Err_Append(strerror(errno));
 	    Err_Append("\n");
 	    goto error;
 	}
-	ch_pid = fork();
-	switch (ch_pid) {
-	    case -1:
-		Err_Append("Could not spawn gzip. ");
-		goto error;
-	    case 0:
-		/*
-		   Child process - gzip.  Send child stdout to pipe.
-		 */
-
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
-			|| close(pfd[0]) == -1 ) {
-		    _exit(EXIT_FAILURE);
-		}
-		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
-		_exit(EXIT_FAILURE);
-	    default:
-		/*
-		   This process.  Read output from gzip.
-		 */
-
-		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-		    Err_Append("Could not read gzip process\n%s\n");
-		    Err_Append(strerror(errno));
-		    Err_Append("\n");
-		    goto error;
-		} else {
-		    *pid_p = ch_pid;
-		    return in;
-		}
-	}
+	*pid_p = ch_pid;
+	return in;
     } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
 	/*
 	   If filename ends with ".bz2", read from bunzip2 pipe
 	 */
 
-	if ( pipe(pfd) == -1 ) {
-	    Err_Append("Could not create pipe for bzip2\n");
+	argv[0] = "bunzip2";
+	argv[1] = "-c";
+	argv[2] = vol_nm;
+	argv[3] = NULL;
+	if ( (ch_pid = Sigmet_Execvp_Pipe(argv, NULL, &i_in)) == 0 ||
+		!(in = fdopen(i_in, "r")) ) {
+	    Err_Append("Could not set up gzip pipe. ");
 	    Err_Append(strerror(errno));
 	    Err_Append("\n");
 	    goto error;
 	}
-	ch_pid = fork();
-	switch (ch_pid) {
-	    case -1:
-		Err_Append("Could not spawn bzip2. ");
-		goto error;
-	    case 0:
-		/*
-		   Child process - bzip2.  Send child stdout to pipe.
-		 */
-
-		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
-			|| close(pfd[0]) == -1 ) {
-		    _exit(EXIT_FAILURE);
-		}
-		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
-		_exit(EXIT_FAILURE);
-	    default:
-		/*
-		   This process.  Read output from bzip2.
-		 */
-
-		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
-		    goto error;
-		} else {
-		    *pid_p = ch_pid;
-		    return in;
-		}
-	}
+	*pid_p = ch_pid;
+	return in;
     } else if ( !(in = fopen(vol_nm, "r")) ) {
 	/*
 	   Uncompressed file
@@ -389,22 +345,79 @@ FILE *Sigmet_VolOpen(const char *vol_nm, pid_t *pid_p)
     return in;
 
 error:
-    if ( ch_pid != -1 ) {
+    if ( ch_pid != 0 ) {
 	kill(ch_pid, SIGKILL);
 	waitpid(ch_pid, NULL, WNOHANG);
-	ch_pid = -1;
+	ch_pid = 0;
     }
     if ( in ) {
 	fclose(in);
-	pfd[0] = -1;
-    }
-    if ( pfd[0] != -1 ) {
-	close(pfd[0]);
-    }
-    if ( pfd[1] != -1 ) {
-	close(pfd[1]);
     }
     return NULL;
+}
+
+/*
+   Spawn a child process with execvp(argv[0], argv).
+   If wr_p is not NULL, it will receive a file descriptor that writes to
+   the child's stdin. If rd_p is not NULL, it will receive a file descriptor
+   that reads from the child's stdout.  If successful, return value will be the
+   process id for the child. Otherwise, error information is generated that can
+   be retreived with Err_Get(), and return value is 0.
+ */
+
+pid_t Sigmet_Execvp_Pipe(char **argv, int *wr_p, int *rd_p)
+{
+    int wr_pfd[2] = {-1, -1}, rd_pfd[2] = {-1, -1};
+    pid_t pid;
+
+    if ( wr_p && pipe(wr_pfd) == -1 ) {
+	Err_Append("Could not create pipe to write to child process. ");
+	Err_Append(strerror(errno));
+	return 0;
+    }
+    if ( rd_p && pipe(rd_pfd) == -1 ) {
+	Err_Append("Could not create pipe to read from child process. ");
+	Err_Append(strerror(errno));
+	return 0;
+    }
+    pid = fork();
+    switch (pid) {
+	case -1:
+	    Err_Append("Could not spawn child. ");
+	    Err_Append(strerror(errno));
+	    return 0;
+	case 0:
+	    if ( wr_p && dup2(wr_pfd[0], STDIN_FILENO) == -1 ) {
+		_exit(EXIT_FAILURE);
+	    }
+	    if ( rd_p && dup2(rd_pfd[1], STDOUT_FILENO) == -1 ) {
+		_exit(EXIT_FAILURE);
+	    }
+	    if ( wr_pfd[0] != -1 ) {
+		close(wr_pfd[0]);
+	    }
+	    if ( wr_pfd[1] != -1 ) {
+		close(wr_pfd[1]);
+	    }
+	    if ( rd_pfd[1] != -1 ) {
+		close(rd_pfd[1]);
+	    }
+	    if ( rd_pfd[0] != -1 ) {
+		close(rd_pfd[0]);
+	    }
+	    execvp(argv[0], argv);
+	    _exit(EXIT_FAILURE);
+	default:
+	    if ( wr_p ) {
+		*wr_p = wr_pfd[1];
+		close(wr_pfd[0]);
+	    }
+	    if ( rd_p ) {
+		*rd_p = rd_pfd[0];
+		close(rd_pfd[1]);
+	    }
+    }
+    return pid;
 }
 
 int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
