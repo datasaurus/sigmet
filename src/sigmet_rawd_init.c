@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.367 $ $Date: 2011/02/23 15:07:56 $
+ .	$Revision: 1.368 $ $Date: 2011/02/23 16:40:37 $
  */
 
 #include <limits.h>
@@ -60,7 +60,7 @@ static char *Vol_Fl_Nm;			/* File that provided the volume */
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 33
+#define NCMD 34
 typedef int (callback)(int , char **);
 static callback pid_cb;
 static callback data_types_cb;
@@ -82,6 +82,7 @@ static callback div_cb;
 static callback log10_cb;
 static callback incr_time_cb;
 static callback data_cb;
+static callback bdata_cb;
 static callback bin_outline_cb;
 static callback bintvls_cb;
 static callback radar_lon_cb;
@@ -99,17 +100,17 @@ static char *cmd1v[NCMD] = {
     "pid", "data_types", "new_data_type", "reload", "colors",
     "volume_headers", "vol_hdr", "near_sweep", "ray_headers", "new_field",
     "del_field", "size", "set_field", "add", "sub", "mul", "div",
-    "log10", "incr_time", "data", "bin_outline", "bintvls", "radar_lon",
-    "radar_lat", "shift_az", "set_proj", "get_proj", "img_app", "img_sz",
-    "alpha", "img_name", "img", "dorade"
+    "log10", "incr_time", "data", "bdata", "bin_outline", "bintvls",
+    "radar_lon", "radar_lat", "shift_az", "set_proj", "get_proj",
+    "img_app", "img_sz", "alpha", "img_name", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, reload_cb, setcolors_cb,
     volume_headers_cb, vol_hdr_cb, near_sweep_cb, ray_headers_cb, new_field_cb,
     del_field_cb, size_cb, set_field_cb, add_cb, sub_cb, mul_cb, div_cb,
-    log10_cb, incr_time_cb, data_cb, bin_outline_cb, bintvls_cb, radar_lon_cb,
-    radar_lat_cb, shift_az_cb, set_proj_cb, get_proj_cb, img_app_cb, img_sz_cb,
-    alpha_cb, img_name_cb, img_cb, dorade_cb
+    log10_cb, incr_time_cb, data_cb, bdata_cb, bin_outline_cb, bintvls_cb,
+    radar_lon_cb, radar_lat_cb, shift_az_cb, set_proj_cb, get_proj_cb,
+    img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -1237,11 +1238,11 @@ static int data_cb(int argc, char *argv[])
     /*
        Identify input and desired output
        Possible forms:
-	   sigmet_ray data path			(argc = 3)
-	   sigmet_ray data type path		(argc = 4)
-	   sigmet_ray data type s path		(argc = 5)
-	   sigmet_ray data type s r path	(argc = 6)
-	   sigmet_ray data type s r b path	(argc = 7)
+	   sigmet_ray data		(argc = 3)
+	   sigmet_ray data type		(argc = 4)
+	   sigmet_ray data type s	(argc = 5)
+	   sigmet_ray data type s r	(argc = 6)
+	   sigmet_ray data type s r b	(argc = 7)
      */
 
     abbrv = NULL;
@@ -1384,6 +1385,80 @@ static int data_cb(int argc, char *argv[])
 		printf("nodat ");
 	    }
 	    printf("\n");
+	}
+    }
+    return SIGMET_OK;
+}
+
+/*
+   Print sweep data as a binary stream.
+   sigmet_ray bdata data_type s
+   Each output ray will have num_output_bins floats.
+   Missing values will be Sigmet_NoData().
+ */
+
+static int bdata_cb(int argc, char *argv[])
+{
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+    struct Sigmet_DatArr *dat_p;
+    int s, y, r, b;
+    char *abbrv;
+    static float *ray_p;	/* Buffer to receive ray data */
+    int num_bins_out;
+    int status, n;
+
+    if ( argc != 4 ) {
+	fprintf(stderr, "Usage: %s %s data_type sweep_index\n", argv0, argv1);
+	return SIGMET_BAD_ARG;
+    }
+    abbrv = argv[2];
+    if ( sscanf(argv[3], "%d", &s) != 1 ) {
+	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
+		argv0, argv1, argv[3]);
+	return SIGMET_BAD_ARG;
+    }
+    if ( (dat_p = Hash_Get(&Vol.types_tbl, abbrv)) ) {
+	y = dat_p - Vol.dat;
+    } else {
+	fprintf(stderr, "%s %s: no data type named %s\n",
+		argv0, argv1, abbrv);
+	return SIGMET_BAD_ARG;
+    }
+    if ( s >= Vol.num_sweeps_ax ) {
+	fprintf(stderr, "%s %s: sweep index %d out of range for volume\n",
+		argv0, argv1, s);
+	return SIGMET_RNG_ERR;
+    }
+    n = num_bins_out = Vol.ih.tc.tri.num_bins_out;
+    if ( !ray_p && !(ray_p = CALLOC(num_bins_out, sizeof(float))) ) {
+	fprintf(stderr, "Could not allocate output buffer for ray.\n");
+	return SIGMET_ALLOC_FAIL;
+    }
+    for (r = 0; r < Vol.ih.ic.num_rays; r++) {
+	for (b = 0; b < num_bins_out; b++) {
+	    ray_p[b] = Sigmet_NoData();
+	}
+	if ( Vol.ray_ok[s][r] ) {
+	    status = Sigmet_Vol_GetRayDat(&Vol, y, s, r, &ray_p, &n);
+	    if ( status != SIGMET_OK ) {
+		fprintf(stderr, "Could not get ray data for data type %s, "
+			"sweep index %d, ray %d.\n", abbrv, s, r);
+		return status;
+	    }
+	    if ( n > num_bins_out ) {
+		fprintf(stderr, "Ray %d or sweep %d, data type %s has "
+			"unexpected number of bins - %d instead of %d.\n",
+			r, s, abbrv, n, num_bins_out);
+		return SIGMET_BAD_VOL;
+	    }
+	}
+	if ( fwrite(ray_p, sizeof(float), num_bins_out, stdout)
+		!= num_bins_out ) {
+	    fprintf(stderr, "Could not write ray data for data type %s, "
+		    "sweep index %d, ray %d.\n%s\n",
+		    abbrv, s, r, strerror(errno));
+	    return SIGMET_IO_FAIL;
 	}
     }
     return SIGMET_OK;
