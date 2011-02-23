@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.368 $ $Date: 2011/02/23 16:40:37 $
+ .	$Revision: 1.369 $ $Date: 2011/02/23 19:33:01 $
  */
 
 #include <limits.h>
@@ -1916,6 +1916,10 @@ static int img_cb(int argc, char *argv[])
 					   at coords */
     double lon, lat;			/* Geographic coordinates (longitude
 					   latitude) */
+    int n_steps;			/* Number of steps of ray length to
+					   take from radar when determining
+					   limits of sweep on map */
+    double dir;				/* Compass direction (radians) */
     char **proj_argv;			/* Projection command. */
     double left;			/* Map coordinate of left side */
     double rght;			/* Map coordinate of right side */
@@ -2046,17 +2050,11 @@ static int img_cb(int argc, char *argv[])
     }
 
     /*
-       To obtain longitude, latitude limits of display area, put radar
-       at center, and step ray length to the north, south, west, and east.
-       GeogStep expects step of great circle radians, not meters.  Convert
-       meters to radians by multiplying by:
-       pi radian / 180 deg * 1 deg / 60 nmi * 1 nmi / 1852 meters 
-       This conversion is based on the International Standard Nautical Mile,
-       which is 1852 meters.
-
-       Store the display area coordinates as degrees in west, east, south, and
-       north. Also put them into coords and convert them to map coordinates
-       with the external conversion program defined by proj_argv.
+       To obtain limits of projected display, put radar at center, and step
+       ray length in various directions. Store the lon-lat's in coords.
+       Convert the lon-lat's to map coordinates with external coprocess
+       specified by SigmetRaw_GetProj, and find the limits of the sweep
+       on the map.
      */
 
     lon = Sigmet_Bin4Rad(Vol.ih.ic.longitude);
@@ -2065,24 +2063,22 @@ static int img_cb(int argc, char *argv[])
 	    + (Vol.ih.tc.tri.num_bins_out + 1) * Vol.ih.tc.tri.step_out);
     ray_len = ray_len * M_PI / (180.0 * 60.0 * 1852.0);
 
-    if ( !(coords = CALLOC(8, sizeof(double))) ) {
+    n_steps = 180;
+    if ( !(coords = CALLOC(n_steps * 2, sizeof(double))) ) {
 	fprintf(stderr, "%s %s: could not allocate coordinate buffer to "
 		"hold map edges.\n", argv0, argv1);
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
-    coord_e = coords + 8;
+    coord_e = coords + n_steps * 2;
 
-    GeogStep(lon, lat, 270.0 * RAD_PER_DEG, ray_len, coords, coords + 1);
-    west = coords[0] * DEG_PER_RAD;
-    GeogStep(lon, lat, 90.0 * RAD_PER_DEG, ray_len, coords + 2, coords + 3);
-    east = coords[2] * DEG_PER_RAD;
-    GeogStep(lon, lat, 180.0 * RAD_PER_DEG, ray_len, coords + 4, coords + 5);
-    south = coords[5] * DEG_PER_RAD;
-    GeogStep(lon, lat, 0.0, ray_len, coords + 6, coords + 7);
-    north = coords[7] * DEG_PER_RAD;
+    for (dir = 0.0, coord_p = coords;
+	    coord_p < coord_e;
+	    dir += 2 * M_PI / n_steps, coord_p += 2) {
+	GeogStep(lon, lat, dir, ray_len, coord_p, coord_p + 1);
+    }
 
-    num_bytes = 8 * sizeof(double);
+    num_bytes = n_steps * 2 * sizeof(double);
     proj_argv = SigmetRaw_GetProj();
     if ( !coproc_rw(proj_argv, coords, num_bytes, coords, num_bytes) ) {
 	fprintf(stderr, "%s %s: Could not convert edge coordinates from "
@@ -2090,35 +2086,58 @@ static int img_cb(int argc, char *argv[])
 	status = SIGMET_IO_FAIL;
 	goto error;
     }
-    left = coords[0];
-    if ( left == HUGE_VAL ) {
-	fprintf(stderr, "%s %s: west edge of map not defined in current "
-		"projection\n", argv0, argv1);
-	status = SIGMET_RNG_ERR;
+
+    for (left = btm = DBL_MAX, rght = top = -DBL_MAX, coord_p = coords;
+	    coord_p < coord_e;
+	    coord_p += 2) {
+	double map_x = *coord_p, map_y = *(coord_p + 1);
+
+	if ( map_x != HUGE_VAL ) {
+	    if ( map_x < left ) {
+		left = map_x;
+	    }
+	    if ( map_x > rght ) {
+		rght = map_x;
+	    }
+	}
+	if ( map_y != HUGE_VAL ) {
+	    if ( map_y > top ) {
+		top = map_y;
+	    }
+	    if ( map_y < btm ) {
+		btm = map_y;
+	    }
+	}
+    }
+    if ( left == DBL_MAX || btm == DBL_MAX
+	    || rght == -DBL_MAX || top == -DBL_MAX) {
+	fprintf(stderr, "%s %s: cannot represent sweep in current "
+		"projection.\n", argv0, argv1);
+	status = SIGMET_BAD_ARG;
 	goto error;
     }
-    rght = coords[2];
-    if ( rght == HUGE_VAL ) {
-	fprintf(stderr, "%s %s: east edge of map not defined in current "
-		"projection\n", argv0, argv1);
-	status = SIGMET_RNG_ERR;
+
+    /*
+       Obtain geographic coordinates of top left and bottom right for
+       the kml file. The kml file will be of little use if the projection
+       is substantially skewed.
+     */
+
+    coords[0] = left;
+    coords[1] = top;
+    coords[2] = rght;
+    coords[3] = btm;
+    num_bytes = 4 * sizeof(double);
+    if ( !coproc_rw(proj_argv, coords, num_bytes, coords, num_bytes) ) {
+	fprintf(stderr, "%s %s: Could not convert edge coordinates from "
+		"geographic to map.\n%s\n", argv0, argv1, Err_Get());
+	status = SIGMET_IO_FAIL;
 	goto error;
     }
-    btm = coords[5];
-    if ( btm == HUGE_VAL ) {
-	fprintf(stderr, "%s %s: south edge of map not defined in current "
-		"projection\n", argv0, argv1);
-	status = SIGMET_RNG_ERR;
-	goto error;
-    }
-    top = coords[7];
-    if ( top == HUGE_VAL ) {
-	fprintf(stderr, "%s %s: north edge of map not defined in current "
-		"projection\n",
-		argv0, argv1);
-	status = SIGMET_RNG_ERR;
-	goto error;
-    }
+    west = coords[0];
+    north = coords[1];
+    east = coords[2];
+    south = coords[3];
 
     /*
        Loop through bins for each ray for sweep s.
