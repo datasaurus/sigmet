@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.77 $ $Date: 2011/02/23 14:03:09 $
+   .	$Revision: 1.78 $ $Date: 2011/02/23 15:07:56 $
  */
 
 #include <limits.h>
@@ -473,19 +473,7 @@ int handle_signals(void)
 	perror(NULL);
 	return 0;
     }
-    if ( sigaction(SIGBUS, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
     if ( sigaction(SIGFPE, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
-    if ( sigaction(SIGILL, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
-    if ( sigaction(SIGSEGV, &act, NULL) == -1 ) {
 	perror(NULL);
 	return 0;
     }
@@ -529,17 +517,8 @@ void handler(int signum)
 	case SIGTERM:
 	    msg = "sigmet_raw command exiting on termination signal    \n";
 	    break;
-	case SIGBUS:
-	    msg = "sigmet_raw command exiting on bus error             \n";
-	    break;
 	case SIGFPE:
 	    msg = "sigmet_raw command exiting arithmetic exception     \n";
-	    break;
-	case SIGILL:
-	    msg = "sigmet_raw command exiting illegal instruction      \n";
-	    break;
-	case SIGSEGV:
-	    msg = "sigmet_raw command exiting invalid memory reference \n";
 	    break;
 	case SIGSYS:
 	    msg = "sigmet_raw command exiting on bad system call       \n";
