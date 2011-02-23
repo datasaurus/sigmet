@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.29 $ $Date: 2011/01/19 17:40:09 $
+   .	$Revision: 1.30 $ $Date: 2011/02/07 21:06:00 $
  */
 
 #include <stdlib.h>
@@ -198,6 +198,46 @@ char * Sigmet_DataType_Descr(enum Sigmet_DataTypeN y)
 char * Sigmet_DataType_Unit(enum Sigmet_DataTypeN y)
 {
     return (y < SIGMET_NTYPES) ? unit[y] : NULL;
+}
+
+/*
+   Register Sigmet data types in the DataType interface.
+ */
+
+void Sigmet_DataType_Init(void)
+{
+    static int init;		/* If true, done */
+    int sig_type;		/* Loop index */
+
+    if ( init ) {
+	return;
+    }
+    for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
+	int status;
+
+	status = DataType_Add( Sigmet_DataType_Abbrv(sig_type),
+		Sigmet_DataType_Descr(sig_type),
+		Sigmet_DataType_Unit(sig_type),
+		Sigmet_DataType_StorFmt(sig_type),
+		Sigmet_DataType_StorToComp(sig_type));
+	if ( status != DATATYPE_SUCCESS ) {
+	    fprintf(stderr, "could not register data type %s\n%s\n",
+		    Sigmet_DataType_Abbrv(sig_type), Err_Get());
+	    switch (status) {
+		case DATATYPE_INPUT_FAIL:
+		    status = SIGMET_IO_FAIL;
+		    break;
+		case DATATYPE_ALLOC_FAIL:
+		    status = SIGMET_ALLOC_FAIL;
+		    break;
+		case DATATYPE_BAD_ARG:
+		    status = SIGMET_BAD_ARG;
+		    break;
+	    }
+	    exit(status);
+	}
+    }
+    init = 1;
 }
 
 enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN y)

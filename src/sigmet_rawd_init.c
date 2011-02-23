@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.365 $ $Date: 2011/02/22 20:44:51 $
+ .	$Revision: 1.366 $ $Date: 2011/02/22 22:37:51 $
  */
 
 #include <limits.h>
@@ -142,7 +142,6 @@ void SigmetRaw_Load(char *vol_fl_nm)
     struct sockaddr_un sa;	/* Socket to read command and return exit status */
     struct sockaddr *sa_p;	/* &sa or &d_err_sa, for call to bind */
     int i_dmn;			/* File descriptors for daemon socket */
-    int sig_type;		/* Loop index */
     pid_t pid;			/* Return from fork */
     FILE *d_log = NULL;		/* Daemon log */
     FILE *d_err = NULL;		/* Daemon error log */
@@ -186,36 +185,10 @@ void SigmetRaw_Load(char *vol_fl_nm)
     }
 
     /*
-       Register Sigmet data types.
-     */
-
-    for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
-	status = DataType_Add( Sigmet_DataType_Abbrv(sig_type),
-		Sigmet_DataType_Descr(sig_type),
-		Sigmet_DataType_Unit(sig_type),
-		Sigmet_DataType_StorFmt(sig_type),
-		Sigmet_DataType_StorToComp(sig_type));
-	if ( status != DATATYPE_SUCCESS ) {
-	    fprintf(stderr, "could not register data type %s\n%s\n",
-		    Sigmet_DataType_Abbrv(sig_type), Err_Get());
-	    switch (status) {
-		case DATATYPE_INPUT_FAIL:
-		    xstatus = SIGMET_IO_FAIL;
-		    goto error;
-		case DATATYPE_ALLOC_FAIL:
-		    xstatus = SIGMET_ALLOC_FAIL;
-		    goto error;
-		case DATATYPE_BAD_ARG:
-		    xstatus = SIGMET_BAD_ARG;
-		    goto error;
-	    }
-	}
-    }
-
-    /*
        Read the volume.
      */
 
+    Sigmet_DataType_Init();
     in_pid = -1;
     if ( !(in = Sigmet_VolOpen(vol_fl_nm, &in_pid)) ) {
 	fprintf(stderr, "Could not open %s for input.\n%s\n",

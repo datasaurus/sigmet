@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.119 $ $Date: 2011/02/22 20:44:51 $
+   .	$Revision: 1.120 $ $Date: 2011/02/22 22:37:51 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -62,6 +62,10 @@
  */
 
 enum SCAN_MODE {ppi_sec = 1, rhi, man, ppi_cont, file};
+
+/*
+   Convenience functions
+ */
 
 static char *trimRight(char *, int);
 static int get_sint16(void *);
@@ -472,6 +476,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	goto error;
     }
 
+    Sigmet_DataType_Init();
     Sigmet_Vol_Free(vol_p);
 
     /*

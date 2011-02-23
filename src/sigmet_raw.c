@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.76 $ $Date: 2011/02/22 20:44:51 $
+   .	$Revision: 1.77 $ $Date: 2011/02/23 14:03:09 $
  */
 
 #include <limits.h>
@@ -54,7 +54,6 @@ static int handle_signals(void);
 static void handler(int signum);
 static void cleanup(void);
 static int daemon_task(int argc, char *argv[]);
-static void reg_types(void);
 
 int main(int argc, char *argv[])
 {
@@ -80,9 +79,7 @@ int main(int argc, char *argv[])
      */
 
     if ( strcmp(argv1, "data_types") == 0 ) {
-	size_t n;
-	char **abbrvs, **a;
-	struct DataType *data_type;
+	enum Sigmet_DataTypeN y;
 
 	if ( argc != 2 ) {
 	    fprintf(stderr, "Usage: %s data_types\n", argv0);
@@ -91,21 +88,17 @@ int main(int argc, char *argv[])
 
 	/*
 	   If current working directory contains a daemon socket, send this
-	   command to it. Otherwise, just list data types from the Sigmet
-	   programmers manual.
+	   command to it. The daemon might know of data types besides the
+	   basic Sigmet ones.  Otherwise, just list data types from the
+	   Sigmet programmers manual.
 	 */
 
 	if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
 	    return daemon_task(argc, argv);
-	}
-	reg_types();
-	abbrvs = DataType_Abbrvs(&n);
-	if ( abbrvs ) {
-	    for (a = abbrvs; a < abbrvs + n; a++) {
-		data_type = DataType_Get(*a);
-		assert(data_type);
-		printf("%s | %s | %s\n",
-			*a, data_type->descr, data_type->unit);
+	} else {
+	    for (y = 0; y < SIGMET_NTYPES; y++) {
+		printf("%s | %s | %s\n", Sigmet_DataType_Abbrv(y),
+			Sigmet_DataType_Descr(y), Sigmet_DataType_Unit(y));
 	    }
 	}
     } else if ( strcmp(argv1, "load") == 0 ) {
@@ -124,7 +117,6 @@ int main(int argc, char *argv[])
 	   Determine if file given as stdin is navigable Sigmet volume.
 	 */
 
-	reg_types();
 	if ( argc == 2 ) {
 	    return Sigmet_Vol_Read(stdin, NULL);
 	} else if ( argc == 3 ) {
@@ -143,41 +135,6 @@ int main(int argc, char *argv[])
     }
 
     return EXIT_SUCCESS;
-}
-
-/*
-   Register Sigmet data types.
- */
-
-static void reg_types(void)
-{
-    int sig_type;		/* Loop index */
-
-    for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
-	int status;
-
-	status = DataType_Add( Sigmet_DataType_Abbrv(sig_type),
-		Sigmet_DataType_Descr(sig_type),
-		Sigmet_DataType_Unit(sig_type),
-		Sigmet_DataType_StorFmt(sig_type),
-		Sigmet_DataType_StorToComp(sig_type));
-	if ( status != DATATYPE_SUCCESS ) {
-	    fprintf(stderr, "could not register data type %s\n%s\n",
-		    Sigmet_DataType_Abbrv(sig_type), Err_Get());
-	    switch (status) {
-		case DATATYPE_INPUT_FAIL:
-		    status = SIGMET_IO_FAIL;
-		    break;
-		case DATATYPE_ALLOC_FAIL:
-		    status = SIGMET_ALLOC_FAIL;
-		    break;
-		case DATATYPE_BAD_ARG:
-		    status = SIGMET_BAD_ARG;
-		    break;
-	    }
-	    exit(status);
-	}
-    }
 }
 
 /*

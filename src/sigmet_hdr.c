@@ -7,7 +7,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.76 $ $Date: 2011/02/22 20:44:51 $
+   .	$Revision: 1.2 $ $Date: 2011/02/23 15:07:56 $
  */
 
 #include <limits.h>
@@ -36,7 +36,6 @@
 static int handle_signals(void);
 static void handler(int signum);
 static int print_vol_hdr(struct Sigmet_Vol *vol_p);
-static void reg_types(void);
 
 int main(int argc, char *argv[])
 {
@@ -53,7 +52,6 @@ int main(int argc, char *argv[])
 	return EXIT_FAILURE;
     }
 
-    reg_types();
     Sigmet_Vol_Init(&vol);
 
     if ( argc == 1 ) {
@@ -97,41 +95,6 @@ int main(int argc, char *argv[])
     }
 
     return EXIT_SUCCESS;
-}
-
-/*
-   Register Sigmet data types.
- */
-
-static void reg_types(void)
-{
-    int sig_type;		/* Loop index */
-
-    for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
-	int status;
-
-	status = DataType_Add( Sigmet_DataType_Abbrv(sig_type),
-		Sigmet_DataType_Descr(sig_type),
-		Sigmet_DataType_Unit(sig_type),
-		Sigmet_DataType_StorFmt(sig_type),
-		Sigmet_DataType_StorToComp(sig_type));
-	if ( status != DATATYPE_SUCCESS ) {
-	    fprintf(stderr, "could not register data type %s\n%s\n",
-		    Sigmet_DataType_Abbrv(sig_type), Err_Get());
-	    switch (status) {
-		case DATATYPE_INPUT_FAIL:
-		    status = SIGMET_IO_FAIL;
-		    break;
-		case DATATYPE_ALLOC_FAIL:
-		    status = SIGMET_ALLOC_FAIL;
-		    break;
-		case DATATYPE_BAD_ARG:
-		    status = SIGMET_BAD_ARG;
-		    break;
-	    }
-	    exit(status);
-	}
-    }
 }
 
 /*
