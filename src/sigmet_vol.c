@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.121 $ $Date: 2011/02/23 15:07:56 $
+   .	$Revision: 1.122 $ $Date: 2011/02/23 15:25:07 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2493,10 +2493,7 @@ int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s, int r,
     float *f_p, *f_e;
     float *r_p;
 
-    if ( !vol_p ) {
-	return Sigmet_NoData();
-    }
-    if ( y < 0 || y >= vol_p->num_types
+    if ( !vol_p || y < 0 || y >= vol_p->num_types
 	    || s < 0 || s >= vol_p->num_sweeps_ax
 	    || r < 0 || r >= vol_p->ih.ic.num_rays ) {
 	return SIGMET_BAD_ARG;
