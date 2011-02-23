@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.75 $ $Date: 2011/02/14 20:16:45 $
+   .	$Revision: 1.76 $ $Date: 2011/02/22 20:44:51 $
  */
 
 #include <limits.h>
@@ -54,7 +54,6 @@ static int handle_signals(void);
 static void handler(int signum);
 static void cleanup(void);
 static int daemon_task(int argc, char *argv[]);
-static int print_vol_hdr(struct Sigmet_Vol *vol_p);
 static void reg_types(void);
 
 int main(int argc, char *argv[])
@@ -64,8 +63,6 @@ int main(int argc, char *argv[])
     char *vol_fl_nm;		/* Name of Sigmet raw product file */
     FILE *in;
     pid_t chpid;
-    struct Sigmet_Vol vol;
-    int status;
 
     if ( !handle_signals() ) {
 	fprintf(stderr, "%s (%d): could not set up signal management.",
@@ -141,84 +138,6 @@ int main(int argc, char *argv[])
 	    fprintf(stderr, "Usage: %s %s [raw_file]\n", argv0, argv1);
 	    exit(EXIT_FAILURE);
 	}
-    } else if ( strcmp(argv1, "volume_headers") == 0 ) {
-	/*
-	   If call is of form "sigmet_raw volume_headers" and current
-	   directory contains a daemon socket, send this command to it.
-	   If call is of form "sigmet_raw volume_headers", read volume from
-	   stdin and print headers.
-	   If call is of form "sigmet_raw volume_headers file", print headers
-	   from file.
-	 */
-
-	reg_types();
-	Sigmet_Vol_Init(&vol);
-	if ( argc == 2) {
-	    if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
-		return daemon_task(argc, argv);
-	    }
-	    in = stdin;
-	} else if ( argc == 3 ) {
-	    vol_fl_nm = argv[2];
-	    if ( strcmp(vol_fl_nm, "-") == 0 ) {
-		in = stdin;
-	    } else {
-		in = Sigmet_VolOpen(vol_fl_nm, &chpid);
-	    }
-	    if ( !in ) {
-		fprintf(stderr, "%s: could not open %s for input\n%s\n",
-			argv0, vol_fl_nm, Err_Get());
-		return SIGMET_IO_FAIL;
-	    }
-	} else {
-	    fprintf(stderr, "Usage: %s %s [raw_product_file]\n", argv0, argv1);
-	    exit(EXIT_FAILURE);
-	}
-	if ( (status = Sigmet_Vol_ReadHdr(in, &vol)) != SIGMET_OK ) {
-	    fprintf(stderr, "%s: could not get headers from standard "
-		    "input\n%s\n", argv0, Err_Get());
-	    exit(status);
-	}
-	Sigmet_Vol_PrintHdr(stdout, &vol);
-    } else if ( strcmp(argv1, "vol_hdr") == 0 ) {
-	/*
-	   If call is of form "sigmet_raw vol_hdr" and current
-	   directory contains a daemon socket, send this command to it.
-	   If call is of form "sigmet_raw vol_hdr", read volume from
-	   stdin and print headers.
-	   If call is of form "sigmet_raw vol_hdr file", print headers
-	   from file.
-	 */
-
-	reg_types();
-	Sigmet_Vol_Init(&vol);
-	if ( argc == 2) {
-	    if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
-		return daemon_task(argc, argv);
-	    }
-	    in = stdin;
-	} else if ( argc == 3 ) {
-	    vol_fl_nm = argv[2];
-	    if ( strcmp(vol_fl_nm, "-") == 0 ) {
-		in = stdin;
-	    } else {
-		in = Sigmet_VolOpen(vol_fl_nm, &chpid);
-	    }
-	    if ( !in ) {
-		fprintf(stderr, "%s: could not open %s for input\n%s\n",
-			argv0, vol_fl_nm, Err_Get());
-		return SIGMET_IO_FAIL;
-	    }
-	} else {
-	    fprintf(stderr, "Usage: %s %s [path]\n", argv0, argv1);
-	    exit(EXIT_FAILURE);
-	}
-	if ( (status = Sigmet_Vol_ReadHdr(in, &vol)) != SIGMET_OK ) {
-	    fprintf(stderr, "%s: could not get headers from standard "
-		    "input\n%s\n", argv0, Err_Get());
-	    exit(status);
-	}
-	print_vol_hdr(&vol);
     } else {
 	return daemon_task(argc, argv);
     }
@@ -259,66 +178,6 @@ static void reg_types(void)
 	    exit(status);
 	}
     }
-}
-
-/*
-   Print selected headers from vol_p.
- */
-
-static int print_vol_hdr(struct Sigmet_Vol *vol_p)
-{
-    int y;
-    double wavlen, prf, vel_ua;
-    enum Sigmet_Multi_PRF mp;
-    char *mp_s = "unknown";
-
-    printf("site_name=\"%s\"\n", vol_p->ih.ic.su_site_name);
-    printf("radar_lon=%.4lf\n",
-	   GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0) * DEG_PER_RAD);
-    printf("radar_lat=%.4lf\n",
-	   GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.latitude), 0.0) * DEG_PER_RAD);
-    printf("task_name=\"%s\"\n", vol_p->ph.pc.task_name);
-    printf("types=\"");
-    if ( vol_p->dat[0].data_type->abbrv ) {
-	printf("%s", vol_p->dat[0].data_type->abbrv);
-    }
-    for (y = 1; y < vol_p->num_types; y++) {
-	if ( vol_p->dat[y].data_type->abbrv ) {
-	    printf(" %s", vol_p->dat[y].data_type->abbrv);
-	}
-    }
-    printf("\"\n");
-    printf("num_sweeps=%d\n", vol_p->ih.ic.num_sweeps);
-    printf("num_rays=%d\n", vol_p->ih.ic.num_rays);
-    printf("num_bins=%d\n", vol_p->ih.tc.tri.num_bins_out);
-    printf("range_bin0=%d\n", vol_p->ih.tc.tri.rng_1st_bin);
-    printf("bin_step=%d\n", vol_p->ih.tc.tri.step_out);
-    wavlen = 0.01 * 0.01 * vol_p->ih.tc.tmi.wave_len; 	/* convert -> cm > m */
-    prf = vol_p->ih.tc.tdi.prf;
-    mp = vol_p->ih.tc.tdi.m_prf_mode;
-    vel_ua = -1.0;
-    switch (mp) {
-	case ONE_ONE:
-	    mp_s = "1:1";
-	    vel_ua = 0.25 * wavlen * prf;
-	    break;
-	case TWO_THREE:
-	    mp_s = "2:3";
-	    vel_ua = 2 * 0.25 * wavlen * prf;
-	    break;
-	case THREE_FOUR:
-	    mp_s = "3:4";
-	    vel_ua = 3 * 0.25 * wavlen * prf;
-	    break;
-	case FOUR_FIVE:
-	    mp_s = "4:5";
-	    vel_ua = 3 * 0.25 * wavlen * prf;
-	    break;
-    }
-    printf("prf=%.2lf\n", prf);
-    printf("prf_mode=%s\n", mp_s);
-    printf("vel_ua=%.3lf\n", vel_ua);
-    return SIGMET_OK;
 }
 
 /*
