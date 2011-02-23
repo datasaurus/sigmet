@@ -9,7 +9,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.30 $ $Date: 2011/02/07 21:06:00 $
+   .	$Revision: 1.31 $ $Date: 2011/02/23 15:07:56 $
  */
 
 #include <stdlib.h>
@@ -24,16 +24,6 @@
 
 #define TWO_16 ((double)((unsigned)0xFFFF) + 1.0)
 #define TWO_32 ((double)((unsigned)0xFFFFFFFF) + 1.0)
-
-/*
-   Round x to nearest integer
- */
-
-static long n_int(double);
-static long n_int(double x)
-{
-    return floor(x + 0.5);
-}
 
 /*
    Short names for Sigmet data types.  Index with enum Sigmet_DataTypeN.
@@ -177,12 +167,12 @@ double Sigmet_Bin2Rad(unsigned short a)
 
 unsigned long Sigmet_RadBin4(double a)
 {
-    return n_int(a * TWO_32 / (2 * M_PI));
+    return round(a * TWO_32 / (2 * M_PI));
 }
 
 unsigned long Sigmet_RadBin2(double a)
 {
-    return n_int(a * TWO_16 / (2 * M_PI));
+    return round(a * TWO_16 / (2 * M_PI));
 }
 
 char * Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN y)

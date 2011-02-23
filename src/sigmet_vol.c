@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.120 $ $Date: 2011/02/22 22:37:51 $
+   .	$Revision: 1.121 $ $Date: 2011/02/23 15:07:56 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -50,12 +50,6 @@
  */
 
 #define FS "|"
-
-/*
-   Round f to nearest integer
- */
-
-#define N_INT(f) ((f) > 0.0 ? (f) + 0.5 : (f) - 0.5)
 
 /*
    Sigmet scan modes
@@ -2400,7 +2394,7 @@ int Sigmet_Vol_IncrTm(struct Sigmet_Vol *vol_p, double dt)
 	    || !ymds_incr(&vol_p->ih.tc.tei.data_time, dt) ) {
 	return SIGMET_BAD_VOL;
     }
-    dt_i = N_INT(dt * 86400);
+    dt_i = round(dt * 86400);
     tsi = vol_p->ih.tc.tsi;
     if ( tsi.start_time >= 0 ) {
 	vol_p->ih.tc.tsi.start_time = (tsi.start_time + dt_i) % 86400;

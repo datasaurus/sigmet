@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.34 $ $Date: 2011/02/07 22:18:48 $
+   .	$Revision: 1.35 $ $Date: 2011/02/08 18:40:13 $
  */
 
 #include <string.h>
@@ -20,16 +20,6 @@
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "dorade_lib.h"
-
-/*
-   Round x to nearest integer
- */
-
-static int n_int(double);
-static int n_int(double x)
-{
-    return (int)floor(x + 0.5);
-}
 
 int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	struct Dorade_Sweep *swp_p)
@@ -94,7 +84,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     sswb_p = &swp_p->sswb;
     epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0.0);
-    sswb_p->i_start_time = n_int((vol_p->sweep_time[s] - epoch) * 86400);
+    sswb_p->i_start_time = round((vol_p->sweep_time[s] - epoch) * 86400);
     sswb_p->compression_flag = 0;
     num_parms = sswb_p->num_parms = vol_p->num_types;
     strlcpy(sswb_p->radar_name, vol_p->ih.ic.su_site_name, 9);
@@ -115,7 +105,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     swp_p->vold.day = day;
     swp_p->vold.data_set_hour = hr;
     swp_p->vold.data_set_minute = min;
-    swp_p->vold.data_set_second = n_int(sec);
+    swp_p->vold.data_set_second = round(sec);
     strncpy(swp_p->vold.gen_facility, vol_p->ih.ic.su_site_name, 8);
     swp_p->vold.gen_year = vol_p->ph.pc.ingest_sweep_tm.year;
     swp_p->vold.gen_month = vol_p->ph.pc.ingest_sweep_tm.month;
@@ -221,10 +211,10 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	}
 	strncpy(parm_p->param_description, data_type->descr, 40);
 	strncpy(parm_p->param_units, data_type->unit, 40);
-	parm_p->xmitted_freq = n_int(1.0e-9 * 2.9979e8 / wave_len);
+	parm_p->xmitted_freq = round(1.0e-9 * 2.9979e8 / wave_len);
 	parm_p->recvr_bandwidth = 1.0e-3 * vol_p->ih.tc.tci.bandwidth;
 	parm_p->pulse_width
-	    = n_int(vol_p->ih.tc.tdi.pulse_w * 0.01 * 1.0e-6 * 2.9979e8);
+	    = round(vol_p->ih.tc.tdi.pulse_w * 0.01 * 1.0e-6 * 2.9979e8);
 	parm_p->num_samples = vol_p->ih.tc.tdi.sampl_sz;
 	parm_p->binary_format = DD_16_BITS;	/* To keep significant bits */
 	strncpy(parm_p->threshold_field, "NONE", 8);
@@ -335,7 +325,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	ryib_p->hour = hr;
 	ryib_p->minute = min;
 	ryib_p->second = sec;
-	ryib_p->millisecond = n_int((sec - ryib_p->second) * 1000);
+	ryib_p->millisecond = round((sec - ryib_p->second) * 1000);
 	az0 = vol_p->ray_az0[s][r];
 	az1 = vol_p->ray_az1[s][r];
 	ryib_p->azimuth = 0.5 * (az0 + GeogLonR(az1, az0));
