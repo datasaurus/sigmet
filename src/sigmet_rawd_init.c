@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.366 $ $Date: 2011/02/22 22:37:51 $
+ .	$Revision: 1.367 $ $Date: 2011/02/23 15:07:56 $
  */
 
 #include <limits.h>
@@ -46,6 +46,7 @@ static struct Sigmet_Vol Vol;		/* Sigmet volume struct. See sigmet.h */
 static int Have_Vol;			/* If true, Vol contains a volume */
 static int Mod;				/* If true, Vol has been modified
 					   since reading by a local function. */
+static char *Vol_Fl_Nm;			/* File that provided the volume */
 
 /*
    Size for various strings
@@ -59,11 +60,12 @@ static int Mod;				/* If true, Vol has been modified
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 32
+#define NCMD 33
 typedef int (callback)(int , char **);
 static callback pid_cb;
 static callback data_types_cb;
 static callback new_data_type_cb;
+static callback reload_cb;
 static callback setcolors_cb;
 static callback volume_headers_cb;
 static callback vol_hdr_cb;
@@ -94,18 +96,18 @@ static callback img_name_cb;
 static callback img_cb;
 static callback dorade_cb;
 static char *cmd1v[NCMD] = {
-    "pid", "data_types", "new_data_type", "colors", "volume_headers",
-    "vol_hdr", "near_sweep", "ray_headers", "new_field", "del_field",
-    "size", "set_field", "add", "sub", "mul", "div", "log10",
-    "incr_time", "data", "bin_outline", "bintvls", "radar_lon",
+    "pid", "data_types", "new_data_type", "reload", "colors",
+    "volume_headers", "vol_hdr", "near_sweep", "ray_headers", "new_field",
+    "del_field", "size", "set_field", "add", "sub", "mul", "div",
+    "log10", "incr_time", "data", "bin_outline", "bintvls", "radar_lon",
     "radar_lat", "shift_az", "set_proj", "get_proj", "img_app", "img_sz",
     "alpha", "img_name", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
-    pid_cb, data_types_cb, new_data_type_cb, setcolors_cb, volume_headers_cb,
-    vol_hdr_cb, near_sweep_cb, ray_headers_cb, new_field_cb, del_field_cb,
-    size_cb, set_field_cb, add_cb, sub_cb, mul_cb, div_cb, log10_cb,
-    incr_time_cb, data_cb, bin_outline_cb, bintvls_cb, radar_lon_cb,
+    pid_cb, data_types_cb, new_data_type_cb, reload_cb, setcolors_cb,
+    volume_headers_cb, vol_hdr_cb, near_sweep_cb, ray_headers_cb, new_field_cb,
+    del_field_cb, size_cb, set_field_cb, add_cb, sub_cb, mul_cb, div_cb,
+    log10_cb, incr_time_cb, data_cb, bin_outline_cb, bintvls_cb, radar_lon_cb,
     radar_lat_cb, shift_az_cb, set_proj_cb, get_proj_cb, img_app_cb, img_sz_cb,
     alpha_cb, img_name_cb, img_cb, dorade_cb
 };
@@ -157,6 +159,7 @@ void SigmetRaw_Load(char *vol_fl_nm)
     size_t cmd_ln_lx = 0;	/* Given size of command line */
     int stop = 0;		/* If true, exit program */
     int xstatus = SIGMET_OK;	/* Exit status of process */
+    size_t sz;
 
     /*
        Fail if this directory already has a socket.
@@ -220,6 +223,13 @@ void SigmetRaw_Load(char *vol_fl_nm)
     }
     Have_Vol = 1;
     Mod = 0;
+    sz = strlen(vol_fl_nm) + 1;
+    if ( !(Vol_Fl_Nm = CALLOC(sz, 1)) ) {
+	fprintf(stderr, "Could not allocate space for volume file name.\n");
+	xstatus = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
+    strlcpy(Vol_Fl_Nm, vol_fl_nm, sz);
 
     /*
        Create a socket to recieve client requests.
@@ -608,6 +618,47 @@ static int data_types_cb(int argc, char *argv[])
     }
 
     return SIGMET_OK;
+}
+
+static int reload_cb(int argc, char *argv[])
+{
+    struct Sigmet_Vol vol;
+    pid_t in_pid;
+    FILE *in;
+    int status;
+
+    if ( Mod ) {
+	fprintf(stderr, "Cannot reload volume which has been modified.");
+	return SIGMET_BAD_ARG;
+    }
+    Sigmet_Vol_Init(&vol);
+    in_pid = 0;
+    if ( !(in = Sigmet_VolOpen(Vol_Fl_Nm, &in_pid)) ) {
+	fprintf(stderr, "Could not open %s for input.\n%s\n",
+		Vol_Fl_Nm, Err_Get());
+	return SIGMET_IO_FAIL;
+    }
+    switch (status = Sigmet_Vol_Read(in, &vol)) {
+	case SIGMET_OK:
+	case SIGMET_IO_FAIL:	/* Possibly truncated volume o.k. */
+	    Sigmet_Vol_Free(&Vol);
+	    Vol = vol;
+	    break;
+	case SIGMET_ALLOC_FAIL:
+	    fprintf(stderr, "Could not allocate memory while reloading %s. "
+		    "Volume remains as previously loaded.\n", Vol_Fl_Nm);
+	case SIGMET_BAD_FILE:
+	    fprintf(stderr, "Raw product file %s is corrupt. "
+		    "Volume remains as previously loaded.\n", Vol_Fl_Nm);
+	case SIGMET_BAD_ARG:
+	    fprintf(stderr, "Internal failure while reading %s. "
+		    "Volume remains as previously loaded.\n", Vol_Fl_Nm);
+    }
+    fclose(in);
+    if (in_pid != 0) {
+	waitpid(in_pid, NULL, 0);
+    }
+    return status;
 }
 
 static int setcolors_cb(int argc, char *argv[])
