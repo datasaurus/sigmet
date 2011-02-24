@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.123 $ $Date: 2011/02/23 19:32:26 $
+   .	$Revision: 1.124 $ $Date: 2011/02/24 16:13:32 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2624,18 +2624,9 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
     return SIGMET_OK;
 }
 
-/*
-   Create a png and associated kml file in local directory for data type abbrv,
-   sweep s, of the volume at vol_p. Image will be created with application
-   named img_app. Application specified by proj_argv will convert geographic
-   to map coordinates. Image will be w_pxl by h_pxl pixels, with alpha value
-   alpha. Image will be named base_nm + ".png". KML file will be named
-   base_nm + ".kml". Error information is accumulated with Err_Append.
- */
-
 int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
-	char *img_app, char **proj_argv, unsigned w_pxl, unsigned h_pxl,
-	double alpha, char *base_nm)
+	char *img_app, char **proj_argv, unsigned w_pxl, double alpha,
+	char *base_nm)
 {
     int status;				/* Result of a function */
     struct DataType *data_type;		/* Information about the data type */
@@ -2986,7 +2977,7 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     }
     strlcpy(item, "image dimensions", STR_LEN);
     IO_Put_UInt(&w_pxl, 1, img_out, err_jmp);
-    IO_Put_UInt(&h_pxl, 1, img_out, err_jmp);
+    IO_Put_UInt(&w_pxl, 1, img_out, err_jmp);
     strlcpy(item, "image real bounds", STR_LEN);
     IO_Put_Double(&left, 1, img_out, err_jmp);
     IO_Put_Double(&rght, 1, img_out, err_jmp);
