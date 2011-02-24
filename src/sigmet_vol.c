@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.122 $ $Date: 2011/02/23 15:25:07 $
+   .	$Revision: 1.123 $ $Date: 2011/02/23 19:32:26 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -18,15 +18,20 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
+#include <limits.h>
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/wait.h>
 #include "alloc.h"
 #include "tm_calc_lib.h"
 #include "err_msg.h"
 #include "swap.h"
 #include "type_nbit.h"
+#include "io_std.h"
+#include "bisearch_lib.h"
 #include "geog_lib.h"
 #include "data_types.h"
 #include "sigmet.h"
@@ -61,6 +66,7 @@ enum SCAN_MODE {ppi_sec = 1, rhi, man, ppi_cont, file};
    Convenience functions
  */
 
+static int coproc_rw(char **, void *, size_t , void *, size_t);
 static char *trimRight(char *, int);
 static int get_sint16(void *);
 static unsigned get_uint16(void *);
@@ -73,7 +79,7 @@ static int vol_good(FILE *);
    Default length for character strings
  */
 
-#define STR_LEN 512
+#define STR_LEN 4096
 
 /*
    These functions read and print structures that make up a Sigmet raw product
@@ -2619,6 +2625,501 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
 }
 
 /*
+   Create a png and associated kml file in local directory for data type abbrv,
+   sweep s, of the volume at vol_p. Image will be created with application
+   named img_app. Application specified by proj_argv will convert geographic
+   to map coordinates. Image will be w_pxl by h_pxl pixels, with alpha value
+   alpha. Image will be named base_nm + ".png". KML file will be named
+   base_nm + ".kml". Error information is accumulated with Err_Append.
+ */
+
+int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
+	char *img_app, char **proj_argv, unsigned w_pxl, unsigned h_pxl,
+	double alpha, char *base_nm)
+{
+    int status;				/* Result of a function */
+    struct DataType *data_type;		/* Information about the data type */
+    struct Sigmet_DatArr *dat_p;
+    int y, r, b;			/* Indeces: data type, sweep, ray, bin */
+    double *coords = NULL;		/* Buffer to hold coordinates sent to
+					   and received from coordinate trans-
+					   formation process (proj4 or similar)
+					 */
+    double *coord_p;			/* Next empty location in coords */
+    double *coord_e;			/* Address one past end of allocation
+					   at coords */
+    double lon, lat;			/* Geographic coordinates (longitude
+					   latitude) */
+    int n_steps;			/* Number of steps of ray length to
+					   take from radar when determining
+					   limits of sweep on map */
+    double dir;				/* Compass direction (radians) */
+    double left;			/* Map coordinate of left side */
+    double rght;			/* Map coordinate of right side */
+    double btm;				/* Map coordinate of bottom */
+    double top;				/* Map coordinate of top */
+    struct DataType_Color *clrs; 	/* Array of colors */
+    struct DataType_Color *clr; 	/* Point into clrs*/
+    unsigned num_clrs;			/* Number colors = number bounds - 1 */
+    int *clr_idxs = NULL;		/* Array of color indeces */
+    int *clr_idx_p;			/* Next usable location in clr_idxs */
+    int *clr_idx_e;			/* Address one past end of allocation 
+					   at clr_idxs */
+    double *bnds;			/* bounds for each color */
+    unsigned char n_bnds;		/* number of bounds = num_clrs + 1 */
+    int i_bnd;				/* Index into bnds, also a color index */
+    double d;				/* Data value */
+    double ray_len;			/* Ray length, meters or great circle
+					   radians */
+    double west, east;			/* Display area longitude limits */
+    double south, north;		/* Display area latitude limits */
+    size_t num_bytes;			/* Number of bytes to read or write */
+    int num_outlns;			/* Number of bin outlines */
+    int yr, mo, da, h, mi;		/* Sweep year, month, day, hour, minute */
+    double sec;				/* Sweep second */
+    char img_fl_nm[STR_LEN]; 		/* Image output file name */
+    int flags;                  	/* Image file creation flags */
+    mode_t mode;                	/* Image file permissions */
+    int i_img_fl;			/* Image file descriptor, not used */
+    char kml_fl_nm[STR_LEN];		/* KML output file name */
+    FILE *kml_fl;			/* KML file */
+    pid_t img_pid = 0;			/* Process id for image generator */
+    FILE *img_out = NULL;		/* Where to send outlines to draw */
+    jmp_buf err_jmp;			/* Handle output errors with setjmp,
+					   longjmp */
+    char item[STR_LEN];			/* Item being written. Needed for error
+					   message. */
+    pid_t p;				/* Return from waitpid */
+    int si;				/* Exit status of image generator */
+    char *img_argv[3];
+    int img_wr;
+
+    /*
+       This format string creates a KML file.
+     */
+
+    char kml_tmpl[] = 
+	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	"<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
+	"  <GroundOverlay>\n"
+	"    <name>%s sweep</name>\n"
+	"    <description>"
+	"      %s at %02d/%02d/%02d %02d:%02d:%02.0f. Field: %s. %04.1f degrees"
+	"    </description>\n"
+	"    <Icon>%s</Icon>\n"
+	"    <LatLonBox>\n"
+	"      <north>%f</north>\n"
+	"      <south>%f</south>\n"
+	"      <west>%f</west>\n"
+	"      <east>%f</east>\n"
+	"    </LatLonBox>\n"
+	"  </GroundOverlay>\n"
+	"</kml>\n";
+
+    status = SIGMET_OK;
+    if ( !vol_p ) {
+	Err_Append("Bogus volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( vol_p->ih.tc.tni.scan_mode != PPI_S
+	    && vol_p->ih.tc.tni.scan_mode != PPI_C ) {
+	Err_Append("Volume must be PPI. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(data_type = DataType_Get(abbrv)) ) {
+	Err_Append("no data type named ");
+	Err_Append(abbrv);
+	Err_Append(". ");
+	return SIGMET_BAD_ARG;
+    }
+    num_clrs = data_type->n_colors;
+    clrs = data_type->colors;
+    n_bnds = num_clrs + 1;
+    bnds = data_type->bounds;
+    if ( num_clrs == 0 || !clrs ) {
+	Err_Append("colors not set for ");
+	Err_Append(abbrv);
+	Err_Append(". ");
+	return SIGMET_NOT_INIT;
+    }
+    if ( n_bnds == 1 || !bnds ) {
+	Err_Append("bounds not set for ");
+	Err_Append(abbrv);
+	Err_Append(". ");
+	return SIGMET_NOT_INIT;
+    }
+    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("no data type named ");
+	Err_Append(abbrv);
+	Err_Append(". ");
+	return SIGMET_BAD_ARG;
+    }
+    y = dat_p - vol_p->dat;
+    if ( s >= vol_p->num_sweeps_ax ) {
+	Err_Append("sweep index out of range for volume. ");
+	return SIGMET_RNG_ERR;
+    }
+    if ( !vol_p->sweep_ok[s] ) {
+	Err_Append("sweep not valid in volume. ");
+	return SIGMET_RNG_ERR;
+    }
+    if ( !Tm_JulToCal(vol_p->sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
+	Err_Append("invalid sweep time. ");
+	return SIGMET_BAD_TIME;
+    }
+
+    /*
+       To obtain limits of projected display, put radar at center, and step
+       ray length in various directions. Store the lon-lat's in coords.
+       Convert the lon-lat's to map coordinates with external coprocess
+       specified by proj_argv, and find the limits of the sweep
+       on the map.
+     */
+
+    lon = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
+    lat = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
+    ray_len = 0.01 * (vol_p->ih.tc.tri.rng_1st_bin
+	    + (vol_p->ih.tc.tri.num_bins_out + 1) * vol_p->ih.tc.tri.step_out);
+    ray_len = ray_len * M_PI / (180.0 * 60.0 * 1852.0);
+
+    n_steps = 180;
+    if ( !(coords = CALLOC(n_steps * 2, sizeof(double))) ) {
+	Err_Append("could not allocate coordinate buffer to hold map edges.. ");
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
+    coord_e = coords + n_steps * 2;
+
+    for (dir = 0.0, coord_p = coords;
+	    coord_p < coord_e;
+	    dir += 2 * M_PI / n_steps, coord_p += 2) {
+	GeogStep(lon, lat, dir, ray_len, coord_p, coord_p + 1);
+    }
+
+    num_bytes = n_steps * 2 * sizeof(double);
+    if ( !coproc_rw(proj_argv, coords, num_bytes, coords, num_bytes) ) {
+	Err_Append("Could not convert edge coordinates from geographic to map. ");
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+
+    for (left = btm = DBL_MAX, rght = top = -DBL_MAX, coord_p = coords;
+	    coord_p < coord_e;
+	    coord_p += 2) {
+	double map_x = *coord_p, map_y = *(coord_p + 1);
+
+	if ( map_x != HUGE_VAL ) {
+	    if ( map_x < left ) {
+		left = map_x;
+	    }
+	    if ( map_x > rght ) {
+		rght = map_x;
+	    }
+	}
+	if ( map_y != HUGE_VAL ) {
+	    if ( map_y > top ) {
+		top = map_y;
+	    }
+	    if ( map_y < btm ) {
+		btm = map_y;
+	    }
+	}
+    }
+    if ( left == DBL_MAX || btm == DBL_MAX
+	    || rght == -DBL_MAX || top == -DBL_MAX) {
+	Err_Append("cannot represent sweep in current projection.. ");
+	status = SIGMET_BAD_ARG;
+	goto error;
+    }
+
+    /*
+       Obtain geographic coordinates of top left and bottom right for
+       the kml file. The kml file will be of little use if the projection
+       is substantially skewed.
+     */
+
+    coords[0] = left;
+    coords[1] = top;
+    coords[2] = rght;
+    coords[3] = btm;
+    num_bytes = 4 * sizeof(double);
+    if ( !coproc_rw(proj_argv, coords, num_bytes, coords, num_bytes) ) {
+	Err_Append("Could not convert edge coordinates from geographic to map. ");
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+    west = coords[0];
+    north = coords[1];
+    east = coords[2];
+    south = coords[3];
+
+    /*
+       Loop through bins for each ray for sweep s.
+       Determine which interval from bnds each bin value is in.
+       If the bin value is in an interval to display, save its color
+       and the coordinates of its outline.
+     */
+
+    coord_p = coords;
+    if ( !(clr_idxs = CALLOC(100, sizeof(int))) ) {
+	Err_Append("could not allocate array of color indeces.. ");
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
+    clr_idx_p = clr_idxs;
+    clr_idx_e = clr_idxs + 100;
+    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	if ( vol_p->ray_ok[s][r] ) {
+	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
+		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
+		if ( Sigmet_IsData(d)
+			&& (i_bnd = BISearch(d, bnds, n_bnds)) != -1 ) {
+		    if ( clr_idx_p == clr_idx_e ) {
+			int *t;
+			size_t alloc_ints, use_ints, bytes;
+			size_t chunk = 2000 * 120;
+
+			use_ints = (clr_idx_p - clr_idxs);
+			alloc_ints = ((clr_idx_e - clr_idxs) + chunk);
+			bytes = alloc_ints * sizeof(int);
+			if ( !(t = REALLOC(clr_idxs, bytes)) ) {
+			    Err_Append("could not grow array of color indeces. ");
+			    status = SIGMET_ALLOC_FAIL;
+			    goto error;
+			}
+			clr_idxs = t;
+			clr_idx_e = clr_idxs + alloc_ints;
+			clr_idx_p = clr_idxs + use_ints;
+		    }
+		    *clr_idx_p++ = i_bnd;
+		    if ( coord_p + 8 >= coord_e ) {
+			double *t;
+			size_t alloc_dbls, use_dbls, bytes;
+			size_t chunk = 2000 * 120 * 8;
+
+			use_dbls = (coord_p - coords);
+			alloc_dbls = ((coord_e - coords) + chunk);
+			bytes = alloc_dbls * sizeof(double);
+			if ( !(t = REALLOC(coords, bytes)) ) {
+			    Err_Append("could not grow array of bounds. ");
+			    status = SIGMET_ALLOC_FAIL;
+			    goto error;
+			}
+			coords = t;
+			coord_e = coords + alloc_dbls;
+			coord_p = coords + use_dbls;
+		    }
+		    status = Sigmet_Vol_BinOutl(vol_p, s, r, b, coord_p);
+		    if ( status != SIGMET_OK ) {
+			Err_Get();		/* Flush */
+			clr_idx_p--;
+			continue;
+		    }
+		    coord_p += 8;
+		}
+	    }
+	}
+    }
+
+    /*
+       Convert bin outline lat-lon's to map coordinates.
+     */
+
+    num_bytes = (coord_p - coords) * sizeof(double);
+    if ( !coproc_rw(proj_argv, coords, num_bytes, coords, num_bytes) ) {
+	Err_Append("Could not convert outline coordinates from lat-lon's "
+		"to map. ");
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+
+    /*
+       Create image file. Fail if it already exists.
+     */
+
+    if ( snprintf(img_fl_nm, STR_LEN, "%s.png", base_nm) >= STR_LEN ) {
+	Err_Append("could not make image file name. ");
+	Err_Append(base_nm);
+	Err_Append(". ");
+	return SIGMET_RNG_ERR;
+    }
+    flags = O_CREAT | O_EXCL | O_WRONLY;
+    mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    if ( (i_img_fl = open(img_fl_nm, flags, mode)) == -1 ) {
+	Err_Append("Could not create image file ");
+	Err_Append(img_fl_nm);
+	Err_Append(" ");
+	Err_Append(strerror(errno));
+	return SIGMET_IO_FAIL;
+    }
+    close(i_img_fl);
+
+    /*
+       Write image information to external drawing process, which will
+       send it to the image file.
+     */
+
+    img_argv[0] = img_app;
+    img_argv[1] = img_fl_nm;
+    img_argv[2] = NULL;
+    if ( (img_pid = Sigmet_Execvp_Pipe(img_argv, &img_wr, NULL)) == 0 ) {
+	Err_Append("could not spawn image application. ");
+	status = SIGMET_HELPER_FAIL;
+	goto error;
+    }
+    if ( !(img_out = fdopen(img_wr, "w"))) {
+	Err_Append("could not obtain standard stream to write to image "
+		"drawing application. ");
+	Err_Append(strerror(errno));
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+    strlcpy(item, "unknown", STR_LEN);
+    if ( setjmp(err_jmp) == IO_STD_ERROR ) {
+	Err_Append("could not write \n");
+	Err_Append(item);
+	Err_Append(" for image ");
+	Err_Append(img_fl_nm);
+	Err_Append(". ");
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+    strlcpy(item, "image dimensions", STR_LEN);
+    IO_Put_UInt(&w_pxl, 1, img_out, err_jmp);
+    IO_Put_UInt(&h_pxl, 1, img_out, err_jmp);
+    strlcpy(item, "image real bounds", STR_LEN);
+    IO_Put_Double(&left, 1, img_out, err_jmp);
+    IO_Put_Double(&rght, 1, img_out, err_jmp);
+    IO_Put_Double(&top, 1, img_out, err_jmp);
+    IO_Put_Double(&btm, 1, img_out, err_jmp);
+    strlcpy(item, "alpha channel value", STR_LEN);
+    IO_Put_Double(&alpha, 1, img_out, err_jmp);
+
+    strlcpy(item, "colors", STR_LEN);
+    IO_Put_UInt(&num_clrs, 1, img_out, err_jmp);
+    for (clr = clrs; clr < clrs + num_clrs; clr++) {
+	IO_Put_UInt(&clr->red, 1, img_out, err_jmp);
+	IO_Put_UInt(&clr->green, 1, img_out, err_jmp);
+	IO_Put_UInt(&clr->blue, 1, img_out, err_jmp);
+    }
+    num_outlns = clr_idx_p - clr_idxs;
+    for (clr_idx_p = clr_idxs, coord_p = coords;
+	    clr_idx_p < clr_idxs + num_outlns;
+	    clr_idx_p++, coord_p += 8) {
+	double *c_p;
+	int undef;
+	unsigned npts = 4;
+
+	undef = 0;
+	for (c_p = coord_p; c_p < coord_p + 8; c_p++) {
+	    if ( *c_p == HUGE_VAL ) {
+		undef = 1;
+		break;
+	    }
+	}
+	if ( undef ) {
+	    continue;
+	}
+	strlcpy(item, "polygon color index", STR_LEN);
+	IO_Put_Int(clr_idx_p, 1, img_out, err_jmp);
+	strlcpy(item, "polygon point count", STR_LEN);
+	IO_Put_UInt(&npts, 1, img_out, err_jmp);
+	strlcpy(item, "bin corner coordinates", STR_LEN);
+	IO_Put_Double(coord_p, 8, img_out, err_jmp);
+    }
+
+    /*
+       Done creating image.
+     */
+
+    FREE(coords);
+    FREE(clr_idxs);
+    clr_idxs = NULL;
+    coords = NULL;
+    if ( fclose(img_out) == EOF ) {
+	Err_Append("could not close pipe to image generating process for "
+		"image file ");
+	Err_Append(img_fl_nm);
+	Err_Append(" ");
+	Err_Append(strerror(errno));
+	Err_Append(". ");
+    }
+    img_out = NULL;
+    p = waitpid(img_pid, &si, 0);
+    if ( p == img_pid ) {
+	if ( WIFEXITED(si) && WEXITSTATUS(si) == EXIT_FAILURE ) {
+	    Err_Append("image process failed for ");
+	    Err_Append(img_fl_nm);
+	    Err_Append(". ");
+	    goto error;
+	} else if ( WIFSIGNALED(si) ) {
+	    Err_Append("image process for ");
+	    Err_Append(img_fl_nm);
+	    Err_Append(" exited on signal. ");
+	    goto error;
+	}
+    } else {
+	Err_Append("could not get exit status for image generator while "
+		"processing ");
+	Err_Append(img_fl_nm);
+	Err_Append(". Continuing anyway. ");
+	if (p == -1) {
+	    Err_Append(strerror(errno));
+	    Err_Append(". ");
+	} else {
+	    Err_Append("Unknown error. ");
+	}
+    }
+    img_pid = 0;
+
+    /*
+       Make kml file.
+     */
+
+    if ( snprintf(kml_fl_nm, STR_LEN, "%s.kml", base_nm) >= STR_LEN ) {
+	Err_Append("could not make kml file name for ");
+	Err_Append(img_fl_nm);
+	Err_Append(". ");
+	goto error;
+    }
+    if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
+	Err_Append("could not open ");
+	Err_Append(kml_fl_nm);
+	Err_Append(". ");
+	goto error;
+    }
+    fprintf(kml_fl, kml_tmpl,
+	    vol_p->ih.ic.hw_site_name, vol_p->ih.ic.hw_site_name,
+	    yr, mo, da, h, mi, sec,
+	    abbrv, vol_p->sweep_angle[s] * DEG_PER_RAD,
+	    img_fl_nm,
+	    north, south, west, east);
+    fclose(kml_fl);
+
+    printf("%s\n", img_fl_nm);
+    return status;
+error:
+    FREE(coords);
+    FREE(clr_idxs);
+    if ( img_out ) {
+	if ( fclose(img_out) == EOF ) {
+	    Err_Append("could not close pipe to image generating process for "
+		    "image file ");
+	    Err_Append(img_fl_nm);
+	    Err_Append(" ");
+	    Err_Append(strerror(errno));
+	    Err_Append(". ");
+	}
+    }
+    if ( img_pid != 0 ) {
+	kill(img_pid, SIGKILL);
+	waitpid(img_pid, NULL, WNOHANG);
+    }
+    unlink(img_fl_nm);
+    return status;
+}
+
+/*
    get product_hdr (raw volume record 1).
  */
 
@@ -4042,6 +4543,128 @@ void print_s(FILE *out, char *s, char *prefix, char *mmb, char *desc)
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
     fprintf(out, "%s " FS " %s " FS " %s\n", s, struct_path, desc);
+}
+
+/*
+   This function starts a coprocess with argument vector argv. It then
+   attempts to write n_wr bytes from buf_wr to the coprocess stdin, and
+   read n_rd bytes from the coprocess stdout.
+   */
+
+static int coproc_rw(char **argv, void *buf_wr, size_t n_wr,
+	void *buf_rd, size_t n_rd)
+{
+    char *buf_wr_e, *buf_rd_e;		/* End of bytes to send and receive */
+    pid_t pid;				/* Coprocess */
+    int wr_fd, rd_fd;			/* File descriptors to write to and read
+					   from coprocess */
+    int fd_hwm = -1;			/* File descriptor high water mark */
+    int num_bytes;			/* Number of bytes written or read */
+    fd_set read_set, write_set;		/* Returns from select */
+    fd_set *write_set_p;		/* &write_set when writing to coprocess.
+					   NULL when done writing. */
+
+    pid = 0;
+    wr_fd = rd_fd = -1;
+    buf_wr_e = (char *)buf_wr + n_wr;
+    buf_rd_e = (char *)buf_rd + n_rd;
+
+    /*
+       This process will communicate with the coprocess via a pair of half
+       duplex pipes. It will use select to respond to whichever pipe is ready
+       to transfer data.
+     */
+
+    pid = Sigmet_Execvp_Pipe(argv, &wr_fd, &rd_fd);
+    if ( pid == 0 ) {
+	Err_Append("Could not spawn helper application. ");
+	Err_Append(strerror(errno));
+	goto error;
+    }
+    if ( rd_fd > fd_hwm ) {
+	fd_hwm = rd_fd;
+    }
+    if ( wr_fd > fd_hwm ) {
+	fd_hwm = wr_fd;
+    }
+    write_set_p = &write_set;
+    while ( (char *)buf_rd < buf_rd_e ) {
+	FD_ZERO(&read_set);
+	FD_SET(rd_fd, &read_set);
+	if ( write_set_p ) {
+	    FD_ZERO(&write_set);
+	    FD_SET(wr_fd, &write_set);
+	}
+	if ( select(fd_hwm + 1, &read_set, write_set_p, NULL, NULL) == -1 ) {
+	    Err_Append("select failed. ");
+	    Err_Append(strerror(errno));
+	    goto error;
+	}
+	if ( write_set_p && FD_ISSET(wr_fd, write_set_p) ) {
+	    num_bytes = (buf_wr_e - (char *)buf_wr);
+	    if ( num_bytes > _POSIX_PIPE_BUF ) {
+		num_bytes = _POSIX_PIPE_BUF;
+	    }
+	    num_bytes = write(wr_fd, buf_wr, num_bytes);
+	    if ( num_bytes == -1 ) {
+		Err_Append("write to helper application failed. ");
+		Err_Append(strerror(errno));
+		goto error;
+	    }
+	    buf_wr = (char *)buf_wr + num_bytes;
+	    if ( (char *)buf_wr >= buf_wr_e ) {
+		if ( close(wr_fd) == -1 ) {
+		    Err_Append("could not close pipe to helper application. ");
+		    Err_Append(strerror(errno));
+		}
+		wr_fd = -1;
+		write_set_p = NULL;
+		if ( rd_fd > fd_hwm ) {
+		    fd_hwm = rd_fd;
+		}
+	    }
+	}
+	if ( FD_ISSET(rd_fd, &read_set) ) {
+	    num_bytes = read(rd_fd, buf_rd, buf_rd_e - (char *)buf_rd);
+	    if ( num_bytes == -1 ) {
+		perror("read from helper application failed");
+		Err_Append(strerror(errno));
+		goto error;
+	    }
+	    buf_rd = (char *)buf_rd + num_bytes;
+	}
+    }
+    if ( (char *)buf_rd < buf_rd_e ) {
+	Err_Append("Failed to read expected bytes from coprocess. ");
+	goto error;
+    }
+    if ( (char *)buf_wr < buf_wr_e ) {
+	Err_Append("Unable to write all bytes to coprocess. ");
+	goto error;
+    }
+    if ( rd_fd != -1 ) {
+	close(rd_fd);
+    }
+    if ( wr_fd != -1 ) {
+	close(wr_fd);
+    }
+    if ( pid != 0 ) {
+	waitpid(pid, NULL, 0);
+    }
+    return 1;
+
+error:
+    if ( rd_fd != -1 ) {
+	close(rd_fd);
+    }
+    if ( wr_fd != -1 ) {
+	close(wr_fd);
+    }
+    if ( pid != 0 ) {
+	kill(pid, SIGKILL);
+	waitpid(pid, NULL, WNOHANG);
+    }
+    return 0;
 }
 
 /*
