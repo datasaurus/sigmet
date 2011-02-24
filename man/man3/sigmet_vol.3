@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: $ $Date: $
+.\" $Revision: 1.1 $ $Date: 2011/01/28 21:21:57 $
 .Pp
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
@@ -12,12 +12,12 @@
 .Sh NAME
 .Nm Sigmet_Vol_Init,
 .Nm Sigmet_Vol_Free,
-.Nm Sigmet_Vol_Good,
 .Nm Sigmet_Vol_ReadHdr,
 .Nm Sigmet_Vol_PrintHdr,
 .Nm Sigmet_Vol_Read,
 .Nm Sigmet_Vol_BadRay,
 .Nm Sigmet_Vol_BinOutl,
+.Nm Sigmet_Vol_Img_PPI,
 .Nm Sigmet_Vol_NewField,
 .Nm Sigmet_Vol_DelField,
 .Nm Sigmet_Vol_Fld_SetVal,
@@ -45,8 +45,6 @@
 .Ft void
 .Fn Sigmet_Vol_Free "struct Sigmet_Vol *vol_p"
 .Ft int
-.Fn Sigmet_Vol_Good "FILE *f"
-.Ft int
 .Fn Sigmet_Vol_ReadHdr "FILE *f" "struct Sigmet_Vol *vol_p"
 .Ft void
 .Fn Sigmet_Vol_PrintHdr "FILE * f" "struct Sigmet_Vol *vol_p"
@@ -56,6 +54,8 @@
 .Fn Sigmet_Vol_BadRay "struct Sigmet_Vol *vol_p" "int s" "int r"
 .Ft int
 .Fn Sigmet_Vol_BinOutl "struct Sigmet_Vol *vol_p" "int s" "int r" "int b" "double *lonlats"
+.Ft int
+.Fn Sigmet_Vol_Img_PPI "struct Sigmet_Vol *vol_p" "char *abbrv" "int s" "char *img_app" "char **proj_argv" "unsigned w_pxl" "double alpha" "char *base_nm"
 .Ft int
 .Fn Sigmet_Vol_NewField "struct Sigmet_Vol *vol_p" "char *field_name"
 .Ft int
@@ -113,11 +113,6 @@ frees memory associated with a Sigmet volume structure at
 .Fa vol_p
 and reinitializes the structure.
 .Pp
-.Fn Sigmet_Vol_Good
-returns true if the file at
-.Fa f
-is a readable Sigmet raw product volume.
-.Pp
 .Fn Sigmet_Vol_ReadHdr
 reads and stores volume headers for a Sigmet raw product file from stream
 .Fa f
@@ -173,25 +168,34 @@ so the line of output would look something like
 .Ed .
 .Pp
 .Fn Sigmet_Vol_Read
-reads and stores everything from a Sigmet raw product file from stream
-.Fa f
-into the volume structure at
-.Fa vol_p .
+reads everything from a Sigmet raw product file from stream
+.Fa f .
 .Fa f
 should be at the start of a raw product file.
+If
 .Fa vol_p
-should have already been initialized with a call to
+is
+.Li NULL ,
+it reads but does not store the volume file, and quietly returns a status
+indicating success or failure.
+If
+.Fa vol_p
+is not
+.Li NULL ,
+it stores the data and headers at
+.Fa vol_p ,
+which should have already been initialized with a call to
 .Fn Sigmet_Vol_Init .
 Upon entry,
-.Fn Sigmet_Vol_ReadHdr
+.Fn Sigmet_Vol_Read
 will free the contents of
-.Fa f
+.Fa vol_p
 with a call to
 .Fn Sigmet_Vol_Free .
 If
 .Fn Sigmet_Vol_Read
 returns
-.Li SIGMET_READ_OK .
+.Li SIGMET_READ_OK
 or
 .Li SIGMET_INPUT_FAIL
 (see below) then it read all or possibly some of the volume, and populated
@@ -228,6 +232,62 @@ in the Sigmet volume at
 as lon1\ lat1\ lon2\ lat2\ lon3\ lat3\ lon4\ lat4, denoting the corners of the bin.  Array
 .Fa lonlats
 must point to space for eight double values.
+
+.Pp
+.Fn Sigmet_Vol_Img_PPI
+creates a png image and associated kml file in the current working directory
+for data type
+.Fa abbrv ,
+sweep
+.Fa s
+in the volume at
+.Fa vol_p .
+.Fa img_app
+gives the name of an external program that reads a description of the image
+and generates the file. It should take one argument - the name of the image
+file.  It should take the following information from its standard input:
+.nf
+
+	    unsigned int	w_dpy		Image width, display units
+	    unsigned int	h_dpy		Image height, display units
+	    double		left		Real coordinate of left side
+	    double		rght		Real coordinate of right side
+	    double		top		Real coordinate of top
+	    double		btm		Real coordinate of bottom
+	    double		alpha		Alpha channel (transparency)
+	    unsigned int	n_clrs		Number of colors
+	    For n_clrs colors:
+		unsigned int	red
+		unsigned int	green
+		unsigned int	blue
+	    For each polygon
+		unsigned int	n_color		Color index, in [0,n_clrs)
+		unsigned int	npts		Vertex count
+		For npts vertices:
+		    double	x		Abscissa
+		    double	y		Ordinate
+
+.fi
+All numerical values will be sent as native binaries.
+.Fa proj_argv
+specifies an external program that reads a stream of longitude-latitude
+coordinates, as native doubles, from its standard input, and prints the
+corresponding map coordinates to its standard output (.e.g.
+.Nm proj Ns Li ).
+The image will be a square of
+.Fa w_pxl
+by
+.Fa w_pxl
+pixels.
+.Fa alpha
+specifies the image alpha value.
+.Fa base_nm
+is used to generate file names. The png file will be named
+.Fa base_nm Ns Li .png
+and the kml file will be named
+.Fa base_nm Ns Li .kml .
+Error information will be accumulated with
+.Nm Err_Append .
 .Pp
 .Fn Sigmet_Vol_NewField
 creates a new field named
