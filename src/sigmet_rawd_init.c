@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.370 $ $Date: 2011/02/23 21:50:16 $
+ .	$Revision: 1.371 $ $Date: 2011/02/24 16:13:32 $
  */
 
 #include <limits.h>
@@ -60,7 +60,7 @@ static char *Vol_Fl_Nm;			/* File that provided the volume */
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 34
+#define NCMD 33
 typedef int (callback)(int , char **);
 static callback pid_cb;
 static callback data_types_cb;
@@ -93,7 +93,6 @@ static callback get_proj_cb;
 static callback img_app_cb;
 static callback img_sz_cb;
 static callback alpha_cb;
-static callback img_name_cb;
 static callback img_cb;
 static callback dorade_cb;
 static char *cmd1v[NCMD] = {
@@ -102,7 +101,7 @@ static char *cmd1v[NCMD] = {
     "del_field", "size", "set_field", "add", "sub", "mul", "div",
     "log10", "incr_time", "data", "bdata", "bin_outline", "bintvls",
     "radar_lon", "radar_lat", "shift_az", "set_proj", "get_proj",
-    "img_app", "img_sz", "alpha", "img_name", "img", "dorade"
+    "img_app", "img_sz", "alpha", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, reload_cb, setcolors_cb,
@@ -110,7 +109,7 @@ static callback *cb1v[NCMD] = {
     del_field_cb, size_cb, set_field_cb, add_cb, sub_cb, mul_cb, div_cb,
     log10_cb, incr_time_cb, data_cb, bdata_cb, bin_outline_cb, bintvls_cb,
     radar_lon_cb, radar_lat_cb, shift_az_cb, set_proj_cb, get_proj_cb,
-    img_app_cb, img_sz_cb, alpha_cb, img_name_cb, img_cb, dorade_cb
+    img_app_cb, img_sz_cb, alpha_cb, img_cb, dorade_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -121,7 +120,6 @@ static callback *cb1v[NCMD] = {
  */
 
 static char *time_stamp(void);
-static int img_name(char *, int, char *);
 static int handle_signals(void);
 static void handler(int);
 
@@ -1821,107 +1819,64 @@ static int alpha_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-/*
-   This convenience function prints the name of the image file that img_cb
-   would create for the volume, data type abbrv, sweep s to buf, which must
-   have space for LEN characters, including nul.  Returned name has no suffix
-   (i.e. no "png" or "kml").  Return 1 on sucess. If something goes wrong, fill
-   buf with nul's, store and error string with Err_Append, and return 0.
- */
-
-static int img_name(char *abbrv, int s, char *buf)
-{
-    int yr, mo, da, h, mi;	/* Sweep year, month, day, hour, minute */
-    double sec;			/* Sweep second */
-
-    memset(buf, 0, LEN);
-    if ( s >= Vol.ih.ic.num_sweeps || !Vol.sweep_ok[s]
-	    || !Tm_JulToCal(Vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
-	Err_Append("Invalid sweep. ");
-	return SIGMET_RNG_ERR;
-    }
-    if ( snprintf(buf, LEN, "%s_%02d%02d%02d%02d%02d%02.0f_%s_%.1f",
-		Vol.ih.ic.hw_site_name, yr, mo, da, h, mi, sec,
-		abbrv, Vol.sweep_angle[s] * DEG_PER_RAD) >= LEN ) {
-	memset(buf, 0, LEN);
-	Err_Append("Image file name too long. ");
-	return SIGMET_RNG_ERR;
-    }
-    return SIGMET_OK;
-}
-
-static int img_name_cb(int argc, char *argv[])
-{
-    char *argv0 = argv[0];
-    char *argv1 = argv[1];
-    int status;				/* Result of a function */
-    char *s_s;				/* Sweep index, as a string */
-    char *abbrv;			/* Data type abbreviation */
-    int s;				/* Indeces: data type, sweep */
-    char img_fl_nm[LEN];		/* Name of image file */
-
-    if ( argc != 4 ) {
-	fprintf(stderr, "Usage: %s %s type sweep\n", argv0, argv1);
-	return SIGMET_BAD_ARG;
-    }
-    abbrv = argv[2];
-    s_s = argv[3];
-    if ( sscanf(s_s, "%d", &s) != 1 ) {
-	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
-		argv0, argv1, s_s);
-	return SIGMET_BAD_ARG;
-    }
-
-    /*
-       Validate
-     */
-
-    if ( s >= Vol.num_sweeps_ax ) {
-	fprintf(stderr, "%s %s: sweep index %d out of range for volume\n",
-		argv0, argv1, s);
-	return SIGMET_RNG_ERR;
-    }
-
-    /*
-       Print name of output file
-     */
-
-    if ( (status = img_name(abbrv, s, img_fl_nm)) != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: could not make image file name\n%s\n",
-		argv0, argv1, Err_Get());
-	return status;
-    }
-    printf("%s.png\n", img_fl_nm);
-
-    return SIGMET_OK;
-}
-
 static int img_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    int status;				/* Result of a function */
+    int status = SIGMET_OK;		/* Return value of this function */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
     struct DataType *data_type;		/* Information about the data type */
     int s;				/* Sweep index */
     char **proj_argv;			/* Projection command. */
-    char base_nm[LEN]; 			/* Output file name */
+    int yr, mo, da, h, mi;
+    double sec;				/* Sweep time */
+    double north, east, south, west;	/* Map edges */
+    double edges[4];			/* {north, east, south, west} */
+    char *base_nm; 			/* Base name for image and kml file */
+    char img_fl_nm[LEN]; 		/* Image file name */
     unsigned w_pxl, h_pxl;		/* Width and height of image, in display
 					   units */
     double alpha;			/* Image alpha channel */
     char *img_app;			/* External application to draw image */
+    char kml_fl_nm[LEN];		/* KML output file name */
+    FILE *kml_fl;			/* KML file */
+
+    /*
+       This format string creates a KML file.
+     */
+
+    char kml_tmpl[] = 
+	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	"<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
+	"  <GroundOverlay>\n"
+	"    <name>%s sweep</name>\n"
+	"    <description>"
+	"      %s at %02d/%02d/%02d %02d:%02d:%02.0f. Field: %s. %04.1f degrees"
+	"    </description>\n"
+	"    <LatLonBox>\n"
+	"      <north>%f</north>\n"
+	"      <south>%f</south>\n"
+	"      <west>%f</west>\n"
+	"      <east>%f</east>\n"
+	"    </LatLonBox>\n"
+	"  </GroundOverlay>\n"
+	"</kml>\n";
+
+    memset(img_fl_nm, 0, LEN);
+    memset(kml_fl_nm, 0, LEN);
 
     /*
        Parse and validate arguments.
      */
 
-    if ( argc != 4 ) {
-	fprintf(stderr, "Usage: %s %s type sweep\n", argv0, argv1);
+    if ( argc != 5 ) {
+	fprintf(stderr, "Usage: %s %s type sweep base_name\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     abbrv = argv[2];
     s_s = argv[3];
+    base_nm = argv[4];
     img_app = SigmetRaw_GetImgApp();
     if ( !img_app || strlen(img_app) == 0 ) {
 	fprintf(stderr, "%s %s: sweep drawing application not set\n",
@@ -1938,20 +1893,71 @@ static int img_cb(int argc, char *argv[])
 		argv0, argv1, s_s);
 	return SIGMET_BAD_ARG;
     }
+    if ( !Tm_JulToCal(Vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
+	fprintf(stderr, "%s %s: could not get time for sweep %d\n",
+		argv0, argv1, s);
+    }
+
+    /*
+       Fail if image file already exists. Assume png file with ".png" suffix.
+     */
+
+    if ( snprintf(img_fl_nm, LEN, "%s.png", base_nm) >= LEN ) {
+	Err_Append("could not make image file name. ");
+	Err_Append(base_nm);
+	Err_Append(". ");
+	return SIGMET_RNG_ERR;
+    }
+    if ( (access(img_fl_nm, F_OK)) == 0 ) {
+	Err_Append(img_fl_nm);
+	Err_Append(" already exists. ");
+	return SIGMET_BAD_ARG;
+    }
+
     proj_argv = SigmetRaw_GetProj();
     SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
     alpha = SigmetRaw_GetImgAlpha();
-    if ( (status = img_name(abbrv, s, base_nm)) != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: could not make image file name\n%s\n",
-		argv0, argv1, Err_Get());
-	return status;
-    }
-    status = Sigmet_Vol_Img_PPI(&Vol, abbrv, s, img_app, proj_argv,
-	    w_pxl, h_pxl, alpha, base_nm);
+    status = Sigmet_Vol_Img_PPI(&Vol, abbrv, s, img_app, proj_argv, w_pxl,
+	    alpha, base_nm, edges);
     if ( status != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not make image file for data type %s, "
 		"sweep %d.\n%s\n", argv0, argv1, abbrv, s, Err_Get());
+	goto error;
     }
+    north = edges[0];
+    east = edges[1];
+    south = edges[2];
+    west = edges[3];
+
+    /*
+       Make kml file.
+     */
+
+    if ( snprintf(kml_fl_nm, LEN, "%s.kml", base_nm) >= LEN ) {
+	Err_Append("could not make kml file name for ");
+	Err_Append(img_fl_nm);
+	Err_Append(". ");
+	goto error;
+    }
+    if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
+	Err_Append("could not open ");
+	Err_Append(kml_fl_nm);
+	Err_Append(". ");
+	goto error;
+    }
+    fprintf(kml_fl, kml_tmpl,
+	    Vol.ih.ic.hw_site_name, Vol.ih.ic.hw_site_name,
+	    yr, mo, da, h, mi, sec,
+	    abbrv, Vol.sweep_angle[s] * DEG_PER_RAD,
+	    north, south, west, east);
+    fclose(kml_fl);
+
+    printf("%s\n", img_fl_nm);
+    return status;
+
+error:
+    unlink(img_fl_nm);
+    unlink(kml_fl_nm);
     return status;
 }
 

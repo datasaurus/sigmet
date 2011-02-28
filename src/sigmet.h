@@ -8,7 +8,7 @@
    .
    .	Please send feedback to user0@tkgeomap.org
    .
-   .	$Revision: 1.86 $ $Date: 2011/02/23 15:07:56 $
+   .	$Revision: 1.87 $ $Date: 2011/02/24 16:13:32 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -20,6 +20,7 @@
 
 #include <float.h>
 #include <stdio.h>
+#include <sys/types.h>
 #include "type_nbit.h"
 #include "hash.h"
 #include "data_types.h"
@@ -546,7 +547,7 @@ int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *, char *, int, char *, char **,
-	unsigned, unsigned, double, char *);
+	unsigned, double, char *, double[]);
 int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *, char *, float);

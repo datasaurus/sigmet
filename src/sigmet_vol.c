@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.124 $ $Date: 2011/02/24 16:13:32 $
+   .	$Revision: 1.125 $ $Date: 2011/02/24 17:42:34 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2626,7 +2626,7 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
 
 int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	char *img_app, char **proj_argv, unsigned w_pxl, double alpha,
-	char *base_nm)
+	char *base_nm, double edges[])
 {
     int status;				/* Result of a function */
     struct DataType *data_type;		/* Information about the data type */
@@ -2668,12 +2668,6 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     int num_outlns;			/* Number of bin outlines */
     int yr, mo, da, h, mi;		/* Sweep year, month, day, hour, minute */
     double sec;				/* Sweep second */
-    char img_fl_nm[STR_LEN]; 		/* Image output file name */
-    int flags;                  	/* Image file creation flags */
-    mode_t mode;                	/* Image file permissions */
-    int i_img_fl;			/* Image file descriptor, not used */
-    char kml_fl_nm[STR_LEN];		/* KML output file name */
-    FILE *kml_fl;			/* KML file */
     pid_t img_pid = 0;			/* Process id for image generator */
     FILE *img_out = NULL;		/* Where to send outlines to draw */
     jmp_buf err_jmp;			/* Handle output errors with setjmp,
@@ -2684,28 +2678,6 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     int si;				/* Exit status of image generator */
     char *img_argv[3];
     int img_wr;
-
-    /*
-       This format string creates a KML file.
-     */
-
-    char kml_tmpl[] = 
-	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-	"<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
-	"  <GroundOverlay>\n"
-	"    <name>%s sweep</name>\n"
-	"    <description>"
-	"      %s at %02d/%02d/%02d %02d:%02d:%02.0f. Field: %s. %04.1f degrees"
-	"    </description>\n"
-	"    <Icon>%s</Icon>\n"
-	"    <LatLonBox>\n"
-	"      <north>%f</north>\n"
-	"      <south>%f</south>\n"
-	"      <west>%f</west>\n"
-	"      <east>%f</east>\n"
-	"    </LatLonBox>\n"
-	"  </GroundOverlay>\n"
-	"</kml>\n";
 
     status = SIGMET_OK;
     if ( !vol_p ) {
@@ -2824,25 +2796,23 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     }
 
     /*
-       Obtain geographic coordinates of top left and bottom right for
-       the kml file. The kml file will be of little use if the projection
-       is substantially skewed.
+       Obtain geographic coordinates of top left and bottom right.
      */
 
-    coords[0] = left;
-    coords[1] = top;
-    coords[2] = rght;
-    coords[3] = btm;
+    coords[0] = top;
+    coords[1] = rght;
+    coords[2] = btm;
+    coords[3] = left;
     num_bytes = 4 * sizeof(double);
     if ( !coproc_rw(proj_argv, coords, num_bytes, coords, num_bytes) ) {
 	Err_Append("Could not convert edge coordinates from geographic to map. ");
 	status = SIGMET_IO_FAIL;
 	goto error;
     }
-    west = coords[0];
-    north = coords[1];
-    east = coords[2];
-    south = coords[3];
+    edges[0] = north = coords[0];
+    edges[1] = east = coords[1];
+    edges[2] = south = coords[2];
+    edges[3] = west = coords[3];
 
     /*
        Loop through bins for each ray for sweep s.
@@ -2925,33 +2895,12 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     }
 
     /*
-       Create image file. Fail if it already exists.
-     */
-
-    if ( snprintf(img_fl_nm, STR_LEN, "%s.png", base_nm) >= STR_LEN ) {
-	Err_Append("could not make image file name. ");
-	Err_Append(base_nm);
-	Err_Append(". ");
-	return SIGMET_RNG_ERR;
-    }
-    flags = O_CREAT | O_EXCL | O_WRONLY;
-    mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    if ( (i_img_fl = open(img_fl_nm, flags, mode)) == -1 ) {
-	Err_Append("Could not create image file ");
-	Err_Append(img_fl_nm);
-	Err_Append(" ");
-	Err_Append(strerror(errno));
-	return SIGMET_IO_FAIL;
-    }
-    close(i_img_fl);
-
-    /*
        Write image information to external drawing process, which will
        send it to the image file.
      */
 
     img_argv[0] = img_app;
-    img_argv[1] = img_fl_nm;
+    img_argv[1] = base_nm;
     img_argv[2] = NULL;
     if ( (img_pid = Sigmet_Execvp_Pipe(img_argv, &img_wr, NULL)) == 0 ) {
 	Err_Append("could not spawn image application. ");
@@ -2970,7 +2919,7 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	Err_Append("could not write \n");
 	Err_Append(item);
 	Err_Append(" for image ");
-	Err_Append(img_fl_nm);
+	Err_Append(base_nm);
 	Err_Append(". ");
 	status = SIGMET_IO_FAIL;
 	goto error;
@@ -3030,7 +2979,7 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     if ( fclose(img_out) == EOF ) {
 	Err_Append("could not close pipe to image generating process for "
 		"image file ");
-	Err_Append(img_fl_nm);
+	Err_Append(base_nm);
 	Err_Append(" ");
 	Err_Append(strerror(errno));
 	Err_Append(". ");
@@ -3040,19 +2989,19 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     if ( p == img_pid ) {
 	if ( WIFEXITED(si) && WEXITSTATUS(si) == EXIT_FAILURE ) {
 	    Err_Append("image process failed for ");
-	    Err_Append(img_fl_nm);
+	    Err_Append(base_nm);
 	    Err_Append(". ");
 	    goto error;
 	} else if ( WIFSIGNALED(si) ) {
 	    Err_Append("image process for ");
-	    Err_Append(img_fl_nm);
+	    Err_Append(base_nm);
 	    Err_Append(" exited on signal. ");
 	    goto error;
 	}
     } else {
 	Err_Append("could not get exit status for image generator while "
 		"processing ");
-	Err_Append(img_fl_nm);
+	Err_Append(base_nm);
 	Err_Append(". Continuing anyway. ");
 	if (p == -1) {
 	    Err_Append(strerror(errno));
@@ -3063,31 +3012,7 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     }
     img_pid = 0;
 
-    /*
-       Make kml file.
-     */
-
-    if ( snprintf(kml_fl_nm, STR_LEN, "%s.kml", base_nm) >= STR_LEN ) {
-	Err_Append("could not make kml file name for ");
-	Err_Append(img_fl_nm);
-	Err_Append(". ");
-	goto error;
-    }
-    if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
-	Err_Append("could not open ");
-	Err_Append(kml_fl_nm);
-	Err_Append(". ");
-	goto error;
-    }
-    fprintf(kml_fl, kml_tmpl,
-	    vol_p->ih.ic.hw_site_name, vol_p->ih.ic.hw_site_name,
-	    yr, mo, da, h, mi, sec,
-	    abbrv, vol_p->sweep_angle[s] * DEG_PER_RAD,
-	    img_fl_nm,
-	    north, south, west, east);
-    fclose(kml_fl);
-
-    printf("%s\n", img_fl_nm);
+    printf("%s\n", base_nm);
     return status;
 error:
     FREE(coords);
@@ -3096,7 +3021,7 @@ error:
 	if ( fclose(img_out) == EOF ) {
 	    Err_Append("could not close pipe to image generating process for "
 		    "image file ");
-	    Err_Append(img_fl_nm);
+	    Err_Append(base_nm);
 	    Err_Append(" ");
 	    Err_Append(strerror(errno));
 	    Err_Append(". ");
@@ -3106,7 +3031,6 @@ error:
 	kill(img_pid, SIGKILL);
 	waitpid(img_pid, NULL, WNOHANG);
     }
-    unlink(img_fl_nm);
     return status;
 }
 
