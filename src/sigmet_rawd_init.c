@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.371 $ $Date: 2011/02/24 16:13:32 $
+ .	$Revision: 1.372 $ $Date: 2011/02/28 19:22:19 $
  */
 
 #include <limits.h>
@@ -190,6 +190,7 @@ void SigmetRaw_Load(char *vol_fl_nm)
      */
 
     Sigmet_DataType_Init();
+    Sigmet_Vol_Init(&Vol);
     in_pid = -1;
     if ( !(in = Sigmet_VolOpen(vol_fl_nm, &in_pid)) ) {
 	fprintf(stderr, "Could not open %s for input.\n%s\n",
@@ -202,16 +203,18 @@ void SigmetRaw_Load(char *vol_fl_nm)
 	case SIGMET_IO_FAIL:	/* Possibly truncated volume o.k. */
 	    break;
 	case SIGMET_ALLOC_FAIL:
-	    fprintf(stderr, "Could not allocate memory while reading %s.\n",
-		    vol_fl_nm);
+	    fprintf(stderr, "Could not allocate memory while reading %s.\n%s\n",
+		    vol_fl_nm, Err_Get());
 	    xstatus = SIGMET_ALLOC_FAIL;
 	    goto error;
 	case SIGMET_BAD_FILE:
-	    fprintf(stderr, "Raw product file %s is corrupt.\n", vol_fl_nm);
+	    fprintf(stderr, "Raw product file %s is corrupt.\n%s\n",
+		    vol_fl_nm, Err_Get());
 	    xstatus = SIGMET_BAD_FILE;
 	    goto error;
 	case SIGMET_BAD_ARG:
-	    fprintf(stderr, "Internal failure while reading %s.\n", vol_fl_nm);
+	    fprintf(stderr, "Internal failure while reading %s.\n%s\n",
+		    vol_fl_nm, Err_Get());
 	    xstatus = SIGMET_BAD_ARG;
 	    goto error;
     }
