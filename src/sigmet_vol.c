@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.125 $ $Date: 2011/02/24 17:42:34 $
+   .	$Revision: 1.126 $ $Date: 2011/02/28 19:22:20 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -248,6 +248,7 @@ void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 		    break;
 		case DATA_TYPE_U2:
 		    free3_u2(vol_p->dat[y].arr.u2);
+		    break;
 		case DATA_TYPE_FLT:
 		    free3_flt(vol_p->dat[y].arr.flt);
 		    break;
@@ -1037,7 +1038,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
        Data will be decompressed from rec and copied into ray_buf.
      */
 
-    raySz = SZ_RAY_HDR + vol_p->ih.ic.extended_ray_headers_sz + num_bins;
+    raySz = SZ_RAY_HDR + vol_p->ih.ic.extended_ray_headers_sz
+	+ vol_p->num_types * 2 * num_bins;
     ray_buf = (U1BYT *)MALLOC(raySz);
     if ( !ray_buf ) {
 	Err_Append("Could not allocate input ray buffer.  ");
@@ -2659,9 +2661,7 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     double *bnds;			/* bounds for each color */
     unsigned char n_bnds;		/* number of bounds = num_clrs + 1 */
     int i_bnd;				/* Index into bnds, also a color index */
-    double d;				/* Data value */
-    double ray_len;			/* Ray length, meters or great circle
-					   radians */
+    double ray_len;			/* Ray length, great circle radians */
     double west, east;			/* Display area longitude limits */
     double south, north;		/* Display area latitude limits */
     size_t num_bytes;			/* Number of bytes to read or write */
@@ -2672,6 +2672,16 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     FILE *img_out = NULL;		/* Where to send outlines to draw */
     jmp_buf err_jmp;			/* Handle output errors with setjmp,
 					   longjmp */
+    int num_bins_out, n;		/* Max number of output bins */
+    static float *ray_p;		/* Buffer to receive ray data */
+    float *r_p;				/* Point into ray_p */
+    double re;				/* Earth radius, meters */
+    double rng_1st_bin;			/* Range to first bin, meters */
+    double step_out;			/* Bin size, meters */
+    double r0, r1;			/* Distance to start and stop of a bin,
+					   meters */
+    double az0, az1;			/* Start and end azimuth, radians */
+    double tilt;			/* Tilt angle, radians */
     char item[STR_LEN];			/* Item being written. Needed for error
 					   message. */
     pid_t p;				/* Return from waitpid */
@@ -2739,10 +2749,12 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
        on the map.
      */
 
+    n = num_bins_out = vol_p->ih.tc.tri.num_bins_out;
     lon = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
     lat = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
-    ray_len = 0.01 * (vol_p->ih.tc.tri.rng_1st_bin
-	    + (vol_p->ih.tc.tri.num_bins_out + 1) * vol_p->ih.tc.tri.step_out);
+    rng_1st_bin = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
+    step_out = 0.01 * vol_p->ih.tc.tri.step_out;
+    ray_len = rng_1st_bin + (num_bins_out + 1) * step_out;
     ray_len = ray_len * M_PI / (180.0 * 60.0 * 1852.0);
 
     n_steps = 180;
@@ -2814,13 +2826,6 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     edges[2] = south = coords[2];
     edges[3] = west = coords[3];
 
-    /*
-       Loop through bins for each ray for sweep s.
-       Determine which interval from bnds each bin value is in.
-       If the bin value is in an interval to display, save its color
-       and the coordinates of its outline.
-     */
-
     coord_p = coords;
     if ( !(clr_idxs = CALLOC(100, sizeof(int))) ) {
 	Err_Append("could not allocate array of color indeces.. ");
@@ -2829,13 +2834,36 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     }
     clr_idx_p = clr_idxs;
     clr_idx_e = clr_idxs + 100;
+    if ( !ray_p && !(ray_p = CALLOC(num_bins_out, sizeof(float))) ) {
+	Err_Append("Could not allocate output buffer for ray. ");
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
+    n = num_bins_out;
+    re = GeogREarth(NULL);
+
+    /*
+       Loop through bins for each ray for sweep s.
+       Determine which interval from bnds each bin value is in.
+       If the bin value is in an interval to display, save its color
+       and the coordinates of its outline.
+     */
+
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_ok[s][r] ) {
-	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
-		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
-		if ( Sigmet_IsData(d)
-			&& (i_bnd = BISearch(d, bnds, n_bnds)) != -1 ) {
+	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p, &n);
+	    if ( status != SIGMET_OK ) {
+		Err_Append("Could not get ray data. ");
+		goto error;
+	    }
+	    for (r_p = ray_p; r_p < ray_p + vol_p->ray_num_bins[s][r]; r_p++) {
+		if ( Sigmet_IsData(*r_p)
+			&& (i_bnd = BISearch(*r_p, bnds, n_bnds)) != -1 ) {
+		    /* Bin value is in an interval of interest.  */
+
 		    if ( clr_idx_p == clr_idx_e ) {
+			/* Grow clr_idxs array.  */
+
 			int *t;
 			size_t alloc_ints, use_ints, bytes;
 			size_t chunk = 2000 * 120;
@@ -2844,7 +2872,8 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 			alloc_ints = ((clr_idx_e - clr_idxs) + chunk);
 			bytes = alloc_ints * sizeof(int);
 			if ( !(t = REALLOC(clr_idxs, bytes)) ) {
-			    Err_Append("could not grow array of color indeces. ");
+			    Err_Append("could not grow array of color "
+				    "indeces. ");
 			    status = SIGMET_ALLOC_FAIL;
 			    goto error;
 			}
@@ -2853,7 +2882,12 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 			clr_idx_p = clr_idxs + use_ints;
 		    }
 		    *clr_idx_p++ = i_bnd;
+
 		    if ( coord_p + 8 >= coord_e ) {
+			/*
+			   Grow coords array.
+			 */
+
 			double *t;
 			size_t alloc_dbls, use_dbls, bytes;
 			size_t chunk = 2000 * 120 * 8;
@@ -2870,12 +2904,29 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 			coord_e = coords + alloc_dbls;
 			coord_p = coords + use_dbls;
 		    }
-		    status = Sigmet_Vol_BinOutl(vol_p, s, r, b, coord_p);
-		    if ( status != SIGMET_OK ) {
-			Err_Get();		/* Flush */
-			clr_idx_p--;
-			continue;
+
+		    /*
+		       Compute and store bin corners in coords.
+		     */
+
+		    b = r_p - ray_p;
+		    r0 = rng_1st_bin + b * step_out;
+		    r1 = r0 + step_out;
+		    az0 = vol_p->ray_az0[s][r];
+		    az1 = vol_p->ray_az1[s][r];
+		    if (az1 < az0) {
+			double t = az1;
+			az1 = az0;
+			az0 = t;
 		    }
+		    tilt = 0.5
+			* (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
+		    r0 = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
+		    r1 = atan(r1 * cos(tilt) / (re + r1 * sin(tilt)));
+		    GeogStep(lon, lat, az0, r0, coord_p, coord_p + 1);
+		    GeogStep(lon, lat, az0, r1, coord_p + 2, coord_p + 3);
+		    GeogStep(lon, lat, az1, r1, coord_p + 4, coord_p + 5);
+		    GeogStep(lon, lat, az1, r0, coord_p + 6, coord_p + 7);
 		    coord_p += 8;
 		}
 	    }
@@ -2883,7 +2934,9 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     }
 
     /*
-       Convert bin outline lat-lon's to map coordinates.
+       Send lat-lon's in coords array to projection program.
+       If it succeeds, coords array will contain corresponding projection
+       coordinates.
      */
 
     num_bytes = (coord_p - coords) * sizeof(double);
