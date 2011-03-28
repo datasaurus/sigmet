@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.372 $ $Date: 2011/02/28 19:22:19 $
+ .	$Revision: 1.373 $ $Date: 2011/03/03 16:36:46 $
  */
 
 #include <limits.h>
@@ -60,7 +60,7 @@ static char *Vol_Fl_Nm;			/* File that provided the volume */
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 33
+#define NCMD 34
 typedef int (callback)(int , char **);
 static callback pid_cb;
 static callback data_types_cb;
@@ -70,6 +70,7 @@ static callback setcolors_cb;
 static callback volume_headers_cb;
 static callback vol_hdr_cb;
 static callback near_sweep_cb;
+static callback sweep_headers_cb;
 static callback ray_headers_cb;
 static callback new_field_cb;
 static callback del_field_cb;
@@ -97,19 +98,19 @@ static callback img_cb;
 static callback dorade_cb;
 static char *cmd1v[NCMD] = {
     "pid", "data_types", "new_data_type", "reload", "colors",
-    "volume_headers", "vol_hdr", "near_sweep", "ray_headers", "new_field",
-    "del_field", "size", "set_field", "add", "sub", "mul", "div",
-    "log10", "incr_time", "data", "bdata", "bin_outline", "bintvls",
-    "radar_lon", "radar_lat", "shift_az", "set_proj", "get_proj",
-    "img_app", "img_sz", "alpha", "img", "dorade"
+    "volume_headers", "vol_hdr", "near_sweep", "sweep_headers",
+    "ray_headers", "new_field", "del_field", "size", "set_field", "add",
+    "sub", "mul", "div", "log10", "incr_time", "data", "bdata",
+    "bin_outline", "bintvls", "radar_lon", "radar_lat", "shift_az",
+    "set_proj", "get_proj", "img_app", "img_sz", "alpha", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, reload_cb, setcolors_cb,
-    volume_headers_cb, vol_hdr_cb, near_sweep_cb, ray_headers_cb, new_field_cb,
-    del_field_cb, size_cb, set_field_cb, add_cb, sub_cb, mul_cb, div_cb,
-    log10_cb, incr_time_cb, data_cb, bdata_cb, bin_outline_cb, bintvls_cb,
-    radar_lon_cb, radar_lat_cb, shift_az_cb, set_proj_cb, get_proj_cb,
-    img_app_cb, img_sz_cb, alpha_cb, img_cb, dorade_cb
+    volume_headers_cb, vol_hdr_cb, near_sweep_cb, sweep_headers_cb,
+    ray_headers_cb, new_field_cb, del_field_cb, size_cb, set_field_cb, add_cb,
+    sub_cb, mul_cb, div_cb, log10_cb, incr_time_cb, data_cb, bdata_cb,
+    bin_outline_cb, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
+    set_proj_cb, get_proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_cb, dorade_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -236,12 +237,6 @@ void SigmetRaw_Load(char *vol_fl_nm)
        Create a socket to recieve client requests.
      */
 
-    if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
-	fprintf(stderr, "Daemon socket %s already exists. "
-		"Is daemon already running?\n", SIGMET_RAWD_IN);
-	xstatus = SIGMET_IO_FAIL;
-	goto error;
-    }
     memset(&sa, '\0', SA_UN_SZ);
     sa.sun_family = AF_UNIX;
     if ( snprintf(sa.sun_path, SA_PLEN, "%s", SIGMET_RAWD_IN) >= SA_PLEN ) {
@@ -464,6 +459,7 @@ void SigmetRaw_Load(char *vol_fl_nm)
 			    "Use -f to force unload.\n");
 		    sstatus = SIGMET_BAD_ARG;
 		} else {
+		    close(i_dmn);
 		    stop = 1;
 		    sstatus = SIGMET_OK;
 		}
@@ -529,7 +525,6 @@ void SigmetRaw_Load(char *vol_fl_nm)
     exit(xstatus);
 
 error:
-    unlink(SIGMET_RAWD_IN);
     fprintf(stderr, "%s: Could not spawn sigmet_raw daemon.\n",
 	    time_stamp());
     if ( d_err ) {
@@ -803,6 +798,38 @@ static int near_sweep_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
+static int sweep_headers_cb(int argc, char *argv[])
+{
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+    int s;
+
+    if ( argc != 2 ) {
+	fprintf(stderr, "Usage: %s %s\n", argv0, argv1);
+	return SIGMET_BAD_ARG;
+    }
+    for (s = 0; s < Vol.ih.tc.tni.num_sweeps; s++) {
+	printf("sweep %d ", s);
+	if ( !Vol.sweep_ok[s] ) {
+	    printf("bad\n");
+	} else {
+	    int yr, mon, da, hr, min;
+	    double sec;
+
+	    if ( !Tm_JulToCal(Vol.sweep_time[s],
+			&yr, &mon, &da, &hr, &min, &sec) ) {
+		fprintf(stderr, "%s %s: bad sweep time\n%s\n",
+			argv0, argv1, Err_Get());
+		return SIGMET_BAD_TIME;
+	    }
+	    printf("%04d/%02d/%02d %02d:%02d:%04.3f ",
+		    yr, mon, da, hr, min, sec);
+	    printf("%7.3f\n", Vol.sweep_angle[s] * DEG_PER_RAD);
+	}
+    }
+    return SIGMET_OK;
+}
+
 static int ray_headers_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -813,33 +840,31 @@ static int ray_headers_cb(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s %s\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
-    if ( Vol.truncated ) {
-	fprintf(stderr, "%s %s: volume is truncated.\n", argv0, argv1);
-	return SIGMET_BAD_VOL;
-    }
     for (s = 0; s < Vol.num_sweeps_ax; s++) {
-	for (r = 0; r < (int)Vol.ih.ic.num_rays; r++) {
-	    int yr, mon, da, hr, min;
-	    double sec;
+	if ( Vol.sweep_ok[s] ) {
+	    for (r = 0; r < (int)Vol.ih.ic.num_rays; r++) {
+		int yr, mon, da, hr, min;
+		double sec;
 
-	    if ( !Vol.ray_ok[s][r] ) {
-		continue;
+		if ( !Vol.ray_ok[s][r] ) {
+		    continue;
+		}
+		printf("sweep %3d ray %4d | ", s, r);
+		if ( !Tm_JulToCal(Vol.ray_time[s][r],
+			    &yr, &mon, &da, &hr, &min, &sec) ) {
+		    fprintf(stderr, "%s %s: bad ray time\n%s\n",
+			    argv0, argv1, Err_Get());
+		    return SIGMET_BAD_TIME;
+		}
+		printf("%04d/%02d/%02d %02d:%02d:%04.3f | ",
+			yr, mon, da, hr, min, sec);
+		printf("az %7.3f %7.3f | ",
+			Vol.ray_az0[s][r] * DEG_PER_RAD,
+			Vol.ray_az1[s][r] * DEG_PER_RAD);
+		printf("tilt %6.3f %6.3f\n",
+			Vol.ray_tilt0[s][r] * DEG_PER_RAD,
+			Vol.ray_tilt1[s][r] * DEG_PER_RAD);
 	    }
-	    printf("sweep %3d ray %4d | ", s, r);
-	    if ( !Tm_JulToCal(Vol.ray_time[s][r],
-			&yr, &mon, &da, &hr, &min, &sec) ) {
-		fprintf(stderr, "%s %s: bad ray time\n%s\n",
-			argv0, argv1, Err_Get());
-		return SIGMET_BAD_TIME;
-	    }
-	    printf("%04d/%02d/%02d %02d:%02d:%04.3f | ",
-		    yr, mon, da, hr, min, sec);
-	    printf("az %7.3f %7.3f | ",
-		    Vol.ray_az0[s][r] * DEG_PER_RAD,
-		    Vol.ray_az1[s][r] * DEG_PER_RAD);
-	    printf("tilt %6.3f %6.3f\n",
-		    Vol.ray_tilt0[s][r] * DEG_PER_RAD,
-		    Vol.ray_tilt1[s][r] * DEG_PER_RAD);
 	}
     }
     return SIGMET_OK;
@@ -1194,29 +1219,18 @@ static int incr_time_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     char *dt_s;
     double dt;				/* Time increment, seconds */
-    char *unit;				/* Time unit, "day" or "second" */
 
-    if ( argc != 4 ) {
-	fprintf(stderr, "Usage: %s %s dt unit\n", argv0, argv1);
+    if ( argc != 3 ) {
+	fprintf(stderr, "Usage: %s %s dt\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     dt_s = argv[2];
-    unit = argv[3];
     if ( sscanf(dt_s, "%lf", &dt) != 1) {
 	fprintf(stderr, "%s %s: expected float value for time increment, got "
 		"%s\n", argv0, argv1, dt_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( strcmp(unit, "day") == 0 ) {
-
-    } else if ( strcmp(unit, "second") == 0 ) {
-	dt /= 86400.0;
-    } else {
-	fprintf(stderr, "%s %s: time unit must be \"day\" or \"second\", not %s\n",
-		argv0, argv1, unit);
-	return SIGMET_BAD_ARG;
-    }
-    if ( !Sigmet_Vol_IncrTm(&Vol, dt) ) {
+    if ( !Sigmet_Vol_IncrTm(&Vol, dt / 86400.0) ) {
 	fprintf(stderr, "%s %s: could not increment time in volume\n%s\n",
 		argv0, argv1, Err_Get());
 	return SIGMET_BAD_TIME;
@@ -2129,7 +2143,6 @@ void handler(int signum)
     ssize_t dum;
 
     msg = "sigmet_rawd daemon exiting                          \n";
-    unlink(SIGMET_RAWD_IN);
     switch (signum) {
 	case SIGTERM:
 	    msg = "sigmet_rawd daemon exiting on termination signal    \n";
