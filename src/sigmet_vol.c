@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.126 $ $Date: 2011/02/28 19:22:20 $
+   .	$Revision: 1.127 $ $Date: 2011/03/03 16:34:24 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -609,7 +609,7 @@ error:
 
 void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
 {
-    int y;
+    int y, s;
     char elem_nm[STR_LEN];
 
     if ( !vol_p->has_headers ) {
@@ -630,6 +630,10 @@ void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
     }
     fprintf(out, "%d " FS " %s " FS " %s\n",
 	    vol_p->truncated, "truncated", "If true, volume is truncated");
+    for (s = 0; s < vol_p->ih.tc.tni.num_sweeps; s++) {
+	fprintf(out, "%s " FS " sweep_ok[%d] " FS " %s\n",
+		vol_p->sweep_ok[s] ? "ok" : "bad", s, "\"ok\" or \"bad\"");
+    }
 }
 
 static int vol_good(FILE *f)
@@ -1076,9 +1080,14 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	if (n != sweep_num) {
 
 	    /*
-	       Record is start of new sweep.
+	       Sweep number has changed => record is start of new sweep.
 	     */
 
+	    if ( n != sweep_num + 1 ) {
+		Err_Append("Sweep number out of order in raw product file.  ");
+		status = SIGMET_BAD_FILE;
+		goto error;
+	    }
 	    vol_p->sweep_ok[sweep_num] = 1;
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
@@ -1110,10 +1119,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    year = get_sint16(rec + 30);
 	    month = get_sint16(rec + 32);
 	    day = get_sint16(rec + 34);
-	    if (year == 0 || month == 0 || day == 0) {
-		Err_Append("Sweep date is 0000/00/00.  ");
-		status = SIGMET_BAD_FILE;
-		goto error;
+	    if (year < 1900 || month == 0 || day == 0) {
+		vol_p->sweep_ok[sweep_num] = 0;
 	    }
 
 	    /*
@@ -1121,6 +1128,9 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	     */
 
 	    swpTm = Tm_CalToJul(year, month, day, 0, 0, sec + 0.001 * msec);
+	    if ( swpTm == 0.0 ) {
+		vol_p->sweep_ok[sweep_num] = 0;
+	    }
 	    angle = Sigmet_Bin2Rad(get_uint16(rec + 46));
 	    vol_p->sweep_time[s] = swpTm;
 	    vol_p->sweep_angle[s] = angle;
