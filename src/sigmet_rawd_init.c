@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.374 $ $Date: 2011/03/28 20:00:36 $
+ .	$Revision: 1.375 $ $Date: 2011/03/30 16:09:17 $
  */
 
 #include <limits.h>
@@ -1482,20 +1482,17 @@ static int bin_outline_cb(int argc, char *argv[])
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     int status;				/* Result of a function */
-    char *s_s, *r_s, *b_s, *u_s;
+    char *s_s, *r_s, *b_s;
     int s, r, b;
     double corners[8];
-    double c;
 
-    if ( argc != 6 ) {
-	fprintf(stderr, "Usage: %s %s sweep ray bin unit\n",
-		argv0, argv1);
+    if ( argc != 5 ) {
+	fprintf(stderr, "Usage: %s %s sweep ray bin\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     s_s = argv[2];
     r_s = argv[3];
     b_s = argv[4];
-    u_s = argv[5];
 
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
@@ -1510,15 +1507,6 @@ static int bin_outline_cb(int argc, char *argv[])
     if ( sscanf(b_s, "%d", &b) != 1 ) {
 	fprintf(stderr, "%s %s: expected integer for bin index, got %s\n",
 		argv0, argv1, b_s);
-	return SIGMET_BAD_ARG;
-    }
-    if ( strcmp(u_s, "deg") == 0 || strcmp(u_s, "degree") == 0 ) {
-	c = DEG_RAD;
-    } else if ( strcmp(u_s, "rad") == 0 || strcmp(u_s, "rad") == 0 ) {
-	c = 1.0;
-    } else {
-	fprintf(stderr, "Unknown angle unit %s. Angle unit must be \"degree\" "
-		"or \"radian\"\n", u_s);
 	return SIGMET_BAD_ARG;
     }
     if ( s >= Vol.num_sweeps_ax ) {
@@ -1541,13 +1529,11 @@ static int bin_outline_cb(int argc, char *argv[])
 		"in volume\n%s\n", argv0, argv1, s, r, b, Err_Get());
 	return status;
     }
-    if ( c == -1.0 ) {
-	fprintf(stderr, "%s %s: bad angle unit.\n", argv0, argv1);
-	return SIGMET_BAD_ARG;
-    }
     printf("%f %f %f %f %f %f %f %f\n",
-	    corners[0] * c, corners[1] * c, corners[2] * c, corners[3] * c,
-	    corners[4] * c, corners[5] * c, corners[6] * c, corners[7] * c);
+	    corners[0] * DEG_RAD, corners[1] * DEG_RAD,
+	    corners[2] * DEG_RAD, corners[3] * DEG_RAD,
+	    corners[4] * DEG_RAD, corners[5] * DEG_RAD,
+	    corners[6] * DEG_RAD, corners[7] * DEG_RAD);
 
     return SIGMET_OK;
 }
