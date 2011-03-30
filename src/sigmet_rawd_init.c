@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.376 $ $Date: 2011/03/30 16:14:12 $
+ .	$Revision: 1.377 $ $Date: 2011/03/30 16:53:12 $
  */
 
 #include <limits.h>
@@ -665,7 +665,7 @@ static int setcolors_cb(int argc, char *argv[])
     int status;
 
     if ( argc != 4 ) {
-	fprintf(stderr, "Usage: %s %s type colors_file\n", argv0, argv1);
+	fprintf(stderr, "Usage: %s %s data_type colors_file\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     abbrv = argv[2];
@@ -984,7 +984,7 @@ static int set_field_cb(int argc, char *argv[])
     double d;
 
     if ( argc != 4 ) {
-	fprintf(stderr, "Usage: %s %s type value\n", argv0, argv1);
+	fprintf(stderr, "Usage: %s %s data_type value\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     abbrv = argv[2];
@@ -1075,7 +1075,7 @@ static int sub_cb(int argc, char *argv[])
     double a;				/* Scalar to subtract */
 
     if ( argc != 4 ) {
-	fprintf(stderr, "Usage: %s %s type value|field\n",
+	fprintf(stderr, "Usage: %s %s data_type value|field\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -1155,7 +1155,7 @@ static int div_cb(int argc, char *argv[])
     double a;				/* Scalar to divide by */
 
     if ( argc != 4 ) {
-	fprintf(stderr, "Usage: %s %s type value|field\n",
+	fprintf(stderr, "Usage: %s %s data_type value|field\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -1193,7 +1193,7 @@ static int log10_cb(int argc, char *argv[])
     char *abbrv;			/* Data type abbreviation */
 
     if ( argc != 3 ) {
-	fprintf(stderr, "Usage: %s %s type\n",
+	fprintf(stderr, "Usage: %s %s data_type\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -1250,11 +1250,11 @@ static int data_cb(int argc, char *argv[])
     /*
        Identify input and desired output
        Possible forms:
-	   sigmet_ray data		(argc = 3)
-	   sigmet_ray data type		(argc = 4)
-	   sigmet_ray data type s	(argc = 5)
-	   sigmet_ray data type s r	(argc = 6)
-	   sigmet_ray data type s r b	(argc = 7)
+	   sigmet_ray data			(argc = 3)
+	   sigmet_ray data data_type		(argc = 4)
+	   sigmet_ray data data_type s		(argc = 5)
+	   sigmet_ray data data_type s r	(argc = 6)
+	   sigmet_ray data data_type s r b	(argc = 7)
      */
 
     abbrv = NULL;
@@ -1278,7 +1278,7 @@ static int data_cb(int argc, char *argv[])
 	return SIGMET_BAD_ARG;
     }
     if ( argc >= 7 ) {
-	fprintf(stderr, "Usage: %s %s [type] [sweep] [ray] [bin]\n",
+	fprintf(stderr, "Usage: %s %s [[[[data_type] sweep] ray] bin]\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -1797,7 +1797,8 @@ static int img_cb(int argc, char *argv[])
      */
 
     if ( argc != 5 ) {
-	fprintf(stderr, "Usage: %s %s type sweep base_name\n", argv0, argv1);
+	fprintf(stderr, "Usage: %s %s data_type sweep base_name\n",
+		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     abbrv = argv[2];
