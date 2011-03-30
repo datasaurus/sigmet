@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.78 $ $Date: 2011/02/23 15:07:56 $
+   .	$Revision: 1.81 $ $Date: 2011/06/03 17:12:10 $
  */
 
 #include <limits.h>
@@ -145,14 +145,16 @@ static int daemon_task(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     mode_t m;			/* File permissions */
-    struct sockaddr_un sa;	/* Address of socket that connects with daemon */
+    struct sockaddr_un sa;	/* Address of socket that connects with
+				   daemon */
     int i_dmn = -1;		/* File descriptor associated with sa */
     FILE *dmn;			/* File associated with sa */
     pid_t pid = getpid();	/* Id for this process */
     char buf[LEN];		/* Line sent to or received from daemon */
     char **a;			/* Pointer into argv */
     size_t cmd_ln_l;		/* Command line length */
-    int i_out = -1;		/* File descriptor for standard output from daemon*/
+    int i_out = -1;		/* File descriptor for standard output from
+				   daemon*/
     int i_err = -1;		/* File descriptors error output from daemon */
     fd_set set, read_set;	/* Give i_dmn, i_out, and i_err to select */
     int fd_hwm = 0;		/* Highest file descriptor */
@@ -202,8 +204,8 @@ static int daemon_task(int argc, char *argv[])
     sa.sun_family = AF_UNIX;
     strlcpy(sa.sun_path, SIGMET_RAWD_IN, SA_PLEN);
     if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
-	fprintf(stderr, "%s (%d): could not create socket to connect with daemon\n"
-		"%s\n", argv0, pid, strerror(errno));
+	fprintf(stderr, "%s (%d): could not create socket to connect "
+		"with daemon\n%s\n", argv0, pid, strerror(errno));
 	goto error;
     }
     if ( connect(i_dmn, (struct sockaddr *)&sa, SA_UN_SZ) == -1
@@ -230,8 +232,8 @@ static int daemon_task(int argc, char *argv[])
 	goto error;
     }
     if ( fwrite(&argc, sizeof(int), 1, dmn) != 1 ) {
-	fprintf(stderr, "%s (%d): could not send argument count to daemon\n%s\n",
-		argv0, pid, strerror(errno));
+	fprintf(stderr, "%s (%d): could not send argument count to daemon\n"
+		"%s\n", argv0, pid, strerror(errno));
 	goto error;
     }
     if ( fwrite(&cmd_ln_l, sizeof(size_t), 1, dmn) != 1 ) {
@@ -257,8 +259,8 @@ static int daemon_task(int argc, char *argv[])
      */
 
     if ( (i_out = open(out_nm, O_RDONLY)) == -1 ) {
-	fprintf(stderr, "%s (%d): could not open pipe for standard output\n%s\n",
-		argv0, pid, strerror(errno));
+	fprintf(stderr, "%s (%d): could not open pipe for standard output\n"
+		"%s\n", argv0, pid, strerror(errno));
 	goto error;
     }
     if ( (i_err = open(err_nm, O_RDONLY)) == -1 ) {
@@ -320,8 +322,8 @@ static int daemon_task(int argc, char *argv[])
 		 */
 
 		if ( (fwrite(buf, 1, ll, stdout)) != ll ) {
-		    fprintf(stderr, "%s (%d): failed to write standard output.\n",
-			    argv0, pid);
+		    fprintf(stderr, "%s (%d): failed to write "
+			    "standard output.\n", argv0, pid);
 		    goto error;
 		}
 	    }
@@ -345,8 +347,9 @@ static int daemon_task(int argc, char *argv[])
 		    fd_hwm--;
 		}
 		if ( close(i_err) == -1 ) {
-		    fprintf(stderr, "%s (%d): could not close error output stream "
-			    "from daemon\n%s\n", argv0, pid, strerror(errno));
+		    fprintf(stderr, "%s (%d): could not close error "
+			    "output stream from daemon\n%s\n",
+			    argv0, pid, strerror(errno));
 		    goto error;
 		}
 		i_err = -1;

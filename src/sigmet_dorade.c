@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.37 $ $Date: 2011/03/30 20:52:55 $
+   .	$Revision: 1.38 $ $Date: 2011/03/30 20:53:59 $
  */
 
 #include <string.h>
