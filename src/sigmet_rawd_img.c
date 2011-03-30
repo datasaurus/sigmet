@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.8 $ $Date: 2011/03/30 20:27:42 $
+ .	$Revision: 1.11 $ $Date: 2011/06/09 16:51:57 $
  */
 
 #include <string.h>
@@ -24,7 +24,8 @@ static unsigned w_pxl = 600;		/* Width of image in display units,
 static unsigned h_pxl = 600;		/* Height of image in display units,
 					   pixels, points, cm */
 static double alpha = 1.0;		/* alpha channel. 1.0 => translucent */
-static char *img_app;			/* External application to draw sweeps */
+static char *img_app;			/* External application to
+					   draw sweeps */
 
 static void cleanup(void);
 static void cleanup(void)

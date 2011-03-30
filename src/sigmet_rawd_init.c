@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.377 $ $Date: 2011/03/30 16:53:12 $
+ .	$Revision: 1.378 $ $Date: 2011/03/30 20:39:54 $
  */
 
 #include <limits.h>
@@ -139,7 +139,8 @@ void SigmetRaw_Load(char *vol_fl_nm)
     FILE *in;			/* Stream that provides a volume */
     int status;			/* Result of a function */
     int flags;			/* Flags for log files */
-    struct sockaddr_un sa;	/* Socket to read command and return exit status */
+    struct sockaddr_un sa;	/* Socket to read command and return exit
+				   status */
     struct sockaddr *sa_p;	/* &sa or &d_err_sa, for call to bind */
     int i_dmn;			/* File descriptors for daemon socket */
     pid_t pid;			/* Return from fork */
@@ -316,7 +317,8 @@ void SigmetRaw_Load(char *vol_fl_nm)
      */
 
     while ( !stop && (cl_io_fd = accept(i_dmn, NULL, 0)) != -1 ) {
-	int argc1;		/* Number of arguments in received command line */
+	int argc1;		/* Number of arguments in received command
+				   line */
 	char *argv1[SIGMET_RAWD_ARGCX]; /* Arguments from client command line */
 	int a;			/* Index into argv1 */
 	char *cmd0;		/* Name of client */
@@ -325,7 +327,8 @@ void SigmetRaw_Load(char *vol_fl_nm)
 	char err_nm[LEN];	/* Fifo to send error output to client */
 	int i_out;		/* File descriptor for writing to out_nm */
 	int i_err;		/* File descriptor for writing to err_nm */
-	int flags;		/* Return from fcntl, when config'ing cl_io_fd */
+	int flags;		/* Return from fcntl, when configuring
+				   cl_io_fd */
 	int sstatus;		/* Result of callback */
 	int i;			/* Loop index */
 	char *c, *e;		/* Loop parameters */
@@ -378,7 +381,8 @@ void SigmetRaw_Load(char *vol_fl_nm)
 	    if ( !(t = REALLOC(cmd_ln, cmd_ln_l + 1)) ) {
 		fprintf(d_err, "%s: allocation failed for command line of "
 			"%lu bytes for process %ld.\n",
-			time_stamp(), (unsigned long)cmd_ln_l, (long)client_pid);
+			time_stamp(), (unsigned long)cmd_ln_l,
+			(long)client_pid);
 		close(cl_io_fd);
 		continue;
 	    }
@@ -388,7 +392,8 @@ void SigmetRaw_Load(char *vol_fl_nm)
 	memset(cmd_ln, 0, cmd_ln_lx);
 	if ( read(cl_io_fd, cmd_ln, cmd_ln_l) == -1 ) {
 	    fprintf(d_err, "%s: failed to read command line for "
-		    "process %d.%s\n", time_stamp(), client_pid, strerror(errno));
+		    "process %d.%s\n",
+		    time_stamp(), client_pid, strerror(errno));
 	    close(cl_io_fd);
 	    continue;
 	}
@@ -776,8 +781,8 @@ static int near_sweep_cb(int argc, char *argv[])
     }
     ang_s = argv[2];
     if ( sscanf(ang_s, "%lf", &ang) != 1 ) {
-	fprintf(stderr, "%s %s: expected floating point for sweep angle, got %s\n",
-		argv0, argv1, ang_s);
+	fprintf(stderr, "%s %s: expected floating point for sweep angle,"
+		" got %s\n", argv0, argv1, ang_s);
 	return SIGMET_BAD_ARG;
     }
     ang *= RAD_PER_DEG;
@@ -945,8 +950,8 @@ static int del_field_cb(int argc, char *argv[])
 	return SIGMET_BAD_ARG;
     }
     if ( (status = Sigmet_Vol_DelField(&Vol, abbrv)) != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: could not remove data type %s from volume\n%s\n",
-		argv0, argv1, abbrv, Err_Get());
+	fprintf(stderr, "%s %s: could not remove data type %s from volume\n"
+		"%s\n", argv0, argv1, abbrv, Err_Get());
 	return status;
     }
     Mod = 1;
@@ -1127,8 +1132,8 @@ static int mul_cb(int argc, char *argv[])
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
 	if ( (status = Sigmet_Vol_Fld_MulVal(&Vol, abbrv, a)) != SIGMET_OK ) {
-	    fprintf(stderr, "%s %s: could not multiply %s by %lf in volume\n%s\n",
-		    argv0, argv1, abbrv, a, Err_Get());
+	    fprintf(stderr, "%s %s: could not multiply %s by %lf in volume\n"
+		    "%s\n", argv0, argv1, abbrv, a, Err_Get());
 	    return status;
 	}
     } else if ( (status = Sigmet_Vol_Fld_MulFld(&Vol, abbrv, a_s))
@@ -1524,8 +1529,8 @@ static int bin_outline_cb(int argc, char *argv[])
 	return SIGMET_RNG_ERR;
     }
     if ( (status = Sigmet_Vol_BinOutl(&Vol, s, r, b, corners)) != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: could not compute bin outlines for bin %d %d %d "
-		"in volume\n%s\n", argv0, argv1, s, r, b, Err_Get());
+	fprintf(stderr, "%s %s: could not compute bin outlines for bin "
+		"%d %d %d in volume\n%s\n", argv0, argv1, s, r, b, Err_Get());
 	return status;
     }
     printf("%f %f %f %f %f %f %f %f\n",
@@ -1550,8 +1555,8 @@ static int radar_lon_cb(int argc, char *argv[])
     }
     lon_s = argv[2];
     if ( sscanf(lon_s, "%lf", &lon) != 1 ) {
-	fprintf(stderr, "%s %s: expected floating point value for new longitude, "
-		"got %s\n", argv0, argv1, lon_s);
+	fprintf(stderr, "%s %s: expected floating point value for "
+		"new longitude, got %s\n", argv0, argv1, lon_s);
 	return SIGMET_BAD_ARG;
     }
     lon = GeogLonR(lon * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
@@ -1574,8 +1579,8 @@ static int radar_lat_cb(int argc, char *argv[])
     }
     lat_s = argv[2];
     if ( sscanf(lat_s, "%lf", &lat) != 1 ) {
-	fprintf(stderr, "%s %s: expected floating point value for new latitude, "
-		"got %s\n", argv0, argv1, lat_s);
+	fprintf(stderr, "%s %s: expected floating point value for "
+		"new latitude, got %s\n", argv0, argv1, lat_s);
 	return SIGMET_BAD_ARG;
     }
     lat = GeogLonR(lat * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
@@ -1591,7 +1596,8 @@ static int shift_az_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     char *daz_s;			/* Degrees to add to each azimuth */
     double daz;				/* Radians to add to each azimuth */
-    unsigned long idaz;			/* Binary angle to add to each azimuth */
+    unsigned long idaz;			/* Binary angle to add to each
+					   azimuth */
     int s, r;				/* Loop indeces */
 
     if ( argc != 3 ) {
@@ -1600,8 +1606,8 @@ static int shift_az_cb(int argc, char *argv[])
     }
     daz_s = argv[2];
     if ( sscanf(daz_s, "%lf", &daz) != 1 ) {
-	fprintf(stderr, "%s %s: expected float value for azimuth shift, got %s\n",
-		argv0, argv1, daz_s);
+	fprintf(stderr, "%s %s: expected float value for azimuth shift, "
+		"got %s\n", argv0, argv1, daz_s);
 	return SIGMET_BAD_ARG;
     }
     daz = GeogLonR(daz * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
