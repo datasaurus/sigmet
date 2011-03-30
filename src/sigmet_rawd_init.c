@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.375 $ $Date: 2011/03/30 16:09:17 $
+ .	$Revision: 1.376 $ $Date: 2011/03/30 16:14:12 $
  */
 
 #include <limits.h>
@@ -60,7 +60,7 @@ static char *Vol_Fl_Nm;			/* File that provided the volume */
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 34
+#define NCMD 33
 typedef int (callback)(int , char **);
 static callback pid_cb;
 static callback data_types_cb;
@@ -85,7 +85,6 @@ static callback incr_time_cb;
 static callback data_cb;
 static callback bdata_cb;
 static callback bin_outline_cb;
-static callback bintvls_cb;
 static callback radar_lon_cb;
 static callback radar_lat_cb;
 static callback shift_az_cb;
@@ -101,7 +100,7 @@ static char *cmd1v[NCMD] = {
     "volume_headers", "vol_hdr", "near_sweep", "sweep_headers",
     "ray_headers", "new_field", "del_field", "size", "set_field", "add",
     "sub", "mul", "div", "log10", "incr_time", "data", "bdata",
-    "bin_outline", "bintvls", "radar_lon", "radar_lat", "shift_az",
+    "bin_outline", "radar_lon", "radar_lat", "shift_az",
     "set_proj", "get_proj", "img_app", "img_sz", "alpha", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
@@ -109,7 +108,7 @@ static callback *cb1v[NCMD] = {
     volume_headers_cb, vol_hdr_cb, near_sweep_cb, sweep_headers_cb,
     ray_headers_cb, new_field_cb, del_field_cb, size_cb, set_field_cb, add_cb,
     sub_cb, mul_cb, div_cb, log10_cb, incr_time_cb, data_cb, bdata_cb,
-    bin_outline_cb, bintvls_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
+    bin_outline_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
     set_proj_cb, get_proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_cb, dorade_cb
 };
 
@@ -1534,81 +1533,6 @@ static int bin_outline_cb(int argc, char *argv[])
 	    corners[2] * DEG_RAD, corners[3] * DEG_RAD,
 	    corners[4] * DEG_RAD, corners[5] * DEG_RAD,
 	    corners[6] * DEG_RAD, corners[7] * DEG_RAD);
-
-    return SIGMET_OK;
-}
-
-static int bintvls_cb(int argc, char *argv[])
-{
-    char *argv0 = argv[0];
-    char *argv1 = argv[1];
-    char *s_s;				/* Sweep index, as a string */
-    char *abbrv;			/* Data type abbreviation */
-    struct DataType *data_type;		/* Information about the data type */
-    struct Sigmet_DatArr *dat_p;
-    int y, s, r, b;			/* data type, sweep, ray, bin */
-    unsigned char num_clrs;		/* number of colors for the data type */
-    double *bnds;			/* bounds for the type */
-    unsigned char n_bnds;		/* number of bounds = num_clrs + 1 */
-    int n;				/* Index from bnds */
-    double d;				/* Data value */
-
-    if ( argc != 4 ) {
-	fprintf(stderr, "Usage: %s %s type sweep\n", argv0, argv1);
-	return SIGMET_BAD_ARG;
-    }
-    abbrv = argv[2];
-    s_s = argv[3];
-    if ( !(data_type = DataType_Get(abbrv)) ) {
-	fprintf(stderr, "%s %s: no data type named %s\n",
-		argv0, argv1, abbrv);
-	return SIGMET_BAD_ARG;
-    }
-    num_clrs = data_type->n_colors;
-    n_bnds = num_clrs + 1;
-    bnds = data_type->bounds;
-    if ( sscanf(s_s, "%d", &s) != 1 ) {
-	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
-		argv0, argv1, s_s);
-	return SIGMET_BAD_ARG;
-    }
-
-    /*
-       Validate.
-     */
-
-    if ( !(dat_p = Hash_Get(&Vol.types_tbl, abbrv)) ) {
-	fprintf(stderr, "%s %s: no data type named %s in volume\n",
-		argv0, argv1, abbrv);
-	return SIGMET_BAD_ARG;
-    }
-    y = dat_p - Vol.dat;
-    if ( s >= Vol.num_sweeps_ax ) {
-	fprintf(stderr, "%s %s: sweep index %d out of range for volume\n",
-		argv0, argv1, s);
-	return SIGMET_RNG_ERR;
-    }
-    if ( !Vol.sweep_ok[s] ) {
-	fprintf(stderr, "%s %s: sweep %d not valid in volume\n",
-		argv0, argv1, s);
-	return SIGMET_RNG_ERR;
-    }
-
-    /*
-       Determine which interval from bounds each bin value is in and print.
-     */
-
-    for (r = 0; r < Vol.ih.ic.num_rays; r++) {
-	if ( Vol.ray_ok[s][r] ) {
-	    for (b = 0; b < Vol.ray_num_bins[s][r]; b++) {
-		d = Sigmet_Vol_GetDat(&Vol, y, s, r, b);
-		if ( Sigmet_IsData(d)
-			&& (n = BISearch(d, bnds, n_bnds)) != -1 ) {
-		    printf("%6d: %3d %5d\n", n, r, b);
-		}
-	    }
-	}
-    }
 
     return SIGMET_OK;
 }
