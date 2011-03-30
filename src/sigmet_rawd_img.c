@@ -7,7 +7,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.6 $ $Date: 2011/01/07 20:17:11 $
+ .	$Revision: 1.7 $ $Date: 2011/01/10 17:10:39 $
  */
 
 #include <string.h>
@@ -65,18 +65,6 @@ int SigmetRaw_SetImgApp(char *nm)
     if ( !init ) {
 	atexit(cleanup);
 	init = 1;
-    }
-    if ( stat(nm, &sbuf) == -1 ) {
-	Err_Append("Could not get information about ");
-	Err_Append(nm);
-	Err_Append(" ");
-	Err_Append(strerror(errno));
-	return SIGMET_BAD_ARG;
-    }
-    if ( ((sbuf.st_mode & S_IFREG) != S_IFREG) || ((sbuf.st_mode & m) != m) ) {
-	Err_Append(nm);
-	Err_Append(" is not executable. ");
-	return SIGMET_BAD_ARG;
     }
     cleanup();
     sz = strlen(nm) + 1;
