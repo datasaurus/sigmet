@@ -4,7 +4,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.1 $ $Date: 2011/01/28 21:21:57 $
+.\" $Revision: 1.2 $ $Date: 2011/02/24 17:41:14 $
 .Pp
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
@@ -55,7 +55,17 @@
 .Ft int
 .Fn Sigmet_Vol_BinOutl "struct Sigmet_Vol *vol_p" "int s" "int r" "int b" "double *lonlats"
 .Ft int
-.Fn Sigmet_Vol_Img_PPI "struct Sigmet_Vol *vol_p" "char *abbrv" "int s" "char *img_app" "char **proj_argv" "unsigned w_pxl" "double alpha" "char *base_nm"
+.Fo Sigmet_Vol_Img_PPI
+.Fa "struct Sigmet_Vol *vol_p"
+.Fa "char *abbrv"
+.Fa "int s"
+.Fa "char *img_app"
+.Fa "char **proj_argv"
+.Fa "unsigned w_pxl"
+.Fa "double alpha"
+.Fa "char *base_nm"
+.Fa "double edges[]"
+.Fc
 .Ft int
 .Fn Sigmet_Vol_NewField "struct Sigmet_Vol *vol_p" "char *field_name"
 .Ft int
@@ -232,35 +242,39 @@ in the Sigmet volume at
 as lon1\ lat1\ lon2\ lat2\ lon3\ lat3\ lon4\ lat4, denoting the corners of the bin.  Array
 .Fa lonlats
 must point to space for eight double values.
-
 .Pp
 .Fn Sigmet_Vol_Img_PPI
-creates a png image and associated kml file in the current working directory
-for data type
+provides drawing information to an external program for data type
 .Fa abbrv ,
 sweep
-.Fa s
+.Fa s ,
 in the volume at
 .Fa vol_p .
 .Fa img_app
-gives the name of an external program that reads a description of the image
-and generates the file. It should take one argument - the name of the image
-file.  It should take the following information from its standard input:
+gives the name of the external program. It should read the drawing information for
+the image from its standard input and generate the image file. It should take one
+argument,
+.Fa base_nm ,
+which should suggest a base name for the image file, without a suffix. The external
+program can use it to make a name for the file, and should add a suffix if needed,
+e.g.
+.Li ".png" .
+The following information will be sent to the drawing program:
 .nf
 
 	    unsigned int	w_dpy		Image width, display units
 	    unsigned int	h_dpy		Image height, display units
-	    double		left		Real coordinate of left side
-	    double		rght		Real coordinate of right side
-	    double		top		Real coordinate of top
-	    double		btm		Real coordinate of bottom
+	    double		left		Map coordinate of left side
+	    double		rght		Map coordinate of right side
+	    double		top		Map coordinate of top
+	    double		btm		Map coordinate of bottom
 	    double		alpha		Alpha channel (transparency)
 	    unsigned int	n_clrs		Number of colors
 	    For n_clrs colors:
 		unsigned int	red
 		unsigned int	green
 		unsigned int	blue
-	    For each polygon
+	    For each polygon in the sweep image
 		unsigned int	n_color		Color index, in [0,n_clrs)
 		unsigned int	npts		Vertex count
 		For npts vertices:
@@ -272,7 +286,7 @@ All numerical values will be sent as native binaries.
 .Fa proj_argv
 specifies an external program that reads a stream of longitude-latitude
 coordinates, as native doubles, from its standard input, and prints the
-corresponding map coordinates to its standard output (.e.g.
+corresponding map coordinates to its standard output (e.g.
 .Nm proj Ns Li ).
 The image will be a square of
 .Fa w_pxl
@@ -280,14 +294,11 @@ by
 .Fa w_pxl
 pixels.
 .Fa alpha
-specifies the image alpha value.
-.Fa base_nm
-is used to generate file names. The png file will be named
-.Fa base_nm Ns Li .png
-and the kml file will be named
-.Fa base_nm Ns Li .kml .
-Error information will be accumulated with
+specifies the image alpha value.  Error information will be accumulated with
 .Nm Err_Append .
+.Fa edges
+must be a four element array. It will receive the north, east, south, and
+west limits of the image area.
 .Pp
 .Fn Sigmet_Vol_NewField
 creates a new field named
