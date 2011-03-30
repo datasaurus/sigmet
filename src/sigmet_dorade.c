@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.35 $ $Date: 2011/02/08 18:40:13 $
+   .	$Revision: 1.36 $ $Date: 2011/02/23 15:25:07 $
  */
 
 #include <string.h>
@@ -42,7 +42,9 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
        in sweep files instead of "DB_DBT".
      */
 
-    static char *soloii_abbrv[SIGMET_NTYPES] = {NULL, "ZT", "DZ", "VR", "SW", NULL};
+    static char *soloii_abbrv[SIGMET_NTYPES] = {
+	NULL, "ZT", "DZ", "VR", "SW", NULL
+    };
 
     /*
        Convenience variables point into swp_p
@@ -95,7 +97,8 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     swp_p->vold.volume_num = 1;
     swp_p->vold.maximum_bytes = 65500;
-    if ( !Tm_JulToCal(vol_p->sweep_time[s], &year, &mon, &day, &hr, &min, &sec) ) {
+    if ( !Tm_JulToCal(vol_p->sweep_time[s],
+		&year, &mon, &day, &hr, &min, &sec) ) {
 	Err_Append("Could not set sweep time. ");
 	status = SIGMET_BAD_TIME;
 	goto error;
@@ -152,11 +155,12 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     radd_p->data_compress = 0;
     radd_p->radar_longitude
 	= GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0) * DEG_PER_RAD;
-    radd_p->radar_latitude = Sigmet_Bin4Rad(vol_p->ih.ic.latitude) * DEG_PER_RAD;
+    radd_p->radar_latitude
+	= Sigmet_Bin4Rad(vol_p->ih.ic.latitude) * DEG_PER_RAD;
     radd_p->radar_altitude
 	= 0.001 * (vol_p->ih.ic.ground_elev + vol_p->ih.ic.radar_ht);
-    wave_len = 0.0001 * vol_p->ih.tc.tmi.wave_len;	/* Convert 1/100 cm to m */
-    prf = vol_p->ih.tc.tdi.prf;				/* Hertz */
+    wave_len = 0.0001 * vol_p->ih.tc.tmi.wave_len; /* Convert 1/100 cm to m */
+    prf = vol_p->ih.tc.tdi.prf;			   /* Hertz */
     switch (vol_p->ih.tc.tdi.m_prf_mode) {
 	case ONE_ONE:
 	    radd_p->eff_unamb_vel = 0.25 * wave_len * prf;
@@ -330,8 +334,8 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	az1 = vol_p->ray_az1[s][r];
 	ryib_p->azimuth = 0.5 * (az0 + GeogLonR(az1, az0));
 	ryib_p->azimuth = DEG_PER_RAD * GeogLonR(ryib_p->azimuth, 0.0);
-	ryib_p->elevation
-	    = DEG_PER_RAD * 0.5 * (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
+	ryib_p->elevation = DEG_PER_RAD * 0.5
+	    * (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
 	ryib_p->peak_power = 0.001 * vol_p->ih.tc.tmi.power;
 	ryib_p->ray_status = vol_p->ray_ok[s][r] ? 0 : 2;
 
@@ -377,7 +381,8 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 		    dat_p[p][r][c] = bad_data;
 		}
 	    } else {
-		status = Sigmet_Vol_GetRayDat(vol_p, p, s, r, &ray_p, &num_bins);
+		status = Sigmet_Vol_GetRayDat(vol_p, p, s, r,
+			&ray_p, &num_bins);
 		if ( (status != SIGMET_OK) ) {
 		    Err_Append("Could not retrieve ray data "
 			    "from Sigmet volume");
