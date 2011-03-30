@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.373 $ $Date: 2011/03/03 16:36:46 $
+ .	$Revision: 1.374 $ $Date: 2011/03/28 20:00:36 $
  */
 
 #include <limits.h>
@@ -816,14 +816,13 @@ static int sweep_headers_cb(int argc, char *argv[])
 	    int yr, mon, da, hr, min;
 	    double sec;
 
-	    if ( !Tm_JulToCal(Vol.sweep_time[s],
+	    if ( Tm_JulToCal(Vol.sweep_time[s],
 			&yr, &mon, &da, &hr, &min, &sec) ) {
-		fprintf(stderr, "%s %s: bad sweep time\n%s\n",
-			argv0, argv1, Err_Get());
-		return SIGMET_BAD_TIME;
+		printf("%04d/%02d/%02d %02d:%02d:%04.3f ",
+			yr, mon, da, hr, min, sec);
+	    } else {
+		printf("bad time (%s). ", Err_Get());
 	    }
-	    printf("%04d/%02d/%02d %02d:%02d:%04.3f ",
-		    yr, mon, da, hr, min, sec);
 	    printf("%7.3f\n", Vol.sweep_angle[s] * DEG_PER_RAD);
 	}
     }
