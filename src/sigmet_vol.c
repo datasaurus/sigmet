@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.127 $ $Date: 2011/03/03 16:34:24 $
+   .	$Revision: 1.128 $ $Date: 2011/03/28 20:00:03 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -3076,6 +3076,387 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     img_pid = 0;
 
     printf("%s\n", base_nm);
+    return status;
+error:
+    FREE(coords);
+    FREE(clr_idxs);
+    if ( img_out ) {
+	if ( fclose(img_out) == EOF ) {
+	    Err_Append("could not close pipe to image generating process for "
+		    "image file ");
+	    Err_Append(base_nm);
+	    Err_Append(" ");
+	    Err_Append(strerror(errno));
+	    Err_Append(". ");
+	}
+    }
+    if ( img_pid != 0 ) {
+	kill(img_pid, SIGKILL);
+	waitpid(img_pid, NULL, WNOHANG);
+    }
+    return status;
+}
+
+int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
+	char *img_app, double a0, unsigned w_pxl, double alpha, char *base_nm)
+{
+    int status;				/* Result of a function */
+    struct DataType *data_type;		/* Information about the data type */
+    struct Sigmet_DatArr *dat_p;
+    int y, r, b;			/* Indeces: data type, sweep, ray, bin
+					 */
+    double tilt;			/* Beam tilt */
+    double abs, ord, ord0, r0, rng, dr;	/* Abscissa, ordinate (height), dish
+					   height, range to first bin, distance
+					   along bin, bin spacing.  All meters.
+					 */
+    double *coords = NULL;		/* Cartesian coordinates for bins. Each
+					   pair of values gives an abscissa and
+					   ordinate. Abscissa is meters to right
+					   of left edge of drawing domain.
+					   Ordinate is meters up from bottom of
+					   drawing domain. These are the real
+					   values (meters along ground and above
+					   ground).  The external image
+					   application will scale and rotate for
+					   output device.  There will be eight
+					   coordinates for each bin that appears
+					   in the display, two for each corner.
+					 */
+    double *coord_p;			/* Next empty location in coords */
+    double *coord_e;			/* One past end of allocation at
+					   coords */
+    double px_per_m;			/* Pixels per meter */
+    unsigned h_pxl;			/* Image height, pixels */
+    double left;			/* Map coordinate of left side */
+    double rght;			/* Map coordinate of right side */
+    double btm;				/* Map coordinate of bottom */
+    double top;				/* Map coordinate of top */
+    struct DataType_Color *clrs; 	/* Array of colors */
+    struct DataType_Color *clr; 	/* Point into clrs*/
+    unsigned num_clrs;			/* Number colors = number bounds - 1 */
+    int *clr_idxs = NULL;		/* Array of color indeces, one for each
+					   bin that appears in the display */
+    int *clr_idx_p;			/* Next usable location in clr_idxs */
+    int *clr_idx_e;			/* Address one past end of allocation 
+					   at clr_idxs */
+    double *bnds;			/* bounds for each color */
+    unsigned char n_bnds;		/* number of bounds = num_clrs + 1 */
+    int i_bnd;				/* Index into bnds, also a color index */
+    double d;				/* Data value */
+    double ray_len;			/* Ray length, meters or great circle
+					   radians */
+    int num_outlns;			/* Number of bin outlines */
+    int yr, mo, da, h, mi;		/* Sweep year, month, day, hour, minute */
+    double sec;				/* Sweep second */
+    pid_t img_pid = 0;			/* Process id for image generator */
+    FILE *img_out = NULL;		/* Where to send outlines to draw */
+    jmp_buf err_jmp;			/* Handle output errors with setjmp,
+					   longjmp */
+    char item[STR_LEN];			/* Item being written. Needed for error
+					   message. */
+    pid_t p;				/* Return from waitpid */
+    int si;				/* Exit status of image generator */
+    char *img_argv[3];
+    int img_wr;
+
+    status = SIGMET_OK;
+    if ( !vol_p ) {
+	Err_Append("Bogus volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( vol_p->ih.tc.tni.scan_mode != RHI ) {
+	Err_Append("Volume must be RHI. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(data_type = DataType_Get(abbrv)) ) {
+	Err_Append("no data type named ");
+	Err_Append(abbrv);
+	Err_Append(". ");
+	return SIGMET_BAD_ARG;
+    }
+    num_clrs = data_type->n_colors;
+    clrs = data_type->colors;
+    n_bnds = num_clrs + 1;
+    bnds = data_type->bounds;
+    if ( num_clrs == 0 || !clrs ) {
+	Err_Append("colors not set for ");
+	Err_Append(abbrv);
+	Err_Append(". ");
+	return SIGMET_NOT_INIT;
+    }
+    if ( n_bnds == 1 || !bnds ) {
+	Err_Append("bounds not set for ");
+	Err_Append(abbrv);
+	Err_Append(". ");
+	return SIGMET_NOT_INIT;
+    }
+    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("no data type named ");
+	Err_Append(abbrv);
+	Err_Append(". ");
+	return SIGMET_BAD_ARG;
+    }
+    y = dat_p - vol_p->dat;
+    if ( s >= vol_p->num_sweeps_ax ) {
+	Err_Append("sweep index out of range for volume. ");
+	return SIGMET_RNG_ERR;
+    }
+    if ( !vol_p->sweep_ok[s] ) {
+	Err_Append("sweep not valid in volume. ");
+	return SIGMET_RNG_ERR;
+    }
+    if ( !Tm_JulToCal(vol_p->sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
+	Err_Append("invalid sweep time. ");
+	return SIGMET_BAD_TIME;
+    }
+
+    /*
+       To obtain image dimensions and scale, put radar at lower left.
+       Width is one ray length to the right. Height is height of furthest
+       bin at highest tilt.
+     */
+
+    ord0 = vol_p->ih.ic.radar_ht;
+    r0 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
+    dr = 0.01 * vol_p->ih.tc.tri.step_out;
+    ray_len = r0 + (vol_p->ih.tc.tri.num_bins_out + 1) * dr ;
+    px_per_m = w_pxl / ray_len;
+    left = 0;
+    rght = ray_len;
+    btm = 0.0;
+    top = -DBL_MAX;
+    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	if ( vol_p->ray_ok[s][r] ) {
+	    tilt = vol_p->ray_tilt0[s][r];
+	    ord = ord0 + GeogBeamHt(ray_len, tilt, a0);
+	    if ( ord > top ) {
+		top = ord;
+	    }
+	    tilt = vol_p->ray_tilt1[s][r];
+	    ord = ord0 + GeogBeamHt(ray_len, tilt, a0);
+	    if ( ord > top ) {
+		top = ord;
+	    }
+	}
+    }
+    if ( top == -DBL_MAX ) {
+	Err_Append("Could not determine sweep height limit. ");
+	status = SIGMET_BAD_VOL;
+	goto error;
+    }
+    h_pxl = top * px_per_m;
+
+    /*
+       Loop through bins for each ray for sweep s.
+       Determine which interval from bnds each bin value is in.
+       If the bin value is in an interval to display, save its color
+       and the coordinates of its outline.
+     */
+
+    coord_p = coords;
+    if ( !(clr_idxs = CALLOC(100, sizeof(int))) ) {
+	Err_Append("could not allocate array of color indeces.. ");
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
+    clr_idx_p = clr_idxs;
+    clr_idx_e = clr_idxs + 100;
+    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	if ( vol_p->ray_ok[s][r] ) {
+	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
+		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
+		if ( Sigmet_IsData(d)
+			&& (i_bnd = BISearch(d, bnds, n_bnds)) != -1 ) {
+		    /*
+		       Data value for this bin is in the bounds array.
+		       Store its color and coordinates.
+		     */
+
+		    if ( clr_idx_p == clr_idx_e ) {
+			/*
+			   Need to allocate more memory for color index array.
+			 */
+
+			int *t;
+			size_t alloc_ints, use_ints, bytes;
+			size_t chunk = 2000 * 120;
+
+			use_ints = (clr_idx_p - clr_idxs);
+			alloc_ints = ((clr_idx_e - clr_idxs) + chunk);
+			bytes = alloc_ints * sizeof(int);
+			if ( !(t = REALLOC(clr_idxs, bytes)) ) {
+			    Err_Append("could not grow array of color indeces. ");
+			    status = SIGMET_ALLOC_FAIL;
+			    goto error;
+			}
+			clr_idxs = t;
+			clr_idx_e = clr_idxs + alloc_ints;
+			clr_idx_p = clr_idxs + use_ints;
+		    }
+
+		    *clr_idx_p++ = i_bnd;
+
+		    if ( coord_p + 8 >= coord_e ) {
+			/*
+			   Need to allocate more memory for coordinates array.
+			 */
+
+			double *t;
+			size_t alloc_dbls, use_dbls, bytes;
+			size_t chunk = 2000 * 120 * 8;
+
+			use_dbls = (coord_p - coords);
+			alloc_dbls = ((coord_e - coords) + chunk);
+			bytes = alloc_dbls * sizeof(double);
+			if ( !(t = REALLOC(coords, bytes)) ) {
+			    Err_Append("could not grow array of bounds. ");
+			    status = SIGMET_ALLOC_FAIL;
+			    goto error;
+			}
+			coords = t;
+			coord_e = coords + alloc_dbls;
+			coord_p = coords + use_dbls;
+		    }
+
+		    /*
+		       Store the coordinates for the bin (gate) corners.
+		     */
+
+		    rng = r0 + b * dr;
+		    tilt = vol_p->ray_tilt0[s][r];
+		    ord = ord0 + GeogBeamHt(rng, tilt, a0);
+		    abs = a0 * asin(rng * cos(tilt) / (a0 + ord));
+		    *coord_p++ = abs;
+		    *coord_p++ = ord;
+
+		    rng = r0 + (b + 1) * dr;
+		    ord = ord0 + GeogBeamHt(rng, tilt, a0);
+		    abs = a0 * asin(rng * cos(tilt) / (a0 + ord));
+		    *coord_p++ = abs;
+		    *coord_p++ = ord;
+
+		    tilt = vol_p->ray_tilt1[s][r];
+		    ord = ord0 + GeogBeamHt(rng, tilt, a0);
+		    abs = a0 * asin(rng * cos(tilt) / (a0 + ord));
+		    *coord_p++ = abs;
+		    *coord_p++ = ord;
+
+		    rng = r0 + b * dr;
+		    ord = ord0 + GeogBeamHt(rng, tilt, a0);
+		    abs = a0 * asin(rng * cos(tilt) / (a0 + ord));
+		    *coord_p++ = abs;
+		    *coord_p++ = ord;
+
+		}
+	    }
+	}
+    }
+
+    /*
+       Write image information to external drawing process, which will
+       send it to the image file.
+     */
+
+    img_argv[0] = img_app;
+    img_argv[1] = base_nm;
+    img_argv[2] = NULL;
+    if ( (img_pid = Sigmet_Execvp_Pipe(img_argv, &img_wr, NULL)) == 0 ) {
+	Err_Append("could not spawn image application. ");
+	status = SIGMET_HELPER_FAIL;
+	goto error;
+    }
+    if ( !(img_out = fdopen(img_wr, "w"))) {
+	Err_Append("could not obtain standard stream to write to image "
+		"drawing application. ");
+	Err_Append(strerror(errno));
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+    strlcpy(item, "unknown", STR_LEN);
+    if ( setjmp(err_jmp) == IO_STD_ERROR ) {
+	Err_Append("could not write \n");
+	Err_Append(item);
+	Err_Append(" for image ");
+	Err_Append(base_nm);
+	Err_Append(". ");
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+    strlcpy(item, "image dimensions", STR_LEN);
+    IO_Put_UInt(&w_pxl, 1, img_out, err_jmp);
+    IO_Put_UInt(&h_pxl, 1, img_out, err_jmp);
+    strlcpy(item, "image real bounds", STR_LEN);
+    IO_Put_Double(&left, 1, img_out, err_jmp);
+    IO_Put_Double(&rght, 1, img_out, err_jmp);
+    IO_Put_Double(&top, 1, img_out, err_jmp);
+    IO_Put_Double(&btm, 1, img_out, err_jmp);
+    strlcpy(item, "alpha channel value", STR_LEN);
+    IO_Put_Double(&alpha, 1, img_out, err_jmp);
+
+    strlcpy(item, "colors", STR_LEN);
+    IO_Put_UInt(&num_clrs, 1, img_out, err_jmp);
+    for (clr = clrs; clr < clrs + num_clrs; clr++) {
+	IO_Put_UInt(&clr->red, 1, img_out, err_jmp);
+	IO_Put_UInt(&clr->green, 1, img_out, err_jmp);
+	IO_Put_UInt(&clr->blue, 1, img_out, err_jmp);
+    }
+    num_outlns = clr_idx_p - clr_idxs;
+    for (clr_idx_p = clr_idxs, coord_p = coords;
+	    clr_idx_p < clr_idxs + num_outlns;
+	    clr_idx_p++, coord_p += 8) {
+	unsigned npts = 4;
+
+	strlcpy(item, "polygon color index", STR_LEN);
+	IO_Put_Int(clr_idx_p, 1, img_out, err_jmp);
+	strlcpy(item, "polygon point count", STR_LEN);
+	IO_Put_UInt(&npts, 1, img_out, err_jmp);
+	strlcpy(item, "bin corner coordinates", STR_LEN);
+	IO_Put_Double(coord_p, 8, img_out, err_jmp);
+    }
+
+    /*
+       Done creating image.
+     */
+
+    FREE(coords);
+    FREE(clr_idxs);
+    clr_idxs = NULL;
+    coords = NULL;
+    if ( fclose(img_out) == EOF ) {
+	Err_Append("could not close pipe to image generating process for "
+		"image file ");
+	Err_Append(base_nm);
+	Err_Append(" ");
+	Err_Append(strerror(errno));
+	Err_Append(". ");
+    }
+    img_out = NULL;
+    p = waitpid(img_pid, &si, 0);
+    if ( p == img_pid ) {
+	if ( WIFEXITED(si) && WEXITSTATUS(si) == EXIT_FAILURE ) {
+	    Err_Append("image process failed for ");
+	    Err_Append(base_nm);
+	    Err_Append(". ");
+	    goto error;
+	} else if ( WIFSIGNALED(si) ) {
+	    Err_Append("image process for ");
+	    Err_Append(base_nm);
+	    Err_Append(" exited on signal. ");
+	    goto error;
+	}
+    } else {
+	Err_Append("could not get exit status for image generator while "
+		"processing ");
+	Err_Append(base_nm);
+	Err_Append(". Continuing anyway. ");
+	if (p == -1) {
+	    Err_Append(strerror(errno));
+	    Err_Append(". ");
+	} else {
+	    Err_Append("Unknown error. ");
+	}
+    }
     return status;
 error:
     FREE(coords);

@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.378 $ $Date: 2011/03/30 20:39:54 $
+ .	$Revision: 1.379 $ $Date: 2011/03/30 20:52:55 $
  */
 
 #include <limits.h>
@@ -1765,6 +1765,7 @@ static int img_cb(int argc, char *argv[])
     double sec;				/* Sweep time */
     double north, east, south, west;	/* Map edges */
     double edges[4];			/* {north, east, south, west} */
+    double a0;				/* Earth radius */
     char *base_nm; 			/* Base name for image and kml file */
     char img_fl_nm[LEN]; 		/* Image file name */
     unsigned w_pxl, h_pxl;		/* Width and height of image, in display
@@ -1847,43 +1848,60 @@ static int img_cb(int argc, char *argv[])
 	return SIGMET_BAD_ARG;
     }
 
-    proj_argv = SigmetRaw_GetProj();
     SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
     alpha = SigmetRaw_GetImgAlpha();
-    status = Sigmet_Vol_Img_PPI(&Vol, abbrv, s, img_app, proj_argv, w_pxl,
-	    alpha, base_nm, edges);
-    if ( status != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: could not make image file for data type %s, "
-		"sweep %d.\n%s\n", argv0, argv1, abbrv, s, Err_Get());
-	goto error;
+    switch (Vol.ih.tc.tni.scan_mode) {
+	case RHI:
+	    a0 = GeogREarth(NULL);
+	    status = Sigmet_Vol_Img_RHI(&Vol, abbrv, s, img_app, a0,
+		    w_pxl, alpha, base_nm);
+	    if ( status != SIGMET_OK ) {
+		fprintf(stderr, "%s %s: could not make image file for "
+			"data type %s, sweep %d.\n%s\n",
+			argv0, argv1, abbrv, s, Err_Get());
+		goto error;
+	    }
+	    break;
+	case PPI_S:
+	case PPI_C:
+	    proj_argv = SigmetRaw_GetProj();
+	    status = Sigmet_Vol_Img_PPI(&Vol, abbrv, s, img_app, proj_argv,
+		    w_pxl, alpha, base_nm, edges);
+	    if ( status != SIGMET_OK ) {
+		fprintf(stderr, "%s %s: could not make image file for "
+			"data type %s, sweep %d.\n%s\n",
+			argv0, argv1, abbrv, s, Err_Get());
+		goto error;
+	    }
+	    north = edges[0];
+	    east = edges[1];
+	    south = edges[2];
+	    west = edges[3];
+	    if ( snprintf(kml_fl_nm, LEN, "%s.kml", base_nm) >= LEN ) {
+		Err_Append("could not make kml file name for ");
+		Err_Append(img_fl_nm);
+		Err_Append(". ");
+		goto error;
+	    }
+	    if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
+		Err_Append("could not open ");
+		Err_Append(kml_fl_nm);
+		Err_Append(". ");
+		goto error;
+	    }
+	    fprintf(kml_fl, kml_tmpl,
+		    Vol.ih.ic.hw_site_name, Vol.ih.ic.hw_site_name,
+		    yr, mo, da, h, mi, sec,
+		    abbrv, Vol.sweep_angle[s] * DEG_PER_RAD,
+		    north, south, west, east);
+	    fclose(kml_fl);
+	    break;
+	case FILE_SCAN:
+	case MAN_SCAN:
+	    Err_Append("Can only make images for RHI and PPI. ");
+	    goto error;
+	    break;
     }
-    north = edges[0];
-    east = edges[1];
-    south = edges[2];
-    west = edges[3];
-
-    /*
-       Make kml file.
-     */
-
-    if ( snprintf(kml_fl_nm, LEN, "%s.kml", base_nm) >= LEN ) {
-	Err_Append("could not make kml file name for ");
-	Err_Append(img_fl_nm);
-	Err_Append(". ");
-	goto error;
-    }
-    if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
-	Err_Append("could not open ");
-	Err_Append(kml_fl_nm);
-	Err_Append(". ");
-	goto error;
-    }
-    fprintf(kml_fl, kml_tmpl,
-	    Vol.ih.ic.hw_site_name, Vol.ih.ic.hw_site_name,
-	    yr, mo, da, h, mi, sec,
-	    abbrv, Vol.sweep_angle[s] * DEG_PER_RAD,
-	    north, south, west, east);
-    fclose(kml_fl);
 
     printf("%s\n", img_fl_nm);
     return status;
