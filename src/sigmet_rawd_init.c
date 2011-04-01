@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.379 $ $Date: 2011/03/30 20:52:55 $
+ .	$Revision: 1.381 $ $Date: 2011/04/01 19:55:12 $
  */
 
 #include <limits.h>
@@ -771,8 +771,9 @@ static int near_sweep_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *ang_s;			/* Sweep angle, degrees */
-    double ang, da;
+    char *ang_s;		/* Sweep angle, degrees */
+    double ang;			/* Angle from command line */
+    double da_min;		/* Angle difference, smallest difference */
     int s, nrst;
 
     if ( argc != 3 ) {
@@ -792,9 +793,13 @@ static int near_sweep_cb(int argc, char *argv[])
 	return SIGMET_BAD_ARG;
     }
     nrst = -1;
-    for (da = DBL_MAX, s = 0; s < Vol.num_sweeps_ax; s++) {
-	if ( fabs(Vol.sweep_angle[s] - ang) < da ) {
-	    da = fabs(Vol.sweep_angle[s] - ang);
+    for (da_min = DBL_MAX, s = 0; s < Vol.num_sweeps_ax; s++) {
+	double swang, da;	/* Sweep angle, angle difference */
+
+	swang = GeogLonR(Vol.sweep_angle[s], ang);
+	da = fabs(swang - ang);
+	if ( da < da_min ) {
+	    da_min = da;
 	    nrst = s;
 	}
     }
