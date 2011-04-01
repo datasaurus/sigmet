@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.128 $ $Date: 2011/03/28 20:00:03 $
+   .	$Revision: 1.129 $ $Date: 2011/04/01 18:18:40 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -3254,7 +3254,13 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
        and the coordinates of its outline.
      */
 
+    if ( !(coords = CALLOC(100, sizeof(double))) ) {
+	Err_Append("could not allocate coordinate buffer. ");
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
     coord_p = coords;
+    coord_e = coords + 100;
     if ( !(clr_idxs = CALLOC(100, sizeof(int))) ) {
 	Err_Append("could not allocate array of color indeces.. ");
 	status = SIGMET_ALLOC_FAIL;
