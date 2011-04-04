@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.129 $ $Date: 2011/04/01 18:18:40 $
+   .	$Revision: 1.130 $ $Date: 2011/04/01 19:55:46 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -3222,13 +3222,13 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     dr = 0.01 * vol_p->ih.tc.tri.step_out;
     ray_len = r0 + (vol_p->ih.tc.tri.num_bins_out + 1) * dr ;
     px_per_m = w_pxl / ray_len;
-    left = 0;
     rght = ray_len;
-    btm = 0.0;
+    left = btm = 0.0;
     top = -DBL_MAX;
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_ok[s][r] ) {
 	    tilt = vol_p->ray_tilt0[s][r];
+	    ray_len = r0 + (vol_p->ray_num_bins[s][r] + 1) * dr ;
 	    ord = ord0 + GeogBeamHt(ray_len, tilt, a0);
 	    if ( ord > top ) {
 		top = ord;
