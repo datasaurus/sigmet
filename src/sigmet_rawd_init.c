@@ -864,7 +864,7 @@ static int ray_headers_cb(int argc, char *argv[])
 			    argv0, argv1, Err_Get());
 		    return SIGMET_BAD_TIME;
 		}
-		printf("%04d/%02d/%02d %02d:%02d:%04.3f | ",
+		printf("%04d/%02d/%02d %02d:%02d:%06.3f | ",
 			yr, mon, da, hr, min, sec);
 		printf("az %7.3f %7.3f | ",
 			Vol.ray_az0[s][r] * DEG_PER_RAD,
@@ -1772,7 +1772,6 @@ static int img_cb(int argc, char *argv[])
     double edges[4];			/* {north, east, south, west} */
     double a0;				/* Earth radius */
     char *base_nm; 			/* Base name for image and kml file */
-    char img_fl_nm[LEN]; 		/* Image file name */
     unsigned w_pxl, h_pxl;		/* Width and height of image, in display
 					   units */
     double alpha;			/* Image alpha channel */
@@ -1801,7 +1800,6 @@ static int img_cb(int argc, char *argv[])
 	"  </GroundOverlay>\n"
 	"</kml>\n";
 
-    memset(img_fl_nm, 0, LEN);
     memset(kml_fl_nm, 0, LEN);
 
     /*
@@ -1837,22 +1835,6 @@ static int img_cb(int argc, char *argv[])
 		argv0, argv1, s);
     }
 
-    /*
-       Fail if image file already exists. Assume png file with ".png" suffix.
-     */
-
-    if ( snprintf(img_fl_nm, LEN, "%s.png", base_nm) >= LEN ) {
-	Err_Append("could not make image file name. ");
-	Err_Append(base_nm);
-	Err_Append(". ");
-	return SIGMET_RNG_ERR;
-    }
-    if ( (access(img_fl_nm, F_OK)) == 0 ) {
-	Err_Append(img_fl_nm);
-	Err_Append(" already exists. ");
-	return SIGMET_BAD_ARG;
-    }
-
     SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
     alpha = SigmetRaw_GetImgAlpha();
     switch (Vol.ih.tc.tni.scan_mode) {
@@ -1882,12 +1864,6 @@ static int img_cb(int argc, char *argv[])
 	    east = edges[1];
 	    south = edges[2];
 	    west = edges[3];
-	    if ( snprintf(kml_fl_nm, LEN, "%s.kml", base_nm) >= LEN ) {
-		Err_Append("could not make kml file name for ");
-		Err_Append(img_fl_nm);
-		Err_Append(". ");
-		goto error;
-	    }
 	    if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
 		Err_Append("could not open ");
 		Err_Append(kml_fl_nm);
@@ -1908,11 +1884,9 @@ static int img_cb(int argc, char *argv[])
 	    break;
     }
 
-    printf("%s\n", img_fl_nm);
     return status;
 
 error:
-    unlink(img_fl_nm);
     unlink(kml_fl_nm);
     return status;
 }
