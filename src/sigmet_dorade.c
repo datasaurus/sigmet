@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.38 $ $Date: 2011/03/30 20:53:59 $
+   .	$Revision: 1.40 $ $Date: 2011/04/21 14:13:42 $
  */
 
 #include <string.h>
@@ -86,10 +86,11 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     sswb_p = &swp_p->sswb;
     epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0.0);
-    sswb_p->i_start_time = round((vol_p->sweep_time[s] - epoch) * 86400);
+    sswb_p->i_start_time = round((vol_p->ray_time[s][0] - epoch) * 86400);
     sswb_p->compression_flag = 0;
     num_parms = sswb_p->num_parms = vol_p->num_types;
     strlcpy(sswb_p->radar_name, vol_p->ih.ic.su_site_name, 9);
+    sswb_p->start_time = (vol_p->ray_time[s][0] - epoch) * 86400;
 
     /*
        Populate vold block
@@ -97,7 +98,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     swp_p->vold.volume_num = 1;
     swp_p->vold.maximum_bytes = 65500;
-    if ( !Tm_JulToCal(vol_p->sweep_time[s],
+    if ( !Tm_JulToCal(vol_p->ray_time[s][0],
 		&year, &mon, &day, &hr, &min, &sec) ) {
 	Err_Append("Could not set sweep time. ");
 	status = SIGMET_BAD_TIME;
