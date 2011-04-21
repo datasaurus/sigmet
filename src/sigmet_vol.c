@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.130 $ $Date: 2011/04/01 19:55:46 $
+   .	$Revision: 1.131 $ $Date: 2011/04/04 16:31:21 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -3221,6 +3221,11 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     r0 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
     dr = 0.01 * vol_p->ih.tc.tri.step_out;
     ray_len = r0 + (vol_p->ih.tc.tri.num_bins_out + 1) * dr ;
+    if ( ray_len <= 0.0 ) {
+	Err_Append("Ray length is undefined. ");
+	status = SIGMET_BAD_VOL;
+	goto error;
+    }
     px_per_m = w_pxl / ray_len;
     rght = ray_len;
     left = btm = 0.0;
@@ -3240,12 +3245,12 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	    }
 	}
     }
-    if ( top == -DBL_MAX ) {
+    h_pxl = top * px_per_m;
+    if ( top <= 0 || h_pxl <= 0 ) {
 	Err_Append("Could not determine sweep height limit. ");
 	status = SIGMET_BAD_VOL;
 	goto error;
     }
-    h_pxl = top * px_per_m;
 
     /*
        Loop through bins for each ray for sweep s.
