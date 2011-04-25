@@ -10,7 +10,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.131 $ $Date: 2011/04/04 16:31:21 $
+   .	$Revision: 1.140 $ $Date: 2011/07/15 21:58:44 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1084,9 +1084,21 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	     */
 
 	    if ( n != sweep_num + 1 ) {
-		Err_Append("Sweep number out of order in raw product file.  ");
-		status = SIGMET_BAD_FILE;
-		goto error;
+		/*
+		   Sweeps are out of order. If there is at least one sweep so
+		   far, return. If no sweeps found, fail.
+		 */
+
+		if ( sweep_num > 0 ) {
+		    vol_p->truncated = 1;
+		    FREE(ray_buf);
+		    vol_p->num_sweeps_ax = sweep_num;
+		    return SIGMET_OK;
+		} else {
+		    Err_Append("Sweep number out of order in raw product file.  ");
+		    status = SIGMET_BAD_FILE;
+		    goto error;
+		}
 	    }
 	    vol_p->sweep_ok[sweep_num] = 1;
 	    sweep_num = n;
