@@ -144,12 +144,11 @@ void SigmetRaw_Load(char *vol_fl_nm)
     struct sockaddr *sa_p;	/* &sa or &d_err_sa, for call to bind */
     int i_dmn;			/* File descriptors for daemon socket */
     pid_t pid;			/* Return from fork */
+    mode_t m;			/* File mode */
+    int i_log;			/* Daemon log */
+    int i_err;			/* Daemon error log */
     FILE *d_log = NULL;		/* Daemon log */
     FILE *d_err = NULL;		/* Daemon error log */
-    int stdout_fileno;		/* Save a reference to stdout so it stays
-				   when there are no clients. */
-    int stderr_fileno;		/* Save a reference to stderr so it stays
-				   when there are no clients. */
     int cl_io_fd;		/* File descriptor to read client command
 				   and send results */
     pid_t client_pid = -1;	/* Client process id */
@@ -168,22 +167,6 @@ void SigmetRaw_Load(char *vol_fl_nm)
 	fprintf(stderr, "Daemon directory %s already exists. "
 		"Is daemon already running?\n", SIGMET_RAWD_IN);
 	exit(SIGMET_IO_FAIL);
-    }
-
-    /*
-       Save a copies of stdout and stderr so they do not close when daemon
-       detaches from a client.
-     */
-
-    if ( (stdout_fileno = dup(STDOUT_FILENO)) == -1 ) {
-	fprintf(d_err, "Daemon could not save standard output stream.\n%s\n",
-		strerror(errno));
-	goto error;
-    }
-    if ( (stderr_fileno = dup(STDERR_FILENO)) == -1 ) {
-	fprintf(d_err, "Daemon could not save standard error stream.\n%s\n",
-		strerror(errno));
-	goto error;
     }
 
     /*
@@ -282,22 +265,6 @@ void SigmetRaw_Load(char *vol_fl_nm)
 		goto error;
 	    }
 
-	    /*
-	       Set up output.
-	     */
-
-	    if ( !(d_log = fopen(SIGMET_RAWD_LOG, "w")) ) {
-		fprintf(stderr, "Daemon could not open log file: %s\n%s\n",
-			SIGMET_RAWD_LOG, strerror(errno));
-		goto error;
-	    }
-	    if ( !(d_err = fopen(SIGMET_RAWD_ERR, "w")) ) {
-		fprintf(stderr, "Daemon could not open error file: %s\n%s\n",
-			SIGMET_RAWD_ERR, strerror(errno));
-		goto error;
-	    }
-	    fclose(stdin);
-
 	    break;
 	default:
 	    /*
@@ -306,6 +273,36 @@ void SigmetRaw_Load(char *vol_fl_nm)
 
 	    exit(SIGMET_OK);
     }
+
+    /*
+       Create log files. Send stdout and stderr to them. When a client is
+       connected, stdout and stderr will go to the client fifos.
+     */
+
+    m = S_IRUSR | S_IWUSR | S_IRGRP;
+    if ( (i_log = open(SIGMET_RAWD_LOG, O_CREAT | O_WRONLY, m)) == -1
+	    || !(d_log = fdopen(i_log, "w")) ) {
+	fprintf(stderr, "Daemon could not open log file: %s\n%s\n",
+		SIGMET_RAWD_LOG, strerror(errno));
+	goto error;
+    }
+    if ( dup2(i_log, STDOUT_FILENO) == -1 ) {
+	fprintf(stderr, "Daemon could not redirect standard output "
+		"to log file: %s\n%s\n", SIGMET_RAWD_LOG, strerror(errno));
+	goto error;
+    }
+    if ( (i_err = open(SIGMET_RAWD_ERR, O_CREAT | O_WRONLY, m)) == -1
+	    || !(d_err = fdopen(i_err, "w")) ) {
+	fprintf(stderr, "Daemon could not open error file: %s\n%s\n",
+		SIGMET_RAWD_ERR, strerror(errno));
+	goto error;
+    }
+    if ( dup2(i_err, STDERR_FILENO) == -1 ) {
+	fprintf(stderr, "Daemon could not redirect standard error "
+		"to error file: %s\n%s\n", SIGMET_RAWD_ERR, strerror(errno));
+	goto error;
+    }
+    fclose(stdin);
 
     fprintf(d_log, "%s: sigmet_rawd daemon starting.\nProcess id = %d.\n"
 	    "Socket = %s\n", time_stamp(), getpid(), sa.sun_path);
@@ -490,21 +487,21 @@ void SigmetRaw_Load(char *vol_fl_nm)
 	}
 
 	/*
-	   Callback, if any, is done. Close fifo's. Client will delete them.
+	   Callback, if any, is done. Close fifo's by sending stdout and
+	   stderr back to log files. Client will delete them the fifo's.
 	   Send callback exit status, which will be a SIGMET_* return value
 	   defined in sigmet.h, through the daemon socket and close
-	   the client side of the socket. Break out of loop if subcommand
-	   is "stop".
+	   the client side of the socket.
 	 */
 
 	fflush(stdout);
-	if ( dup2(stdout_fileno, STDOUT_FILENO) == -1 ) {
+	if ( dup2(STDOUT_FILENO, i_log) == -1 ) {
 	    fprintf(d_err, "%s: could not restore stdout after detaching "
 		    "from client\n%s\n", time_stamp(), strerror(errno));
 	    exit(SIGMET_IO_FAIL);
 	}
 	fflush(stderr);
-	if ( dup2(stderr_fileno, STDOUT_FILENO) == -1 ) {
+	if ( dup2(STDOUT_FILENO, i_err) == -1 ) {
 	    fprintf(d_err, "%s: could not restore stderr after detaching "
 		    "from client\n%s\n", time_stamp(), strerror(errno));
 	    exit(SIGMET_IO_FAIL);
@@ -529,6 +526,7 @@ void SigmetRaw_Load(char *vol_fl_nm)
     exit(xstatus);
 
 error:
+    unlink(SIGMET_RAWD_IN);
     fprintf(stderr, "%s: Could not spawn sigmet_raw daemon.\n",
 	    time_stamp());
     if ( d_err ) {
