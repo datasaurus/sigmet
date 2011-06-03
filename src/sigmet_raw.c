@@ -378,8 +378,6 @@ static int daemon_task(int argc, char *argv[])
 			(ll == -1) ? strerror(errno) : "nothing to read");
 		goto error;
 	    }
-	    unlink(out_nm);
-	    unlink(err_nm);
 	    if ( i_dmn != -1 ) {
 		close(i_dmn);
 	    }
@@ -389,6 +387,8 @@ static int daemon_task(int argc, char *argv[])
 	    if ( i_err != -1 ) {
 		close(i_err);
 	    }
+	    unlink(out_nm);
+	    unlink(err_nm);
 	    return sstatus;
 	}
     }
