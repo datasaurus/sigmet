@@ -609,7 +609,7 @@ error:
 
 void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
 {
-    int y, s;
+    int y;
     char elem_nm[STR_LEN];
 
     if ( !vol_p->has_headers ) {
@@ -627,12 +627,6 @@ void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
 	fprintf(out, "%s " FS " %s " FS " %s\n",
 		data_type->abbrv, elem_nm, data_type->descr);
-    }
-    fprintf(out, "%d " FS " %s " FS " %s\n",
-	    vol_p->truncated, "truncated", "If true, volume is truncated");
-    for (s = 0; s < vol_p->ih.tc.tni.num_sweeps; s++) {
-	fprintf(out, "%s " FS " sweep_ok[%d] " FS " %s\n",
-		vol_p->sweep_ok[s] ? "ok" : "bad", s, "\"ok\" or \"bad\"");
     }
 }
 
