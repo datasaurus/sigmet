@@ -215,19 +215,7 @@ int handle_signals(void)
 	perror(NULL);
 	return 0;
     }
-    if ( sigaction(SIGBUS, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
     if ( sigaction(SIGFPE, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
-    if ( sigaction(SIGILL, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
-    if ( sigaction(SIGSEGV, &act, NULL) == -1 ) {
 	perror(NULL);
 	return 0;
     }
@@ -264,33 +252,24 @@ void handler(int signum)
     char *msg;
     ssize_t dum;
 
-    msg = "sigmet_raw command exiting                          \n";
+    msg = "sigmet_hdr exiting                          \n";
     switch (signum) {
 	case SIGTERM:
-	    msg = "sigmet_raw command exiting on termination signal    \n";
-	    break;
-	case SIGBUS:
-	    msg = "sigmet_raw command exiting on bus error             \n";
+	    msg = "sigmet_hdr exiting on termination signal    \n";
 	    break;
 	case SIGFPE:
-	    msg = "sigmet_raw command exiting arithmetic exception     \n";
-	    break;
-	case SIGILL:
-	    msg = "sigmet_raw command exiting illegal instruction      \n";
-	    break;
-	case SIGSEGV:
-	    msg = "sigmet_raw command exiting invalid memory reference \n";
+	    msg = "sigmet_hdr exiting arithmetic exception     \n";
 	    break;
 	case SIGSYS:
-	    msg = "sigmet_raw command exiting on bad system call       \n";
+	    msg = "sigmet_hdr exiting on bad system call       \n";
 	    break;
 	case SIGXCPU:
-	    msg = "sigmet_raw command exiting: CPU time limit exceeded \n";
+	    msg = "sigmet_hdr exiting: CPU time limit exceeded \n";
 	    break;
 	case SIGXFSZ:
-	    msg = "sigmet_raw command exiting: file size limit exceeded\n";
+	    msg = "sigmet_hdr exiting: file size limit exceeded\n";
 	    break;
     }
-    dum = write(STDERR_FILENO, msg, 53);
+    dum = write(STDERR_FILENO, msg, 45);
     _exit(EXIT_FAILURE);
 }
