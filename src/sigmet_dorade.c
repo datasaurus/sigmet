@@ -34,6 +34,9 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     float *r_p;					/* Point into ray_p */
     int num_bins = 0;				/* Allocation at ray_p */
     int num_parms, num_rays, num_cells;		/* Convenience */
+    int num_rays_d;				/* Number of rays in DORADE sweep.
+						   Will be <= number of rays in
+						   Sigmet sweep. */
 
     /*
        This array specifies soloii equivalents for certain Sigmet data types.
@@ -84,6 +87,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
        Populate sswb block
      */
 
+    num_rays = vol_p->ih.ic.num_rays;
     sswb_p = &swp_p->sswb;
     epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0.0);
     sswb_p->i_start_time = round((vol_p->ray_time[s][0] - epoch) * 86400);
@@ -91,6 +95,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     num_parms = sswb_p->num_parms = vol_p->num_types;
     strlcpy(sswb_p->radar_name, vol_p->ih.ic.su_site_name, 9);
     sswb_p->start_time = (vol_p->ray_time[s][0] - epoch) * 86400;
+    sswb_p->stop_time = (vol_p->ray_time[s][num_rays - 1] - epoch) * 86400;
 
     /*
        Populate vold block
@@ -149,7 +154,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	    radd_p->scan_mode = 6;			/* manual */
 	    break;
 	case FILE_SCAN:
-	    radd_p->scan_mode = DORADE_BAD_I;
+	    radd_p->scan_mode = DORADE_BAD_I4;
 	    break;
     }
     radd_p->num_parms = radd_p->total_num_des = num_parms;
@@ -225,7 +230,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	strncpy(parm_p->threshold_field, "NONE", 8);
 	parm_p->parameter_scale = 100.0;	/* From sample files */
 	parm_p->parameter_bias = 0.0;		/* From sample files */
-	parm_p->bad_data = DORADE_BAD_I;
+	parm_p->bad_data = DORADE_BAD_I2;
 	strncpy(parm_p->config_name, vol_p->ph.pc.task_name, 8);
 	parm_p->offset_to_data = 0;
 	num_cells = parm_p->num_cells = vol_p->ih.tc.tri.num_bins_out;
@@ -265,16 +270,16 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     swib_p = &swp_p->swib;
     strncpy(swib_p->radar_name, sswb_p->radar_name, 9);
     swib_p->sweep_num = 1;
-    num_rays = swib_p->num_rays = vol_p->ih.ic.num_rays;
     switch (vol_p->ih.tc.tni.scan_mode) {
 	case PPI_S:
 	case PPI_C:
-	    swib_p->start_angle = vol_p->ray_az0[s][0];
-	    swib_p->stop_angle = vol_p->ray_az1[s][num_rays - 1];
+	    swib_p->start_angle = DEG_PER_RAD * vol_p->ray_az0[s][0];
+	    swib_p->stop_angle = DEG_PER_RAD * vol_p->ray_az1[s][num_rays - 1];
 	    break;
 	case RHI:
-	    swib_p->start_angle = vol_p->ray_tilt0[s][0];
-	    swib_p->stop_angle = vol_p->ray_tilt1[s][num_rays - 1];
+	    swib_p->start_angle = DEG_PER_RAD * vol_p->ray_tilt0[s][0];
+	    swib_p->stop_angle
+		= DEG_PER_RAD * vol_p->ray_tilt1[s][num_rays - 1];
 	    break;
 	case FILE_SCAN:
 	case MAN_SCAN:
@@ -302,15 +307,17 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	ryib_p->ray_status = 2;
 	Dorade_ASIB_Init(asib_p);
     }
-    for (r = 0; r < num_rays; r++) {
+    for (r = 0, ray_hdr_p = swp_p->ray_hdr, num_rays_d = 0;
+	    r < num_rays;
+	    r++) {
+
 	double julian0;			/* 00:00 01 Jan of ray year */
 	double az0, az1;		/* Ray start and end azimuth */
 
-	if ( !vol_p->ray_ok ) {
+	if ( !vol_p->ray_ok[s][r] ) {
 	    continue;
 	}
-
-	ray_hdr_p = swp_p->ray_hdr + r;
+	ray_hdr_p = swp_p->ray_hdr + num_rays_d++;
 	ryib_p = &ray_hdr_p->ryib;
 	asib_p = &ray_hdr_p->asib;
 
@@ -338,7 +345,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	ryib_p->elevation = DEG_PER_RAD * 0.5
 	    * (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
 	ryib_p->peak_power = 0.001 * vol_p->ih.tc.tmi.power;
-	ryib_p->ray_status = vol_p->ray_ok[s][r] ? 0 : 2;
+	ryib_p->ray_status = 0;
 
 	/*
 	   Populate asib block. Assume stationary ground radar
@@ -349,12 +356,13 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	asib_p->altitude_msl = radd_p->radar_altitude;
 	asib_p->altitude_agl = 0.001 * vol_p->ih.ic.radar_ht;
     }
+    swib_p->num_rays = num_rays_d;
 
     /*
-       Populate int dat array.
+       Populate dat array.
      */
 
-    if ( !Dorade_Sweep_AllocDat(swp_p, num_parms, num_rays, num_cells) ) {
+    if ( !Dorade_Sweep_AllocDat(swp_p, num_parms, num_rays_d, num_cells) ) {
 	Err_Append("Could not allocate data array. ");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
@@ -371,17 +379,11 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	*r_p = Sigmet_NoData();
     }
     for (p = 0; p < num_parms; p++) {
-	int bad_data = swp_p->sensor.parm[p].bad_data;
-
 	if ( !vol_p->dat[p].data_type ) {
 	    continue;
 	}
-	for (r = 0; r < num_rays; r++) {
-	    if ( !vol_p->ray_ok[s][r] ) {
-		for (c = 0; c < num_cells; c++) {
-		    dat_p[p][r][c] = bad_data;
-		}
-	    } else {
+	for (r = 0; r < num_rays_d; r++) {
+	    if ( vol_p->ray_ok[s][r] ) {
 		status = Sigmet_Vol_GetRayDat(vol_p, p, s, r,
 			&ray_p, &num_bins);
 		if ( (status != SIGMET_OK) ) {
@@ -393,7 +395,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 		    if (Sigmet_IsData(ray_p[c])) {
 			dat_p[p][r][c] = ray_p[c];
 		    } else {
-			dat_p[p][r][c] = bad_data;
+			dat_p[p][r][c] = DORADE_BAD_F;
 		    }
 		}
 	    }
@@ -407,4 +409,4 @@ error:
     Dorade_Sweep_Free(swp_p);
     FREE(ray_p);
     return status;
-};
+}
