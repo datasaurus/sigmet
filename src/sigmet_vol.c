@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include "strlcpy.h"
 #include "alloc.h"
 #include "tm_calc_lib.h"
 #include "err_msg.h"
@@ -305,7 +306,7 @@ FILE *Sigmet_VolOpen(char *vol_nm, pid_t *pid_p)
 	 */
 
 	argv[0] = "gunzip";
-	argv[1] = "-c";
+	argv[1] = "-cq";
 	argv[2] = vol_nm;
 	argv[3] = NULL;
 	if ( (ch_pid = Sigmet_Execvp_Pipe(argv, NULL, &i_in)) == 0 ||
@@ -323,7 +324,7 @@ FILE *Sigmet_VolOpen(char *vol_nm, pid_t *pid_p)
 	 */
 
 	argv[0] = "bunzip2";
-	argv[1] = "-c";
+	argv[1] = "-cq";
 	argv[2] = vol_nm;
 	argv[3] = NULL;
 	if ( (ch_pid = Sigmet_Execvp_Pipe(argv, NULL, &i_in)) == 0 ||
@@ -878,6 +879,10 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 
     U2BYT cc;				/* Compression code to navigate ray
 					   segment in rec */
+    unsigned az0_i, az1_i;		/* Initial and final ray azimuth, binary
+					   angle */
+    unsigned tilt0_i, tilt1_i;		/* Initial and final elevation, binary
+					   angle */
     U1BYT *ray_buf = NULL;		/* Receive ray header and data */
     U1BYT *ray_p = NULL;		/* Point into ray_buf */
     U1BYT *ray_e = NULL;		/* End of allocation at ray_buf */
@@ -1222,11 +1227,24 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
-		vol_p->ray_ok[s][r] = 1;
-		vol_p->ray_az0[s][r] = Sigmet_Bin2Rad(get_uint16(ray_buf));
-		vol_p->ray_tilt0[s][r] = Sigmet_Bin2Rad(get_uint16(ray_buf + 2));
-		vol_p->ray_az1[s][r] = Sigmet_Bin2Rad(get_uint16(ray_buf + 4));
-		vol_p->ray_tilt1[s][r] = Sigmet_Bin2Rad(get_uint16(ray_buf + 6));
+
+		/*
+		   Store ray angles. Mark ray as bad if ray starts and ends
+		   at same azimuth and tilt.
+		 */
+
+		az0_i = get_uint16(ray_buf);
+		tilt0_i = get_uint16(ray_buf + 2);
+		az1_i = get_uint16(ray_buf + 4);
+		tilt1_i = get_uint16(ray_buf + 6);
+
+		vol_p->ray_az0[s][r] = Sigmet_Bin2Rad(az0_i);
+		vol_p->ray_tilt0[s][r] = Sigmet_Bin2Rad(tilt0_i);
+		vol_p->ray_az1[s][r] = Sigmet_Bin2Rad(az1_i);
+		vol_p->ray_tilt1[s][r] = Sigmet_Bin2Rad(tilt1_i);
+
+		vol_p->ray_ok[s][r] = !(az0_i == az1_i && tilt0_i == tilt1_i);
+
 		nbins = vol_p->ray_num_bins[s][r] = get_sint16(ray_buf + 8);
 		if ( !vol_p->xhdr ) {
 		    unsigned sec = get_uint16(ray_buf + 10);
