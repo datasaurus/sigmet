@@ -175,7 +175,7 @@ static int daemon_task(int argc, char *argv[])
      */
 
     m = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-    if ( snprintf(out_nm, LEN, "%d.1", pid) > LEN ) {
+    if ( snprintf(out_nm, LEN, ".%d.1", pid) > LEN ) {
 	fprintf(stderr, "%s (%d): could not create name for result pipe.\n",
 		argv0, pid);
 	goto error;
@@ -185,7 +185,7 @@ static int daemon_task(int argc, char *argv[])
 		"%s\n", argv0, pid, strerror(errno));
 	goto error;
     }
-    if ( snprintf(err_nm, LEN, "%d.2", pid) > LEN ) {
+    if ( snprintf(err_nm, LEN, ".%d.2", pid) > LEN ) {
 	fprintf(stderr, "%s (%d): could not create name for error pipe.\n",
 		argv0, pid);
 	goto error;

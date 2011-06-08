@@ -420,7 +420,7 @@ void SigmetRaw_Load(char *vol_fl_nm)
 	   Error fifo is named as process id with ".2" suffix.
 	 */
 
-	if ( snprintf(out_nm, LEN, "%d.1", client_pid) >= LEN ) {
+	if ( snprintf(out_nm, LEN, ".%d.1", client_pid) >= LEN ) {
 	    fprintf(d_err, "%s: could not create name for result pipe for "
 		    "process %d.\n", time_stamp(), client_pid);
 	    continue;
@@ -432,7 +432,7 @@ void SigmetRaw_Load(char *vol_fl_nm)
 		    time_stamp(), client_pid, strerror(errno));
 	    continue;
 	}
-	if ( snprintf(err_nm, LEN, "%d.2", client_pid) >= LEN ) {
+	if ( snprintf(err_nm, LEN, ".%d.2", client_pid) >= LEN ) {
 	    fprintf(d_err, "%s: could not create name for error pipe for "
 		    "process %d.\n", time_stamp(), client_pid);
 	    continue;
