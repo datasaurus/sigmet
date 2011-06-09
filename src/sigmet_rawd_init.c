@@ -29,6 +29,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include "alloc.h"
+#include "strlcpy.h"
 #include "err_msg.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
@@ -1661,13 +1662,20 @@ static int set_proj_cb(int argc, char *argv[])
 
 static int get_proj_cb(int argc, char *argv[])
 {
-    char **p;
+    char **proj, **p;
 
-    for (p = SigmetRaw_GetProj(); *p; p++) {
-	printf("%s ", *p);
+    proj = SigmetRaw_GetProj();
+    if ( !proj ) {
+	fprintf(stderr, Err_Get());
+	putchar('\0');
+	return SIGMET_NOT_INIT;
+    } else {
+	for (p = SigmetRaw_GetProj(); *p; p++) {
+	    printf("%s ", *p);
+	}
+	printf("\n");
+	return SIGMET_OK;
     }
-    printf("\n");
-    return SIGMET_OK;
 }
 
 static int img_sz_cb(int argc, char *argv[])
