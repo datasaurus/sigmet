@@ -32,6 +32,12 @@ static void cleanup(void)
     proj = NULL;
 }
 
+/*
+   Set projection to command specified in argv.
+   Generate error information with Err_Append and return failure code if
+   something goes wrong.
+ */
+
 int SigmetRaw_SetProj(int argc, char *argv[])
 {
     pid_t pid, p_t;
