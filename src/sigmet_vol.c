@@ -5001,15 +5001,17 @@ static int coproc_rw(char **argv, void *buf_wr, size_t n_wr,
 	    }
 	    num_bytes = write(wr_fd, buf_wr, num_bytes);
 	    if ( num_bytes == -1 ) {
-		Err_Append("write to helper application failed. ");
+		Err_Append("Write to helper application failed. ");
 		Err_Append(strerror(errno));
+		Err_Append("\n");
 		goto error;
 	    }
 	    buf_wr = (char *)buf_wr + num_bytes;
 	    if ( (char *)buf_wr >= buf_wr_e ) {
 		if ( close(wr_fd) == -1 ) {
-		    Err_Append("could not close pipe to helper application. ");
+		    Err_Append("Could not close pipe to helper application. ");
 		    Err_Append(strerror(errno));
+		    Err_Append("\n");
 		}
 		wr_fd = -1;
 		write_set_p = NULL;
@@ -5021,8 +5023,9 @@ static int coproc_rw(char **argv, void *buf_wr, size_t n_wr,
 	if ( FD_ISSET(rd_fd, &read_set) ) {
 	    num_bytes = read(rd_fd, buf_rd, buf_rd_e - (char *)buf_rd);
 	    if ( num_bytes == -1 ) {
-		perror("read from helper application failed");
+		perror("Read from helper application failed");
 		Err_Append(strerror(errno));
+		Err_Append("\n");
 		goto error;
 	    }
 	    buf_rd = (char *)buf_rd + num_bytes;
