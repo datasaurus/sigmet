@@ -13,6 +13,8 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include "sigmet_raw.h"
 #include "alloc.h"
@@ -56,8 +58,16 @@ double SigmetRaw_GetImgAlpha(void)
     return alpha;
 }
 
+/*
+   Set image application to nm.
+ */
+
 int SigmetRaw_SetImgApp(char *nm)
 {
+    char *argv[3];
+    pid_t pid, p_t;
+    int wr;
+    int si;
     static int init;
     size_t sz;
 
@@ -65,6 +75,44 @@ int SigmetRaw_SetImgApp(char *nm)
 	atexit(cleanup);
 	init = 1;
     }
+
+    /*
+       Check viability of nm.
+     */
+    
+    argv[0] = nm;
+    argv[1] = ".gdpoly.test";
+    argv[2] = NULL;
+    if ( (pid = Sigmet_Execvp_Pipe(argv, &wr, NULL)) == -1 ) {
+	Err_Append("Could spawn image app for test. ");
+	return SIGMET_BAD_ARG;
+    }
+    close(wr);
+    p_t = waitpid(pid, &si, 0);
+    if ( p_t == pid ) {
+	if ( WIFEXITED(si) && WEXITSTATUS(si) == EXIT_FAILURE ) {
+	    Err_Append("Image app failed during test. ");
+	    return SIGMET_HELPER_FAIL;
+	} else if ( WIFSIGNALED(si) ) {
+	    Err_Append("Image app exited on signal during test. ");
+	    return SIGMET_HELPER_FAIL;
+	}
+    } else {
+	Err_Append("Could not get exit status for image app. ");
+	if (p_t == -1) {
+	    Err_Append(strerror(errno));
+	    Err_Append(". ");
+	} else {
+	    Err_Append("Unknown error. ");
+	}
+	return SIGMET_HELPER_FAIL;
+    }
+    system("rm .gdpoly.test*");
+
+    /*
+       nm works. Register it.
+     */
+
     cleanup();
     sz = strlen(nm) + 1;
     if ( !(img_app = CALLOC(sz, 1)) ) {
