@@ -12,14 +12,13 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <errno.h>
 #include "alloc.h"
 #include "err_msg.h"
 #include "sigmet_raw.h"
 
-#define DFLT_PROJ_ARGC 5
-static char *dflt_proj[DFLT_PROJ_ARGC] = {
-    "proj", "-b", "+proj=aeqd", "+ellps=sphere", (char *)NULL
-};
 static char **proj;
 static int init;
 
@@ -35,6 +34,9 @@ static void cleanup(void)
 
 int SigmetRaw_SetProj(int argc, char *argv[])
 {
+    pid_t pid, p_t;
+    int wr;
+    int si;
     char **aa, *a, **pp, *p;
     size_t len;
 
@@ -42,6 +44,40 @@ int SigmetRaw_SetProj(int argc, char *argv[])
 	atexit(cleanup);
 	init = 1;
     }
+
+    /*
+       Check viability of command.
+     */
+    
+    if ( (pid = Sigmet_Execvp_Pipe(argv, &wr, NULL)) == -1 ) {
+	Err_Append("Could spawn projection command for test. ");
+	return SIGMET_BAD_ARG;
+    }
+    close(wr);
+    p_t = waitpid(pid, &si, 0);
+    if ( p_t == pid ) {
+	if ( WIFEXITED(si) && WEXITSTATUS(si) == EXIT_FAILURE ) {
+	    Err_Append("Projection command failed during test. ");
+	    return SIGMET_HELPER_FAIL;
+	} else if ( WIFSIGNALED(si) ) {
+	    Err_Append("Projection command exited on signal during test. ");
+	    return SIGMET_HELPER_FAIL;
+	}
+    } else {
+	Err_Append("Could not get exit status for projection command. ");
+	if (p_t == -1) {
+	    Err_Append(strerror(errno));
+	    Err_Append(". ");
+	} else {
+	    Err_Append("Unknown error. ");
+	}
+	return SIGMET_HELPER_FAIL;
+    }
+
+    /*
+       Command can run, at least. Register it.
+     */
+
     cleanup();
     if ( !(proj = CALLOC(argc + 1, sizeof(char *))) ) {
 	Err_Append("Could not allocate space for projection array. ");
@@ -69,13 +105,8 @@ int SigmetRaw_SetProj(int argc, char *argv[])
 
 char **SigmetRaw_GetProj(void)
 {
-    if ( !init ) {
-	atexit(cleanup);
-	if ( SigmetRaw_SetProj(DFLT_PROJ_ARGC - 1, dflt_proj) != SIGMET_OK ) {
-	    fprintf(stderr, "Could not set default projection.\n");
-	    exit(EXIT_FAILURE);
-	}
-	init = 1;
+    if ( !proj ) {
+	Err_Append("Projection not set. ");
     }
     return proj;
 }
