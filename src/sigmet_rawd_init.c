@@ -61,7 +61,7 @@ static char *Vol_Fl_Nm;			/* File that provided the volume */
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 33
+#define NCMD 35
 typedef int (callback)(int , char **);
 static callback pid_cb;
 static callback data_types_cb;
@@ -91,6 +91,8 @@ static callback radar_lat_cb;
 static callback shift_az_cb;
 static callback set_proj_cb;
 static callback get_proj_cb;
+static callback set_inv_proj_cb;
+static callback get_inv_proj_cb;
 static callback img_app_cb;
 static callback img_sz_cb;
 static callback alpha_cb;
@@ -102,7 +104,8 @@ static char *cmd1v[NCMD] = {
     "ray_headers", "new_field", "del_field", "size", "set_field", "add",
     "sub", "mul", "div", "log10", "incr_time", "data", "bdata",
     "bin_outline", "radar_lon", "radar_lat", "shift_az",
-    "set_proj", "get_proj", "img_app", "img_sz", "alpha", "img", "dorade"
+    "set_proj", "get_proj", "set_inv_proj", "get_inv_proj",
+    "img_app", "img_sz", "alpha", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, reload_cb, setcolors_cb,
@@ -110,7 +113,8 @@ static callback *cb1v[NCMD] = {
     ray_headers_cb, new_field_cb, del_field_cb, size_cb, set_field_cb, add_cb,
     sub_cb, mul_cb, div_cb, log10_cb, incr_time_cb, data_cb, bdata_cb,
     bin_outline_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
-    set_proj_cb, get_proj_cb, img_app_cb, img_sz_cb, alpha_cb, img_cb, dorade_cb
+    set_proj_cb, get_proj_cb, set_inv_proj_cb, get_inv_proj_cb,
+    img_app_cb, img_sz_cb, alpha_cb, img_cb, dorade_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -1678,6 +1682,38 @@ static int get_proj_cb(int argc, char *argv[])
     }
 }
 
+static int set_inv_proj_cb(int argc, char *argv[])
+{
+    int status;
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+
+    if ( (status = SigmetRaw_SetInvProj(argc - 2, argv + 2)) != SIGMET_OK ) {
+	fprintf(stderr, "%s %s: could not set inverse projection\n%s\n",
+		argv0, argv1, Err_Get());
+	return status;
+    }
+    return SIGMET_OK;
+}
+
+static int get_inv_proj_cb(int argc, char *argv[])
+{
+    char **inv_proj, **p;
+
+    inv_proj = SigmetRaw_GetInvProj();
+    if ( !inv_proj ) {
+	fprintf(stderr, Err_Get());
+	putchar('\0');
+	return SIGMET_NOT_INIT;
+    } else {
+	for (p = SigmetRaw_GetProj(); *p; p++) {
+	    printf("%s ", *p);
+	}
+	printf("\n");
+	return SIGMET_OK;
+    }
+}
+
 static int img_sz_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -1772,6 +1808,7 @@ static int img_cb(int argc, char *argv[])
     struct DataType *data_type;		/* Information about the data type */
     int s;				/* Sweep index */
     char **proj_argv;			/* Projection command. */
+    char **inv_proj_argv;		/* Inverse projection command. */
     int yr, mo, da, h, mi;
     double sec;				/* Sweep time */
     double north, east, south, west;	/* Map edges */
@@ -1858,7 +1895,20 @@ static int img_cb(int argc, char *argv[])
 	case PPI_S:
 	case PPI_C:
 	    proj_argv = SigmetRaw_GetProj();
-	    status = Sigmet_Vol_Img_PPI(&Vol, abbrv, s, img_app, proj_argv,
+	    inv_proj_argv = SigmetRaw_GetInvProj();
+	    if ( !proj_argv ) {
+		fprintf(stderr, "%s %s: projection not set", argv0, argv1);
+		status = SIGMET_NOT_INIT;
+		goto error;
+	    }
+	    if ( !inv_proj_argv ) {
+		fprintf(stderr, "%s %s: inverse projection not set",
+			argv0, argv1);
+		status = SIGMET_NOT_INIT;
+		goto error;
+	    }
+	    status = Sigmet_Vol_Img_PPI(&Vol, abbrv, s,
+		    img_app, proj_argv, inv_proj_argv,
 		    w_pxl, alpha, base_nm, edges);
 	    if ( status != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not make image file for "
@@ -1866,14 +1916,21 @@ static int img_cb(int argc, char *argv[])
 			argv0, argv1, abbrv, s, Err_Get());
 		goto error;
 	    }
-	    north = edges[0];
-	    east = edges[1];
-	    south = edges[2];
-	    west = edges[3];
+	    west = edges[0];
+	    north = edges[1];
+	    east = edges[2];
+	    south = edges[3];
+	    if ( snprintf(kml_fl_nm, LEN, "%s.kml", base_nm) >= LEN ) {
+		fprintf(stderr, "%s %s: could not create kml file name for "
+			"data type %s, sweep %d.\n", argv0, argv1, abbrv, s);
+		status = SIGMET_IO_FAIL;
+		goto error;
+	    }
 	    if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
-		Err_Append("could not open ");
-		Err_Append(kml_fl_nm);
-		Err_Append(". ");
+		fprintf(stderr, "%s %s: could not open kml file %s for "
+			"data type %s, sweep %d.\n%s\n",
+			argv0, argv1, kml_fl_nm, abbrv, s, strerror(errno));
+		status = SIGMET_IO_FAIL;
 		goto error;
 	    }
 	    fprintf(kml_fl, kml_tmpl,
@@ -1886,6 +1943,7 @@ static int img_cb(int argc, char *argv[])
 	case FILE_SCAN:
 	case MAN_SCAN:
 	    Err_Append("Can only make images for RHI and PPI. ");
+	    status = SIGMET_BAD_ARG;
 	    goto error;
 	    break;
     }

@@ -37,6 +37,8 @@ void SigmetRaw_Load(char *);
 int SigmetRaw_Cmd(const char *);
 int SigmetRaw_SetProj(int, char **);
 char **SigmetRaw_GetProj(void);
+int SigmetRaw_SetInvProj(int, char **);
+char **SigmetRaw_GetInvProj(void);
 void SigmetRaw_SetImgSz(unsigned, unsigned);
 void SigmetRaw_GetImgSz(unsigned *, unsigned *);
 void SigmetRaw_SetImgAlpha(double);

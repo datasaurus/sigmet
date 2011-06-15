@@ -175,6 +175,8 @@ static U2BYT *** calloc3_u2(long, long, long);
 static void free3_u2(U2BYT ***);
 static float *** calloc3_flt(long, long, long);
 static void free3_flt(float ***);
+static struct polar_coord ***alloc3_pc(long, long, long);
+static void free3_pc(struct polar_coord ***);
 
 /*
    Add dt DAYS to the time structure at time_p. Return success/failure.
@@ -2661,8 +2663,8 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
 }
 
 int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
-	char *img_app, char **proj_argv, unsigned w_pxl, double alpha,
-	char *base_nm, double edges[])
+	char *img_app, char **proj_argv, char **inv_proj_argv,
+	unsigned w_pxl, double alpha, char *base_nm, double edges[])
 {
     int status;				/* Result of a function */
     struct DataType *data_type;		/* Information about the data type */
@@ -2845,20 +2847,20 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
        Obtain geographic coordinates of top left and bottom right.
      */
 
-    coords[0] = top;
-    coords[1] = rght;
-    coords[2] = btm;
-    coords[3] = left;
+    coords[0] = left;
+    coords[1] = top;
+    coords[2] = rght;
+    coords[3] = btm;
     num_bytes = 4 * sizeof(double);
-    if ( !coproc_rw(proj_argv, coords, num_bytes, coords, num_bytes) ) {
+    if ( !coproc_rw(inv_proj_argv, coords, num_bytes, coords, num_bytes) ) {
 	Err_Append("Could not convert edge coordinates from geographic to map. ");
 	status = SIGMET_IO_FAIL;
 	goto error;
     }
-    edges[0] = north = coords[0];
-    edges[1] = east = coords[1];
-    edges[2] = south = coords[2];
-    edges[3] = west = coords[3];
+    edges[0] = west = coords[0] * DEG_PER_RAD;
+    edges[1] = north = coords[1] * DEG_PER_RAD;
+    edges[2] = east = coords[2] * DEG_PER_RAD;
+    edges[3] = south = coords[3] * DEG_PER_RAD;
 
     coord_p = coords;
     if ( !(clr_idxs = CALLOC(100, sizeof(int))) ) {
@@ -3099,7 +3101,6 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     }
     img_pid = 0;
 
-    printf("%s\n", base_nm);
     return status;
 error:
     FREE(coords);
