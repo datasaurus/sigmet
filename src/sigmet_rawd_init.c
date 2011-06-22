@@ -9,7 +9,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.386 $ $Date: 2011/06/09 16:52:55 $
+ .	$Revision: 1.389 $ $Date: 2011/06/29 22:15:18 $
  */
 
 #include <limits.h>
@@ -1670,7 +1670,6 @@ static int get_proj_cb(int argc, char *argv[])
 
     proj = SigmetRaw_GetProj();
     if ( !proj ) {
-	fprintf(stderr, Err_Get());
 	putchar('\0');
 	return SIGMET_NOT_INIT;
     } else {
@@ -1702,7 +1701,6 @@ static int get_inv_proj_cb(int argc, char *argv[])
 
     inv_proj = SigmetRaw_GetInvProj();
     if ( !inv_proj ) {
-	fprintf(stderr, Err_Get());
 	putchar('\0');
 	return SIGMET_NOT_INIT;
     } else {
