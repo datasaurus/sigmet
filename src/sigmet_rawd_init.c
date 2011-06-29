@@ -1813,6 +1813,7 @@ static int img_cb(int argc, char *argv[])
     double edges[4];			/* {north, east, south, west} */
     double a0;				/* Earth radius */
     char *base_nm; 			/* Base name for image and kml file */
+    char *img_fl_nm = NULL;		/* Name of image file */
     unsigned w_pxl, h_pxl;		/* Width and height of image, in display
 					   units */
     double alpha;			/* Image alpha channel */
@@ -1838,6 +1839,9 @@ static int img_cb(int argc, char *argv[])
 	"      <west>%f</west>\n"
 	"      <east>%f</east>\n"
 	"    </LatLonBox>\n"
+	"    <Icon>\n"
+	"      %s\n"
+	"    </Icon>\n"
 	"  </GroundOverlay>\n"
 	"</kml>\n";
 
@@ -1907,7 +1911,7 @@ static int img_cb(int argc, char *argv[])
 	    }
 	    status = Sigmet_Vol_Img_PPI(&Vol, abbrv, s,
 		    img_app, proj_argv, inv_proj_argv,
-		    w_pxl, alpha, base_nm, edges);
+		    w_pxl, alpha, base_nm, edges, &img_fl_nm);
 	    if ( status != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not make image file for "
 			"data type %s, sweep %d.\n%s\n",
@@ -1935,8 +1939,9 @@ static int img_cb(int argc, char *argv[])
 		    Vol.ih.ic.hw_site_name, Vol.ih.ic.hw_site_name,
 		    yr, mo, da, h, mi, sec,
 		    abbrv, Vol.sweep_angle[s] * DEG_PER_RAD,
-		    north, south, west, east);
+		    north, south, west, east, img_fl_nm);
 	    fclose(kml_fl);
+	    FREE(img_fl_nm);
 	    break;
 	case FILE_SCAN:
 	case MAN_SCAN:
@@ -1949,6 +1954,7 @@ static int img_cb(int argc, char *argv[])
     return status;
 
 error:
+    FREE(img_fl_nm);
     unlink(kml_fl_nm);
     return status;
 }
