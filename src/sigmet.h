@@ -547,7 +547,7 @@ int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *, char *, int,
-	char *, char **, char **, unsigned, double, char *, double[]);
+	char *, char **, char **, unsigned, double, char *, double[], char **);
 int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *, char *, int , char *, double ,
 	unsigned , double , char *);
 int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
