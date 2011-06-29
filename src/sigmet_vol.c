@@ -620,15 +620,15 @@ void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
     }
     print_product_hdr(out, "<product_hdr>.", vol_p->ph);
     print_ingest_header(out, "<ingest_header>.", vol_p->ih);
-    fprintf(out, "%d " FS " %s " FS " %s\n",
+    fprintf(out, "%d" FS "%s" FS "%s\n",
 	    vol_p->xhdr, "xhdr", "If true, volume uses extended headers");
-    fprintf(out, "%d " FS " %s " FS " %s\n",
+    fprintf(out, "%d" FS "%s" FS "%s\n",
 	    vol_p->num_types, "num_types", "Number of Sigmet data types");
     for (y = 0; y < vol_p->num_types; y++) {
 	struct DataType *data_type = vol_p->dat[y].data_type;
 
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
-	fprintf(out, "%s " FS " %s " FS " %s\n",
+	fprintf(out, "%s" FS "%s" FS "%s\n",
 		data_type->abbrv, elem_nm, data_type->descr);
     }
 }
@@ -2664,7 +2664,8 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
 
 int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	char *img_app, char **proj_argv, char **inv_proj_argv,
-	unsigned w_pxl, double alpha, char *base_nm, double edges[])
+	unsigned w_pxl, double alpha, char *base_nm, double edges[],
+	char **img_fl_nm)
 {
     int status;				/* Result of a function */
     struct DataType *data_type;		/* Information about the data type */
@@ -2705,7 +2706,7 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     int yr, mo, da, h, mi;		/* Sweep year, month, day, hour, minute */
     double sec;				/* Sweep second */
     pid_t img_pid = 0;			/* Process id for image generator */
-    FILE *img_out = NULL;		/* Where to send outlines to draw */
+    FILE *img_wr_s = NULL;		/* Where to send outlines to draw */
     jmp_buf err_jmp;			/* Handle output errors with setjmp,
 					   longjmp */
     int num_bins_out, n;		/* Max number of output bins */
@@ -2723,7 +2724,11 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     pid_t p;				/* Return from waitpid */
     int si;				/* Exit status of image generator */
     char *img_argv[3];
-    int img_wr;
+    int img_wr;				/* Pipe to write data to image generator
+					 */
+    int img_rd = -1;			/* Read image name from image generator */
+    char *tmp_nm = NULL;		/* Test allocation */
+    size_t tmp_nm_sz;			/* Allocation at tmp_nm */
 
     status = SIGMET_OK;
     if ( !vol_p ) {
@@ -2985,18 +2990,25 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 
     /*
        Write image information to external drawing process, which will
-       send it to the image file.
+       make the image file. Read image file name from drawing process stdout.
+       Caller must free tmp_nm.
      */
 
+    tmp_nm_sz = strlen(base_nm) + 5 + 1;
+    if ( !(tmp_nm = CALLOC(strlen(base_nm) + 5 + 1, 1)) ) {
+	Err_Append("could not allocate memory for image file name. ");
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
     img_argv[0] = img_app;
     img_argv[1] = base_nm;
     img_argv[2] = NULL;
-    if ( (img_pid = Sigmet_Execvp_Pipe(img_argv, &img_wr, NULL)) == 0 ) {
+    if ( (img_pid = Sigmet_Execvp_Pipe(img_argv, &img_wr, &img_rd)) == 0 ) {
 	Err_Append("could not spawn image application. ");
 	status = SIGMET_HELPER_FAIL;
 	goto error;
     }
-    if ( !(img_out = fdopen(img_wr, "w"))) {
+    if ( !(img_wr_s = fdopen(img_wr, "w"))) {
 	Err_Append("could not obtain standard stream to write to image "
 		"drawing application. ");
 	Err_Append(strerror(errno));
@@ -3014,22 +3026,22 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	goto error;
     }
     strlcpy(item, "image dimensions", STR_LEN);
-    IO_Put_UInt(&w_pxl, 1, img_out, err_jmp);
-    IO_Put_UInt(&w_pxl, 1, img_out, err_jmp);
+    IO_Put_UInt(&w_pxl, 1, img_wr_s, err_jmp);
+    IO_Put_UInt(&w_pxl, 1, img_wr_s, err_jmp);
     strlcpy(item, "image real bounds", STR_LEN);
-    IO_Put_Double(&left, 1, img_out, err_jmp);
-    IO_Put_Double(&rght, 1, img_out, err_jmp);
-    IO_Put_Double(&top, 1, img_out, err_jmp);
-    IO_Put_Double(&btm, 1, img_out, err_jmp);
+    IO_Put_Double(&left, 1, img_wr_s, err_jmp);
+    IO_Put_Double(&rght, 1, img_wr_s, err_jmp);
+    IO_Put_Double(&top, 1, img_wr_s, err_jmp);
+    IO_Put_Double(&btm, 1, img_wr_s, err_jmp);
     strlcpy(item, "alpha channel value", STR_LEN);
-    IO_Put_Double(&alpha, 1, img_out, err_jmp);
+    IO_Put_Double(&alpha, 1, img_wr_s, err_jmp);
 
     strlcpy(item, "colors", STR_LEN);
-    IO_Put_UInt(&num_clrs, 1, img_out, err_jmp);
+    IO_Put_UInt(&num_clrs, 1, img_wr_s, err_jmp);
     for (clr = clrs; clr < clrs + num_clrs; clr++) {
-	IO_Put_UInt(&clr->red, 1, img_out, err_jmp);
-	IO_Put_UInt(&clr->green, 1, img_out, err_jmp);
-	IO_Put_UInt(&clr->blue, 1, img_out, err_jmp);
+	IO_Put_UInt(&clr->red, 1, img_wr_s, err_jmp);
+	IO_Put_UInt(&clr->green, 1, img_wr_s, err_jmp);
+	IO_Put_UInt(&clr->blue, 1, img_wr_s, err_jmp);
     }
     num_outlns = clr_idx_p - clr_idxs;
     for (clr_idx_p = clr_idxs, coord_p = coords;
@@ -3050,12 +3062,34 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	    continue;
 	}
 	strlcpy(item, "polygon color index", STR_LEN);
-	IO_Put_Int(clr_idx_p, 1, img_out, err_jmp);
+	IO_Put_Int(clr_idx_p, 1, img_wr_s, err_jmp);
 	strlcpy(item, "polygon point count", STR_LEN);
-	IO_Put_UInt(&npts, 1, img_out, err_jmp);
+	IO_Put_UInt(&npts, 1, img_wr_s, err_jmp);
 	strlcpy(item, "bin corner coordinates", STR_LEN);
-	IO_Put_Double(coord_p, 8, img_out, err_jmp);
+	IO_Put_Double(coord_p, 8, img_wr_s, err_jmp);
     }
+    if ( fclose(img_wr_s) == EOF ) {
+	Err_Append("could not close pipe to image generating process for "
+		"image file ");
+	Err_Append(base_nm);
+	Err_Append(" ");
+	Err_Append(strerror(errno));
+	Err_Append(". ");
+    }
+    img_wr_s = NULL;
+
+    /*
+       Get image name.
+     */
+
+    if ( read(img_rd, tmp_nm, tmp_nm_sz - 1) == -1 ) {
+	Err_Append("could not get image file name. ");
+	Err_Append(strerror(errno));
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+    *img_fl_nm = tmp_nm;
+    close(img_rd);
 
     /*
        Done creating image.
@@ -3065,55 +3099,42 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     FREE(clr_idxs);
     clr_idxs = NULL;
     coords = NULL;
-    if ( fclose(img_out) == EOF ) {
-	Err_Append("could not close pipe to image generating process for "
-		"image file ");
-	Err_Append(base_nm);
-	Err_Append(" ");
-	Err_Append(strerror(errno));
-	Err_Append(". ");
-    }
-    img_out = NULL;
     p = waitpid(img_pid, &si, 0);
     if ( p == img_pid ) {
 	if ( WIFEXITED(si) && WEXITSTATUS(si) == EXIT_FAILURE ) {
 	    Err_Append("image process failed for ");
 	    Err_Append(base_nm);
 	    Err_Append(". ");
+	    status = SIGMET_HELPER_FAIL;
 	    goto error;
 	} else if ( WIFSIGNALED(si) ) {
 	    Err_Append("image process for ");
 	    Err_Append(base_nm);
 	    Err_Append(" exited on signal. ");
+	    status = SIGMET_HELPER_FAIL;
 	    goto error;
 	}
     } else {
-	Err_Append("could not get exit status for image generator while "
-		"processing ");
-	Err_Append(base_nm);
-	Err_Append(". Continuing anyway. ");
+	fprintf(stderr, "could not get exit status for image generator while "
+		"processing %s. Continuing anyway.\n", base_nm);
 	if (p == -1) {
-	    Err_Append(strerror(errno));
-	    Err_Append(". ");
+	    perror(NULL);
 	} else {
-	    Err_Append("Unknown error. ");
+	    fprintf(stderr, "Unknown error.\n");
 	}
     }
     img_pid = 0;
 
     return status;
 error:
+    FREE(tmp_nm);
     FREE(coords);
     FREE(clr_idxs);
-    if ( img_out ) {
-	if ( fclose(img_out) == EOF ) {
-	    Err_Append("could not close pipe to image generating process for "
-		    "image file ");
-	    Err_Append(base_nm);
-	    Err_Append(" ");
-	    Err_Append(strerror(errno));
-	    Err_Append(". ");
-	}
+    if ( img_wr_s ) {
+	fclose(img_wr_s);
+    }
+    if ( img_rd != -1 ) {
+	close(img_rd);
     }
     if ( img_pid != 0 ) {
 	kill(img_pid, SIGKILL);
@@ -3175,7 +3196,7 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     int yr, mo, da, h, mi;		/* Sweep year, month, day, hour, minute */
     double sec;				/* Sweep second */
     pid_t img_pid = 0;			/* Process id for image generator */
-    FILE *img_out = NULL;		/* Where to send outlines to draw */
+    FILE *img_wr_s = NULL;		/* Where to send outlines to draw */
     jmp_buf err_jmp;			/* Handle output errors with setjmp,
 					   longjmp */
     char item[STR_LEN];			/* Item being written. Needed for error
@@ -3402,7 +3423,7 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	status = SIGMET_HELPER_FAIL;
 	goto error;
     }
-    if ( !(img_out = fdopen(img_wr, "w"))) {
+    if ( !(img_wr_s = fdopen(img_wr, "w"))) {
 	Err_Append("could not obtain standard stream to write to image "
 		"drawing application. ");
 	Err_Append(strerror(errno));
@@ -3420,22 +3441,22 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	goto error;
     }
     strlcpy(item, "image dimensions", STR_LEN);
-    IO_Put_UInt(&w_pxl, 1, img_out, err_jmp);
-    IO_Put_UInt(&h_pxl, 1, img_out, err_jmp);
+    IO_Put_UInt(&w_pxl, 1, img_wr_s, err_jmp);
+    IO_Put_UInt(&h_pxl, 1, img_wr_s, err_jmp);
     strlcpy(item, "image real bounds", STR_LEN);
-    IO_Put_Double(&left, 1, img_out, err_jmp);
-    IO_Put_Double(&rght, 1, img_out, err_jmp);
-    IO_Put_Double(&top, 1, img_out, err_jmp);
-    IO_Put_Double(&btm, 1, img_out, err_jmp);
+    IO_Put_Double(&left, 1, img_wr_s, err_jmp);
+    IO_Put_Double(&rght, 1, img_wr_s, err_jmp);
+    IO_Put_Double(&top, 1, img_wr_s, err_jmp);
+    IO_Put_Double(&btm, 1, img_wr_s, err_jmp);
     strlcpy(item, "alpha channel value", STR_LEN);
-    IO_Put_Double(&alpha, 1, img_out, err_jmp);
+    IO_Put_Double(&alpha, 1, img_wr_s, err_jmp);
 
     strlcpy(item, "colors", STR_LEN);
-    IO_Put_UInt(&num_clrs, 1, img_out, err_jmp);
+    IO_Put_UInt(&num_clrs, 1, img_wr_s, err_jmp);
     for (clr = clrs; clr < clrs + num_clrs; clr++) {
-	IO_Put_UInt(&clr->red, 1, img_out, err_jmp);
-	IO_Put_UInt(&clr->green, 1, img_out, err_jmp);
-	IO_Put_UInt(&clr->blue, 1, img_out, err_jmp);
+	IO_Put_UInt(&clr->red, 1, img_wr_s, err_jmp);
+	IO_Put_UInt(&clr->green, 1, img_wr_s, err_jmp);
+	IO_Put_UInt(&clr->blue, 1, img_wr_s, err_jmp);
     }
     num_outlns = clr_idx_p - clr_idxs;
     for (clr_idx_p = clr_idxs, coord_p = coords;
@@ -3444,11 +3465,11 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	unsigned npts = 4;
 
 	strlcpy(item, "polygon color index", STR_LEN);
-	IO_Put_Int(clr_idx_p, 1, img_out, err_jmp);
+	IO_Put_Int(clr_idx_p, 1, img_wr_s, err_jmp);
 	strlcpy(item, "polygon point count", STR_LEN);
-	IO_Put_UInt(&npts, 1, img_out, err_jmp);
+	IO_Put_UInt(&npts, 1, img_wr_s, err_jmp);
 	strlcpy(item, "bin corner coordinates", STR_LEN);
-	IO_Put_Double(coord_p, 8, img_out, err_jmp);
+	IO_Put_Double(coord_p, 8, img_wr_s, err_jmp);
     }
 
     /*
@@ -3459,7 +3480,7 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     FREE(clr_idxs);
     clr_idxs = NULL;
     coords = NULL;
-    if ( fclose(img_out) == EOF ) {
+    if ( fclose(img_wr_s) == EOF ) {
 	Err_Append("could not close pipe to image generating process for "
 		"image file ");
 	Err_Append(base_nm);
@@ -3467,7 +3488,7 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	Err_Append(strerror(errno));
 	Err_Append(". ");
     }
-    img_out = NULL;
+    img_wr_s = NULL;
     p = waitpid(img_pid, &si, 0);
     if ( p == img_pid ) {
 	if ( WIFEXITED(si) && WEXITSTATUS(si) == EXIT_FAILURE ) {
@@ -3497,8 +3518,8 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 error:
     FREE(coords);
     FREE(clr_idxs);
-    if ( img_out ) {
-	if ( fclose(img_out) == EOF ) {
+    if ( img_wr_s ) {
+	if ( fclose(img_wr_s) == EOF ) {
 	    Err_Append("could not close pipe to image generating process for "
 		    "image file ");
 	    Err_Append(base_nm);
@@ -3767,7 +3788,7 @@ void print_color_scale_def(FILE *out, char *pfx,
     for (n = 0; n < 16; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix,
 		"ilevel_seams[", n, "]");
-	fprintf(out, "%u " FS " %s " FS " %s\n", csd.ilevel_seams[n], struct_path,
+	fprintf(out, "%u" FS "%s" FS "%s\n", csd.ilevel_seams[n], struct_path,
 		"ilevel_seams: Variable level starting values");
     }
 }
@@ -4564,7 +4585,7 @@ void print_task_rhi_scan_info(FILE *out, char *pfx,
     print_u(out, trsi.hi_elev, prefix, "hi_elev",
 	    "Upper elevation limit (binary angle, only for sector)");
     for (n = 0; n < 40; n++) {
-	fprintf(out, "%u " FS " %s%s%d%s " FS " %s\n", trsi.az[n], prefix,
+	fprintf(out, "%u" FS "%s%s%d%s" FS "%s\n", trsi.az[n], prefix,
 		"az[", n, "]", "List of azimuths (binary angles) to scan at");
     }
     print_u(out, trsi.start, prefix, "start",
@@ -4609,7 +4630,7 @@ void print_task_ppi_scan_info(FILE *out, char *pfx,
     for (n = 0; n < 40; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "elevs[", n,
 		"]");
-	fprintf(out, "%u " FS " %s " FS " %s\n", tpsi.elevs[n], struct_path,
+	fprintf(out, "%u" FS "%s" FS "%s\n", tpsi.elevs[n], struct_path,
 		"List of elevations (binary angles) to scan at");
     }
     print_u(out, tpsi.start, prefix, "start",
@@ -4726,7 +4747,7 @@ void print_task_misc_info(FILE *out, char *pfx,
 	    "Vertical beamwidth (binary angle, starting in 7.18)");
     for (n = 0; n < 10; n++) {
 	snprintf(struct_path, STR_LEN, "%s%s%d%s", prefix, "custom[", n, "]");
-	fprintf(out, "%u " FS " %s " FS " %s\n", tmi.custom[n], struct_path,
+	fprintf(out, "%u" FS "%s" FS "%s\n", tmi.custom[n], struct_path,
 		"Customer defined storage (starting in 7.27)");
     }
 }
@@ -4796,26 +4817,26 @@ void print_dsp_data_mask(FILE *out, char *pfx, struct Sigmet_DSP_Data_Mask ddm,
     snprintf(prefix, STR_LEN, "%s%s", pfx, "<dsp_data_mask>.");
     snprintf(struct_path, STR_LEN, "%s%s",
 	    prefix, "mask_word_0");
-    fprintf(out, "%#X " FS " %s " FS " %s.  %s\n",
+    fprintf(out, "%#X" FS "%s" FS "%s.  %s\n",
 	    ddm.mask_word_0, struct_path, "Mask word 0", suffix);
     snprintf(struct_path, STR_LEN, "%s%s",
 	    prefix, "ext_hdr_type");
-    fprintf(out, "%u " FS " %s " FS " %s.  %s\n",
+    fprintf(out, "%u" FS "%s" FS "%s.  %s\n",
 	    ddm.ext_hdr_type, struct_path, "Extended header type", suffix);
     snprintf(struct_path, STR_LEN, "%s%s",
 	    prefix, "mask_word_1");
-    fprintf(out, "%#X " FS " %s " FS " %s.  %s\n", ddm.mask_word_1, struct_path,
+    fprintf(out, "%#X" FS "%s" FS "%s.  %s\n", ddm.mask_word_1, struct_path,
 	    "Mask word 1 Contains bits set for all data recorded.", suffix);
     snprintf(struct_path, STR_LEN, "%s%s",
 	    prefix, "mask_word_2");
-    fprintf(out, "%#X " FS " %s " FS " %s.  %s\n", ddm.mask_word_2, struct_path,
+    fprintf(out, "%#X" FS "%s" FS "%s.  %s\n", ddm.mask_word_2, struct_path,
 	    "Mask word 2 See parameter DB_* in Table 3­6 for", suffix);
     snprintf(struct_path, STR_LEN, "%s%s", prefix,
 	    "mask_word_3");
-    fprintf(out, "%#X " FS " %s " FS " %s.  %s\n", ddm.mask_word_3, struct_path,
+    fprintf(out, "%#X" FS "%s" FS "%s.  %s\n", ddm.mask_word_3, struct_path,
 	    "Mask word 3 bit specification.", suffix);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, "mask_word_4");
-    fprintf(out, "%#X " FS " %s " FS " %s.  %s\n", ddm.mask_word_4, struct_path,
+    fprintf(out, "%#X" FS "%s" FS "%s.  %s\n", ddm.mask_word_4, struct_path,
 	    "Mask word 4", suffix);
 }
 
@@ -4881,7 +4902,7 @@ void print_ymds_time(FILE *out, struct Sigmet_YMDS_Time tm, char *prefix,
     fhour = modf(sec / 3600.0, &ihour);
     fmin = modf(fhour * 60.0, &imin);
     snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
-    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f " FS " %s " FS " %s\n",
+    fprintf(out, "%04d/%02d/%02d %02d:%02d:%05.2f" FS "%s" FS "%s\n",
 	    tm.year, tm.month, tm.day,
 	    (int)ihour, (int)imin, fmin * 60.0,
 	    struct_path, desc);
@@ -4897,7 +4918,7 @@ void print_u(FILE *out, unsigned u, char *prefix, char *mmb, char *desc)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
-    fprintf(out, "%u " FS " %s " FS " %s\n", u, struct_path, desc);
+    fprintf(out, "%u" FS "%s" FS "%s\n", u, struct_path, desc);
 }
 
 /*
@@ -4911,7 +4932,7 @@ void print_x(FILE *out, unsigned u, char *prefix, char *mmb, char *desc)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
-    fprintf(out, "%#X " FS " %s " FS " %s\n", u, struct_path, desc);
+    fprintf(out, "%#X" FS "%s" FS "%s\n", u, struct_path, desc);
 }
 
 /*
@@ -4924,7 +4945,7 @@ void print_i(FILE *out, int i, char *prefix, char *mmb, char *desc)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
-    fprintf(out, "%d " FS " %s " FS " %s\n", i, struct_path, desc);
+    fprintf(out, "%d" FS "%s" FS "%s\n", i, struct_path, desc);
 }
 
 /*
@@ -4937,7 +4958,7 @@ void print_s(FILE *out, char *s, char *prefix, char *mmb, char *desc)
     char struct_path[STR_LEN];
 
     snprintf(struct_path, STR_LEN, "%s%s", prefix, mmb);
-    fprintf(out, "%s " FS " %s " FS " %s\n", s, struct_path, desc);
+    fprintf(out, "%s" FS "%s" FS "%s\n", s, struct_path, desc);
 }
 
 /*
