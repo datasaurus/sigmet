@@ -66,7 +66,7 @@ int SigmetRaw_SetImgApp(char *nm)
 {
     char *argv[3];
     pid_t pid, p_t;
-    int wr;
+    int wr, rd;
     int si;
     static int init;
     size_t sz;
@@ -83,10 +83,11 @@ int SigmetRaw_SetImgApp(char *nm)
     argv[0] = nm;
     argv[1] = ".gdpoly.test";
     argv[2] = NULL;
-    if ( (pid = Sigmet_Execvp_Pipe(argv, &wr, NULL)) == -1 ) {
+    if ( (pid = Sigmet_Execvp_Pipe(argv, &wr, &rd)) == -1 ) {
 	Err_Append("Could spawn image app for test. ");
 	return SIGMET_BAD_ARG;
     }
+    close(rd);
     close(wr);
     p_t = waitpid(pid, &si, 0);
     if ( p_t == pid ) {
