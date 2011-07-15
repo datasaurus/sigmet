@@ -549,7 +549,7 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *, char *, int,
 	char *, char **, char **, unsigned, double, char *, double[], char **);
 int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *, char *, int , char *, double ,
-	unsigned , double , char *);
+	unsigned , double , char *, double *, double *, char **);
 int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *, char *, float);
