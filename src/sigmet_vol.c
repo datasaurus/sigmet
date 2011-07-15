@@ -3239,7 +3239,7 @@ error:
 
 int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	char *img_app, double re, unsigned w_pxl, double alpha, char *base_nm,
-	double *width, double *height)
+	double *width, double *height, char **img_fl_nm)
 {
     int status;				/* Result of a function */
     struct DataType *data_type;		/* Information about the data type */
@@ -3299,7 +3299,11 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     pid_t p;				/* Return from waitpid */
     int si;				/* Exit status of image generator */
     char *img_argv[3];
-    int img_wr;
+    int img_wr;				/* Pipe to write data to image generator
+					 */
+    int img_rd = -1;			/* Read image name from image generator */
+    char *tmp_nm = NULL;		/* Test allocation */
+    size_t tmp_nm_sz;			/* Allocation at tmp_nm */
 
     status = SIGMET_OK;
     if ( !vol_p ) {
@@ -3509,13 +3513,20 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 
     /*
        Write image information to external drawing process, which will
-       send it to the image file.
+       make the image file. Read image file name from drawing process stdout.
+       Caller must free tmp_nm.
      */
 
+    tmp_nm_sz = strlen(base_nm) + 5 + 1;
+    if ( !(tmp_nm = CALLOC(strlen(base_nm) + 5 + 1, 1)) ) {
+	Err_Append("could not allocate memory for image file name. ");
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
+    }
     img_argv[0] = img_app;
     img_argv[1] = base_nm;
     img_argv[2] = NULL;
-    if ( (img_pid = Sigmet_Execvp_Pipe(img_argv, &img_wr, NULL)) == 0 ) {
+    if ( (img_pid = Sigmet_Execvp_Pipe(img_argv, &img_wr, &img_rd)) == 0 ) {
 	Err_Append("could not spawn image application. ");
 	status = SIGMET_HELPER_FAIL;
 	goto error;
@@ -3568,15 +3579,6 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	strlcpy(item, "bin corner coordinates", STR_LEN);
 	IO_Put_Double(coord_p, 8, img_wr_s, err_jmp);
     }
-
-    /*
-       Done creating image.
-     */
-
-    FREE(coords);
-    FREE(clr_idxs);
-    clr_idxs = NULL;
-    coords = NULL;
     if ( fclose(img_wr_s) == EOF ) {
 	Err_Append("could not close pipe to image generating process for "
 		"image file ");
@@ -3586,6 +3588,28 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	Err_Append(". ");
     }
     img_wr_s = NULL;
+
+    /*
+       Get image name.
+     */
+
+    if ( read(img_rd, tmp_nm, tmp_nm_sz - 1) == -1 ) {
+	Err_Append("could not get image file name. ");
+	Err_Append(strerror(errno));
+	status = SIGMET_IO_FAIL;
+	goto error;
+    }
+    *img_fl_nm = tmp_nm;
+    close(img_rd);
+
+    /*
+       Done creating image
+     */
+
+    FREE(coords);
+    FREE(clr_idxs);
+    clr_idxs = NULL;
+    coords = NULL;
     p = waitpid(img_pid, &si, 0);
     if ( p == img_pid ) {
 	if ( WIFEXITED(si) && WEXITSTATUS(si) == EXIT_FAILURE ) {
@@ -3613,6 +3637,7 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     }
     return status;
 error:
+    FREE(tmp_nm);
     FREE(coords);
     FREE(clr_idxs);
     if ( img_wr_s ) {
@@ -3624,6 +3649,9 @@ error:
 	    Err_Append(strerror(errno));
 	    Err_Append(". ");
 	}
+    }
+    if ( img_rd != -1 ) {
+	close(img_rd);
     }
     if ( img_pid != 0 ) {
 	kill(img_pid, SIGKILL);
