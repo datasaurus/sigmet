@@ -175,8 +175,6 @@ static U2BYT *** calloc3_u2(long, long, long);
 static void free3_u2(U2BYT ***);
 static float *** calloc3_flt(long, long, long);
 static void free3_flt(float ***);
-static struct polar_coord ***alloc3_pc(long, long, long);
-static void free3_pc(struct polar_coord ***);
 
 /*
    Add dt DAYS to the time structure at time_p. Return success/failure.
@@ -3144,7 +3142,8 @@ error:
 }
 
 int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
-	char *img_app, double a0, unsigned w_pxl, double alpha, char *base_nm)
+	char *img_app, double re, unsigned w_pxl, double alpha, char *base_nm,
+	double *width, double *height)
 {
     int status;				/* Result of a function */
     struct DataType *data_type;		/* Information about the data type */
@@ -3174,10 +3173,10 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 					   coords */
     double px_per_m;			/* Pixels per meter */
     unsigned h_pxl;			/* Image height, pixels */
-    double left;			/* Map coordinate of left side */
-    double rght;			/* Map coordinate of right side */
-    double btm;				/* Map coordinate of bottom */
-    double top;				/* Map coordinate of top */
+    double left;			/* Physical coordinate of left side */
+    double rght;			/* Physical coordinate of right side */
+    double btm;				/* Physical coordinate of bottom */
+    double top;				/* Physical coordinate of top */
     struct DataType_Color *clrs; 	/* Array of colors */
     struct DataType_Color *clr; 	/* Point into clrs*/
     unsigned num_clrs;			/* Number colors = number bounds - 1 */
@@ -3275,23 +3274,25 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     px_per_m = w_pxl / ray_len;
     rght = ray_len;
     left = btm = 0.0;
+    *width = rght - left;
     top = -DBL_MAX;
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_ok[s][r] ) {
 	    tilt = vol_p->ray_tilt0[s][r];
 	    ray_len = r0 + (vol_p->ray_num_bins[s][r] + 1) * dr ;
-	    ord = ord0 + GeogBeamHt(ray_len, tilt, a0);
+	    ord = ord0 + GeogBeamHt(ray_len, tilt, re);
 	    if ( ord > top ) {
 		top = ord;
 	    }
 	    tilt = vol_p->ray_tilt1[s][r];
-	    ord = ord0 + GeogBeamHt(ray_len, tilt, a0);
+	    ord = ord0 + GeogBeamHt(ray_len, tilt, re);
 	    if ( ord > top ) {
 		top = ord;
 	    }
 	}
     }
     h_pxl = top * px_per_m;
+    *height = top - btm;
     if ( top <= 0 || h_pxl <= 0 ) {
 	Err_Append("Could not determine sweep height limit. ");
 	status = SIGMET_BAD_VOL;
@@ -3382,26 +3383,26 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 
 		    rng = r0 + b * dr;
 		    tilt = vol_p->ray_tilt0[s][r];
-		    ord = ord0 + GeogBeamHt(rng, tilt, a0);
-		    abs = a0 * asin(rng * cos(tilt) / (a0 + ord));
+		    ord = ord0 + GeogBeamHt(rng, tilt, re);
+		    abs = re * asin(rng * cos(tilt) / (re + ord));
 		    *coord_p++ = abs;
 		    *coord_p++ = ord;
 
 		    rng = r0 + (b + 1) * dr;
-		    ord = ord0 + GeogBeamHt(rng, tilt, a0);
-		    abs = a0 * asin(rng * cos(tilt) / (a0 + ord));
+		    ord = ord0 + GeogBeamHt(rng, tilt, re);
+		    abs = re * asin(rng * cos(tilt) / (re + ord));
 		    *coord_p++ = abs;
 		    *coord_p++ = ord;
 
 		    tilt = vol_p->ray_tilt1[s][r];
-		    ord = ord0 + GeogBeamHt(rng, tilt, a0);
-		    abs = a0 * asin(rng * cos(tilt) / (a0 + ord));
+		    ord = ord0 + GeogBeamHt(rng, tilt, re);
+		    abs = re * asin(rng * cos(tilt) / (re + ord));
 		    *coord_p++ = abs;
 		    *coord_p++ = ord;
 
 		    rng = r0 + b * dr;
-		    ord = ord0 + GeogBeamHt(rng, tilt, a0);
-		    abs = a0 * asin(rng * cos(tilt) / (a0 + ord));
+		    ord = ord0 + GeogBeamHt(rng, tilt, re);
+		    abs = re * asin(rng * cos(tilt) / (re + ord));
 		    *coord_p++ = abs;
 		    *coord_p++ = ord;
 
