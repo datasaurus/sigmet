@@ -1811,15 +1811,18 @@ static int img_cb(int argc, char *argv[])
     double sec;				/* Sweep time */
     double north, east, south, west;	/* Map edges */
     double edges[4];			/* {north, east, south, west} */
-    double a0;				/* Earth radius */
-    char *base_nm; 			/* Base name for image and kml file */
+    double re;				/* Earth radius */
+    char *base_nm; 			/* Base name for image and metadata
+					   files */
     char *img_fl_nm = NULL;		/* Name of image file */
     unsigned w_pxl, h_pxl;		/* Width and height of image, in display
 					   units */
+    double width, height;		/* Physical (not image) width and height
+					   of RHI */
     double alpha;			/* Image alpha channel */
     char *img_app;			/* External application to draw image */
-    char kml_fl_nm[LEN];		/* KML output file name */
-    FILE *kml_fl;			/* KML file */
+    char xml_fl_nm[LEN];		/* Metadata file name */
+    FILE *xml_fl;			/* Metadata KML file */
 
     /*
        This format string creates a KML file.
@@ -1845,7 +1848,24 @@ static int img_cb(int argc, char *argv[])
 	"  </GroundOverlay>\n"
 	"</kml>\n";
 
-    memset(kml_fl_nm, 0, LEN);
+    /*
+       This format string creates an xml file with information about RHI
+       geometry.
+     */
+
+    char rhi_tmpl[] = 
+	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+	"    <name>%s sweep</name>\n"
+	"    <description>"
+	"      %s at %02d/%02d/%02d %02d:%02d:%02.0f. Field: %s. %04.1f degrees"
+	"    </description>\n"
+	"    <width>%f</width>\n"
+	"    <height>%f</height>\n"
+	"    <Icon>\n"
+	"      %s\n"
+	"    </Icon>\n";
+
+    memset(xml_fl_nm, 0, LEN);
 
     /*
        Parse and validate arguments.
@@ -1884,15 +1904,36 @@ static int img_cb(int argc, char *argv[])
     alpha = SigmetRaw_GetImgAlpha();
     switch (Vol.ih.tc.tni.scan_mode) {
 	case RHI:
-	    a0 = GeogREarth(NULL);
-	    status = Sigmet_Vol_Img_RHI(&Vol, abbrv, s, img_app, a0,
-		    w_pxl, alpha, base_nm);
+	    re = GeogREarth(NULL) * 4 / 3;
+	    status = Sigmet_Vol_Img_RHI(&Vol, abbrv, s, img_app, re,
+		    w_pxl, alpha, base_nm, &width, &height, &img_fl_nm);
 	    if ( status != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not make image file for "
 			"data type %s, sweep %d.\n%s\n",
 			argv0, argv1, abbrv, s, Err_Get());
 		goto error;
 	    }
+	    if ( snprintf(xml_fl_nm, LEN, "%s.hdr", base_nm) >= LEN ) {
+		fprintf(stderr, "%s %s: could not create metadata file name "
+			"for data type %s, sweep %d.\n",
+			argv0, argv1, abbrv, s);
+		status = SIGMET_IO_FAIL;
+		goto error;
+	    }
+	    if ( !(xml_fl = fopen(xml_fl_nm, "w")) ) {
+		fprintf(stderr, "%s %s: could not open metadata file %s for "
+			"data type %s, sweep %d.\n%s\n",
+			argv0, argv1, xml_fl_nm, abbrv, s, strerror(errno));
+		status = SIGMET_IO_FAIL;
+		goto error;
+	    }
+	    fprintf(xml_fl, rhi_tmpl,
+		    Vol.ih.ic.hw_site_name, Vol.ih.ic.hw_site_name,
+		    yr, mo, da, h, mi, sec,
+		    abbrv, Vol.sweep_angle[s] * DEG_PER_RAD,
+		    width, height, img_fl_nm);
+	    fclose(xml_fl);
+	    FREE(img_fl_nm);
 	    break;
 	case PPI_S:
 	case PPI_C:
@@ -1922,25 +1963,25 @@ static int img_cb(int argc, char *argv[])
 	    north = edges[1];
 	    east = edges[2];
 	    south = edges[3];
-	    if ( snprintf(kml_fl_nm, LEN, "%s.kml", base_nm) >= LEN ) {
+	    if ( snprintf(xml_fl_nm, LEN, "%s.kml", base_nm) >= LEN ) {
 		fprintf(stderr, "%s %s: could not create kml file name for "
 			"data type %s, sweep %d.\n", argv0, argv1, abbrv, s);
 		status = SIGMET_IO_FAIL;
 		goto error;
 	    }
-	    if ( !(kml_fl = fopen(kml_fl_nm, "w")) ) {
+	    if ( !(xml_fl = fopen(xml_fl_nm, "w")) ) {
 		fprintf(stderr, "%s %s: could not open kml file %s for "
 			"data type %s, sweep %d.\n%s\n",
-			argv0, argv1, kml_fl_nm, abbrv, s, strerror(errno));
+			argv0, argv1, xml_fl_nm, abbrv, s, strerror(errno));
 		status = SIGMET_IO_FAIL;
 		goto error;
 	    }
-	    fprintf(kml_fl, kml_tmpl,
+	    fprintf(xml_fl, kml_tmpl,
 		    Vol.ih.ic.hw_site_name, Vol.ih.ic.hw_site_name,
 		    yr, mo, da, h, mi, sec,
 		    abbrv, Vol.sweep_angle[s] * DEG_PER_RAD,
 		    north, south, west, east, img_fl_nm);
-	    fclose(kml_fl);
+	    fclose(xml_fl);
 	    FREE(img_fl_nm);
 	    break;
 	case FILE_SCAN:
@@ -1955,7 +1996,7 @@ static int img_cb(int argc, char *argv[])
 
 error:
     FREE(img_fl_nm);
-    unlink(kml_fl_nm);
+    unlink(xml_fl_nm);
     return status;
 }
 
