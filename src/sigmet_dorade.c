@@ -8,7 +8,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.40 $ $Date: 2011/04/21 14:13:42 $
+   .	$Revision: 1.41 $ $Date: 2011/06/08 20:45:22 $
  */
 
 #include <string.h>
@@ -355,6 +355,11 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	asib_p->latitude = radd_p->radar_latitude;
 	asib_p->altitude_msl = radd_p->radar_altitude;
 	asib_p->altitude_agl = 0.001 * vol_p->ih.ic.radar_ht;
+    }
+    if ( num_rays_d == 0 ) {
+	Err_Append("Sweep has no good rays. ");
+	status = SIGMET_BAD_VOL;
+	goto error;
     }
     swib_p->num_rays = num_rays_d;
 
