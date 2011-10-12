@@ -5,12 +5,34 @@
    -
    .	Global functions (Sigmet_*) are documented sigmet (3).
    .
-   .	Copyright (c) 2004 Gordon D. Carrie
-   .	All rights reserved.
+   .	Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+   .	
+   .	Redistribution and use in source and binary forms, with or without
+   .	modification, are permitted provided that the following conditions
+   .	are met:
+   .	
+   .	    * Redistributions of source code must retain the above copyright
+   .	    notice, this list of conditions and the following disclaimer.
+   .
+   .	    * Redistributions in binary form must reproduce the above copyright
+   .	    notice, this list of conditions and the following disclaimer in the
+   .	    documentation and/or other materials provided with the distribution.
+   .	
+   .	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   .	"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   .	LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   .	A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   .	HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   .	SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+   .	TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   .	PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   .	LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   .	NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   .	SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.140 $ $Date: 2011/07/15 21:58:44 $
+   .	$Revision: 1.141 $ $Date: 2011/07/15 22:46:41 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -205,8 +227,8 @@ static void free3_flt(float ***);
 static int ymds_incr(struct Sigmet_YMDS_Time *tm_p, double dt)
 {
     double t;
-    int yr, mon, day, hr, min;
-    double sec, isec, fsec;
+    int yr, mon, day, hr, min, sec;
+    double isec, fsec;
 
     sec = tm_p->sec + tm_p->msec * 0.001;
     t = Tm_CalToJul(tm_p->year, tm_p->month, tm_p->day, 0, 0, sec);
@@ -1160,7 +1182,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	       Set sweep in volume.
 	     */
 
-	    swpTm = Tm_CalToJul(year, month, day, 0, 0, sec + 0.001 * msec);
+	    swpTm = Tm_CalToJul(year, month, day, 0, 0, sec);
 	    if ( swpTm == 0.0 ) {
 		vol_p->sweep_ok[sweep_num] = 0;
 	    }
@@ -2797,8 +2819,7 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     double south, north;		/* Display area latitude limits */
     size_t num_bytes;			/* Number of bytes to read or write */
     int num_outlns;			/* Number of bin outlines */
-    int yr, mo, da, h, mi;		/* Sweep year, month, day, hour, minute */
-    double sec;				/* Sweep second */
+    int yr, mo, da, h, mi, sec;		/* Sweep year, month, day, hour, minute */
     pid_t img_pid = 0;			/* Process id for image generator */
     FILE *img_wr_s = NULL;		/* Where to send outlines to draw */
     jmp_buf err_jmp;			/* Handle output errors with setjmp,
@@ -2889,7 +2910,7 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     lat = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
     rng_1st_bin = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
     step_out = 0.01 * vol_p->ih.tc.tri.step_out;
-    ray_len = rng_1st_bin + (num_bins_out + 1) * step_out;
+    ray_len = rng_1st_bin + num_bins_out * step_out;
     ray_len = ray_len * M_PI / (180.0 * 60.0 * 1852.0);
 
     n_steps = 180;
@@ -3288,8 +3309,7 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     double ray_len;			/* Ray length, meters or great circle
 					   radians */
     int num_outlns;			/* Number of bin outlines */
-    int yr, mo, da, h, mi;		/* Sweep year, month, day, hour, minute */
-    double sec;				/* Sweep second */
+    int yr, mo, da, h, mi, sec;		/* Sweep year, month, day, hour, minute */
     pid_t img_pid = 0;			/* Process id for image generator */
     FILE *img_wr_s = NULL;		/* Where to send outlines to draw */
     jmp_buf err_jmp;			/* Handle output errors with setjmp,
@@ -3365,7 +3385,7 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     ord0 = vol_p->ih.ic.radar_ht;
     r0 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
     dr = 0.01 * vol_p->ih.tc.tri.step_out;
-    ray_len = r0 + (vol_p->ih.tc.tri.num_bins_out + 1) * dr ;
+    ray_len = r0 + vol_p->ih.tc.tri.num_bins_out * dr ;
     if ( ray_len <= 0.0 ) {
 	Err_Append("Ray length is undefined. ");
 	status = SIGMET_BAD_VOL;
@@ -3379,7 +3399,7 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_ok[s][r] ) {
 	    tilt = vol_p->ray_tilt0[s][r];
-	    ray_len = r0 + (vol_p->ray_num_bins[s][r] + 1) * dr ;
+	    ray_len = r0 + vol_p->ray_num_bins[s][r] * dr ;
 	    ord = ord0 + GeogBeamHt(ray_len, tilt, re);
 	    if ( ord > top ) {
 		top = ord;
