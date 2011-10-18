@@ -2,12 +2,34 @@
  -	sigmet_raw_proj.c --
  -		Manage image configuration in sigmet_raw.
  -
- .	Copyright (c) 2010 Gordon D. Carrie
- .	All rights reserved.
+   .	Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+   .	
+   .	Redistribution and use in source and binary forms, with or without
+   .	modification, are permitted provided that the following conditions
+   .	are met:
+   .	
+   .	    * Redistributions of source code must retain the above copyright
+   .	    notice, this list of conditions and the following disclaimer.
+   .
+   .	    * Redistributions in binary form must reproduce the above copyright
+   .	    notice, this list of conditions and the following disclaimer in the
+   .	    documentation and/or other materials provided with the distribution.
+   .	
+   .	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   .	"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   .	LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   .	A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   .	HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   .	SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+   .	TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   .	PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   .	LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   .	NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   .	SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.11 $ $Date: 2011/06/09 16:51:57 $
+ .	$Revision: 1.12 $ $Date: 2011/06/29 22:14:25 $
  */
 
 #include <string.h>
@@ -64,7 +86,7 @@ double SigmetRaw_GetImgAlpha(void)
 
 int SigmetRaw_SetImgApp(char *nm)
 {
-    char *argv[3];
+    char *argv[2];
     pid_t pid, p_t;
     int wr, rd;
     int si;
@@ -81,8 +103,7 @@ int SigmetRaw_SetImgApp(char *nm)
      */
     
     argv[0] = nm;
-    argv[1] = ".gdpoly.test";
-    argv[2] = NULL;
+    argv[1] = NULL;
     if ( (pid = Sigmet_Execvp_Pipe(argv, &wr, &rd)) == -1 ) {
 	Err_Append("Could spawn image app for test. ");
 	return SIGMET_BAD_ARG;
@@ -108,7 +129,6 @@ int SigmetRaw_SetImgApp(char *nm)
 	}
 	return SIGMET_HELPER_FAIL;
     }
-    system("rm .gdpoly.test*");
 
     /*
        nm works. Register it.
