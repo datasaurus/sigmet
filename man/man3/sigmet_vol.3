@@ -1,10 +1,31 @@
 .\"
-.\" Copyright (c) 2010 Gordon D. Carrie
-.\" All rights reserved.
+.\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.2 $ $Date: 2011/02/24 17:41:14 $
+.\" $Revision: 1.3 $ $Date: 2011/03/30 20:29:36 $
 .Pp
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
@@ -65,6 +86,7 @@
 .Fa "double alpha"
 .Fa "char *base_nm"
 .Fa "double edges[]"
+.Fa "char **img_fl_nm"
 .Fc
 .Ft int
 .Fn Sigmet_Vol_NewField "struct Sigmet_Vol *vol_p" "char *field_name"
@@ -251,9 +273,11 @@ sweep
 in the volume at
 .Fa vol_p .
 .Fa img_app
-gives the name of the external program. It should read the drawing information for
-the image from its standard input and generate the image file. It should take one
-argument,
+gives the name of the external program. If called without arguments, it should
+immediately exit with success. This behavior allows trivial testing for the
+applications existence. Otherwise, the application should read the drawing
+information for the image from its standard input and generate the image file.
+It should take one argument,
 .Fa base_nm ,
 which should suggest a base name for the image file, without a suffix. The external
 program can use it to make a name for the file, and should add a suffix if needed,
@@ -282,7 +306,9 @@ The following information will be sent to the drawing program:
 		    double	y		Ordinate
 
 .fi
-All numerical values will be sent as native binaries.
+All numerical values will be sent as native binaries. When there is no more
+input, the drawing program must be the name of the image file it creates
+to its standard output.
 .Fa proj_argv
 specifies an external program that reads a stream of longitude-latitude
 coordinates, as native doubles, from its standard input, and prints the
@@ -298,7 +324,13 @@ specifies the image alpha value.  Error information will be accumulated with
 .Nm Err_Append .
 .Fa edges
 must be a four element array. It will receive the north, east, south, and
-west limits of the image area.
+west limits of the image area. The name of the image file, including suffix,
+is placed at
+.Fa img_fl_nm .
+Memory at
+.Fa img_fl_nm
+is dynamically allocated and must be eventually freed with a call to
+.Nm FREE .
 .Pp
 .Fn Sigmet_Vol_NewField
 creates a new field named
