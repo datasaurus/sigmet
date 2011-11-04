@@ -4,12 +4,34 @@
  -		daemon that reads, manipulates data from, and provides
  -		access to Sigmet raw volumes. See sigmet_rawd (1).
  -
- .	Copyright (c) 2009 Gordon D. Carrie
- .	All rights reserved.
+   .	Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+   .	
+   .	Redistribution and use in source and binary forms, with or without
+   .	modification, are permitted provided that the following conditions
+   .	are met:
+   .	
+   .	    * Redistributions of source code must retain the above copyright
+   .	    notice, this list of conditions and the following disclaimer.
+   .
+   .	    * Redistributions in binary form must reproduce the above copyright
+   .	    notice, this list of conditions and the following disclaimer in the
+   .	    documentation and/or other materials provided with the distribution.
+   .	
+   .	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   .	"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   .	LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   .	A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   .	HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   .	SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+   .	TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   .	PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   .	LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   .	NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   .	SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.389 $ $Date: 2011/06/29 22:15:18 $
+ .	$Revision: 1.390 $ $Date: 2011/07/15 22:47:55 $
  */
 
 #include <limits.h>
@@ -169,7 +191,7 @@ void SigmetRaw_Load(char *vol_fl_nm)
      */
 
     if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
-	fprintf(stderr, "Daemon directory %s already exists. "
+	fprintf(stderr, "Daemon socket %s already exists. "
 		"Is daemon already running?\n", SIGMET_RAWD_IN);
 	exit(SIGMET_IO_FAIL);
     }
@@ -309,8 +331,9 @@ void SigmetRaw_Load(char *vol_fl_nm)
     }
     fclose(stdin);
 
-    fprintf(d_log, "%s: sigmet_rawd daemon starting.\nProcess id = %d.\n"
-	    "Socket = %s\n", time_stamp(), getpid(), sa.sun_path);
+    fprintf(d_log, "%s: sigmet_rawd daemon starting.\nVersion %s\n"
+	    "Process id = %d.\nSocket = %s\n", time_stamp(), SIGMET_VERSION,
+	    getpid(), sa.sun_path);
     fflush(d_log);
 
     /*
@@ -825,12 +848,11 @@ static int sweep_headers_cb(int argc, char *argv[])
 	if ( !Vol.sweep_ok[s] ) {
 	    printf("bad\n");
 	} else {
-	    int yr, mon, da, hr, min;
-	    double sec;
+	    int yr, mon, da, hr, min, sec;
 
 	    if ( Tm_JulToCal(Vol.sweep_time[s],
 			&yr, &mon, &da, &hr, &min, &sec) ) {
-		printf("%04d/%02d/%02d %02d:%02d:%06.3f ",
+		printf("%04d/%02d/%02d %02d:%02d:%02d ",
 			yr, mon, da, hr, min, sec);
 	    } else {
 		printf("bad time (%s). ", Err_Get());
@@ -854,8 +876,7 @@ static int ray_headers_cb(int argc, char *argv[])
     for (s = 0; s < Vol.num_sweeps_ax; s++) {
 	if ( Vol.sweep_ok[s] ) {
 	    for (r = 0; r < (int)Vol.ih.ic.num_rays; r++) {
-		int yr, mon, da, hr, min;
-		double sec;
+		int yr, mon, da, hr, min, sec;
 
 		if ( !Vol.ray_ok[s][r] ) {
 		    continue;
@@ -867,7 +888,7 @@ static int ray_headers_cb(int argc, char *argv[])
 			    argv0, argv1, Err_Get());
 		    return SIGMET_BAD_TIME;
 		}
-		printf("%04d/%02d/%02d %02d:%02d:%06.3f | ",
+		printf("%04d/%02d/%02d %02d:%02d:%02d | ",
 			yr, mon, da, hr, min, sec);
 		printf("az %7.3f %7.3f | ",
 			Vol.ray_az0[s][r] * DEG_PER_RAD,
@@ -1807,8 +1828,7 @@ static int img_cb(int argc, char *argv[])
     int s;				/* Sweep index */
     char **proj_argv;			/* Projection command. */
     char **inv_proj_argv;		/* Inverse projection command. */
-    int yr, mo, da, h, mi;
-    double sec;				/* Sweep time */
+    int yr, mo, da, h, mi, sec;		/* Sweep time */
     double north, east, south, west;	/* Map edges */
     double edges[4];			/* {north, east, south, west} */
     double re;				/* Earth radius */
@@ -1834,8 +1854,8 @@ static int img_cb(int argc, char *argv[])
 	"  <GroundOverlay>\n"
 	"    <name>%s sweep</name>\n"
 	"    <description>"
-	"      %s at %02d/%02d/%02d %02d:%02d:%02.0f. Field: %s. %04.1f degrees"
-	"    </description>\n"
+		"%s at %02d/%02d/%02d %02d:%02d:%02d. Field: %s. %04.1f degrees"
+	    "</description>\n"
 	"    <LatLonBox>\n"
 	"      <north>%f</north>\n"
 	"      <south>%f</south>\n"
@@ -1855,15 +1875,15 @@ static int img_cb(int argc, char *argv[])
 
     char rhi_tmpl[] = 
 	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-	"    <name>%s sweep</name>\n"
-	"    <description>"
-	"      %s at %02d/%02d/%02d %02d:%02d:%02.0f. Field: %s. %04.1f degrees"
-	"    </description>\n"
-	"    <width>%f</width>\n"
-	"    <height>%f</height>\n"
-	"    <Icon>\n"
-	"      %s\n"
-	"    </Icon>\n";
+	"<name>%s sweep</name>\n"
+	"<description>"
+	"%s at %02d/%02d/%02d %02d:%02d:%02d. Field: %s. %04.1f degrees"
+	"</description>\n"
+	"<width>%f</width>\n"
+	"<height>%f</height>\n"
+	"<Icon>\n"
+	"    %s\n"
+	"</Icon>\n";
 
     memset(xml_fl_nm, 0, LEN);
 
