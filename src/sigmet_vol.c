@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.141 $ $Date: 2011/07/15 22:46:41 $
+   .	$Revision: 1.142 $ $Date: 2011/10/12 21:43:51 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1262,12 +1262,14 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		 */
 
 		if (s > num_sweeps) {
-		    Err_Append("Volume has more sweeps than reported in header. ");
+		    Err_Append("Volume has more sweeps than reported in "
+			    "header. ");
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
 		if (r > num_rays) {
-		    Err_Append("Volume has more rays than reported in header. ");
+		    Err_Append("Volume has more rays than reported in "
+			    "header. ");
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
@@ -2778,6 +2780,146 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
     return SIGMET_OK;
 }
 
+/*
+   For volume vol_p, data type abbrv, sweep s, print to stream out the
+   longitude latitude coordinates of bins with data value d such that
+   min <= d < max. If bnr is false, print formatted output. If bnr is
+   true, send raw, double precision output.
+ */
+
+int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
+	double min, double max, int bnr, FILE *out)
+{
+    int status;				/* Result of a function */
+    struct DataType *data_type;		/* Information about the data type */
+    struct Sigmet_DatArr *dat_p;
+    int y, r, b;			/* Indeces: data type, sweep, ray, bin */
+    double lon, lat;			/* Geographic coordinates (longitude
+					   latitude) */
+    int num_bins_out, n;		/* Max number of output bins */
+    static float *ray_p;		/* Buffer to receive ray data */
+    float *r_p;				/* Point into ray_p */
+    double re;				/* Earth radius, meters */
+    double rng_1st_bin;			/* Range to first bin, meters */
+    double step_out;			/* Bin size, meters */
+    double r0, r1;			/* Distance to start and stop of a bin,
+					   meters */
+    double az0, az1;			/* Start and end azimuth, radians */
+    double tilt;			/* Tilt angle, radians */
+
+    status = SIGMET_OK;
+    if ( !vol_p ) {
+	Err_Append("Bogus volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( vol_p->ih.tc.tni.scan_mode != PPI_S
+	    && vol_p->ih.tc.tni.scan_mode != PPI_C ) {
+	Err_Append("Volume must be PPI. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(data_type = DataType_Get(abbrv)) ) {
+	Err_Append("no data type named ");
+	Err_Append(abbrv);
+	Err_Append(". ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("no data type named ");
+	Err_Append(abbrv);
+	Err_Append(" in volume.");
+	return SIGMET_BAD_ARG;
+    }
+    y = dat_p - vol_p->dat;
+    if ( s >= vol_p->num_sweeps_ax ) {
+	Err_Append("sweep index out of range for volume. ");
+	return SIGMET_RNG_ERR;
+    }
+    if ( !vol_p->sweep_ok[s] ) {
+	Err_Append("sweep not valid in volume. ");
+	return SIGMET_RNG_ERR;
+    }
+
+    n = num_bins_out = vol_p->ih.tc.tri.num_bins_out;
+    lon = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
+    lat = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
+    rng_1st_bin = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
+    step_out = 0.01 * vol_p->ih.tc.tri.step_out;
+    re = GeogREarth(NULL);
+
+    /*
+       If this is the first call of this function, initialize the allocation
+       at ray_p.
+     */
+
+    if ( !ray_p && !(ray_p = CALLOC(num_bins_out, sizeof(float))) ) {
+	Err_Append("Could not allocate output buffer for ray. ");
+	return SIGMET_ALLOC_FAIL;
+    }
+
+    /*
+       Loop through bins for each ray for sweep s.
+       Determine which interval from bnds each bin value is in.
+       If the bin value is in an interval to display, save its color
+       and the coordinates of its outline.
+     */
+
+    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	if ( vol_p->ray_ok[s][r] ) {
+	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p, &n);
+	    if ( status != SIGMET_OK ) {
+		Err_Append("Could not get ray data. ");
+		return status;
+	    }
+	    for (r_p = ray_p; r_p < ray_p + vol_p->ray_num_bins[s][r]; r_p++) {
+		if ( Sigmet_IsData(*r_p) && min <= *r_p && *r_p < max ) {
+		    /*
+		       Bin value is in an interval of interest.
+		       Compute and print bin corners.
+		     */
+
+		    double cnr[8];	/* Longitude latitude values for the
+					   four corners of the bin */
+		    double *cnr_p;	/* Loop index */
+
+		    b = r_p - ray_p;
+		    r0 = rng_1st_bin + b * step_out;
+		    r1 = r0 + step_out;
+		    az0 = vol_p->ray_az0[s][r];
+		    az1 = vol_p->ray_az1[s][r];
+		    if (GeogLonR(az1, az0) > az0) {
+			double t = az1;
+			az1 = az0;
+			az0 = t;
+		    }
+		    tilt = 0.5
+			* (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
+		    r0 = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
+		    r1 = atan(r1 * cos(tilt) / (re + r1 * sin(tilt)));
+		    GeogStep(lon, lat, az0, r0, cnr, cnr + 1);
+		    GeogStep(lon, lat, az0, r1, cnr + 2, cnr + 3);
+		    GeogStep(lon, lat, az1, r1, cnr + 4, cnr + 5);
+		    GeogStep(lon, lat, az1, r0, cnr + 6, cnr + 7);
+		    for (cnr_p = cnr; cnr_p < cnr + 8; cnr_p++) {
+			*cnr_p *= DEG_PER_RAD;
+		    }
+		    if ( ( bnr && fwrite(cnr, sizeof(double), 8, out) != 8 )
+			    || ( !bnr && fprintf(out,
+				    "%lf %lf\n%lf %lf\n%lf %lf\n%lf %lf\n",
+				    cnr[0], cnr[1], cnr[2], cnr[3], cnr[4],
+				    cnr[5], cnr[6], cnr[7]) == EOF ) ) {
+			Err_Append("Could not write corner coordinates "
+				"for bin. ");
+			Err_Append(strerror(errno));
+			return SIGMET_IO_FAIL;
+		    }
+		}
+	    }
+	}
+    }
+
+    return SIGMET_OK;
+}
+
 int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	char *img_app, char **proj_argv, char **inv_proj_argv,
 	unsigned w_pxl, double alpha, char *base_nm, double edges[],
@@ -3070,7 +3212,7 @@ int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 		    r1 = r0 + step_out;
 		    az0 = vol_p->ray_az0[s][r];
 		    az1 = vol_p->ray_az1[s][r];
-		    if (az1 < az0) {
+		    if (GeogLonR(az1, az0) > az0) {
 			double t = az1;
 			az1 = az0;
 			az0 = t;
@@ -3303,7 +3445,7 @@ int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     int *clr_idx_e;			/* Address one past end of allocation 
 					   at clr_idxs */
     double *bnds;			/* bounds for each color */
-    unsigned char n_bnds;		/* number of bounds = num_clrs + 1 */
+    unsigned n_bnds;			/* number of bounds = num_clrs + 1 */
     int i_bnd;				/* Index into bnds, also a color index */
     double d;				/* Data value */
     double ray_len;			/* Ray length, meters or great circle
