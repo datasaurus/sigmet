@@ -3,12 +3,34 @@
    -		Command line access to sigmet raw product volumes.
    -		See sigmet_raw (1).
    -
-   .	Copyright (c) 2011 Gordon D. Carrie
-   .	All rights reserved.
+   .	Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+   .	
+   .	Redistribution and use in source and binary forms, with or without
+   .	modification, are permitted provided that the following conditions
+   .	are met:
+   .	
+   .	    * Redistributions of source code must retain the above copyright
+   .	    notice, this list of conditions and the following disclaimer.
+   .
+   .	    * Redistributions in binary form must reproduce the above copyright
+   .	    notice, this list of conditions and the following disclaimer in the
+   .	    documentation and/or other materials provided with the distribution.
+   .	
+   .	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   .	"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   .	LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   .	A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   .	HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   .	SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+   .	TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   .	PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   .	LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   .	NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   .	SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.81 $ $Date: 2011/06/03 17:12:10 $
+   .	$Revision: 1.82 $ $Date: 2011/06/08 20:44:17 $
  */
 
 #include <limits.h>
@@ -78,7 +100,11 @@ int main(int argc, char *argv[])
        Branch according to subcommand - second word of command line.
      */
 
-    if ( strcmp(argv1, "data_types") == 0 ) {
+    if ( strcmp(argv1, "-v") == 0 ) {
+	printf("%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
+		"All rights reserved.\n", argv[0], SIGMET_VERSION);
+	return EXIT_SUCCESS;
+    } else if ( strcmp(argv1, "data_types") == 0 ) {
 	enum Sigmet_DataTypeN y;
 
 	if ( argc != 2 ) {

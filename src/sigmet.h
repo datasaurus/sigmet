@@ -3,12 +3,34 @@
    -		This header file declares structures and functions
    -		that store and access Sigmet raw product files.
    -
-   .	Copyright (c) 2009 Gordon D. Carrie.
-   .	All rights reserved.
+   .	Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+   .	
+   .	Redistribution and use in source and binary forms, with or without
+   .	modification, are permitted provided that the following conditions
+   .	are met:
+   .	
+   .	    * Redistributions of source code must retain the above copyright
+   .	    notice, this list of conditions and the following disclaimer.
    .
-   .	Please send feedback to user0@tkgeomap.org
+   .	    * Redistributions in binary form must reproduce the above copyright
+   .	    notice, this list of conditions and the following disclaimer in the
+   .	    documentation and/or other materials provided with the distribution.
+   .	
+   .	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   .	"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   .	LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   .	A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   .	HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   .	SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+   .	TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   .	PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   .	LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   .	NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   .	SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    .
-   .	$Revision: 1.91 $ $Date: 2011/06/29 22:16:04 $
+   .	Please send feedback to dev0@trekix.net
+   .
+   .	$Revision: 1.92 $ $Date: 2011/07/15 22:47:11 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -16,7 +38,7 @@
 #ifndef SIGMET_H_
 #define SIGMET_H_
 
-#define SIGMET_VSN "1.0"
+#define SIGMET_VERSION "0.1"
 
 #include <float.h>
 #include <stdio.h>
@@ -546,10 +568,12 @@ void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
+int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *, char *, int, double,
+	double, int, FILE *);
 int Sigmet_Vol_Img_PPI(struct Sigmet_Vol *, char *, int,
 	char *, char **, char **, unsigned, double, char *, double[], char **);
-int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *, char *, int , char *, double ,
-	unsigned , double , char *, double *, double *, char **);
+int Sigmet_Vol_Img_RHI(struct Sigmet_Vol *, char *, int, char *, double,
+	unsigned, double, char *, double *, double *, char **);
 int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *, char *, float);
