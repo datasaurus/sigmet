@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.390 $ $Date: 2011/07/15 22:47:55 $
+ .	$Revision: 1.391 $ $Date: 2011/11/04 22:18:38 $
  */
 
 #include <limits.h>
@@ -83,7 +83,7 @@ static char *Vol_Fl_Nm;			/* File that provided the volume */
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 35
+#define NCMD 36
 typedef int (callback)(int , char **);
 static callback pid_cb;
 static callback data_types_cb;
@@ -118,6 +118,7 @@ static callback get_inv_proj_cb;
 static callback img_app_cb;
 static callback img_sz_cb;
 static callback alpha_cb;
+static callback outlines_cb;
 static callback img_cb;
 static callback dorade_cb;
 static char *cmd1v[NCMD] = {
@@ -127,7 +128,7 @@ static char *cmd1v[NCMD] = {
     "sub", "mul", "div", "log10", "incr_time", "data", "bdata",
     "bin_outline", "radar_lon", "radar_lat", "shift_az",
     "set_proj", "get_proj", "set_inv_proj", "get_inv_proj",
-    "img_app", "img_sz", "alpha", "img", "dorade"
+    "img_app", "img_sz", "alpha", "outlines", "img", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, reload_cb, setcolors_cb,
@@ -136,7 +137,7 @@ static callback *cb1v[NCMD] = {
     sub_cb, mul_cb, div_cb, log10_cb, incr_time_cb, data_cb, bdata_cb,
     bin_outline_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
     set_proj_cb, get_proj_cb, set_inv_proj_cb, get_inv_proj_cb,
-    img_app_cb, img_sz_cb, alpha_cb, img_cb, dorade_cb
+    img_app_cb, img_sz_cb, alpha_cb, outlines_cb, img_cb, dorade_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -212,6 +213,16 @@ void SigmetRaw_Load(char *vol_fl_nm)
     switch (status = Sigmet_Vol_Read(in, &Vol)) {
 	case SIGMET_OK:
 	case SIGMET_IO_FAIL:	/* Possibly truncated volume o.k. */
+	    /*
+	       If Sigmet_Vol_Read at least got headers, proceed.
+	     */
+
+	    if ( !Vol.has_headers ) {
+		fprintf(stderr, "Nothing useful in %s.\n%s\n",
+			vol_fl_nm, Err_Get());
+		xstatus = SIGMET_IO_FAIL;
+		goto error;
+	    }
 	    break;
 	case SIGMET_ALLOC_FAIL:
 	    fprintf(stderr, "Could not allocate memory while reading %s.\n%s\n",
@@ -666,19 +677,30 @@ static int reload_cb(int argc, char *argv[])
     }
     switch (status = Sigmet_Vol_Read(in, &vol)) {
 	case SIGMET_OK:
+	    break;
 	case SIGMET_IO_FAIL:	/* Possibly truncated volume o.k. */
-	    Sigmet_Vol_Free(&Vol);
-	    Vol = vol;
+	    /*
+	       If Sigmet_Vol_Read at least got headers, proceed.
+	     */
+
+	    if ( Vol.has_headers ) {
+		Sigmet_Vol_Free(&Vol);
+		Vol = vol;
+		status = SIGMET_OK;
+	    }
 	    break;
 	case SIGMET_ALLOC_FAIL:
 	    fprintf(stderr, "Could not allocate memory while reloading %s. "
 		    "Volume remains as previously loaded.\n", Vol_Fl_Nm);
+	    break;
 	case SIGMET_BAD_FILE:
 	    fprintf(stderr, "Raw product file %s is corrupt. "
 		    "Volume remains as previously loaded.\n", Vol_Fl_Nm);
+	    break;
 	case SIGMET_BAD_ARG:
 	    fprintf(stderr, "Internal failure while reading %s. "
 		    "Volume remains as previously loaded.\n", Vol_Fl_Nm);
+	    break;
     }
     fclose(in);
     if (in_pid != 0) {
@@ -751,7 +773,7 @@ static int vol_hdr_cb(int argc, char *argv[])
 	    GeogLonR(Sigmet_Bin4Rad(Vol.ih.ic.latitude), 0.0) * DEG_PER_RAD);
     printf("task_name=\"%s\"\n", Vol.ph.pc.task_name);
     printf("types=\"");
-    if ( Vol.dat[0].data_type->abbrv ) {
+    if ( Vol.dat && Vol.dat[0].data_type->abbrv ) {
 	printf("%s", Vol.dat[0].data_type->abbrv);
     }
     for (y = 1; y < Vol.num_types; y++) {
@@ -878,7 +900,7 @@ static int ray_headers_cb(int argc, char *argv[])
 	    for (r = 0; r < (int)Vol.ih.ic.num_rays; r++) {
 		int yr, mon, da, hr, min, sec;
 
-		if ( !Vol.ray_ok[s][r] ) {
+		if ( !Vol.ray_ok || !Vol.ray_ok[s][r] ) {
 		    continue;
 		}
 		printf("sweep %3d ray %4d | ", s, r);
@@ -1817,6 +1839,94 @@ static int alpha_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
+static int outlines_cb(int argc, char *argv[])
+{
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+    int status = SIGMET_OK;		/* Return value of this function */
+    int bnr;				/* If true, send raw binary output */
+    char *s_s;				/* Sweep index, as a string */
+    char *abbrv;			/* Data type abbreviation */
+    char *min_s, *max_s;		/* Bounds of data interval of interest
+					 */
+    char *outFlNm;			/* Name of output file */
+    FILE *out;				/* Output file */
+    struct DataType *data_type;		/* Information about the data type */
+    int s;				/* Sweep index */
+    double min, max;			/* Bounds of data interval of interest
+					 */
+    double re;				/* Earth radius */
+
+    if ( argc == 7 ) {
+	bnr = 0;
+	abbrv = argv[2];
+	s_s = argv[3];
+	min_s = argv[4];
+	max_s = argv[5];
+	outFlNm = argv[6];
+    } else if ( argc == 8 && strcmp(argv[2], "-b") == 0 ) {
+	bnr = 1;
+	abbrv = argv[3];
+	s_s = argv[4];
+	min_s = argv[5];
+	max_s = argv[6];
+	outFlNm = argv[7];
+    } else {
+	fprintf(stderr, "Usage: %s %s [-b] data_type sweep min max file\n",
+		argv0, argv1);
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(data_type = DataType_Get(abbrv)) ) {
+	fprintf(stderr, "%s %s: no data type named %s\n",
+		argv0, argv1, abbrv);
+	return SIGMET_BAD_ARG;
+    }
+    if ( sscanf(s_s, "%d", &s) != 1 ) {
+	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
+		argv0, argv1, s_s);
+	return SIGMET_BAD_ARG;
+    }
+    if ( sscanf(min_s, "%lf", &min) != 1 ) {
+	fprintf(stderr, "%s %s: expected float value for data min, got %s\n", 
+		argv0, argv1, min_s);
+	return SIGMET_BAD_ARG;
+    }
+    if ( sscanf(max_s, "%lf", &max) != 1 ) {
+	fprintf(stderr, "%s %s: expected float value for data max, got %s\n", 
+		argv0, argv1, max_s);
+	return SIGMET_BAD_ARG;
+    }
+    if ( strcmp(outFlNm, "-") == 0 ) {
+	out = stdout;
+    } else if ( !(out = fopen(outFlNm, "w")) ) {
+	fprintf(stderr, "%s %s: could not open %s for output.\n%s\n",
+		argv0, argv1, outFlNm, strerror(errno));
+    }
+    switch (Vol.ih.tc.tni.scan_mode) {
+	case RHI:
+	    re = GeogREarth(NULL) * 4 / 3;
+	    break;
+	case PPI_S:
+	case PPI_C:
+	    status = Sigmet_Vol_PPI_Outlns(&Vol, abbrv, s, min, max, bnr, out);
+	    if ( status != SIGMET_OK ) {
+		fprintf(stderr, "%s %s: could not print outlines for "
+			"data type %s, sweep %d.\n%s\n",
+			argv0, argv1, abbrv, s, Err_Get());
+	    }
+	    break;
+	case FILE_SCAN:
+	case MAN_SCAN:
+	    Err_Append("Can only print outlines for RHI and PPI. ");
+	    status = SIGMET_BAD_ARG;
+	    break;
+    }
+    if ( out != stdout ) {
+	fclose(out);
+    }
+    return status;
+}
+
 static int img_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -1914,6 +2024,21 @@ static int img_cb(int argc, char *argv[])
 	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
 		argv0, argv1, s_s);
 	return SIGMET_BAD_ARG;
+    }
+    if ( s > Vol.num_sweeps_ax ) {
+	fprintf(stderr, "%s %s: sweep %s not in volume\n",
+		argv0, argv1, s_s);
+	return SIGMET_BAD_ARG;
+    }
+    if ( !Vol.sweep_time ) {
+	fprintf(stderr, "%s %s: sweep times not set in volume\n",
+		argv0, argv1);
+	return SIGMET_BAD_VOL;
+    }
+    if ( !Vol.sweep_angle ) {
+	fprintf(stderr, "%s %s: sweep angles not set in volume\n",
+		argv0, argv1);
+	return SIGMET_BAD_VOL;
     }
     if ( !Tm_JulToCal(Vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
 	fprintf(stderr, "%s %s: could not get time for sweep %d\n",
