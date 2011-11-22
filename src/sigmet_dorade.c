@@ -3,12 +3,34 @@
    -		Translate Sigmet data into DORADE.
    -		See sigmet (3).
    -
-   .	Copyright (c) 2010 Gordon D. Carrie
-   .	All rights reserved.
+   .	Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+   .	
+   .	Redistribution and use in source and binary forms, with or without
+   .	modification, are permitted provided that the following conditions
+   .	are met:
+   .	
+   .	    * Redistributions of source code must retain the above copyright
+   .	    notice, this list of conditions and the following disclaimer.
+   .
+   .	    * Redistributions in binary form must reproduce the above copyright
+   .	    notice, this list of conditions and the following disclaimer in the
+   .	    documentation and/or other materials provided with the distribution.
+   .	
+   .	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   .	"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   .	LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   .	A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   .	HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   .	SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+   .	TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   .	PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   .	LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   .	NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   .	SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.41 $ $Date: 2011/06/08 20:45:22 $
+   .	$Revision: 1.42 $ $Date: 2011/07/20 15:12:24 $
  */
 
 #include <string.h>
@@ -26,7 +48,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 {
     int status;					/* Return value for this call */
     double epoch;				/* 1970/01/01 */
-    int year, mon, day, hr, min; double sec;	/* Sweep time */
+    int year, mon, day, hr, min, sec;		/* Sweep time */
     double wave_len;				/* Wavelength from vol_p */
     double prf;					/* PRF from vol_p */
     int p, r, c;				/* Loop parameters */
@@ -89,7 +111,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     num_rays = vol_p->ih.ic.num_rays;
     sswb_p = &swp_p->sswb;
-    epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0.0);
+    epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0);
     sswb_p->i_start_time = round((vol_p->ray_time[s][0] - epoch) * 86400);
     sswb_p->compression_flag = 0;
     num_parms = sswb_p->num_parms = vol_p->num_types;
@@ -332,7 +354,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	    status = SIGMET_BAD_VOL;
 	    goto error;
 	}
-	julian0 = Tm_CalToJul(year, 1, 1, 0, 0, 0.0);
+	julian0 = Tm_CalToJul(year, 1, 1, 0, 0, 0);
 	ryib_p->julian_day = vol_p->ray_time[s][r] - julian0 + 1;
 	ryib_p->hour = hr;
 	ryib_p->minute = min;
