@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.391 $ $Date: 2011/11/04 22:18:38 $
+ .	$Revision: 1.392 $ $Date: 2011/11/22 18:09:55 $
  */
 
 #include <limits.h>
@@ -55,9 +55,7 @@
 #include "err_msg.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
-#include "bisearch_lib.h"
 #include "data_types.h"
-#include "io_std.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
 
@@ -83,7 +81,7 @@ static char *Vol_Fl_Nm;			/* File that provided the volume */
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 36
+#define NCMD 29
 typedef int (callback)(int , char **);
 static callback pid_cb;
 static callback data_types_cb;
@@ -111,15 +109,7 @@ static callback bin_outline_cb;
 static callback radar_lon_cb;
 static callback radar_lat_cb;
 static callback shift_az_cb;
-static callback set_proj_cb;
-static callback get_proj_cb;
-static callback set_inv_proj_cb;
-static callback get_inv_proj_cb;
-static callback img_app_cb;
-static callback img_sz_cb;
-static callback alpha_cb;
 static callback outlines_cb;
-static callback img_cb;
 static callback dorade_cb;
 static char *cmd1v[NCMD] = {
     "pid", "data_types", "new_data_type", "reload", "colors",
@@ -127,8 +117,7 @@ static char *cmd1v[NCMD] = {
     "ray_headers", "new_field", "del_field", "size", "set_field", "add",
     "sub", "mul", "div", "log10", "incr_time", "data", "bdata",
     "bin_outline", "radar_lon", "radar_lat", "shift_az",
-    "set_proj", "get_proj", "set_inv_proj", "get_inv_proj",
-    "img_app", "img_sz", "alpha", "outlines", "img", "dorade"
+    "outlines", "dorade"
 };
 static callback *cb1v[NCMD] = {
     pid_cb, data_types_cb, new_data_type_cb, reload_cb, setcolors_cb,
@@ -136,8 +125,7 @@ static callback *cb1v[NCMD] = {
     ray_headers_cb, new_field_cb, del_field_cb, size_cb, set_field_cb, add_cb,
     sub_cb, mul_cb, div_cb, log10_cb, incr_time_cb, data_cb, bdata_cb,
     bin_outline_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
-    set_proj_cb, get_proj_cb, set_inv_proj_cb, get_inv_proj_cb,
-    img_app_cb, img_sz_cb, alpha_cb, outlines_cb, img_cb, dorade_cb
+    outlines_cb, dorade_cb
 };
 
 #define SA_UN_SZ (sizeof(struct sockaddr_un))
@@ -1693,152 +1681,6 @@ static int shift_az_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-static int set_proj_cb(int argc, char *argv[])
-{
-    int status;
-    char *argv0 = argv[0];
-    char *argv1 = argv[1];
-
-    if ( (status = SigmetRaw_SetProj(argc - 2, argv + 2)) != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: could not set projection\n%s\n",
-		argv0, argv1, Err_Get());
-	return status;
-    }
-    return SIGMET_OK;
-}
-
-static int get_proj_cb(int argc, char *argv[])
-{
-    char **proj, **p;
-
-    proj = SigmetRaw_GetProj();
-    if ( !proj ) {
-	putchar('\0');
-	return SIGMET_NOT_INIT;
-    } else {
-	for (p = SigmetRaw_GetProj(); *p; p++) {
-	    printf("%s ", *p);
-	}
-	printf("\n");
-	return SIGMET_OK;
-    }
-}
-
-static int set_inv_proj_cb(int argc, char *argv[])
-{
-    int status;
-    char *argv0 = argv[0];
-    char *argv1 = argv[1];
-
-    if ( (status = SigmetRaw_SetInvProj(argc - 2, argv + 2)) != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: could not set inverse projection\n%s\n",
-		argv0, argv1, Err_Get());
-	return status;
-    }
-    return SIGMET_OK;
-}
-
-static int get_inv_proj_cb(int argc, char *argv[])
-{
-    char **inv_proj, **p;
-
-    inv_proj = SigmetRaw_GetInvProj();
-    if ( !inv_proj ) {
-	putchar('\0');
-	return SIGMET_NOT_INIT;
-    } else {
-	for (p = SigmetRaw_GetProj(); *p; p++) {
-	    printf("%s ", *p);
-	}
-	printf("\n");
-	return SIGMET_OK;
-    }
-}
-
-static int img_sz_cb(int argc, char *argv[])
-{
-    char *argv0 = argv[0];
-    char *argv1 = argv[1];
-    unsigned w_pxl, h_pxl;		/* New image width and height, pixels */
-
-    if ( argc == 2 ) {
-	SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
-	printf("%u %u\n", w_pxl, h_pxl);
-	return SIGMET_OK;
-    } else if ( argc == 3 ) {
-	char *w_pxl_s = argv[2];
-
-	if ( sscanf(w_pxl_s, "%u", &w_pxl) != 1 ) {
-	    fprintf(stderr, "%s %s: expected integer for display width, "
-		    "got %s\n", argv0, argv1, w_pxl_s);
-	    return SIGMET_BAD_ARG;
-	}
-	SigmetRaw_SetImgSz(w_pxl, w_pxl);
-	return SIGMET_OK;
-    } else if ( argc == 4 ) {
-	char *w_pxl_s = argv[2];
-	char *h_pxl_s = argv[3];
-
-	if ( sscanf(w_pxl_s, "%u", &w_pxl) != 1 ) {
-	    fprintf(stderr, "%s %s: expected integer for display width, "
-		    "got %s\n", argv0, argv1, w_pxl_s);
-	    return SIGMET_BAD_ARG;
-	}
-	if ( sscanf(h_pxl_s, "%u", &h_pxl) != 1 ) {
-	    fprintf(stderr, "%s %s: expected integer for display height, "
-		    "got %s\n", argv0, argv1, h_pxl_s);
-	    return SIGMET_BAD_ARG;
-	}
-	SigmetRaw_SetImgSz(w_pxl, h_pxl);
-	return SIGMET_OK;
-    } else {
-	fprintf(stderr, "Usage: %s %s [width_pxl] [height_pxl]\n",
-		argv0, argv1);
-	return SIGMET_BAD_ARG;
-    }
-}
-
-static int img_app_cb(int argc, char *argv[])
-{
-    int status;
-    char *argv0 = argv[0];
-    char *argv1 = argv[1];
-    char *img_app_s;			/* Path name of image generator */
-
-    if ( argc != 3 ) {
-	fprintf(stderr, "Usage: %s %s img_app\n", argv0, argv1);
-	return SIGMET_BAD_ARG;
-    }
-    img_app_s = argv[2];
-    if ( (status = SigmetRaw_SetImgApp(img_app_s)) != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: Could not set image application to %s.\n%s\n",
-		argv0, argv1, img_app_s, Err_Get());
-	return status;
-    }
-    return SIGMET_OK;
-}
-
-static int alpha_cb(int argc, char *argv[])
-{
-    char *argv0 = argv[0];
-    char *argv1 = argv[1];
-    char *alpha_s;
-    double alpha;
-
-    if ( argc != 3 ) {
-	fprintf(stderr, "Usage: %s %s value\n", argv0, argv1);
-	return SIGMET_BAD_ARG;
-    }
-    alpha_s = argv[2];
-    if ( sscanf(alpha_s, "%lf", &alpha) != 1 ) {
-	fprintf(stderr, "%s %s: expected float value for alpha value, got %s\n",
-		argv0, argv1, alpha_s);
-	return SIGMET_BAD_ARG;
-    }
-    SigmetRaw_SetImgAlpha(alpha);
-    return SIGMET_OK;
-}
-
 static int outlines_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -1924,224 +1766,6 @@ static int outlines_cb(int argc, char *argv[])
     if ( out != stdout ) {
 	fclose(out);
     }
-    return status;
-}
-
-static int img_cb(int argc, char *argv[])
-{
-    char *argv0 = argv[0];
-    char *argv1 = argv[1];
-    int status = SIGMET_OK;		/* Return value of this function */
-    char *s_s;				/* Sweep index, as a string */
-    char *abbrv;			/* Data type abbreviation */
-    struct DataType *data_type;		/* Information about the data type */
-    int s;				/* Sweep index */
-    char **proj_argv;			/* Projection command. */
-    char **inv_proj_argv;		/* Inverse projection command. */
-    int yr, mo, da, h, mi, sec;		/* Sweep time */
-    double north, east, south, west;	/* Map edges */
-    double edges[4];			/* {north, east, south, west} */
-    double re;				/* Earth radius */
-    char *base_nm; 			/* Base name for image and metadata
-					   files */
-    char *img_fl_nm = NULL;		/* Name of image file */
-    unsigned w_pxl, h_pxl;		/* Width and height of image, in display
-					   units */
-    double width, height;		/* Physical (not image) width and height
-					   of RHI */
-    double alpha;			/* Image alpha channel */
-    char *img_app;			/* External application to draw image */
-    char xml_fl_nm[LEN];		/* Metadata file name */
-    FILE *xml_fl;			/* Metadata KML file */
-
-    /*
-       This format string creates a KML file.
-     */
-
-    char kml_tmpl[] = 
-	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-	"<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
-	"  <GroundOverlay>\n"
-	"    <name>%s sweep</name>\n"
-	"    <description>"
-		"%s at %02d/%02d/%02d %02d:%02d:%02d. Field: %s. %04.1f degrees"
-	    "</description>\n"
-	"    <LatLonBox>\n"
-	"      <north>%f</north>\n"
-	"      <south>%f</south>\n"
-	"      <west>%f</west>\n"
-	"      <east>%f</east>\n"
-	"    </LatLonBox>\n"
-	"    <Icon>\n"
-	"      %s\n"
-	"    </Icon>\n"
-	"  </GroundOverlay>\n"
-	"</kml>\n";
-
-    /*
-       This format string creates an xml file with information about RHI
-       geometry.
-     */
-
-    char rhi_tmpl[] = 
-	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-	"<name>%s sweep</name>\n"
-	"<description>"
-	"%s at %02d/%02d/%02d %02d:%02d:%02d. Field: %s. %04.1f degrees"
-	"</description>\n"
-	"<width>%f</width>\n"
-	"<height>%f</height>\n"
-	"<Icon>\n"
-	"    %s\n"
-	"</Icon>\n";
-
-    memset(xml_fl_nm, 0, LEN);
-
-    /*
-       Parse and validate arguments.
-     */
-
-    if ( argc != 5 ) {
-	fprintf(stderr, "Usage: %s %s data_type sweep base_name\n",
-		argv0, argv1);
-	return SIGMET_BAD_ARG;
-    }
-    abbrv = argv[2];
-    s_s = argv[3];
-    base_nm = argv[4];
-    img_app = SigmetRaw_GetImgApp();
-    if ( !img_app || strlen(img_app) == 0 ) {
-	fprintf(stderr, "%s %s: sweep drawing application not set\n",
-		argv0, argv1);
-	return SIGMET_NOT_INIT;
-    }
-    if ( !(data_type = DataType_Get(abbrv)) ) {
-	fprintf(stderr, "%s %s: no data type named %s\n",
-		argv0, argv1, abbrv);
-	return SIGMET_BAD_ARG;
-    }
-    if ( sscanf(s_s, "%d", &s) != 1 ) {
-	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
-		argv0, argv1, s_s);
-	return SIGMET_BAD_ARG;
-    }
-    if ( s > Vol.num_sweeps_ax ) {
-	fprintf(stderr, "%s %s: sweep %s not in volume\n",
-		argv0, argv1, s_s);
-	return SIGMET_BAD_ARG;
-    }
-    if ( !Vol.sweep_time ) {
-	fprintf(stderr, "%s %s: sweep times not set in volume\n",
-		argv0, argv1);
-	return SIGMET_BAD_VOL;
-    }
-    if ( !Vol.sweep_angle ) {
-	fprintf(stderr, "%s %s: sweep angles not set in volume\n",
-		argv0, argv1);
-	return SIGMET_BAD_VOL;
-    }
-    if ( !Tm_JulToCal(Vol.sweep_time[s], &yr, &mo, &da, &h, &mi, &sec) ) {
-	fprintf(stderr, "%s %s: could not get time for sweep %d\n",
-		argv0, argv1, s);
-    }
-
-    SigmetRaw_GetImgSz(&w_pxl, &h_pxl);
-    alpha = SigmetRaw_GetImgAlpha();
-    switch (Vol.ih.tc.tni.scan_mode) {
-	case RHI:
-	    re = GeogREarth(NULL) * 4 / 3;
-	    status = Sigmet_Vol_Img_RHI(&Vol, abbrv, s, img_app, re,
-		    w_pxl, alpha, base_nm, &width, &height, &img_fl_nm);
-	    if ( status != SIGMET_OK ) {
-		fprintf(stderr, "%s %s: could not make image file for "
-			"data type %s, sweep %d.\n%s\n",
-			argv0, argv1, abbrv, s, Err_Get());
-		goto error;
-	    }
-	    if ( snprintf(xml_fl_nm, LEN, "%s.hdr", base_nm) >= LEN ) {
-		fprintf(stderr, "%s %s: could not create metadata file name "
-			"for data type %s, sweep %d.\n",
-			argv0, argv1, abbrv, s);
-		status = SIGMET_IO_FAIL;
-		goto error;
-	    }
-	    if ( !(xml_fl = fopen(xml_fl_nm, "w")) ) {
-		fprintf(stderr, "%s %s: could not open metadata file %s for "
-			"data type %s, sweep %d.\n%s\n",
-			argv0, argv1, xml_fl_nm, abbrv, s, strerror(errno));
-		status = SIGMET_IO_FAIL;
-		goto error;
-	    }
-	    fprintf(xml_fl, rhi_tmpl,
-		    Vol.ih.ic.hw_site_name, Vol.ih.ic.hw_site_name,
-		    yr, mo, da, h, mi, sec,
-		    abbrv, Vol.sweep_angle[s] * DEG_PER_RAD,
-		    width, height, img_fl_nm);
-	    fclose(xml_fl);
-	    FREE(img_fl_nm);
-	    break;
-	case PPI_S:
-	case PPI_C:
-	    proj_argv = SigmetRaw_GetProj();
-	    inv_proj_argv = SigmetRaw_GetInvProj();
-	    if ( !proj_argv ) {
-		fprintf(stderr, "%s %s: projection not set", argv0, argv1);
-		status = SIGMET_NOT_INIT;
-		goto error;
-	    }
-	    if ( !inv_proj_argv ) {
-		fprintf(stderr, "%s %s: inverse projection not set",
-			argv0, argv1);
-		status = SIGMET_NOT_INIT;
-		goto error;
-	    }
-	    status = Sigmet_Vol_Img_PPI(&Vol, abbrv, s,
-		    img_app, proj_argv, inv_proj_argv,
-		    w_pxl, alpha, base_nm, edges, &img_fl_nm);
-	    if ( status != SIGMET_OK ) {
-		fprintf(stderr, "%s %s: could not make image file for "
-			"data type %s, sweep %d.\n%s\n",
-			argv0, argv1, abbrv, s, Err_Get());
-		goto error;
-	    }
-	    west = edges[0];
-	    north = edges[1];
-	    east = edges[2];
-	    south = edges[3];
-	    if ( snprintf(xml_fl_nm, LEN, "%s.kml", base_nm) >= LEN ) {
-		fprintf(stderr, "%s %s: could not create kml file name for "
-			"data type %s, sweep %d.\n", argv0, argv1, abbrv, s);
-		status = SIGMET_IO_FAIL;
-		goto error;
-	    }
-	    if ( !(xml_fl = fopen(xml_fl_nm, "w")) ) {
-		fprintf(stderr, "%s %s: could not open kml file %s for "
-			"data type %s, sweep %d.\n%s\n",
-			argv0, argv1, xml_fl_nm, abbrv, s, strerror(errno));
-		status = SIGMET_IO_FAIL;
-		goto error;
-	    }
-	    fprintf(xml_fl, kml_tmpl,
-		    Vol.ih.ic.hw_site_name, Vol.ih.ic.hw_site_name,
-		    yr, mo, da, h, mi, sec,
-		    abbrv, Vol.sweep_angle[s] * DEG_PER_RAD,
-		    north, south, west, east, img_fl_nm);
-	    fclose(xml_fl);
-	    FREE(img_fl_nm);
-	    break;
-	case FILE_SCAN:
-	case MAN_SCAN:
-	    Err_Append("Can only make images for RHI and PPI. ");
-	    status = SIGMET_BAD_ARG;
-	    goto error;
-	    break;
-    }
-
-    return status;
-
-error:
-    FREE(img_fl_nm);
-    unlink(xml_fl_nm);
     return status;
 }
 
