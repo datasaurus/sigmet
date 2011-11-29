@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.32 $ $Date: 2011/06/15 16:24:31 $
+   .	$Revision: 1.33 $ $Date: 2011/11/22 18:07:01 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -39,23 +39,10 @@
 #include <unistd.h>
 #include "sigmet.h"
 
-/*
-   Default name for daemon socket
- */
-
-#define SIGMET_RAWD_IN ".sigmet.in"
-
-/*
-   Names of files for daemon output and error messages
- */
-
-#define SIGMET_RAWD_LOG ".sigmet.log"
-#define SIGMET_RAWD_ERR ".sigmet.err"
-
 /* Maximum number of arguments */
 #define SIGMET_RAWD_ARGCX	512
 
-void SigmetRaw_Load(char *);
+void SigmetRaw_Load(char *, char *);
 int SigmetRaw_Cmd(const char *);
 int SigmetRaw_SetProj(int, char **);
 char **SigmetRaw_GetProj(void);
