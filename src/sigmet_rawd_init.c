@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.392 $ $Date: 2011/11/22 18:09:55 $
+ .	$Revision: 1.393 $ $Date: 2011/11/28 17:08:04 $
  */
 
 #include <limits.h>
@@ -50,6 +50,7 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <pthread.h>
 #include "alloc.h"
 #include "strlcpy.h"
 #include "err_msg.h"
@@ -66,7 +67,7 @@
 static struct Sigmet_Vol Vol;		/* Sigmet volume struct. See sigmet.h */
 static int Have_Vol;			/* If true, Vol contains a volume */
 static int Mod;				/* If true, Vol has been modified
-					   since reading by a local function. */
+					   since reading */
 static char *Vol_Fl_Nm;			/* File that provided the volume */
 
 /*
@@ -138,6 +139,7 @@ static callback *cb1v[NCMD] = {
 static char *time_stamp(void);
 static int handle_signals(void);
 static void handler(int);
+static void *watch_fl(void *);
 
 /*
    This function loads the volume in Sigmet raw product file vol_fl_nm
@@ -146,14 +148,18 @@ static void handler(int);
    and waits for client requests on the socket.  The daemon executes callbacks
    defined below in response to the client requests. It communicates with
    clients via fifo files. If anything goes wrong, it prints an error message
-   to stderr and exits this process.
+   to stderr and exits this process. The names for the socket and log files
+   are based on vol_nm.
  */
 
-void SigmetRaw_Load(char *vol_fl_nm)
+void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 {
     pid_t in_pid;		/* Process that provides a volume */
     FILE *in;			/* Stream that provides a volume */
     int status;			/* Result of a function */
+    char *sock_nm;		/* Name of socket to communicate with daemon */
+    char *log_nm;		/* Name of log file */
+    char *err_nm;		/* Name of error log */
     int flags;			/* Flags for log files */
     struct sockaddr_un sa;	/* Socket to read command and return exit
 				   status */
@@ -173,15 +179,20 @@ void SigmetRaw_Load(char *vol_fl_nm)
     size_t cmd_ln_lx = 0;	/* Given size of command line */
     int stop = 0;		/* If true, exit program */
     int xstatus = SIGMET_OK;	/* Exit status of process */
+    pthread_t t_id;		/* Id for socket monitor thread */
+    int l_errno;		/* Store return from pthread_create */
     size_t sz;
 
+    printf("Loading %s. Daemon will listen to %s.\n", vol_fl_nm, vol_nm);
+
     /*
-       Fail if this directory already has a socket.
+       Identify socket and log files
      */
 
-    if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
+    sock_nm = vol_nm;
+    if ( access(sock_nm, F_OK) == 0 ) {
 	fprintf(stderr, "Daemon socket %s already exists. "
-		"Is daemon already running?\n", SIGMET_RAWD_IN);
+		"Is daemon already running?\n", sock_nm);
 	exit(SIGMET_IO_FAIL);
     }
 
@@ -200,6 +211,7 @@ void SigmetRaw_Load(char *vol_fl_nm)
     }
     switch (status = Sigmet_Vol_Read(in, &Vol)) {
 	case SIGMET_OK:
+	    printf("Success.\n");
 	case SIGMET_IO_FAIL:	/* Possibly truncated volume o.k. */
 	    /*
 	       If Sigmet_Vol_Read at least got headers, proceed.
@@ -235,7 +247,7 @@ void SigmetRaw_Load(char *vol_fl_nm)
     Have_Vol = 1;
     Mod = 0;
     sz = strlen(vol_fl_nm) + 1;
-    if ( !(Vol_Fl_Nm = CALLOC(sz, 1)) ) {
+    if ( !(Vol_Fl_Nm = MALLOC(sz)) ) {
 	fprintf(stderr, "Could not allocate space for volume file name.\n");
 	xstatus = SIGMET_ALLOC_FAIL;
 	goto error;
@@ -248,9 +260,9 @@ void SigmetRaw_Load(char *vol_fl_nm)
 
     memset(&sa, '\0', SA_UN_SZ);
     sa.sun_family = AF_UNIX;
-    if ( snprintf(sa.sun_path, SA_PLEN, "%s", SIGMET_RAWD_IN) >= SA_PLEN ) {
+    if ( snprintf(sa.sun_path, SA_PLEN, "%s", sock_nm) >= SA_PLEN ) {
 	fprintf(stderr, "Could not fit %s into socket address path.\n",
-		SIGMET_RAWD_IN);
+		sock_nm);
 	xstatus = SIGMET_IO_FAIL;
 	goto error;
     }
@@ -305,27 +317,37 @@ void SigmetRaw_Load(char *vol_fl_nm)
        connected, stdout and stderr will go to the client fifos.
      */
 
+    if ( !(log_nm = MALLOC(strlen(vol_nm) + strlen(".log") + 1)) ) {
+	fprintf(stderr, "Could not allocate memory for log file name.\n");
+	exit(SIGMET_IO_FAIL);
+    }
+    sprintf(log_nm, "%s%s", vol_nm, ".log");
     m = S_IRUSR | S_IWUSR | S_IRGRP;
-    if ( (i_log = open(SIGMET_RAWD_LOG, O_CREAT | O_WRONLY, m)) == -1
+    if ( (i_log = open(log_nm, O_CREAT | O_WRONLY, m)) == -1
 	    || !(d_log = fdopen(i_log, "w")) ) {
 	fprintf(stderr, "Daemon could not open log file: %s\n%s\n",
-		SIGMET_RAWD_LOG, strerror(errno));
+		log_nm, strerror(errno));
 	goto error;
     }
     if ( dup2(i_log, STDOUT_FILENO) == -1 ) {
 	fprintf(stderr, "Daemon could not redirect standard output "
-		"to log file: %s\n%s\n", SIGMET_RAWD_LOG, strerror(errno));
+		"to log file: %s\n%s\n", log_nm, strerror(errno));
 	goto error;
     }
-    if ( (i_err = open(SIGMET_RAWD_ERR, O_CREAT | O_WRONLY, m)) == -1
+    if ( !(err_nm = MALLOC(strlen(vol_nm) + strlen(".err") + 1)) ) {
+	fprintf(stderr, "Could not allocate memory for error log name.\n");
+	exit(SIGMET_IO_FAIL);
+    }
+    sprintf(err_nm, "%s%s", vol_nm, ".err");
+    if ( (i_err = open(err_nm, O_CREAT | O_WRONLY, m)) == -1
 	    || !(d_err = fdopen(i_err, "w")) ) {
 	fprintf(stderr, "Daemon could not open error file: %s\n%s\n",
-		SIGMET_RAWD_ERR, strerror(errno));
+		err_nm, strerror(errno));
 	goto error;
     }
     if ( dup2(i_err, STDERR_FILENO) == -1 ) {
 	fprintf(stderr, "Daemon could not redirect standard error "
-		"to error file: %s\n%s\n", SIGMET_RAWD_ERR, strerror(errno));
+		"to error file: %s\n%s\n", err_nm, strerror(errno));
 	goto error;
     }
     fclose(stdin);
@@ -334,6 +356,17 @@ void SigmetRaw_Load(char *vol_fl_nm)
 	    "Process id = %d.\nSocket = %s\n", time_stamp(), SIGMET_VERSION,
 	    getpid(), sa.sun_path);
     fflush(d_log);
+
+    /*
+       Start a thread to watch the socket
+     */
+
+    if ( (l_errno = pthread_create(&t_id, NULL, watch_fl, sock_nm)) != 0 ) {
+	fprintf(stderr, "%s: could not start socket monitor.\n"
+		"%s\n", time_stamp(), strerror(l_errno));
+	xstatus = SIGMET_IO_FAIL;
+	goto error;
+    }
 
     /*
        Wait for clients until "unload" subcommand is received or this process
@@ -547,13 +580,13 @@ void SigmetRaw_Load(char *vol_fl_nm)
        Out of loop. No longer waiting for clients.
      */
 
-    unlink(SIGMET_RAWD_IN);
+    unlink(sock_nm);
     FREE(cmd_ln);
     fprintf(d_log, "%s: exiting.\n", time_stamp());
     exit(xstatus);
 
 error:
-    unlink(SIGMET_RAWD_IN);
+    unlink(sock_nm);
     fprintf(stderr, "%s: Could not spawn sigmet_raw daemon.\n",
 	    time_stamp());
     if ( d_err ) {
@@ -561,6 +594,28 @@ error:
 		time_stamp());
     }
     exit(xstatus);
+}
+
+/*
+   This thread callback occassionally checks the file identified by
+   path p. If the file becomes unlinked, this daemon process exits.
+ */
+
+static void *watch_fl(void *p)
+{
+    char *path = (char *)p;
+    struct stat buf;
+    unsigned int sec = 6;
+
+    while (1) {
+	sleep(sec);
+	if ( stat(path, &buf) == -1 || buf.st_nlink == 0 ) {
+	    fprintf(stderr, "%s: daemon exiting. Socket gone.\n",
+		    time_stamp());
+	    exit(EXIT_SUCCESS);
+	}
+    }
+    return NULL;
 }
 
 /*
@@ -1728,14 +1783,23 @@ static int outlines_cb(int argc, char *argv[])
 		argv0, argv1, s_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( sscanf(min_s, "%lf", &min) != 1 ) {
-	fprintf(stderr, "%s %s: expected float value for data min, got %s\n", 
-		argv0, argv1, min_s);
+    if ( strcmp(min_s, "-inf") == 0 || strcmp(min_s, "-INF") == 0 ) {
+	min = -DBL_MAX;
+    } else if ( sscanf(min_s, "%lf", &min) != 1 ) {
+	fprintf(stderr, "%s %s: expected float value or -INF for data min,"
+		" got %s\n", argv0, argv1, min_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( sscanf(max_s, "%lf", &max) != 1 ) {
-	fprintf(stderr, "%s %s: expected float value for data max, got %s\n", 
-		argv0, argv1, max_s);
+    if ( strcmp(max_s, "inf") == 0 || strcmp(max_s, "INF") == 0 ) {
+	max = DBL_MAX;
+    } else if ( sscanf(max_s, "%lf", &max) != 1 ) {
+	fprintf(stderr, "%s %s: expected float value or INF for data max,"
+		" got %s\n", argv0, argv1, max_s);
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(min < max)) {
+	fprintf(stderr, "%s %s: minimum (%s) must be less than maximum (%s)\n",
+		argv0, argv1, min_s, max_s);
 	return SIGMET_BAD_ARG;
     }
     if ( strcmp(outFlNm, "-") == 0 ) {

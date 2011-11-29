@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.82 $ $Date: 2011/06/08 20:44:17 $
+   .	$Revision: 1.83 $ $Date: 2011/11/22 18:06:42 $
  */
 
 #include <limits.h>
@@ -82,6 +82,8 @@ int main(int argc, char *argv[])
     char *argv0 = argv[0];
     char *argv1;
     char *vol_fl_nm;		/* Name of Sigmet raw product file */
+    char *vol_nm;		/* Name of Sigmet volume, for reference */
+    char *sock_nm;		/* Name of socket to communicate with daemon */
     FILE *in;
     pid_t chpid;
 
@@ -107,37 +109,44 @@ int main(int argc, char *argv[])
     } else if ( strcmp(argv1, "data_types") == 0 ) {
 	enum Sigmet_DataTypeN y;
 
-	if ( argc != 2 ) {
-	    fprintf(stderr, "Usage: %s data_types\n", argv0);
-	    exit(EXIT_FAILURE);
-	}
+	if ( argc == 2 ) {
 
-	/*
-	   If current working directory contains a daemon socket, send this
-	   command to it. The daemon might know of data types besides the
-	   basic Sigmet ones.  Otherwise, just list data types from the
-	   Sigmet programmers manual.
-	 */
+	    /*
+	       Just list data types from the Sigmet programmers manual.
+	     */
 
-	if ( access(SIGMET_RAWD_IN, F_OK) == 0 ) {
-	    return daemon_task(argc, argv);
-	} else {
 	    for (y = 0; y < SIGMET_NTYPES; y++) {
 		printf("%s | %s | %s\n", Sigmet_DataType_Abbrv(y),
 			Sigmet_DataType_Descr(y), Sigmet_DataType_Unit(y));
 	    }
+	} else if ( argc == 3 ) {
+
+	    /*
+	       If current working directory contains a daemon socket, send this
+	       command to it. The daemon might know of data types besides the
+	       basic Sigmet ones.
+	     */
+
+	    sock_nm = argv[argc - 1];
+	    if ( access(sock_nm, F_OK) == 0 ) {
+		return daemon_task(argc, argv);
+	    }
+	} else {
+	    fprintf(stderr, "Usage: %s data_types [socket_name]\n", argv0);
+	    exit(EXIT_FAILURE);
 	}
     } else if ( strcmp(argv1, "load") == 0 ) {
 	/*
 	   Start a raw volume daemon.
 	 */
 
-	if ( argc != 3 ) {
-	    fprintf(stderr, "Usage: %s load raw_file\n", argv0);
+	if ( argc != 4 ) {
+	    fprintf(stderr, "Usage: %s load raw_file volume_name\n", argv0);
 	    exit(EXIT_FAILURE);
 	}
 	vol_fl_nm = argv[2];
-	SigmetRaw_Load(vol_fl_nm);
+	vol_nm = argv[3];
+	SigmetRaw_Load(vol_fl_nm, vol_nm);
     } else if ( strcmp(argv1, "good") == 0 ) {
 	/*
 	   Determine if file given as stdin is navigable Sigmet volume.
@@ -170,6 +179,7 @@ int main(int argc, char *argv[])
 static int daemon_task(int argc, char *argv[])
 {
     char *argv0 = argv[0];
+    char *sock_nm;		/* Name of socket to communicate with daemon */
     mode_t m;			/* File permissions */
     struct sockaddr_un sa;	/* Address of socket that connects with
 				   daemon */
@@ -223,12 +233,13 @@ static int daemon_task(int argc, char *argv[])
     }
 
     /*
-       Connect to daemon via socket in daemon directory
+       Connect to daemon via daemon socket
      */
 
+    sock_nm = argv[argc - 1];
     memset(&sa, '\0', SA_UN_SZ);
     sa.sun_family = AF_UNIX;
-    strlcpy(sa.sun_path, SIGMET_RAWD_IN, SA_PLEN);
+    strlcpy(sa.sun_path, sock_nm, SA_PLEN);
     if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create socket to connect "
 		"with daemon\n%s\n", argv0, pid, strerror(errno));
@@ -236,19 +247,21 @@ static int daemon_task(int argc, char *argv[])
     }
     if ( connect(i_dmn, (struct sockaddr *)&sa, SA_UN_SZ) == -1
 	    || !(dmn = fdopen(i_dmn, "w")) ) {
-	fprintf(stderr, "%s (%d): could not connect to daemon\nError %d: %s\n",
-		argv0, pid, errno, strerror(errno));
+	fprintf(stderr, "%s (%d): could not connect to daemon at %s\n"
+		"Error %d: %s\n",
+		argv0, pid, sock_nm, errno, strerror(errno));
 	goto error;
     }
 
     /*
        Send to input socket of volume daemon:
-	   Id of this process.
-	   Argument count.
-	   Command line length.
-	   Arguments.
+       Id of this process.
+       Argument count, excluding socket name.
+       Command line length.
+       Arguments, excluding socket name.
      */
 
+    argc--;
     for (cmd_ln_l = 0, a = argv; *a; a++) {
 	cmd_ln_l += strlen(*a) + 1;
     }
@@ -267,7 +280,7 @@ static int daemon_task(int argc, char *argv[])
 		"daemon\n%s\n", argv0, pid, strerror(errno));
 	goto error;
     }
-    for (a = argv; *a; a++) {
+    for (a = argv; a < argv + argc; a++) {
 	size_t a_l;
 
 	a_l = strlen(*a);
