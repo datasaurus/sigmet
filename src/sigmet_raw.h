@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.33 $ $Date: 2011/11/22 18:07:01 $
+   .	$Revision: 1.34 $ $Date: 2011/11/29 23:55:08 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -54,5 +54,10 @@ void SigmetRaw_SetImgAlpha(double);
 double SigmetRaw_GetImgAlpha(void);
 int SigmetRaw_SetImgApp(char *);
 char * SigmetRaw_GetImgApp(void);
+
+/* sigmet_raw command callback and access function */
+typedef int (SigmetRaw_Callback)(int , char **, struct Sigmet_Vol *);
+int SigmetRaw_AddCmd(char *, SigmetRaw_Callback);
+int SigmetRaw_AddBaseCmds(void);
 
 #endif
