@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.93 $ $Date: 2011/11/22 17:56:50 $
+   .	$Revision: 1.94 $ $Date: 2011/11/28 17:07:26 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -502,19 +502,27 @@ struct Sigmet_Vol {
     int **ray_num_bins;				/* Number of bins in ray,
 						   dimensioned [sweep][ray],
 						   varies from ray to ray */
-    double **ray_tilt0;				/* Tilt at start of ray, radians,
-						   dimensioned [sweep][ray] */
+    double **ray_tilt0;				/* Tilt at start of ray,
+						   radians, dimensioned
+						   [sweep][ray] */
     double **ray_tilt1;				/* Tilt at end of ray, radians,
 						   dimensioned [sweep][ray] */
-    double **ray_az0;				/* Azimuth at start of ray, radians,
-						   dimensioned [sweep][ray] */
-    double **ray_az1;				/* Azimuth at end of ray, radians,
-						   dimensioned [sweep][ray] */
+    double **ray_az0;				/* Azimuth at start of ray,
+						   radians, dimensioned
+						   [sweep][ray] */
+    double **ray_az1;				/* Azimuth at end of ray,
+						   radians, dimensioned
+						   [sweep][ray] */
     struct Hash_Tbl types_tbl;			/* Map abbreviations to elements
 						   in dat array */
     struct Sigmet_DatArr *dat;			/* Data, dimensioned [type] */
-    size_t size;				/* Number of bytes of memory this
-						   structure is using */
+    size_t size;				/* Number of bytes of memory
+						   this structure is using */
+    int mod;					/* If true, volume in memory
+						   is different from volume in
+						   ray product file */
+    char *raw_fl_nm;				/* Path to file that provided
+						   the volume */
 };
 
 /*
