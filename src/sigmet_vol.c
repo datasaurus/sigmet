@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.144 $ $Date: 2011/11/28 17:08:28 $
+   .	$Revision: 1.145 $ $Date: 2011/11/30 20:48:19 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2878,7 +2878,6 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 
 		    double cnr[8];	/* Longitude latitude values for the
 					   four corners of the bin */
-		    double *cnr_p;	/* Loop index */
 
 		    b = r_p - ray_p;
 		    r0 = rng_1st_bin + b * step_out;
@@ -2898,14 +2897,14 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 		    GeogStep(lon, lat, az0, r1, cnr + 2, cnr + 3);
 		    GeogStep(lon, lat, az1, r1, cnr + 4, cnr + 5);
 		    GeogStep(lon, lat, az1, r0, cnr + 6, cnr + 7);
-		    for (cnr_p = cnr; cnr_p < cnr + 8; cnr_p++) {
-			*cnr_p *= DEG_PER_RAD;
-		    }
 		    if ( ( bnr && fwrite(cnr, sizeof(double), 8, out) != 8 )
 			    || ( !bnr && fprintf(out,
 				    "%lf %lf\n%lf %lf\n%lf %lf\n%lf %lf\n",
-				    cnr[0], cnr[1], cnr[2], cnr[3], cnr[4],
-				    cnr[5], cnr[6], cnr[7]) == EOF ) ) {
+				    cnr[0] * DEG_PER_RAD, cnr[1] * DEG_PER_RAD,
+				    cnr[2] * DEG_PER_RAD, cnr[3] * DEG_PER_RAD,
+				    cnr[4] * DEG_PER_RAD, cnr[5] * DEG_PER_RAD,
+				    cnr[6] * DEG_PER_RAD, cnr[7] * DEG_PER_RAD)
+				== EOF ) ) {
 			Err_Append("Could not write corner coordinates "
 				"for bin. ");
 			Err_Append(strerror(errno));
