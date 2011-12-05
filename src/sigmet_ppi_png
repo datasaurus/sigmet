@@ -1,0 +1,222 @@
+#!/bin/sh
+#
+# sigmet_ppi_png --
+#	Create a png image for a PPI sweep.
+
+# Usage:
+#	sigmet_ppi_png data_types sweep_angles raw_fl
+# where:
+#	data_types	- list of desired data types (e.g. DB_DBZ, DB_ZDR).
+#			  If a data type is not in the volume, script will
+#			  quietly skip it.
+#	sweep_angles	- list of desired sweep angles, in degrees.
+#			  For each angle, script will generate an image for the
+#			  sweep whose sweep angle is closest to the given angle.
+#			  Number of sweeps may be less then the number of values
+#			  in sweep_angles.
+#
+# The following commands must be in the current path
+#	proj		- convert lat-lon's to map coordinates
+#	svg2png		- convert svg to png. Part of cairo, get from
+#			  http://cairographics.org/snapshots/
+#	geog		- trekix
+#	utm_zone	- trekix
+#
+# Optional environment variables:
+#	SIGMET_RAW_COLORS		- path to directory with color table
+#					  files. For each data type DB_XXX
+#					  this directory must contain a file
+#					  named DB_XXX.clrs with output from
+#					  the raster_clrs program appropriate
+#					  for the data type. Defaults to
+#					  current working directory.
+#	SIGMET_RAW_IMG_SZ		- width of the png image, in pixels.
+#	SIGMET_SEM_PROC			- identifier for a semaphore assumed to
+#					  be decremented by the number of
+#					  megabytes this process will need to
+#					  store the volume. When this process
+#					  terminates, the associated semaphore
+#					  will be incremented with a call to
+#					  clsem.
+#	SIGMET_RAW_VOL_SZ		- estimated number of megabytes this
+#					  process will need to store the volume,
+#					  needed by clsem if SIGMET_SEM_PROC
+#					  is set.
+#	SIGMET_CORRECTIONS		- name of a file with correction
+#					  specifiers.  Script sigmet_correct
+#					  should be in current path. See
+#					  sigmet_correct for format.
+#
+# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+
+# Parse command line
+if [ $# -ne 3 ]
+then
+    echo Usage: $0 data_types sweep_angles raw_file
+    exit 1
+fi
+data_types=$1
+sweep_angles=$2
+raw_fl=$3
+
+# Clean up on exit
+trap 'sigmet_cleanup $sock' EXIT TERM KILL QUIT INT HUP
+
+# This convenience function evaluates an expression with bc and formats result
+bcalc() {
+    if test $2
+    then
+	printf "$2\n" `echo "$1" | bc -l`
+    else
+	echo "$1" | bc -l
+    fi
+}
+
+# geog program needs this
+ANGLE_UNIT='DEGREE'
+export ANGLE_UNIT
+
+# KML format
+kml_tmpl='<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <GroundOverlay>
+    <name>%s sweep</name>
+    <description>
+%s at %s %s Field: %s. %04.1f degrees
+</description>
+    <LatLonBox>
+      <north>%f</north>
+      <south>%f</south>
+      <west>%f</west>
+      <east>%f</east>
+    </LatLonBox>
+    <Icon>
+      %s
+    </Icon>
+  </GroundOverlay>
+</kml>'
+
+# Identify socket. If it does not exist, load the volume and apply corrections.
+echo Loading $raw_fl
+sock=`sigmet_raw_load $raw_fl || exit 1`
+
+# Get volume header values
+# ray_len_m = ray length in meters
+# ray_len_deg = ray length in great circle degrees. Assume 1' = 1852 m.
+echo Getting volume information
+hdr='radar_lon|radar_lat|num_bins|range_bin0|bin_step'
+for l in `sigmet_raw vol_hdr $sock | egrep $hdr`
+do
+    eval $l
+done
+ray_len_m=`bcalc "($range_bin0 + $num_bins * $bin_step) / 100.0"`
+ray_len_deg=`bcalc "($range_bin0 + $num_bins * $bin_step) \
+	/ 100.0 / 1852.0 / 60.0"`
+
+# Projection command. Will convert lon lat coordinates to x y.
+proj="proj"
+inv_proj="invproj"
+z=`utm_zone $radar_lon`
+proj_opt="-f %.5f +proj=utm +zone=$z +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+
+eval `sigmet_ppi_bnds "$proj $proj_opt" $sock`
+img_width_m=`bcalc "$x_max_m - $x_min_m"`
+img_height_m=`bcalc "$y_max_m - $y_min_m"`
+img_width_px=${SIGMET_RAW_IMG_SZ:-"720"}
+px_per_m=`bcalc "$img_width_px / ($x_max_m - $x_min_m)"`
+img_height_px=`bcalc "($y_max_m - $y_min_m) * $px_per_m"`
+
+color_dir=${SIGMET_RAW_COLORS:-"."}
+
+# Print SVG for PPI image
+echo Creating image
+svg_dtd='PUBLIC "-//W3C//DTD SVG 1.0//EN" '\
+'"http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd"'
+base_nm=`basename $raw_fl | sed -e 's/\.gz//' -e 's/\.bz2//'`
+for data_type in $data_types
+do
+    color_fl=${color_dir}/${data_type}.clrs
+    for sweep_angle in $sweep_angles
+    do
+	sweep=`sigmet_raw near_sweep $sweep_angle $sock`
+	if test $sweep
+	then
+	    vol_swp_angl=`sigmet_raw sweep_headers $sock \
+			 | awk '/sweep +'$sweep' / {print $5}'`
+	    img_nm=`printf '%s_%s_%05.1f.png' $base_nm $data_type $vol_swp_angl`
+	fi
+	{
+	    printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+	    printf '<!DOCTYPE svg %s>\n' "$svg_dtd"
+	    printf '<svg\n'
+	    printf '  xmlns="http://www.w3.org/2000/svg"'
+	    printf '  xmlns:xlink="http://www.w3.org/1999/xlink"\n'
+	    printf '  width="%f" height="%f"\n' $img_width_px $img_height_px
+	    printf '  viewBox="0 0 %f %f"\n' $img_width_m $img_height_m
+	    printf '>\n'
+	    egrep '[0-9.e+-]+ #[0-9A-Fa-f]+ [0-9.e+-]+' $color_fl \
+	    | while read min color max
+	    do
+		printf '<g style="fill: %s;">\n' $color
+		sigmet_raw outlines -b $data_type $sweep $min $max - $sock \
+		| proj -i $proj_opt \
+		| awk -v x_min_m=$x_min_m -v y_max_m=$y_max_m '
+		    {
+			printf "<polygon points=\"%.0f,%.0f ",
+				$1 - x_min_m, y_max_m - $2;
+			getline
+			printf "%.0f,%.0f ", $1 - x_min_m, y_max_m - $2;
+			getline
+			printf "%.0f,%.0f ", $1 - x_min_m, y_max_m - $2;
+			getline
+			printf "%.0f,%.0f\" />\n", $1 - x_min_m, y_max_m - $2;
+		    }'
+		printf "</g>\n";
+	    done
+	    printf "</svg>\n"
+	} | svg2png -w $img_width_px - $img_nm
+
+	# Create kml file
+	kml_nm=`printf '%s_%s_%05.1f.kml' $base_nm $data_type $vol_swp_angl`
+	if ! test -f $kml_nm
+	then
+	    echo Creating kml file
+	    proj_opt="$proj_opt -f %.5f"
+	    site_name=`sigmet_raw volume_headers $sock \
+		    | awk -F \| '/su_site_name/ {print $1}'`
+	    sweep_time="`sigmet_raw sweep_headers $sock \
+		    | awk '/sweep +'$sweep' / {print $3 " " $4}'`"
+	    eval `echo $x_min_m $y_min_m | invproj $proj_opt \
+		    | awk '{printf "west=%f\nsouth=%f\n", $1, $2}'`
+	    eval `echo $x_max_m $y_max_m | invproj $proj_opt \
+		    | awk '{printf "east=%f\nnorth=%f\n", $1, $2}'`
+	    printf "$kml_tmpl" $site_name $site_name $sweep_time $data_type \
+		    $vol_swp_angl $north $south $west $east $img_nm > $kml_nm
+	fi
+    done
+done
+exit 0
