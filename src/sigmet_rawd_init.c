@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.394 $ $Date: 2011/11/29 23:53:51 $
+ .	$Revision: 1.395 $ $Date: 2011/11/30 20:49:28 $
  */
 
 #include <stdlib.h>
@@ -141,7 +141,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     int l_errno;		/* Store return from pthread_create */
     size_t sz;
 
-    printf("Loading %s. Daemon will listen to %s.\n", vol_fl_nm, vol_nm);
+    printf("sigmet_raw loading %s.\n", vol_fl_nm);
 
     /*
        Identify socket and log files
@@ -212,13 +212,18 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     strlcpy(Vol.raw_fl_nm, vol_fl_nm, sz);
 
     /*
-       Initialize command table and add commands to it.
+       Initialize command table
      */
 
     if ( (xstatus = init_commands()) != SIGMET_OK ) {
 	fprintf(stderr, "Could not initialize command table.\n%s\n", Err_Get());
 	goto error;
     }
+
+    /*
+       Add commands. Additional "modules" should put calls here.
+     */
+
     if ( (xstatus = SigmetRaw_AddBaseCmds()) != SIGMET_OK ) {
 	fprintf(stderr, "Could not add base commands.\n%s\n", Err_Get());
 	goto error;
@@ -266,8 +271,8 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	exit(SIGMET_IO_FAIL);
     }
     sprintf(err_nm, "%s%s", vol_nm, ".err");
-    printf("sigmet_raw daemon starting. Log messages will go to %s. Error "
-	    "messages will go to %s\n", log_nm, err_nm);
+    printf("Starting daemon, listening to %s\n"
+	    "Logging to %s and %s\n", sock_nm, log_nm, err_nm);
 
     /*
        Go to background.
@@ -360,8 +365,8 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	SigmetRaw_Callback *cb;	/* Callback for subcommand */
 	char out_nm[LEN];	/* Fifo to send standard output to client */
 	char err_nm[LEN];	/* Fifo to send error output to client */
-	int i_out;		/* File descriptor for writing to out_nm */
-	int i_err;		/* File descriptor for writing to err_nm */
+	FILE *out;		/* Stream for writing to output fifo */
+	FILE *err;		/* Stream for writing to error fifo */
 	int flags;		/* Return from fcntl, when configuring
 				   cl_io_fd */
 	int sstatus;		/* Result of callback */
@@ -462,8 +467,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 		    "process %d.\n", time_stamp(), client_pid);
 	    continue;
 	}
-	if ( (i_out = open(out_nm, O_WRONLY)) == -1
-		|| dup2(i_out, STDOUT_FILENO) == -1 || close(i_out) == -1 ) {
+	if ( !(out = fopen(out_nm, "w")) ) {
 	    fprintf(d_err, "%s: could not open pipe for standard output for "
 		    "process %d\n%s\n",
 		    time_stamp(), client_pid, strerror(errno));
@@ -474,8 +478,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 		    "process %d.\n", time_stamp(), client_pid);
 	    continue;
 	}
-	if ( (i_err = open(err_nm, O_WRONLY)) == -1
-		|| dup2(i_err, STDERR_FILENO) == -1 || close(i_err) == -1 ) {
+	if ( !(err = fopen(err_nm, "w")) ) {
 	    fprintf(d_err, "%s: could not open pipe for standard error for "
 		    "process %d\n%s\n",
 		    time_stamp(), client_pid, strerror(errno));
@@ -521,32 +524,21 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	    fprintf(stderr, "\n");
 	    sstatus = SIGMET_BAD_ARG;
 	} else {
-	    sstatus = (cb)(argc1, argv1, &Vol);
+	    sstatus = (cb)(argc1, argv1, &Vol, out, err);
 	    if ( sstatus != SIGMET_OK ) {
 		fprintf(stderr, "%s\n", Err_Get());
 	    }
 	}
 
 	/*
-	   Callback, if any, is done. Close fifo's by sending stdout and
-	   stderr back to log files. Client will delete them the fifo's.
+	   Callback, if any, is done. Close fifo's.  Client will delete them.
 	   Send callback exit status, which will be a SIGMET_* return value
 	   defined in sigmet.h, through the daemon socket and close
 	   the client side of the socket.
 	 */
 
-	fflush(stdout);
-	if ( dup2(STDOUT_FILENO, i_log) == -1 ) {
-	    fprintf(d_err, "%s: could not restore stdout after detaching "
-		    "from client\n%s\n", time_stamp(), strerror(errno));
-	    exit(SIGMET_IO_FAIL);
-	}
-	fflush(stderr);
-	if ( dup2(STDOUT_FILENO, i_err) == -1 ) {
-	    fprintf(d_err, "%s: could not restore stderr after detaching "
-		    "from client\n%s\n", time_stamp(), strerror(errno));
-	    exit(SIGMET_IO_FAIL);
-	}
+	fclose(out);
+	fclose(err);
 	if ( write(cl_io_fd, &sstatus, sizeof(int)) == -1 ) {
 	    fprintf(d_err, "%s: could not send return code for %s (%d).\n"
 		    "%s\n", time_stamp(), cmd1, client_pid, strerror(errno) );
