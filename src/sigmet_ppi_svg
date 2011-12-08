@@ -1,0 +1,112 @@
+#!/bin/sh
+#
+# sigmet_ppi_svg --
+#	Create a svg image for a ppi sweep.
+#
+# Usage:
+#	sigmet_svg data_type sweep_index proj socket
+# where:
+#	data_type	- data type (e.g. DB_DBZ, DB_ZDR).
+#	sweep_index	- index of sweep in volume. First sweep is 0.
+#	proj		- command that transforms coordinate pairs
+#			  read from standard input. Transformed values
+#			  must be printed to standard output.
+#	socket		- socket that communicates with a sigmet_raw daemon.
+#
+# Optional environment variables:
+#	SIGMET_RAW_COLORS		- path to directory with color table
+#					  files. For each data type DB_XXX
+#					  this directory must contain a file
+#					  named DB_XXX.clrs with output from
+#					  the raster_clrs program appropriate
+#					  for the data type. Defaults to
+#					  current working directory.
+#	SIGMET_RAW_IMG_SZ		- width of the svg image, in pixels.
+#
+# The svg code for the image goes to standard output.
+#
+# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+
+# Parse command line
+if [ $# -ne 4 ]
+then
+    echo Usage: $0 data_type sweep_index proj socket
+    exit 1
+fi
+data_type=$1
+sweep_index=$2
+proj="$3"
+sock="$4"
+
+# Determine image bounds and scale
+eval `sigmet_ppi_bnds "$proj" "$sock"`
+img_width_m=`echo "$x_max_m - $x_min_m" | bc -l`
+img_height_m=`echo "$y_max_m - $y_min_m" | bc -l`
+img_width_px=${SIGMET_RAW_IMG_SZ:-"1400"}
+px_per_m=`echo "$img_width_px / ($x_max_m - $x_min_m)" | bc -l`
+img_height_px=`echo "($y_max_m - $y_min_m) * $px_per_m" | bc -l`
+
+color_dir=${SIGMET_RAW_COLORS:-"."}
+
+# Print SVG for PPI image
+svg_dtd='PUBLIC "-//W3C//DTD SVG 1.0//EN" '\
+'"http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd"'
+color_fl=${color_dir}/${data_type}.clrs
+if ! test -f "$color_fl"
+then
+    echo "Could not find color file $color_fl"
+    exit 1
+fi
+printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+printf '<!DOCTYPE svg %s>\n' "$svg_dtd"
+printf '<svg\n'
+printf '  xmlns="http://www.w3.org/2000/svg"'
+printf '  xmlns:xlink="http://www.w3.org/1999/xlink"\n'
+printf '  width="%f" height="%f"\n' $img_width_px $img_height_px
+printf '  viewBox="0 0 %f %f"\n' $img_width_m $img_height_m
+printf '>\n'
+egrep '([0-9.+-]+|INF|inf) #[0-9A-Fa-f]+ ([0-9.e+-]+|INF|inf)' $color_fl \
+| while read min color max
+do
+    printf "<g style=\"fill: %s;\">\n" $color;
+    sigmet_raw outlines $data_type $sweep_index $min $max - "$sock" \
+    | $proj \
+    | awk -v x_min_m=$x_min_m -v y_max_m=$y_max_m '
+	{
+	    printf "<polygon points=\"%.0f,%.0f ",
+		    $1 - x_min_m, y_max_m - $2;
+	    getline
+	    printf "%.0f,%.0f ", $1 - x_min_m, y_max_m - $2;
+	    getline
+	    printf "%.0f,%.0f ", $1 - x_min_m, y_max_m - $2;
+	    getline
+	    printf "%.0f,%.0f\" />\n", $1 - x_min_m, y_max_m - $2;
+	}'
+    printf "</g>\n"
+done
+printf "</svg>\n"
+exit 0
