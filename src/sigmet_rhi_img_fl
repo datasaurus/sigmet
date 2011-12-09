@@ -1,0 +1,323 @@
+#!/bin/sh
+#
+# sigmet_rhi_svg --
+#	Create a svg image for a RHI sweep.
+
+# Usage:
+#	sigmet_img_rhi data_types sweep_angles raw_fl
+# where:
+#	data_types	- list of desired data types (e.g. DB_DBZ, DB_ZDR).
+#			  If a data type is not in the volume, script will
+#			  quietly skip it.
+#	sweep_angles	- list of desired sweep angles, in degrees.
+#			  For each angle, script will generate an image for the
+#			  sweep whose sweep angle is closest to the given angle.
+#			  Number of sweeps may be less then the number of values
+#			  in sweep_angles.
+#
+# Required environment variables:
+#	SIGMET_RAW_IMG_APP		- path to image drawing application
+#	SIGMET_RAW_COLORS		- path to directory with color table
+#					  files. For each data type DB_XXX
+#					  this directory must contain a file
+#					  named DB_XXX.clrs with output from
+#					  the raster_clrs program appropriate
+#					  for the data type.
+# Optional environment variables:
+#	SIGMET_RAW_IMG_SZ		- width of the svg image, in pixels.
+#					  The png image, axes, and labels will
+#					  fit inside this width.
+#	SIGMET_SEM_PROC			- identifier for a semaphore assumed to
+#					  be decremented for this process. When
+#					  this process terminates, the associated
+#					  semaphore will be incremented with a
+#					  call to clsem.
+#	SIGMET_SEM_PROC			- identifier for a semaphore assumed to
+#					  be decremented by the number of
+#					  megabytes this process will need to
+#					  store the volume. When this process
+#					  terminates, the associated semaphore
+#					  will be incremented with a call to
+#					  clsem.
+#	SIGMET_RAW_VOL_SZ		- estimated number of megabytes this
+#					  process will need to store the volume,
+#					  needed by clsem if SIGMET_SEM_PROC
+#					  is set.
+#	SIGMET_CORRECTIONS		- name of a file with correction
+#					  specifiers.  Script sigmet_correct
+#					  should be in current path. See
+#					  sigmet_correct for format.
+#
+# This script will create a directory in the current directory named for
+# raw_fl. The images and xml metadata files will be in this new directory.
+#
+# Upon successful exit, the script will print the name of the new directory.
+#
+# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+
+# Clean up on exit
+cleanup() {
+    clsem 1 $SIGMET_SEM_PROC 2> /dev/null
+    clsem $SIGMET_RAW_VOL_SZ $SIGMET_SEM_MEM 2> /dev/null
+    sigmet_raw unload -f 2> /dev/null
+}
+trap " cleanup; " EXIT
+trap " echo $0 exiting on TERM signal;exit 1; " TERM
+trap " echo $0 exiting on KILL signal;exit 1; " KILL
+trap " echo $0 exiting on QUIT signal;exit 1; " QUIT
+trap " echo $0 exiting on INT signal;exit 1; " INT
+trap " echo $0 exiting on HUP signal;exit 1; " HUP
+
+# Parse command line
+if [ $# -ne 3 ]
+then
+    echo Usage: $0 data_types sweep_angles raw_file
+    exit 1
+fi
+data_types=$1
+sweep_angles=$2
+raw_fl=$3
+
+# Check environment variables
+if ! test $SIGMET_RAW_IMG_APP
+then
+    echo "$0: SIGMET_RAW_IMG_APP (image drawing application) not set"
+    exit 1
+fi
+
+# This convenience function evaluates an expression with bc and formats result
+bcalc() {
+    if test $2
+    then
+	printf "$2\n" `echo "$1" | bc -l`
+    else
+	echo "$1" | bc -l
+    fi
+}
+
+# Create a directory for output. Make it current working directory.
+# Load the volume into a sigmet_raw daemon and apply corrections.
+base_nm=`basename $raw_fl | sed -e 's/\.gz$//' -e 's/\.bz2$//'`
+dir=${dest_dir}/$base_nm
+mkdir -p $dir || exit 1
+cd $dir || exit 1
+sigmet_raw load $raw_fl || exit 1
+if test $SIGMET_CORRECTIONS
+then
+    if ! test -f $SIGMET_CORRECTIONS
+    then
+	echo "$0: no file named $SIGMET_CORRECTIONS"
+	exit 1
+    fi
+    if ! sigmet_correct $SIGMET_CORRECTIONS
+    then
+	echo "$0: Could not apply corrections from $SIGMET_CORRECTIONS"
+	exit 1
+    fi
+fi
+
+# Get volume header values
+hdr='radar_lon|radar_lat|num_bins|range_bin0|bin_step'
+for l in `sigmet_raw vol_hdr | egrep $hdr`
+do
+    eval $l
+done
+ray_len_m=`bcalc "0.01 * ($range_bin0 + $num_bins * $bin_step)"`
+img_width_px=`bcalc "$ray_len_m * $px_per_m" "%.1f"`
+
+# Configure sigmet_raw daemon
+sigmet_raw img_app $SIGMET_RAW_IMG_APP || exit 1
+sigmet_raw img_sz $img_width_px || exit 1
+if { test $SIGMET_RAW_ALPHA && ! sigmet_raw alpha $SIGMET_RAW_ALPHA; }
+then
+    echo Could not set image alpha
+    exit 1
+fi
+for data_type in $data_types
+do
+    color_file=${SIGMET_RAW_COLORS}/${data_type}.clrs
+    sigmet_raw colors $data_type $color_file || exit 1
+done
+
+# Get sweep angle and time from sweep headers
+i_sweep=`sigmet_raw near_sweep $radar_az`
+eval `sigmet_raw sweep_headers \
+	| awk '/sweep +'$i_sweep' / {
+	    printf "sweep_time=\"%s %s\";sweep_angle=%s\n", $3, $4, $5
+	}'`
+
+# Make sweep image
+sweep_angle=`printf '%05.1f' $sweep_angle`
+img_nm=${base_nm}_${data_type}_${sweep_angle}
+if ! test -f ${img_nm}.png
+then
+    sigmet_raw img $data_type $i_sweep $img_nm || exit 1
+fi
+
+# Done with sigmet_raw
+sigmet_raw unload -f
+
+# Plot dimensions
+plot_width_px=1400
+plot_width_m=30000
+plot_height_px=800
+px_per_m=`bcalc "$plot_width_px / $plot_width_m"`
+
+# Get rest of image geometry
+hdr_nm=${img_nm}.hdr
+eval `sed -n 's!.*<height>\(.*\)</height>!img_height_m=\1!p' $hdr_nm`
+if ! test "$img_height_m"
+then
+    echo Could not get height of displayed region from rhi header file
+    exit 1
+fi
+img_height_px=`bcalc "$img_height_m * $px_per_m" "%.1f"`
+
+# Merge image *.svg files
+margin=120
+svg_nm=${img_nm}.svg
+font_size=14
+px_per_km=`bcalc "$px_per_m * 1000.0"`
+left=$margin
+top=$margin
+plot_width_km=`bcalc "$plot_width_m * 0.001"`
+plot_height_km=`echo "$plot_height_px / $px_per_m * 0.001" |  bc -l`
+legend_width_px=40
+legend_height_px=`bcalc "$plot_height_px * 3 / 4" "%.1f"`
+{
+    # Set up SVG root element
+    right=`bcalc "$left + $plot_width_px"`
+    bottom=`bcalc "$top + $plot_height_px"`
+    width=`bcalc "$margin + $plot_width_px +  $legend_width_px + 9 * $font_size"`
+    height=`bcalc "$margin + $plot_height_px + 10 * $font_size"`
+    echo '<?xml version="1.0" encoding="UTF-8"?>'
+    echo '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"'
+    echo '"http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">'
+    echo '<svg width="'$width'" height="'$height'"'
+    echo '    xmlns="http://www.w3.org/2000/svg"'
+    echo '    xmlns:xlink="http://www.w3.org/1999/xlink">'
+    echo ''
+    echo '<!-- border -->'
+    echo '<line x1="'$left'" y1="'$top'" x2="'$right'" y2="'$top'"'
+    echo '    stroke="black" />'
+    echo '<line x1="'$right'" y1="'$top'" x2="'$right'" y2="'$bottom'"'
+    echo '    stroke="black" />'
+    echo '<line x1="'$left'" y1="'$top'" x2="'$left'" y2="'$bottom'"'
+    echo '    stroke="black" />'
+    echo '<line x1="'$left'" y1="'$bottom'" x2="'$right'" y2="'$bottom'"'
+    echo '    stroke="black" />'
+
+    # Set the font size
+    echo '<g style="font-size: '$font_size';">'
+
+    # Embed svg element for RHI
+    echo ''
+    echo '<!-- RHI image -->'
+    echo '<svg x="'$margin'" y="'$margin'"'
+    echo '    width="'$plot_width_px'" height="'$plot_height_px'">'
+    y=`bcalc "$plot_height_px - $img_height_px"`
+    echo '<svg x="0" y="'$y'"'
+    echo '    width="'$img_width_px'" height="'$img_height_px'">'
+    echo '<image x="0" y="0" '
+    echo '    width="'$img_width_px'" height="'$img_height_px'"'
+    echo '    xlink:href="'$img_nm'.png" />'
+    echo '</svg>'
+    echo '</svg>'
+
+    # Label y axis
+    echo ''
+    echo '<!-- y axis -->'
+    x=`bcalc "$left - 6 * $font_size" "%.1f"`
+    y=`bcalc "$top + $plot_height_px / 2" "%.1f"`
+    echo '<text x="0" y="0"'
+    echo '    transform="translate('$x','$y'),rotate(-90.0)">'
+    echo 'Height AGL, km'
+    echo '</text>'
+    x=$left
+    for y_km in `echo 'for (y_km = 0; y_km < '$plot_height_km'; y_km += 2.0) {
+	print y_km, "\n"
+    }' | bc -l`
+    do
+	y=`bcalc "$top + $plot_height_px - $y_km * $px_per_km" "%.1f"`
+	y_km=`printf '%4.1f -' $y_km`
+	echo '<text x="'$x'" y="'$y'"'
+	echo '    text-anchor="end" dominant-baseline="mathematical">'$y_km
+	echo '</text>'
+    done
+
+    # Label x axis
+    echo ''
+    echo '<!-- x axis -->'
+    y=`bcalc "$bottom + $font_size" "%.1f"`
+    for x_km in `echo 'for (x_km = 0; x_km < '$plot_width_km'; x_km += 2.0) {
+	print x_km, "\n"
+    }' | bc -l`
+    do
+	x=`bcalc "$left + $x_km * $px_per_km" "%.1f"`
+	x_km=`printf '%4.1f' $x_km`
+	echo '<text x="'$x'" y="'$y'"'
+	echo '    text-anchor="middle" dominant-baseline="hanging">'$x_km
+	echo '</text>'
+    done
+    x=`bcalc "$left + $plot_width_px / 2" "%.1f"`
+    y=`bcalc "$y + 4 * $font_size" "%.1f"`
+    echo '<text x="'$x'" y="'$y'" '
+    echo '    text-anchor="middle" dominant-baseline="hanging">'
+    echo 'Distance from radar, km'
+    echo '</text>'
+
+    # Caption
+    echo ''
+    echo '<!-- caption -->'
+    x=`bcalc "$left + $plot_width_px / 2" "%.1f"`
+    y=`bcalc "$y + 3 * $font_size" "%.1f"`
+    echo '<text x="'$x'" y="'$y'" text-anchor="middle">'
+    sed -n 's!<description>\(.*\)</description>!\1!p' $hdr_nm \
+	    | sed 's!CPOLRVP!SMART-R2!'
+    echo '</text>'
+
+    # Color legend
+    echo ''
+    echo '<!-- color legend -->'
+    x=`bcalc "$left + $plot_width_px + 40"`
+    y=`bcalc "$top"`
+    width=`bcalc "$legend_width_px + 8 * $font_size"`
+    height=$legend_height_px
+    echo '<svg x="'$x'" y="'$y'" width="'$width'" height="'$height'">'
+    color_legend $legend_width_px $legend_height_px $font_size < $colors
+    echo '</svg>'
+
+    # Close group for font size
+    echo '</g>'
+
+    # Close SVG root element
+    echo '</svg>'
+
+} > $svg_nm
+
+pwd
+exit 0
