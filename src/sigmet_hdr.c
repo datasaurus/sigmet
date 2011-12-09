@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.3 $ $Date: 2011/06/03 17:10:40 $
+   .	$Revision: 1.4 $ $Date: 2011/11/22 18:06:06 $
  */
 
 #include <limits.h>
@@ -139,6 +139,23 @@ static int print_vol_hdr(struct Sigmet_Vol *vol_p)
 	   GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0) * DEG_PER_RAD);
     printf("radar_lat=%.4lf\n",
 	   GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.latitude), 0.0) * DEG_PER_RAD);
+    switch (vol_p->ih.tc.tni.scan_mode) {
+	case PPI_S:
+	    printf("scan_mode=\"ppi sector\"\n");
+	    break;
+	case RHI:
+	    printf("scan_mode=rhi\n");
+	    break;
+	case MAN_SCAN:
+	    printf("scan_mode=manual\n");
+	    break;
+	case PPI_C:
+	    printf("scan_mode=\"ppi continuous\"\n");
+	    break;
+	case FILE_SCAN:
+	    printf("scan_mode=file\n");
+	    break;
+    }
     printf("task_name=\"%s\"\n", vol_p->ph.pc.task_name);
     printf("types=\"");
     if ( vol_p->dat[0].data_type->abbrv ) {
