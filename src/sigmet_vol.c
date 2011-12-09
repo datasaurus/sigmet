@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.145 $ $Date: 2011/11/30 20:48:19 $
+   .	$Revision: 1.146 $ $Date: 2011/12/01 22:25:51 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2731,10 +2731,6 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
     double r0, r1;		/* Range to start and end of bin */
     double tilt;		/* Mean tilt */
 
-    /*
-       Distances in meters
-     */
-
     if (s >= vol_p->ih.ic.num_sweeps) {
 	Err_Append("Sweep index out of bounds.  ");
 	return SIGMET_RNG_ERR;
@@ -2753,15 +2749,27 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
     lat_r = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
     r00 = vol_p->ih.tc.tri.rng_1st_bin;
     dr = vol_p->ih.tc.tri.step_out;
+
+    /*
+       Convert Sigmet centimeters to meters.
+     */
+
     r0 = 0.01 * (r00 + b * dr);
     r1 = 0.01 * (r00 + (b + 1) * dr);
+
     az0 = vol_p->ray_az0[s][r];
     az1 = vol_p->ray_az1[s][r];
-    if (az1 < az0) {
+
+    /*
+       Make sure polygon is right handed.
+     */
+
+    if (GeogLonR(az1, az0) > az0) {
 	double t = az1;
 	az1 = az0;
 	az0 = t;
     }
+
     tilt = 0.5 * (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
 
     /*
@@ -2841,6 +2849,11 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     n = num_bins_out = vol_p->ih.tc.tri.num_bins_out;
     lon = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
     lat = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
+    
+    /*
+       Convert Sigmet centimeters to meters.
+     */
+
     rng_1st_bin = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
     step_out = 0.01 * vol_p->ih.tc.tri.step_out;
     re = GeogREarth(NULL);
@@ -2884,11 +2897,17 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 		    r1 = r0 + step_out;
 		    az0 = vol_p->ray_az0[s][r];
 		    az1 = vol_p->ray_az1[s][r];
+
+		    /*
+		       Make sure polygon is right handed.
+		     */
+
 		    if (GeogLonR(az1, az0) > az0) {
 			double t = az1;
 			az1 = az0;
 			az0 = t;
 		    }
+
 		    tilt = 0.5
 			* (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
 		    r0 = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
