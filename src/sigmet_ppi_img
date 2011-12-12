@@ -108,21 +108,20 @@ then
     egrep '([0-9.+-]+|INF|inf) #[0-9A-Fa-f]+ ([0-9.e+-]+|INF|inf)' $color_fl \
     | while read min color max
     do
-	printf "<g style=\"fill: %s;\">\n" $color;
+	printf "<path style=\"fill: %s;\" d=\"\n" $color;
 	sigmet_raw outlines $data_type $sweep_index $min $max - "$sock" \
 	| $proj \
 	| awk -v x_min_m=$x_min_m -v y_max_m=$y_max_m '
 	    {
-		printf "<polygon points=\"%.0f,%.0f ",
-			$1 - x_min_m, y_max_m - $2;
+		printf "M %.0f %.0f ", $1 - x_min_m, y_max_m - $2;
 		getline
-		printf "%.0f,%.0f ", $1 - x_min_m, y_max_m - $2;
+		printf "L %.0f %.0f ", $1 - x_min_m, y_max_m - $2;
 		getline
-		printf "%.0f,%.0f ", $1 - x_min_m, y_max_m - $2;
+		printf "L %.0f %.0f ", $1 - x_min_m, y_max_m - $2;
 		getline
-		printf "%.0f,%.0f\" />\n", $1 - x_min_m, y_max_m - $2;
+		printf "L %.0f %.0f Z\n", $1 - x_min_m, y_max_m - $2;
 	    }'
-	printf "</g>\n"
+	printf "\"/>\n"
     done
     printf "</svg>\n"
 elif [ $img_type = "ps" ]
