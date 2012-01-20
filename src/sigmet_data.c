@@ -31,11 +31,12 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.32 $ $Date: 2011/02/23 15:25:07 $
+   .	$Revision: 1.33 $ $Date: 2011/11/22 17:59:51 $
  */
 
 #include <stdlib.h>
 #include <math.h>
+#include <assert.h>
 #include "err_msg.h"
 #include "data_types.h"
 #include "sigmet.h"
@@ -60,6 +61,16 @@ static char *abbrv[SIGMET_NTYPES] = {
     "DB_DBZC2",		"DB_VELC2",	"DB_SQI2",	"DB_PHIDP2",
     "DB_LDRH",		"DB_LDRH2",	"DB_LDRV",	"DB_LDRV2"
 };
+
+/*
+   This hash table maps abbreviations to Sigmet_DataTypeN enumerators.
+   N_BUCKETS = 182 makes a perfect table.
+ */
+
+#define HASH_X 31
+#define N_BUCKETS 182
+static unsigned hash(const char *);
+static enum Sigmet_DataTypeN sig_data_type[N_BUCKETS];
 
 /*
    Descriptors for Sigmet data types. Index with enum Sigmet_DataTypeN.
@@ -220,13 +231,13 @@ void Sigmet_DataType_Init(void)
 {
     static int init;		/* If true, done */
     int sig_type;		/* Loop index */
+    int status;
+    unsigned i;
 
     if ( init ) {
 	return;
     }
     for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
-	int status;
-
 	status = DataType_Add( Sigmet_DataType_Abbrv(sig_type),
 		Sigmet_DataType_Descr(sig_type),
 		Sigmet_DataType_Unit(sig_type),
@@ -248,8 +259,33 @@ void Sigmet_DataType_Init(void)
 	    }
 	    exit(status);
 	}
+	i = hash(abbrv[sig_type]);
+	assert(i < N_BUCKETS);
+	sig_data_type[i] = sig_type;
     }
     init = 1;
+}
+
+/*
+   Get Sigmet_DataTypeN enumerator corresponding to abbreviation a.
+   If successful, put the enumerator at y_p and return true. Otherwise,
+   return false.
+ */
+
+int Sigmet_DataType_GetN(char *a, enum Sigmet_DataTypeN *y_p)
+{
+    unsigned i;
+
+    if ( !a ) {
+        return 0;
+    }
+    i = hash(a);
+    if ( i < N_BUCKETS ) {
+	*y_p = sig_data_type[i];
+	return 1;
+    } else {
+	return 0;
+    }
 }
 
 enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN y)
@@ -465,4 +501,26 @@ static double stor_comp_PHIDP2(double v, void *meta)
 {
     return (v == 0 || v > 65535)
 	? Sigmet_NoData() : 360.0 / 65534.0 * (v - 1.0);
+}
+
+/*
+ * hash - compute an index in a hash table given the command name.
+ * k = string key (in)
+ * n = number of buckets in hash table (in)
+ * Return value is a pseudo-random integer in range [0,n)
+ *
+ * Reference:
+ *   Kernighan, Brian W. and Rob Pike.
+ *   The Practice of Programming.
+ *   Reading, Massachusetts. 1999
+ */
+
+static unsigned hash(const char *k)
+{
+    unsigned h;
+
+    for (h = 0 ; *k != '\0'; k++) {
+	h = HASH_X * h + (unsigned)*k;
+    }
+    return h % N_BUCKETS;
 }
