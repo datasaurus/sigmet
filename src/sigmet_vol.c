@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.146 $ $Date: 2011/12/01 22:25:51 $
+   .	$Revision: 1.147 $ $Date: 2011/12/09 17:12:20 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -56,6 +56,12 @@
 #include "geog_lib.h"
 #include "data_types.h"
 #include "sigmet.h"
+
+/*
+   Always use 4/3 rule in height calculations
+ */
+
+#define FOUR_THIRD (4.0 / 3.0)
 
 /*
    Length of a record in a Sigmet raw file
@@ -2924,6 +2930,157 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 				    cnr[4] * DEG_PER_RAD, cnr[5] * DEG_PER_RAD,
 				    cnr[6] * DEG_PER_RAD, cnr[7] * DEG_PER_RAD)
 				== EOF ) ) {
+			Err_Append("Could not write corner coordinates "
+				"for bin. ");
+			Err_Append(strerror(errno));
+			return SIGMET_IO_FAIL;
+		    }
+		}
+	    }
+	}
+    }
+
+    return SIGMET_OK;
+}
+
+/*
+   For volume vol_p, data type abbrv, sweep s, print to stream out the
+   coordinates of bins with data value d such that min <= d < max. If bnr
+   is false, print formatted output. If bnr is true, send raw, double
+   precision output. For RHI, abscissa coordinate is distance along ground
+   from radar. Ordinate is height above ground level.
+ */
+
+int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
+	double min, double max, int bnr, FILE *out)
+{
+    int status;				/* Result of a function */
+    struct DataType *data_type;		/* Information about the data type */
+    struct Sigmet_DatArr *dat_p;
+    int y, r, b;			/* Indeces: data type, sweep, ray, bin */
+    int num_bins_out, n;		/* Max number of output bins */
+    static float *ray_dat;		/* Buffer to receive ray data */
+    double re;				/* Earth radius, meters */
+    double rng_1st_bin;			/* Range to first bin, meters */
+    double step_out;			/* Bin size, meters */
+    double r0, r1;			/* Distance to start and stop of a bin,
+					   meters */
+    double tilt0, tilt1;		/* Tilt angle at edges of ray,
+					   radians */
+    double abs, ord;			/* Abscissa, ordinate of a point */
+    double cnr[8];			/* Longitude latitude values for the
+					   four corners of the bin */
+
+    status = SIGMET_OK;
+    if ( !vol_p ) {
+	Err_Append("Bogus volume. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( vol_p->ih.tc.tni.scan_mode != RHI ) {
+	Err_Append("Volume must be RHI. ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(data_type = DataType_Get(abbrv)) ) {
+	Err_Append("no data type named ");
+	Err_Append(abbrv);
+	Err_Append(". ");
+	return SIGMET_BAD_ARG;
+    }
+    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+	Err_Append("no data type named ");
+	Err_Append(abbrv);
+	Err_Append(" in volume.");
+	return SIGMET_BAD_ARG;
+    }
+    y = dat_p - vol_p->dat;
+    if ( s >= vol_p->num_sweeps_ax ) {
+	Err_Append("sweep index out of range for volume. ");
+	return SIGMET_RNG_ERR;
+    }
+    if ( !vol_p->sweep_ok[s] ) {
+	Err_Append("sweep not valid in volume. ");
+	return SIGMET_RNG_ERR;
+    }
+
+    n = num_bins_out = vol_p->ih.tc.tri.num_bins_out;
+    re = GeogREarth(NULL) * FOUR_THIRD;
+    
+    /*
+       Convert Sigmet centimeters to meters.
+     */
+
+    rng_1st_bin = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
+    step_out = 0.01 * vol_p->ih.tc.tri.step_out;
+
+    /*
+       If this is the first call of this function, initialize the allocation
+       at ray_dat.
+     */
+
+    if ( !ray_dat && !(ray_dat = CALLOC(num_bins_out, sizeof(float))) ) {
+	Err_Append("Could not allocate output buffer for ray. ");
+	return SIGMET_ALLOC_FAIL;
+    }
+
+    /*
+       Loop through bins for each ray for sweep s.
+       Determine which interval from bnds each bin value is in.
+       If the bin value is in an interval to display, save its color
+       and the coordinates of its outline.
+     */
+
+    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	if ( vol_p->ray_ok[s][r] ) {
+	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_dat, &n);
+	    if ( status != SIGMET_OK ) {
+		Err_Append("Could not get ray data. ");
+		return status;
+	    }
+	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
+		if ( Sigmet_IsData(ray_dat[b])
+			&& min <= ray_dat[b] && ray_dat[b] < max ) {
+		    /*
+		       Bin value is in an interval of interest.
+		       Compute and print bin corners.
+		     */
+
+		    r0 = rng_1st_bin + b * step_out;
+		    r1 = r0 + step_out;
+		    tilt0 = vol_p->ray_tilt0[s][r];
+		    tilt1 = vol_p->ray_tilt1[s][r];
+
+		    /*
+		       Make sure polygon is right handed.
+		     */
+
+		    if ( tilt1 < tilt0 ) {
+			double t = tilt1;
+			tilt1 = tilt0;
+			tilt0 = t;
+		    }
+
+		    ord = GeogBeamHt(r0, tilt0, re);
+		    abs = re * asin(r0 * cos(tilt0) / (re + ord));
+		    cnr[0] = abs;
+		    cnr[1] = ord;
+		    ord = GeogBeamHt(r1, tilt0, re);
+		    abs = re * asin(r1 * cos(tilt0) / (re + ord));
+		    cnr[2] = abs;
+		    cnr[3] = ord;
+		    ord = GeogBeamHt(r1, tilt1, re);
+		    abs = re * asin(r1 * cos(tilt1) / (re + ord));
+		    cnr[4] = abs;
+		    cnr[5] = ord;
+		    ord = GeogBeamHt(r0, tilt1, re);
+		    abs = re * asin(r0 * cos(tilt1) / (re + ord));
+		    cnr[6] = abs;
+		    cnr[7] = ord;
+
+		    if ( ( bnr && fwrite(cnr, sizeof(double), 8, out) != 8 )
+			    || ( !bnr && fprintf(out,
+				    "%lf %lf\n%lf %lf\n%lf %lf\n%lf %lf\n",
+				    cnr[0], cnr[1], cnr[2], cnr[3],
+				    cnr[4], cnr[5], cnr[6], cnr[7]) == EOF ) ) {
 			Err_Append("Could not write corner coordinates "
 				"for bin. ");
 			Err_Append(strerror(errno));
