@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.1 $ $Date: 2011/11/30 20:31:55 $
+   .	$Revision: 1.2 $ $Date: 2011/12/05 17:23:50 $
  */
 
 #include <limits.h>
@@ -1265,8 +1265,8 @@ static int outlines_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	max_s = argv[6];
 	outFlNm = argv[7];
     } else {
-	fprintf(err, "Usage: %s %s [-b] data_type sweep min max file\n",
-		argv0, argv1);
+	fprintf(err, "Usage: %s %s [-b] data_type sweep min max "
+		"out_file socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(data_type = DataType_Get(abbrv)) ) {
@@ -1307,6 +1307,12 @@ static int outlines_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     switch (vol_p->ih.tc.tni.scan_mode) {
 	case RHI:
 	    re = GeogREarth(NULL) * 4 / 3;
+	    status = Sigmet_Vol_RHI_Outlns(vol_p, abbrv, s, min, max, bnr,
+		    outlnFl);
+	    if ( status != SIGMET_OK ) {
+		fprintf(err, "%s %s: could not print outlines for "
+			"data type %s, sweep %d.\n", argv0, argv1, abbrv, s);
+	    }
 	    break;
 	case PPI_S:
 	case PPI_C:
