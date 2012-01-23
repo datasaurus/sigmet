@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.396 $ $Date: 2011/12/05 17:25:12 $
+ .	$Revision: 1.397 $ $Date: 2012/01/23 17:24:19 $
  */
 
 #include <stdlib.h>
@@ -57,8 +57,8 @@
    The volume provided by this daemon.
  */
 
-static struct Sigmet_Vol Vol;		/* Sigmet volume struct. See sigmet.h */
-static int Have_Vol;			/* If true, Vol contains a volume */
+static struct Sigmet_Vol vol;		/* Sigmet volume struct. See sigmet.h */
+static int have_vol;			/* If true, vol contains a volume */
 
 /*
    Size for various strings
@@ -101,7 +101,7 @@ static void *watch_fl(void *);
 
 /*
    This function loads the volume in Sigmet raw product file vol_fl_nm
-   into memory in global struct Vol, defined above.  It creates a socket
+   into memory in global struct vol, defined above.  It creates a socket
    for communication with clients. Then it puts this process into the background
    and waits for client requests on the socket.  The daemon executes callbacks
    defined below in response to the client requests. It communicates with
@@ -157,7 +157,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
      */
 
     Sigmet_DataType_Init();
-    Sigmet_Vol_Init(&Vol);
+    Sigmet_Vol_Init(&vol);
     in_pid = -1;
     if ( !(in = Sigmet_VolOpen(vol_fl_nm, &in_pid)) ) {
 	fprintf(stderr, "Could not open %s for input.\n%s\n",
@@ -165,14 +165,14 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	xstatus = SIGMET_IO_FAIL;
 	goto error;
     }
-    switch (status = Sigmet_Vol_Read(in, &Vol)) {
+    switch (status = Sigmet_Vol_Read(in, &vol)) {
 	case SIGMET_OK:
 	case SIGMET_IO_FAIL:	/* Possibly truncated volume o.k. */
 	    /*
 	       If Sigmet_Vol_Read at least got headers, proceed.
 	     */
 
-	    if ( !Vol.has_headers ) {
+	    if ( !vol.has_headers ) {
 		fprintf(stderr, "Nothing useful in %s.\n%s\n",
 			vol_fl_nm, Err_Get());
 		xstatus = SIGMET_IO_FAIL;
@@ -199,15 +199,15 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     if (in_pid != -1) {
 	waitpid(in_pid, NULL, 0);
     }
-    Have_Vol = 1;
-    Vol.mod = 0;
+    have_vol = 1;
+    vol.mod = 0;
     sz = strlen(vol_fl_nm) + 1;
-    if ( !(Vol.raw_fl_nm = MALLOC(sz)) ) {
+    if ( !(vol.raw_fl_nm = MALLOC(sz)) ) {
 	fprintf(stderr, "Could not allocate space for volume file name.\n");
 	xstatus = SIGMET_ALLOC_FAIL;
 	goto error;
     }
-    strlcpy(Vol.raw_fl_nm, vol_fl_nm, sz);
+    strlcpy(vol.raw_fl_nm, vol_fl_nm, sz);
 
     /*
        Initialize command table
@@ -490,7 +490,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	cmd1 = argv1[1];
 	if ( strcmp(cmd1, "unload") == 0 ) {
 	    if ( argc1 == 2 ) {
-		if ( Vol.mod ) {
+		if ( vol.mod ) {
 		    fprintf(err, "Volume in memory has been modified.\n"
 			    "Use -f to force unload.\n");
 		    sstatus = SIGMET_BAD_ARG;
@@ -519,7 +519,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	    fprintf(err, "\n");
 	    sstatus = SIGMET_BAD_ARG;
 	} else {
-	    sstatus = (cb)(argc1, argv1, &Vol, out, err);
+	    sstatus = (cb)(argc1, argv1, &vol, out, err);
 	    if ( sstatus != SIGMET_OK ) {
 		fprintf(err, "%s\n", Err_Get());
 	    }
