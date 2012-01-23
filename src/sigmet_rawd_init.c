@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.395 $ $Date: 2011/11/30 20:49:28 $
+ .	$Revision: 1.396 $ $Date: 2011/12/05 17:25:12 $
  */
 
 #include <stdlib.h>
@@ -127,8 +127,6 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     mode_t m;			/* File mode */
     int i_log;			/* Daemon log */
     int i_err;			/* Daemon error log */
-    FILE *d_log = NULL;		/* Daemon log */
-    FILE *d_err = NULL;		/* Daemon error log */
     int cl_io_fd;		/* File descriptor to read client command
 				   and send results */
     pid_t client_pid = -1;	/* Client process id */
@@ -310,8 +308,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
      */
 
     m = S_IRUSR | S_IWUSR | S_IRGRP;
-    if ( (i_log = open(log_nm, O_CREAT | O_WRONLY, m)) == -1
-	    || !(d_log = fdopen(i_log, "w")) ) {
+    if ( (i_log = open(log_nm, O_CREAT | O_WRONLY, m)) == -1 ) {
 	fprintf(stderr, "Daemon could not open log file: %s\n%s\n",
 		log_nm, strerror(errno));
 	goto error;
@@ -321,8 +318,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 		"to log file: %s\n%s\n", log_nm, strerror(errno));
 	goto error;
     }
-    if ( (i_err = open(err_nm, O_CREAT | O_WRONLY, m)) == -1
-	    || !(d_err = fdopen(i_err, "w")) ) {
+    if ( (i_err = open(err_nm, O_CREAT | O_WRONLY, m)) == -1 ) {
 	fprintf(stderr, "Daemon could not open error file: %s\n%s\n",
 		err_nm, strerror(errno));
 	goto error;
@@ -334,10 +330,9 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     }
     fclose(stdin);
 
-    fprintf(d_log, "%s: sigmet_rawd daemon starting.\nVersion %s\n"
+    printf("%s: sigmet_rawd daemon starting.\nVersion %s\n"
 	    "Process id = %d.\nSocket = %s\n", time_stamp(), SIGMET_VERSION,
 	    getpid(), sa.sun_path);
-    fflush(d_log);
 
     /*
        Start a thread to watch the socket
@@ -379,7 +374,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 
 	if ( (flags = fcntl(cl_io_fd, F_GETFD)) == -1
 		|| fcntl(cl_io_fd, F_SETFD, flags | FD_CLOEXEC) == -1 ) {
-	    fprintf(d_err, "%s: could not set flags on connection to client.\n"
+	    fprintf(stderr, "%s: could not set flags on connection to client.\n"
 		    "%s\n", time_stamp(), strerror(errno));
 	    close(cl_io_fd);
 	    continue;
@@ -391,34 +386,34 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	 */
 
 	if ( read(cl_io_fd, &client_pid, sizeof(pid_t)) == -1 ) {
-	    fprintf(d_err, "%s: failed to read client process id.\n%s\n",
+	    fprintf(stderr, "%s: failed to read client process id.\n%s\n",
 		    time_stamp(), strerror(errno));
 	    close(cl_io_fd);
 	    continue;
 	}
 	if ( read(cl_io_fd, &argc1, sizeof(int)) == -1 ) {
-	    fprintf(d_err, "%s: failed to read length of command line "
+	    fprintf(stderr, "%s: failed to read length of command line "
 		    "for process %d.\n%s\n",
 		    time_stamp(), client_pid, strerror(errno));
 	    close(cl_io_fd);
 	    continue;
 	}
 	if ( argc1 + 1 > SIGMET_RAWD_ARGCX ) {
-	    fprintf(d_err, "%s: cannot parse %d command line arguments for "
+	    fprintf(stderr, "%s: cannot parse %d command line arguments for "
 		    "process %d. Maximum is %d.\n",
 		    time_stamp(), argc1, client_pid, SIGMET_RAWD_ARGCX);
 	    close(cl_io_fd);
 	    continue;
 	}
 	if ( read(cl_io_fd, &cmd_ln_l, sizeof(size_t)) == -1 ) {
-	    fprintf(d_err, "%s: failed to read length of command line "
+	    fprintf(stderr, "%s: failed to read length of command line "
 		    "for process %d.\n", time_stamp(), client_pid);
 	    close(cl_io_fd);
 	    continue;
 	}
 	if ( cmd_ln_l > cmd_ln_lx ) {
 	    if ( !(t = REALLOC(cmd_ln, cmd_ln_l + 1)) ) {
-		fprintf(d_err, "%s: allocation failed for command line of "
+		fprintf(stderr, "%s: allocation failed for command line of "
 			"%lu bytes for process %ld.\n",
 			time_stamp(), (unsigned long)cmd_ln_l,
 			(long)client_pid);
@@ -430,7 +425,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	}
 	memset(cmd_ln, 0, cmd_ln_lx);
 	if ( read(cl_io_fd, cmd_ln, cmd_ln_l) == -1 ) {
-	    fprintf(d_err, "%s: failed to read command line for "
+	    fprintf(stderr, "%s: failed to read command line for "
 		    "process %d.%s\n",
 		    time_stamp(), client_pid, strerror(errno));
 	    close(cl_io_fd);
@@ -451,7 +446,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	}
 	argv1[a] = NULL;
 	if ( a > argc1 ) {
-	    fprintf(d_err, "%s: command line garbled for process %d.\n",
+	    fprintf(stderr, "%s: command line garbled for process %d.\n",
 		    time_stamp(), client_pid);
 	    continue;
 	}
@@ -463,23 +458,23 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	 */
 
 	if ( snprintf(out_nm, LEN, ".%d.1", client_pid) >= LEN ) {
-	    fprintf(d_err, "%s: could not create name for result pipe for "
+	    fprintf(stderr, "%s: could not create name for result pipe for "
 		    "process %d.\n", time_stamp(), client_pid);
 	    continue;
 	}
 	if ( !(out = fopen(out_nm, "w")) ) {
-	    fprintf(d_err, "%s: could not open pipe for standard output for "
+	    fprintf(stderr, "%s: could not open pipe for standard output for "
 		    "process %d\n%s\n",
 		    time_stamp(), client_pid, strerror(errno));
 	    continue;
 	}
 	if ( snprintf(err_nm, LEN, ".%d.2", client_pid) >= LEN ) {
-	    fprintf(d_err, "%s: could not create name for error pipe for "
+	    fprintf(stderr, "%s: could not create name for error pipe for "
 		    "process %d.\n", time_stamp(), client_pid);
 	    continue;
 	}
 	if ( !(err = fopen(err_nm, "w")) ) {
-	    fprintf(d_err, "%s: could not open pipe for standard error for "
+	    fprintf(stderr, "%s: could not open pipe for standard error for "
 		    "process %d\n%s\n",
 		    time_stamp(), client_pid, strerror(errno));
 	    continue;
@@ -496,7 +491,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	if ( strcmp(cmd1, "unload") == 0 ) {
 	    if ( argc1 == 2 ) {
 		if ( Vol.mod ) {
-		    fprintf(stderr, "Volume in memory has been modified.\n"
+		    fprintf(err, "Volume in memory has been modified.\n"
 			    "Use -f to force unload.\n");
 		    sstatus = SIGMET_BAD_ARG;
 		} else {
@@ -508,25 +503,25 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 		stop = 1;
 		sstatus = SIGMET_OK;
 	    } else {
-		fprintf(stderr, "Usage: %s %s [-f]\n", cmd0, cmd1);
+		fprintf(err, "Usage: %s %s [-f]\n", cmd0, cmd1);
 		sstatus = SIGMET_BAD_ARG;
 	    }
 	} else if ( !(cb = get_cmd(cmd1)) ) {
 	    struct cmd_entry **bp, **bp1, *ep;
 
-	    fprintf(stderr, "No option or subcommand named %s. "
+	    fprintf(err, "No option or subcommand named %s. "
 		    "Subcommand must be one of: ", cmd1);
 	    for (bp = commands.buckets, bp1 = bp + N_BUCKETS; bp < bp1; bp++) {
 		for (ep = *bp; ep; ep = ep->next) {
-		    fprintf(stderr, "%s ", ep->cmd);
+		    fprintf(err, "%s ", ep->cmd);
 		}
 	    }
-	    fprintf(stderr, "\n");
+	    fprintf(err, "\n");
 	    sstatus = SIGMET_BAD_ARG;
 	} else {
 	    sstatus = (cb)(argc1, argv1, &Vol, out, err);
 	    if ( sstatus != SIGMET_OK ) {
-		fprintf(stderr, "%s\n", Err_Get());
+		fprintf(err, "%s\n", Err_Get());
 	    }
 	}
 
@@ -540,11 +535,11 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	fclose(out);
 	fclose(err);
 	if ( write(cl_io_fd, &sstatus, sizeof(int)) == -1 ) {
-	    fprintf(d_err, "%s: could not send return code for %s (%d).\n"
+	    fprintf(stderr, "%s: could not send return code for %s (%d).\n"
 		    "%s\n", time_stamp(), cmd1, client_pid, strerror(errno) );
 	}
 	if ( close(cl_io_fd) == -1 ) {
-	    fprintf(d_err, "%s: could not close socket for %s (%d).\n"
+	    fprintf(stderr, "%s: could not close socket for %s (%d).\n"
 		    "%s\n", time_stamp(), cmd1, client_pid, strerror(errno) );
 	}
     }
@@ -555,17 +550,13 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 
     unlink(sock_nm);
     FREE(cmd_ln);
-    fprintf(d_log, "%s: exiting.\n", time_stamp());
+    printf("%s: exiting.\n", time_stamp());
     exit(xstatus);
 
 error:
     unlink(sock_nm);
     fprintf(stderr, "%s: Could not spawn sigmet_raw daemon.\n",
 	    time_stamp());
-    if ( d_err ) {
-	fprintf(d_err, "%s: Could not spawn sigmet_raw daemon.\n",
-		time_stamp());
-    }
     exit(xstatus);
 }
 
