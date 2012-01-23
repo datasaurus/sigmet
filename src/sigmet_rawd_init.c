@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.397 $ $Date: 2012/01/23 17:24:19 $
+ .	$Revision: 1.398 $ $Date: 2012/01/23 17:27:47 $
  */
 
 #include <stdlib.h>
@@ -503,7 +503,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 		stop = 1;
 		sstatus = SIGMET_OK;
 	    } else {
-		fprintf(err, "Usage: %s %s [-f]\n", cmd0, cmd1);
+		fprintf(err, "Usage: %s %s [-f] socket\n", cmd0, cmd1);
 		sstatus = SIGMET_BAD_ARG;
 	    }
 	} else if ( !(cb = get_cmd(cmd1)) ) {
