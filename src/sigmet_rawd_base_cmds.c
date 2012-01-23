@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.2 $ $Date: 2011/12/05 17:23:50 $
+   .	$Revision: 1.3 $ $Date: 2012/01/20 21:42:57 $
  */
 
 #include <limits.h>
@@ -127,7 +127,7 @@ static int pid_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     char *argv1 = argv[1];
 
     if ( argc != 2 ) {
-	fprintf(err, "Usage: %s %s\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     fprintf(out, "%d\n", getpid());
@@ -142,7 +142,7 @@ static int new_data_type_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     char *name, *desc, *unit;
 
     if ( argc != 5 ) {
-	fprintf(err, "Usage: %s %s name descriptor unit\n",
+	fprintf(err, "Usage: %s %s name descriptor unit socket\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -247,7 +247,7 @@ static int volume_headers_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     char *argv1 = argv[1];
 
     if ( argc != 2 ) {
-	fprintf(err, "Usage: %s %s\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     Sigmet_Vol_PrintHdr(out, vol_p);
@@ -265,7 +265,7 @@ static int vol_hdr_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     char *mp_s = "unknown";
 
     if ( argc != 2 ) {
-	fprintf(err, "Usage: %s %s\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     fprintf(out, "site_name=\"%s\"\n", vol_p->ih.ic.su_site_name);
@@ -345,7 +345,7 @@ static int near_sweep_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     int s, nrst;
 
     if ( argc != 3 ) {
-	fprintf(err, "Usage: %s %s angle\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s angle socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     ang_s = argv[2];
@@ -383,7 +383,7 @@ static int sweep_headers_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     int s;
 
     if ( argc != 2 ) {
-	fprintf(err, "Usage: %s %s\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     for (s = 0; s < vol_p->ih.tc.tni.num_sweeps; s++) {
@@ -414,7 +414,7 @@ static int ray_headers_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     int s, r;
 
     if ( argc != 2 ) {
-	fprintf(err, "Usage: %s %s\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     for (s = 0; s < vol_p->num_sweeps_ax; s++) {
@@ -462,7 +462,7 @@ static int new_field_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	abbrv = argv[2];
 	d_s = argv[3];
     } else {
-	fprintf(err, "Usage: %s %s data_type [value]\n",
+	fprintf(err, "Usage: %s %s data_type [value] socket\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -516,7 +516,7 @@ static int del_field_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     int status;				/* Result of a function */
 
     if ( argc != 3 ) {
-	fprintf(err, "Usage: %s %s data_type\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s data_type socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     abbrv = argv[2];
@@ -544,7 +544,7 @@ static int size_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     char *argv1 = argv[1];
 
     if ( argc != 2 ) {
-	fprintf(err, "Usage: %s %s\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     fprintf(out, "%lu\n", (unsigned long)vol_p->size);
@@ -566,7 +566,7 @@ static int set_field_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     double d;
 
     if ( argc != 4 ) {
-	fprintf(err, "Usage: %s %s data_type value\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s data_type value socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     abbrv = argv[2];
@@ -618,7 +618,7 @@ static int add_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     double a;				/* Scalar to add */
 
     if ( argc != 4 ) {
-	fprintf(err, "Usage: %s %s type value|field\n",
+	fprintf(err, "Usage: %s %s type value|field socket\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -659,7 +659,7 @@ static int sub_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     double a;				/* Scalar to subtract */
 
     if ( argc != 4 ) {
-	fprintf(err, "Usage: %s %s data_type value|field\n",
+	fprintf(err, "Usage: %s %s data_type value|field socket\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -700,7 +700,7 @@ static int mul_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     double a;				/* Scalar to multiply by */
 
     if ( argc != 4 ) {
-	fprintf(err, "Usage: %s %s type value|field\n",
+	fprintf(err, "Usage: %s %s type value|field socket\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -741,7 +741,7 @@ static int div_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     double a;				/* Scalar to divide by */
 
     if ( argc != 4 ) {
-	fprintf(err, "Usage: %s %s data_type value|field\n",
+	fprintf(err, "Usage: %s %s data_type value|field socket\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -780,7 +780,7 @@ static int log10_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     char *abbrv;			/* Data type abbreviation */
 
     if ( argc != 3 ) {
-	fprintf(err, "Usage: %s %s data_type\n",
+	fprintf(err, "Usage: %s %s data_type socket\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -807,7 +807,7 @@ static int incr_time_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     double dt;				/* Time increment, seconds */
 
     if ( argc != 3 ) {
-	fprintf(err, "Usage: %s %s dt\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s dt socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     dt_s = argv[2];
@@ -867,7 +867,7 @@ static int data_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	return SIGMET_BAD_ARG;
     }
     if ( argc >= 7 ) {
-	fprintf(err, "Usage: %s %s [[[[data_type] sweep] ray] bin]\n",
+	fprintf(err, "Usage: %s %s [[[[data_type] sweep] ray] bin] socket\n",
 		argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
@@ -1011,7 +1011,7 @@ static int bdata_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     int status, n;
 
     if ( argc != 4 ) {
-	fprintf(err, "Usage: %s %s data_type sweep_index\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s data_type sweep_index socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     abbrv = argv[2];
@@ -1077,7 +1077,7 @@ static int bin_outline_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     double corners[8];
 
     if ( argc != 5 ) {
-	fprintf(err, "Usage: %s %s sweep ray bin\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s sweep ray bin socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     s_s = argv[2];
@@ -1137,7 +1137,7 @@ static int radar_lon_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     double lon;				/* New longitude, degrees */
 
     if ( argc != 3 ) {
-	fprintf(err, "Usage: %s %s new_lon\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s new_lon socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     lon_s = argv[2];
@@ -1162,7 +1162,7 @@ static int radar_lat_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     double lat;				/* New latitude, degrees */
 
     if ( argc != 3 ) {
-	fprintf(err, "Usage: %s %s new_lat\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s new_lat socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     lat_s = argv[2];
@@ -1190,7 +1190,7 @@ static int shift_az_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     int s, r;				/* Loop indeces */
 
     if ( argc != 3 ) {
-	fprintf(err, "Usage: %s %s dz\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s dz socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     daz_s = argv[2];
@@ -1359,7 +1359,7 @@ static int dorade_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	    return SIGMET_BAD_ARG;
 	}
     } else {
-	fprintf(err, "Usage: %s %s [s]\n", argv0, argv1);
+	fprintf(err, "Usage: %s %s [s] socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
     if ( s >= vol_p->num_sweeps_ax ) {
