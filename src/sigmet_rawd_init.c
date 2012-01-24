@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.399 $ $Date: 2012/01/23 17:29:13 $
+ .	$Revision: 1.400 $ $Date: 2012/01/24 22:52:59 $
  */
 
 #include <stdlib.h>
@@ -157,7 +157,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     Sigmet_Vol_Init(&vol);
     if ( strcmp(vol_fl_nm, "-") == 0 ) {
 	in = stdin;
-	vol_fl_nm = "standard input"
+	vol_fl_nm = "standard input";
     } else if ( !(in = fopen(vol_fl_nm, "r")) ) {
 	fprintf(stderr, "Could not open %s for input.\n%s\n",
 		vol_fl_nm, Err_Get());
