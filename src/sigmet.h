@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.96 $ $Date: 2012/01/20 21:41:17 $
+   .	$Revision: 1.97 $ $Date: 2012/01/24 22:52:59 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -569,7 +569,6 @@ DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 
 void Sigmet_Vol_Init(struct Sigmet_Vol *);
 void Sigmet_Vol_Free(struct Sigmet_Vol *);
-pid_t Sigmet_Execvp_Pipe(char **, int *, int *);
 int Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);

@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.148 $ $Date: 2012/01/20 21:44:44 $
+   .	$Revision: 1.149 $ $Date: 2012/01/24 22:52:59 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -327,70 +327,6 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
 	}
     }
     return 1;
-}
-
-/*
-   Spawn a child process with execvp(argv[0], argv).
-   If wr_p is not NULL, it will receive a file descriptor that writes to
-   the child's stdin. If rd_p is not NULL, it will receive a file descriptor
-   that reads from the child's stdout.  If successful, return value will be the
-   process id for the child. Otherwise, error information is generated that can
-   be retreived with Err_Get(), and return value is 0.
- */
-
-pid_t Sigmet_Execvp_Pipe(char **argv, int *wr_p, int *rd_p)
-{
-    int wr_pfd[2] = {-1, -1}, rd_pfd[2] = {-1, -1};
-    pid_t pid;
-
-    if ( wr_p && pipe(wr_pfd) == -1 ) {
-	Err_Append("Could not create pipe to write to child process. ");
-	Err_Append(strerror(errno));
-	return 0;
-    }
-    if ( rd_p && pipe(rd_pfd) == -1 ) {
-	Err_Append("Could not create pipe to read from child process. ");
-	Err_Append(strerror(errno));
-	return 0;
-    }
-    pid = fork();
-    switch (pid) {
-	case -1:
-	    Err_Append("Could not spawn child. ");
-	    Err_Append(strerror(errno));
-	    return 0;
-	case 0:
-	    if ( wr_p && dup2(wr_pfd[0], STDIN_FILENO) == -1 ) {
-		_exit(EXIT_FAILURE);
-	    }
-	    if ( rd_p && dup2(rd_pfd[1], STDOUT_FILENO) == -1 ) {
-		_exit(EXIT_FAILURE);
-	    }
-	    if ( wr_pfd[0] != -1 ) {
-		close(wr_pfd[0]);
-	    }
-	    if ( wr_pfd[1] != -1 ) {
-		close(wr_pfd[1]);
-	    }
-	    if ( rd_pfd[1] != -1 ) {
-		close(rd_pfd[1]);
-	    }
-	    if ( rd_pfd[0] != -1 ) {
-		close(rd_pfd[0]);
-	    }
-	    execvp(argv[0], argv);
-	    _exit(EXIT_FAILURE);
-	default:
-	    if ( wr_p ) {
-		*wr_p = wr_pfd[1];
-		close(wr_pfd[0]);
-	    }
-	    if ( rd_p ) {
-		*rd_p = rd_pfd[0];
-		close(rd_pfd[1]);
-	    }
-    }
-    return pid;
 }
 
 int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
