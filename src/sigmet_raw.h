@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.35 $ $Date: 2011/11/30 20:47:26 $
+   .	$Revision: 1.36 $ $Date: 2011/12/05 17:25:12 $
  */
 
 #ifndef SIGMET_RAW_H_
@@ -42,20 +42,8 @@
 /* Maximum number of arguments */
 #define SIGMET_RAWD_ARGCX	512
 
+/* Global functions */
 void SigmetRaw_Load(char *, char *);
-int SigmetRaw_Cmd(const char *);
-int SigmetRaw_SetProj(int, char **);
-char **SigmetRaw_GetProj(void);
-int SigmetRaw_SetInvProj(int, char **);
-char **SigmetRaw_GetInvProj(void);
-void SigmetRaw_SetImgSz(unsigned, unsigned);
-void SigmetRaw_GetImgSz(unsigned *, unsigned *);
-void SigmetRaw_SetImgAlpha(double);
-double SigmetRaw_GetImgAlpha(void);
-int SigmetRaw_SetImgApp(char *);
-char * SigmetRaw_GetImgApp(void);
-
-/* sigmet_raw command callback and access function */
 typedef int (SigmetRaw_Callback)(int , char **, struct Sigmet_Vol *,
 	FILE *, FILE *);
 int SigmetRaw_AddCmd(char *, SigmetRaw_Callback);
