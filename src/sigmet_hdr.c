@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.4 $ $Date: 2011/11/22 18:06:06 $
+   .	$Revision: 1.5 $ $Date: 2011/12/09 18:55:47 $
  */
 
 #include <limits.h>
@@ -65,7 +65,6 @@ int main(int argc, char *argv[])
     char *vol_fl_nm = "-";
     FILE *in;
     int abbrv = 0;		/* If true, give abbreviated output */
-    pid_t chpid;
     struct Sigmet_Vol vol;
 
     if ( !handle_signals() ) {
@@ -103,7 +102,7 @@ int main(int argc, char *argv[])
     if ( strcmp(vol_fl_nm, "-") == 0 ) {
 	in = stdin;
     } else {
-	in = Sigmet_VolOpen(vol_fl_nm, &chpid);
+	in = fopen(vol_fl_nm, "r");
     }
     if ( !in ) {
 	fprintf(stderr, "%s: could not open %s for input\n%s\n",

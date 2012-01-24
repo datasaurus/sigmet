@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.147 $ $Date: 2011/12/09 17:12:20 $
+   .	$Revision: 1.148 $ $Date: 2012/01/20 21:44:44 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -327,88 +327,6 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
 	}
     }
     return 1;
-}
-
-/*
-   Open volume file vol_nm.  If vol_nm suffix indicates a compressed file, open
-   a pipe to a decompression process.  Return a file handle to the file or
-   decompression process, or NULL if failure. If return value is output from a
-   decompression process, put the process id at pid_p. Set *pid_p to 0 if
-   there is no decompression process (i.e. vol_nm is a plain file).
-   Propagate error messages with Err_Append.  Have child send its error messages
-   to i_err.
- */
-
-FILE *Sigmet_VolOpen(char *vol_nm, pid_t *pid_p)
-{
-    int i_in;			/* Descriptor for return value */
-    FILE *in = NULL;		/* Return value */
-    char *argv[4];
-    char *sfx;			/* Filename suffix */
-    pid_t ch_pid = 0;		/* Child process id */
-
-    *pid_p = 0;
-    sfx = strrchr(vol_nm, '.');
-    if ( sfx && strcmp(sfx, ".gz") == 0 ) {
-	/*
-	   If filename ends with ".gz", read from gunzip pipe
-	 */
-
-	argv[0] = "gunzip";
-	argv[1] = "-cq";
-	argv[2] = vol_nm;
-	argv[3] = NULL;
-	if ( (ch_pid = Sigmet_Execvp_Pipe(argv, NULL, &i_in)) == 0 ||
-		!(in = fdopen(i_in, "r")) ) {
-	    Err_Append("Could not set up gzip pipe. ");
-	    Err_Append(strerror(errno));
-	    Err_Append("\n");
-	    goto error;
-	}
-	*pid_p = ch_pid;
-	return in;
-    } else if ( sfx && strcmp(sfx, ".bz2") == 0 ) {
-	/*
-	   If filename ends with ".bz2", read from bunzip2 pipe
-	 */
-
-	argv[0] = "bunzip2";
-	argv[1] = "-cq";
-	argv[2] = vol_nm;
-	argv[3] = NULL;
-	if ( (ch_pid = Sigmet_Execvp_Pipe(argv, NULL, &i_in)) == 0 ||
-		!(in = fdopen(i_in, "r")) ) {
-	    Err_Append("Could not set up gzip pipe. ");
-	    Err_Append(strerror(errno));
-	    Err_Append("\n");
-	    goto error;
-	}
-	*pid_p = ch_pid;
-	return in;
-    } else if ( !(in = fopen(vol_nm, "r")) ) {
-	/*
-	   Uncompressed file
-	 */
-
-	Err_Append("Could not open ");
-	Err_Append(vol_nm);
-	Err_Append(" ");
-	Err_Append(strerror(errno));
-	Err_Append("\n");
-	return NULL;
-    }
-    return in;
-
-error:
-    if ( ch_pid != 0 ) {
-	kill(ch_pid, SIGKILL);
-	waitpid(ch_pid, NULL, WNOHANG);
-	ch_pid = 0;
-    }
-    if ( in ) {
-	fclose(in);
-    }
-    return NULL;
 }
 
 /*

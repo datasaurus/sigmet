@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.1 $ $Date: 2011/02/23 16:03:26 $
+   .	$Revision: 1.2 $ $Date: 2011/11/22 18:03:13 $
  */
 
 #include <stdio.h>
@@ -42,26 +42,31 @@ int main(int argc, char *argv[])
     char *argv0 = argv[0];
     char *vol_fl_nm;		/* Name of Sigmet raw product file */
     FILE *in;
-    int dum, status;
+    int status;
 
+    if ( argc == 2 && strcmp(argv[1], "-v") == 0 ) {
+	printf("%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
+		"All rights reserved.\n", argv[0], SIGMET_VERSION);
+	return EXIT_SUCCESS;
+    }
     if ( argc == 1 ) {
 	status = Sigmet_Vol_Read(stdin, NULL);
     } else if ( argc == 2 ) {
 	vol_fl_nm = argv[1];
-	if ( strcmp(vol_fl_nm, "-v") == 0 ) {
-	    printf("%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
-		    "All rights reserved.\n", argv[0], SIGMET_VERSION);
-	    return EXIT_SUCCESS;
-	}
-	if ( (in = Sigmet_VolOpen(vol_fl_nm, &dum)) ) {
-	    status = Sigmet_Vol_Read(in, NULL);
+	if ( strcmp(vol_fl_nm, "-") == 0 ) {
+	    in = stdin;
 	} else {
+	    in = fopen(vol_fl_nm, "r");
+	}
+	if ( !in ) {
+	    fprintf(stderr, "%s: could not open %s for reading.\n",
+		    argv0, vol_fl_nm);
 	    status = SIGMET_IO_FAIL;
 	}
+	status = Sigmet_Vol_Read(in, NULL);
     } else {
 	fprintf(stderr, "Usage: %s [raw_file]\n", argv0);
 	exit(EXIT_FAILURE);
     }
-
     return ( status == SIGMET_OK ) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

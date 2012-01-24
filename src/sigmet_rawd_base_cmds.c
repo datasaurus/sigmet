@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.3 $ $Date: 2012/01/20 21:42:57 $
+   .	$Revision: 1.4 $ $Date: 2012/01/23 18:03:49 $
  */
 
 #include <limits.h>
@@ -60,11 +60,10 @@
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 27
+#define NCMD 26
 static SigmetRaw_Callback pid_cb;
 static SigmetRaw_Callback data_types_cb;
 static SigmetRaw_Callback new_data_type_cb;
-static SigmetRaw_Callback reload_cb;
 static SigmetRaw_Callback volume_headers_cb;
 static SigmetRaw_Callback vol_hdr_cb;
 static SigmetRaw_Callback near_sweep_cb;
@@ -89,7 +88,7 @@ static SigmetRaw_Callback shift_az_cb;
 static SigmetRaw_Callback outlines_cb;
 static SigmetRaw_Callback dorade_cb;
 static char *cmd1v[NCMD] = {
-    "pid", "data_types", "new_data_type", "reload",
+    "pid", "data_types", "new_data_type",
     "volume_headers", "vol_hdr", "near_sweep", "sweep_headers",
     "ray_headers", "new_field", "del_field", "size", "set_field", "add",
     "sub", "mul", "div", "log10", "incr_time", "data", "bdata",
@@ -97,7 +96,7 @@ static char *cmd1v[NCMD] = {
     "outlines", "dorade"
 };
 static SigmetRaw_Callback *cb1v[NCMD] = {
-    pid_cb, data_types_cb, new_data_type_cb, reload_cb, 
+    pid_cb, data_types_cb, new_data_type_cb, 
     volume_headers_cb, vol_hdr_cb, near_sweep_cb, sweep_headers_cb,
     ray_headers_cb, new_field_cb, del_field_cb, size_cb, set_field_cb, add_cb,
     sub_cb, mul_cb, div_cb, log10_cb, incr_time_cb, data_cb, bdata_cb,
@@ -185,59 +184,6 @@ static int data_types_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     }
 
     return SIGMET_OK;
-}
-
-static int reload_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
-	FILE *out, FILE *err)
-{
-    struct Sigmet_Vol vol;
-    pid_t in_pid;
-    FILE *in;
-    int status;
-
-    if ( vol_p->mod ) {
-	fprintf(err, "Cannot reload volume which has been modified.");
-	return SIGMET_BAD_ARG;
-    }
-    Sigmet_Vol_Init(&vol);
-    in_pid = 0;
-    if ( !(in = Sigmet_VolOpen(vol_p->raw_fl_nm, &in_pid)) ) {
-	fprintf(err, "Could not open %s for input.\n",
-		vol_p->raw_fl_nm);
-	return SIGMET_IO_FAIL;
-    }
-    switch (status = Sigmet_Vol_Read(in, &vol)) {
-	case SIGMET_OK:
-	    break;
-	case SIGMET_IO_FAIL:	/* Possibly truncated volume o.k. */
-	    /*
-	       If Sigmet_Vol_Read at least got headers, proceed.
-	     */
-
-	    if ( vol_p->has_headers ) {
-		Sigmet_Vol_Free(vol_p);
-		*vol_p = vol;
-		status = SIGMET_OK;
-	    }
-	    break;
-	case SIGMET_ALLOC_FAIL:
-	    fprintf(err, "Could not allocate memory while reloading %s. "
-		    "Volume remains as previously loaded.\n", vol_p->raw_fl_nm);
-	    break;
-	case SIGMET_BAD_FILE:
-	    fprintf(err, "Raw product file %s is corrupt. "
-		    "Volume remains as previously loaded.\n", vol_p->raw_fl_nm);
-	    break;
-	case SIGMET_BAD_ARG:
-	    fprintf(err, "Internal failure while reading %s. "
-		    "Volume remains as previously loaded.\n", vol_p->raw_fl_nm);
-	    break;
-    }
-    fclose(in);
-    if (in_pid != 0) {
-	waitpid(in_pid, NULL, 0);
-    }
-    return status;
 }
 
 static int volume_headers_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,

@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.398 $ $Date: 2012/01/23 17:27:47 $
+ .	$Revision: 1.399 $ $Date: 2012/01/23 17:29:13 $
  */
 
 #include <stdlib.h>
@@ -112,7 +112,6 @@ static void *watch_fl(void *);
 
 void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 {
-    pid_t in_pid;		/* Process that provides a volume */
     FILE *in;			/* Stream that provides a volume */
     int status;			/* Result of a function */
     char *sock_nm;		/* Name of socket to communicate with daemon */
@@ -139,8 +138,6 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     int l_errno;		/* Store return from pthread_create */
     size_t sz;
 
-    printf("sigmet_raw loading %s.\n", vol_fl_nm);
-
     /*
        Identify socket and log files
      */
@@ -158,13 +155,16 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 
     Sigmet_DataType_Init();
     Sigmet_Vol_Init(&vol);
-    in_pid = -1;
-    if ( !(in = Sigmet_VolOpen(vol_fl_nm, &in_pid)) ) {
+    if ( strcmp(vol_fl_nm, "-") == 0 ) {
+	in = stdin;
+	vol_fl_nm = "standard input"
+    } else if ( !(in = fopen(vol_fl_nm, "r")) ) {
 	fprintf(stderr, "Could not open %s for input.\n%s\n",
 		vol_fl_nm, Err_Get());
 	xstatus = SIGMET_IO_FAIL;
 	goto error;
     }
+    printf("sigmet_raw loading %s.\n", vol_fl_nm);
     switch (status = Sigmet_Vol_Read(in, &vol)) {
 	case SIGMET_OK:
 	case SIGMET_IO_FAIL:	/* Possibly truncated volume o.k. */
@@ -196,9 +196,6 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	    goto error;
     }
     fclose(in);
-    if (in_pid != -1) {
-	waitpid(in_pid, NULL, 0);
-    }
     have_vol = 1;
     vol.mod = 0;
     sz = strlen(vol_fl_nm) + 1;

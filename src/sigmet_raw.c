@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.83 $ $Date: 2011/11/22 18:06:42 $
+   .	$Revision: 1.84 $ $Date: 2011/11/29 23:56:01 $
  */
 
 #include <limits.h>
@@ -81,11 +81,10 @@ int main(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1;
-    char *vol_fl_nm;		/* Name of Sigmet raw product file */
+    char *vol_fl_nm = "-";	/* Name of Sigmet raw product file */
     char *vol_nm;		/* Name of Sigmet volume, for reference */
     char *sock_nm;		/* Name of socket to communicate with daemon */
     FILE *in;
-    pid_t chpid;
 
     if ( !handle_signals() ) {
 	fprintf(stderr, "%s (%d): could not set up signal management.",
@@ -153,14 +152,21 @@ int main(int argc, char *argv[])
 	 */
 
 	if ( argc == 2 ) {
+	    in = stdin;
 	    return Sigmet_Vol_Read(stdin, NULL);
 	} else if ( argc == 3 ) {
 	    vol_fl_nm = argv[2];
-	    if ( (in = Sigmet_VolOpen(vol_fl_nm, &chpid)) ) {
-		return Sigmet_Vol_Read(in, NULL);
-	    } else {
-		return SIGMET_IO_FAIL;
+	    if ( strcmp(vol_fl_nm, "-") == 0 ) {
+		in = stdin;
+	    } else { 
+		in = fopen(vol_fl_nm, "r");
 	    }
+	    if ( !in ) {
+		fprintf(stderr, "%s: could not open %s for input\n%s\n",
+			argv0, vol_fl_nm, Err_Get());
+		exit(EXIT_FAILURE);
+	    }
+	    return Sigmet_Vol_Read(in, NULL);
 	} else {
 	    fprintf(stderr, "Usage: %s %s [raw_file]\n", argv0, argv1);
 	    exit(EXIT_FAILURE);
@@ -168,7 +174,6 @@ int main(int argc, char *argv[])
     } else {
 	return daemon_task(argc, argv);
     }
-
     return EXIT_SUCCESS;
 }
 
