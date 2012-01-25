@@ -31,7 +31,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.33 $ $Date: 2011/11/22 17:59:51 $
+   .	$Revision: 1.34 $ $Date: 2012/01/20 21:42:20 $
  */
 
 #include <stdlib.h>
@@ -275,17 +275,20 @@ void Sigmet_DataType_Init(void)
 int Sigmet_DataType_GetN(char *a, enum Sigmet_DataTypeN *y_p)
 {
     unsigned i;
+    enum Sigmet_DataTypeN y;
 
     if ( !a ) {
-        return 0;
+	return 0;
     }
     i = hash(a);
     if ( i < N_BUCKETS ) {
-	*y_p = sig_data_type[i];
-	return 1;
-    } else {
-	return 0;
+	y = sig_data_type[i];
+	if ( strcmp(a, abbrv[sig_data_type[i]]) == 0 ) {
+	    *y_p = y;
+	    return 1;
+	}
     }
+    return 0;
 }
 
 enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN y)
