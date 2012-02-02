@@ -31,10 +31,11 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.34 $ $Date: 2012/01/20 21:42:20 $
+   .	$Revision: 1.35 $ $Date: 2012/01/25 16:41:27 $
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <assert.h>
 #include "err_msg.h"
