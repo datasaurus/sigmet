@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.4 $ $Date: 2012/01/23 18:03:49 $
+   .	$Revision: 1.5 $ $Date: 2012/01/24 22:52:59 $
  */
 
 #include <limits.h>
@@ -60,10 +60,9 @@
    subcommand name with a "_cb" suffix.
  */
 
-#define NCMD 26
+#define NCMD 25
 static SigmetRaw_Callback pid_cb;
 static SigmetRaw_Callback data_types_cb;
-static SigmetRaw_Callback new_data_type_cb;
 static SigmetRaw_Callback volume_headers_cb;
 static SigmetRaw_Callback vol_hdr_cb;
 static SigmetRaw_Callback near_sweep_cb;
@@ -88,19 +87,17 @@ static SigmetRaw_Callback shift_az_cb;
 static SigmetRaw_Callback outlines_cb;
 static SigmetRaw_Callback dorade_cb;
 static char *cmd1v[NCMD] = {
-    "pid", "data_types", "new_data_type",
-    "volume_headers", "vol_hdr", "near_sweep", "sweep_headers",
-    "ray_headers", "new_field", "del_field", "size", "set_field", "add",
-    "sub", "mul", "div", "log10", "incr_time", "data", "bdata",
-    "bin_outline", "radar_lon", "radar_lat", "shift_az",
+    "pid", "data_types", "volume_headers", "vol_hdr", "near_sweep",
+    "sweep_headers", "ray_headers", "new_field", "del_field", "size",
+    "set_field", "add", "sub", "mul", "div", "log10", "incr_time",
+    "data", "bdata", "bin_outline", "radar_lon", "radar_lat", "shift_az",
     "outlines", "dorade"
 };
 static SigmetRaw_Callback *cb1v[NCMD] = {
-    pid_cb, data_types_cb, new_data_type_cb, 
-    volume_headers_cb, vol_hdr_cb, near_sweep_cb, sweep_headers_cb,
-    ray_headers_cb, new_field_cb, del_field_cb, size_cb, set_field_cb, add_cb,
-    sub_cb, mul_cb, div_cb, log10_cb, incr_time_cb, data_cb, bdata_cb,
-    bin_outline_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
+    pid_cb, data_types_cb, volume_headers_cb, vol_hdr_cb, near_sweep_cb,
+    sweep_headers_cb, ray_headers_cb, new_field_cb, del_field_cb, size_cb,
+    set_field_cb, add_cb, sub_cb, mul_cb, div_cb, log10_cb, incr_time_cb,
+    data_cb, bdata_cb, bin_outline_cb, radar_lon_cb, radar_lat_cb, shift_az_cb,
     outlines_cb, dorade_cb
 };
 
@@ -130,34 +127,6 @@ static int pid_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	return SIGMET_BAD_ARG;
     }
     fprintf(out, "%d\n", getpid());
-    return SIGMET_OK;
-}
-
-static int new_data_type_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
-	FILE *out, FILE *err)
-{
-    char *argv0 = argv[0];
-    char *argv1 = argv[1];
-    char *name, *desc, *unit;
-
-    if ( argc != 5 ) {
-	fprintf(err, "Usage: %s %s name descriptor unit socket\n",
-		argv0, argv1);
-	return SIGMET_BAD_ARG;
-    }
-    name = argv[2];
-    desc = argv[3];
-    unit = argv[4];
-    switch (DataType_Add(name, desc, unit, DATA_TYPE_FLT, DataType_DblToDbl)) {
-	case DATATYPE_ALLOC_FAIL:
-	    return SIGMET_ALLOC_FAIL;
-	case DATATYPE_INPUT_FAIL:
-	    return SIGMET_IO_FAIL;
-	case DATATYPE_BAD_ARG:
-	    return SIGMET_BAD_ARG;
-	case DATATYPE_SUCCESS:
-	    return SIGMET_OK;
-    }
     return SIGMET_OK;
 }
 
@@ -397,58 +366,111 @@ static int new_field_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
+    int a;
     char *abbrv;			/* Data type abbreviation */
-    char *d_s = NULL;			/* Initial value */
-    double d;
+    char *val_s = NULL;			/* Initial value */
+    double val;
+    char *descr = NULL;			/* Descriptor for new field */
+    char *unit = NULL;			/* Unit for new field */
     int status;				/* Result of a function */
 
-    if ( argc == 3 ) {
-	abbrv = argv[2];
-    } else if ( argc == 4 ) {
-	abbrv = argv[2];
-	d_s = argv[3];
-    } else {
-	fprintf(err, "Usage: %s %s data_type [value] socket\n",
-		argv0, argv1);
+    /*
+       Identify data type from command line. Fail if volume already has
+       this data type.
+     */
+
+    if ( argc < 3 || argc > 9 ) {
+	fprintf(err, "Usage: %s %s data_type [-d description] [-u unit] "
+		"[-v value] socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
-    if ( !DataType_Get(abbrv) ) {
-	fprintf(err, "%s %s: No data type named %s. Please add with the "
-		"new_data_type command.\n", argv0, argv1, abbrv);
-	return SIGMET_BAD_ARG;
+    abbrv = argv[2];
+    if ( DataType_Get(abbrv) ) {
+	fprintf(err, "%s %s: %s field already exists in volume.\n",
+		argv0, argv1, abbrv);
+    }
+
+    /*
+       Obtain optional descriptor, units, and initial value, or use defaults.
+     */
+
+    for (a = 3; a < argc; a++) {
+	if (strcmp(argv[a], "-d") == 0) {
+	    descr = argv[++a];
+	} else if (strcmp(argv[a], "-u") == 0) {
+	    unit = argv[++a];
+	} else if (strcmp(argv[a], "-v") == 0) {
+	    val_s = argv[++a];
+	} else {
+	    fprintf(err, "%s %s: unknown option %s.\n", argv0, argv1, argv[a]);
+	    return SIGMET_BAD_ARG;
+	}
+    }
+    if ( !descr ) {
+	descr = "No description";
+    }
+    if ( !unit ) {
+	unit = "Dimensionless";
+    }
+
+    /*
+       Add the new data type to the DataType data base and to the volume.
+     */
+
+    switch (DataType_Add(abbrv, descr, unit, DATA_TYPE_FLT, DataType_DblToDbl))
+    {
+	case DATATYPE_ALLOC_FAIL:
+	    status = SIGMET_ALLOC_FAIL;
+	case DATATYPE_INPUT_FAIL:
+	    status = SIGMET_IO_FAIL;
+	case DATATYPE_BAD_ARG:
+	    status = SIGMET_BAD_ARG;
+	case DATATYPE_SUCCESS:
+	    status = SIGMET_OK;
+    }
+    if ( status != SIGMET_OK ) {
+	fprintf(err, "%s %s: could not add data type %s to volume\n",
+		argv0, argv1, abbrv);
+	return status;
     }
     if ( (status = Sigmet_Vol_NewField(vol_p, abbrv)) != SIGMET_OK ) {
 	fprintf(err, "%s %s: could not add data type %s to volume\n",
 		argv0, argv1, abbrv);
 	return status;
     }
-    if ( d_s ) {
-	if ( sscanf(d_s, "%lf", &d) == 1 ) {
-	    status = Sigmet_Vol_Fld_SetVal(vol_p, abbrv, d);
+
+    /*
+       If given optional value, initialize new field with it.
+     */
+
+    if ( val_s ) {
+	if ( sscanf(val_s, "%lf", &val) == 1 ) {
+	    status = Sigmet_Vol_Fld_SetVal(vol_p, abbrv, val);
 	    if ( status != SIGMET_OK ) {
 		fprintf(err, "%s %s: could not set %s to %lf in volume\n"
 			"Field is retained in volume but values are garbage.\n",
-			argv0, argv1, abbrv, d);
+			argv0, argv1, abbrv, val);
 		return status;
 	    }
-	} else if ( strcmp(d_s, "r_beam") == 0 ) {
+	} else if ( strcmp(val_s, "r_beam") == 0 ) {
 	    status = Sigmet_Vol_Fld_SetRBeam(vol_p, abbrv);
 	    if ( status != SIGMET_OK ) {
 		fprintf(err, "%s %s: could not set %s to %s in volume\n"
 			"Field is retained in volume but values are garbage.\n",
-			argv0, argv1, abbrv, d_s);
+			argv0, argv1, abbrv, val_s);
 		return status;
 	    }
 	} else {
-	    status = Sigmet_Vol_Fld_Copy(vol_p, abbrv, d_s);
+	    status = Sigmet_Vol_Fld_Copy(vol_p, abbrv, val_s);
 	    if ( status != SIGMET_OK ) {
 		fprintf(err, "%s %s: could not set %s to %s in volume\n"
 			"Field is retained in volume but values are garbage.\n",
-			argv0, argv1, abbrv, d_s);
+			argv0, argv1, abbrv, val_s);
 		return status;
 	    }
 	}
     }
+
     vol_p->mod = 1;
     return SIGMET_OK;
 }
