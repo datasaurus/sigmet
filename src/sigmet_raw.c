@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.84 $ $Date: 2011/11/29 23:56:01 $
+   .	$Revision: 1.85 $ $Date: 2012/01/24 22:52:59 $
  */
 
 #include <limits.h>
@@ -82,7 +82,6 @@ int main(int argc, char *argv[])
     char *argv0 = argv[0];
     char *argv1;
     char *vol_fl_nm = "-";	/* Name of Sigmet raw product file */
-    char *vol_nm;		/* Name of Sigmet volume, for reference */
     char *sock_nm;		/* Name of socket to communicate with daemon */
     FILE *in;
 
@@ -140,12 +139,12 @@ int main(int argc, char *argv[])
 	 */
 
 	if ( argc != 4 ) {
-	    fprintf(stderr, "Usage: %s load raw_file volume_name\n", argv0);
+	    fprintf(stderr, "Usage: %s load raw_file socket_name\n", argv0);
 	    exit(EXIT_FAILURE);
 	}
 	vol_fl_nm = argv[2];
-	vol_nm = argv[3];
-	SigmetRaw_Load(vol_fl_nm, vol_nm);
+	sock_nm = argv[3];
+	SigmetRaw_Load(vol_fl_nm, sock_nm);
     } else if ( strcmp(argv1, "good") == 0 ) {
 	/*
 	   Determine if file given as stdin is navigable Sigmet volume.
