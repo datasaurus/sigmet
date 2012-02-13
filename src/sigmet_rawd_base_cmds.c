@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.5 $ $Date: 2012/01/24 22:52:59 $
+   .	$Revision: 1.6 $ $Date: 2012/02/02 16:50:12 $
  */
 
 #include <limits.h>
@@ -1216,7 +1216,6 @@ static int outlines_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     int s;				/* Sweep index */
     double min, max;			/* Bounds of data interval of interest
 					 */
-    double re;				/* Earth radius */
 
     if ( argc == 7 ) {
 	bnr = 0;
@@ -1274,7 +1273,6 @@ static int outlines_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     }
     switch (vol_p->ih.tc.tni.scan_mode) {
 	case RHI:
-	    re = GeogREarth(NULL) * 4 / 3;
 	    status = Sigmet_Vol_RHI_Outlns(vol_p, abbrv, s, min, max, bnr,
 		    outlnFl);
 	    if ( status != SIGMET_OK ) {

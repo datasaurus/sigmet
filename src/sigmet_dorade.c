@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.43 $ $Date: 2011/11/22 18:02:36 $
+   .	$Revision: 1.44 $ $Date: 2012/02/08 22:05:05 $
  */
 
 #include <string.h>
@@ -243,7 +243,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	    strncpy(parm_p->parameter_name, abbrv, 8);
 	}
 	strncpy(parm_p->param_description, data_type->descr, 40);
-	strncpy(parm_p->param_units, data_type->unit, 40);
+	strncpy(parm_p->param_units, data_type->unit, 8);
 	parm_p->xmitted_freq = round(1.0e-9 * 2.9979e8 / wave_len);
 	parm_p->recvr_bandwidth = 1.0e-3 * vol_p->ih.tc.tci.bandwidth;
 	parm_p->pulse_width

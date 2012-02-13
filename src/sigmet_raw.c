@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.85 $ $Date: 2012/01/24 22:52:59 $
+   .	$Revision: 1.86 $ $Date: 2012/02/02 16:55:37 $
  */
 
 #include <limits.h>
@@ -548,16 +548,13 @@ int handle_signals(void)
 }
 
 /*
-   For exit signals, close fifo's and print an error message if possible.
+   For exit signals, print an error message if possible.
  */
 
 void handler(int signum)
 {
     char *msg;
-    ssize_t dum;
 
-    unlink(out_nm);
-    unlink(err_nm);
     msg = "sigmet_raw command exiting                          \n";
     switch (signum) {
 	case SIGTERM:
@@ -576,6 +573,6 @@ void handler(int signum)
 	    msg = "sigmet_raw command exiting: file size limit exceeded\n";
 	    break;
     }
-    dum = write(STDERR_FILENO, msg, 53);
+    (void)write(STDERR_FILENO, msg, 53);
     _exit(EXIT_FAILURE);
 }

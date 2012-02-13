@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.5 $ $Date: 2011/12/09 18:55:47 $
+   .	$Revision: 1.6 $ $Date: 2012/01/24 22:52:59 $
  */
 
 #include <limits.h>
@@ -286,13 +286,12 @@ int handle_signals(void)
 }
 
 /*
-   For exit signals, close fifo's and print an error message if possible.
+   For exit signals, print an error message if possible.
  */
 
 void handler(int signum)
 {
     char *msg;
-    ssize_t dum;
 
     msg = "sigmet_hdr exiting                          \n";
     switch (signum) {
@@ -312,6 +311,6 @@ void handler(int signum)
 	    msg = "sigmet_hdr exiting: file size limit exceeded\n";
 	    break;
     }
-    dum = write(STDERR_FILENO, msg, 45);
+    (void)write(STDERR_FILENO, msg, 45);
     _exit(EXIT_FAILURE);
 }
