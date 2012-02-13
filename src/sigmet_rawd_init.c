@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.400 $ $Date: 2012/01/24 22:52:59 $
+ .	$Revision: 1.401 $ $Date: 2012/01/24 22:55:34 $
  */
 
 #include <stdlib.h>
@@ -788,19 +788,18 @@ static int handle_signals(void)
 }
 
 /*
-   For exit signals, delete the socket and print an error message.
+   For exit signals, print an error message.
  */
 
 void handler(int signum)
 {
     char *msg;
-    ssize_t dum;
 
     msg = "sigmet_rawd daemon exiting                          \n";
     switch (signum) {
 	case SIGTERM:
 	    msg = "sigmet_rawd daemon exiting on termination signal    \n";
-	    dum = write(STDOUT_FILENO, msg, 53);
+	    (void)write(STDOUT_FILENO, msg, 53);
 	    _exit(EXIT_SUCCESS);
 	case SIGFPE:
 	    msg = "sigmet_rawd daemon exiting arithmetic exception     \n";
@@ -815,6 +814,6 @@ void handler(int signum)
 	    msg = "sigmet_rawd daemon exiting: file size limit exceeded\n";
 	    break;
     }
-    dum = write(STDERR_FILENO, msg, 53);
+    (void)write(STDERR_FILENO, msg, 53);
     _exit(EXIT_FAILURE);
 }
