@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.150 $ $Date: 2012/01/24 22:56:23 $
+   .	$Revision: 1.151 $ $Date: 2012/01/24 23:02:11 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -549,7 +549,6 @@ static int vol_good(FILE *f)
     int sweep_num;			/* Current sweep number (1 is first) */
     int num_sweeps;			/* Number of sweeps in volume */
     unsigned num_rays;			/* Number of rays per sweep */
-    int num_bins;			/* Number of output bins */
     int year, month, day, sec;
     unsigned msec;
     unsigned numWds;			/* Number of words in a run of data */
@@ -596,7 +595,9 @@ static int vol_good(FILE *f)
      */
 
     vol_type_mask = vol.ih.tc.tdi.curr_data_mask.mask_word_0;
-    for (type = 0, num_types_fl = 0, num_types = 0; type < SIGMET_NTYPES; type++) {
+    for (type = 0, num_types_fl = 0, num_types = 0;
+	    type < SIGMET_NTYPES;
+	    type++) {
 	if (vol_type_mask & type_mask_bit[type]) {
 	    if (type == DB_XHDR) {
 		vol.xhdr = 1;
@@ -613,7 +614,6 @@ static int vol_good(FILE *f)
     }
     num_sweeps = vol.ih.tc.tni.num_sweeps;
     num_rays = vol.ih.ic.num_rays;
-    num_bins = vol.ih.tc.tri.num_bins_out;
     s = r = 0;
     yf = 0;
 
@@ -667,7 +667,7 @@ static int vol_good(FILE *f)
 	    year = get_sint16(rec + 30);
 	    month = get_sint16(rec + 32);
 	    day = get_sint16(rec + 34);
-	    if (year == 0 || month == 0 || day == 0) {
+	    if (year == 0 || month == 0 || day == 0 || sec < 0 || msec > 1000) {
 		return SIGMET_BAD_FILE;
 	    }
 	    rec_p = rec + SZ_RAW_PROD_BHDR + num_types_fl * SZ_INGEST_DATA_HDR;
