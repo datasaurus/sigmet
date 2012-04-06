@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.44 $ $Date: 2012/02/08 22:05:05 $
+   .	$Revision: 1.45 $ $Date: 2012/02/13 19:54:14 $
  */
 
 #include <string.h>
@@ -51,8 +51,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     int year, mon, day, hr, min, sec;		/* Sweep time */
     double wave_len;				/* Wavelength from vol_p */
     double prf;					/* PRF from vol_p */
-    int p, r, b, c;				/* Loop parameters */
-    float *dist_cells = NULL;			/* Part of celv */
+    int p, r, c;				/* Loop parameters */
     float *ray_p = NULL;			/* Hold data for a ray */
     float *r_p;					/* Point into ray_p */
     int num_bins = 0;				/* Allocation at ray_p */
@@ -80,7 +79,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     struct Dorade_Sensor *sensor_p;
     struct Dorade_RADD *radd_p;
     struct Dorade_PARM *parm_p;
-    struct Dorade_CELV *celv_p;
+    struct Dorade_CSFD *csfd_p;
     struct Dorade_SWIB *swib_p;
     struct Dorade_Ray_Hdr *ray_hdr_p;
     struct Dorade_RYIB *ryib_p;
@@ -262,32 +261,25 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	parm_p->meters_between_cells = 0.01 * vol_p->ih.tc.tri.step_out;
 	parm_p->eff_unamb_vel = radd_p->eff_unamb_vel;
     }
+
+    /*
+       Populate csfd block. Assume cell geometry for last parameter applies
+       to all (parm_p). Initialize csfd member since dorade_lib arbitrarily
+       initializes celv.
+     */
+
     if ( !parm_p ) {
 	Err_Append("Volume has no parameters. ");
 	status = SIGMET_BAD_VOL;
 	goto error;
     }
-
-    /*
-       Populate celv block. Assume cell geometry for last parameter applies
-       to all (parm_p).
-     */
-
-    sensor_p->cell_geo_t = CELV;
-    celv_p = &sensor_p->cell_geo.celv;
-    Dorade_CELV_Init(celv_p);
-    if ( !(dist_cells = CALLOC(num_cells, sizeof(float))) ) {
-	Err_Append("Could not allocate memory for cell vector. ");
-	return 0;
-    }
-    for (b = 0 ; b < num_cells; b++) {
-	float meters_to_first_cell = parm_p->meters_to_first_cell;
-	float meters_between_cells = parm_p->meters_between_cells;
-
-	dist_cells[b] = meters_to_first_cell + b * meters_between_cells;
-    }
-    celv_p->num_cells = num_cells;
-    celv_p->dist_cells = dist_cells;
+    sensor_p->cell_geo_t = CSFD;
+    csfd_p = &sensor_p->cell_geo.csfd;
+    Dorade_CSFD_Init(csfd_p);
+    csfd_p->num_segments = 1;
+    csfd_p->dist_to_first = parm_p->meters_to_first_cell;
+    csfd_p->spacing[0] = parm_p->meters_between_cells;
+    csfd_p->num_cells[0] = num_cells;
 
     /*
        Sigmet volume does not have "correction factors", so skip CFAC
