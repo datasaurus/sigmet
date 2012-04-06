@@ -26,7 +26,7 @@
 .\"
 .\" Please address questions and feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.32 $ $Date: 2011/03/30 20:28:40 $
+.\" $Revision: 1.33 $ $Date: 2011/11/28 16:58:37 $
 .\"
 .Dd $Mdocdate$
 .Dt SIGMET_RAW 1
@@ -35,8 +35,8 @@
 .Nm sigmet_raw
 .Nd interact with data from Sigmet raw volumes
 .Sh SYNOPSIS
-.Nm sigmet_raw Cm load Ar raw_product_file
-.Nm sigmet_raw Ar command Op options
+.Nm sigmet_raw Cm load Ar raw_product_file Ar socket
+.Nm sigmet_raw Ar command Op options Ar socket
 .Sh DESCRIPTION
 The 
 .Nm sigmet_raw
@@ -45,13 +45,14 @@ Its behavior is determined the the first word after
 .Nm sigmet_raw .
 The following forms are recognized:
 .Bl -ohang
-.It Nm sigmet_raw Cm data_types
+.It Nm sigmet_raw Cm data_types Op socket
 Prints a list of Sigmet data types. At a minimum, this command lists the
-Sigmet data types from the Iris Programmer's Manual. If the current working
-directory contains a socket named
-.Li .sigmet.in ,
-described below, it will list any additional data types known to daemon
-associated with the socket. Output lines will have form:
+Sigmet data types from the Iris Programmer's Manual. With
+.Ar socket ,
+it will also list any additional data types known to a
+.Nm sigmet_raw
+daemon associated with the socket, as described below. Output lines will have
+form:
 .Bd -literal -offset indent
 \fIDB_field\fP | \fIDescription\fP | \fIunit\fP | \fBused\fP
 \fIDB_field2\fP | \fIDescription2\fP | \fIunit\fP | \fBunused\fP
@@ -67,15 +68,19 @@ If the last word is
 unused
 .Qc
 the data type is known but not represented in the volume.
-.It Nm sigmet_raw Cm good Ar raw_file
+.It Nm sigmet_raw Cm good Ar raw_file Op socket
 Returns true if standard input provides a navigable Sigmet raw product.
 The raw product may not contain any useful meta-data or data, and nothing
-is stored. This command only checks volume integrity.
-.It Nm sigmet_raw Cm load Ar raw_file
+is stored. This command only checks volume integrity. If
+.Ar socket
+is given, this command reports on the integrity of the volume belonging to a
+.Nm sigmet_raw
+daemon, described below.
+.It Nm sigmet_raw Cm load Ar raw_file Ar socket
 Starts a daemon that loads a Sigmet raw product from file
 .Ar raw_file .
 The daemon then listens for information and action requests from a socket named
-.Li .sigmet.in
+.Ar socket
 in the current working directory (note the leading dot in the socket name). It
 also writes log messages to local file
 .Li .sigmet.log
@@ -86,70 +91,23 @@ and error messages to
 The following commands act on a daemon launched with a call to
 .Nm sigmet_raw Cm load .
 Current working directory must contain the associated
-.Li .sigmet.in
+.Ar socket
 socket.
 .Pp
 Sweep, ray, and bin indeces start with
 .Li 0 .
 .Bl -ohang
-.It Nm sigmet_raw Cm unload
+.It Nm sigmet_raw Cm unload Ar socket
 Terminates the daemon.  Upon exit, the daemon deletes
-.Li .sigmet.in ,
+.Ar socket
 although
 .Li .sigmet.log
 and
 .Li .sigmet.err
 remain.
-.It Nm sigmet_raw Cm pid
+.It Nm sigmet_raw Cm pid Ar socket
 Prints the process identifier of daemon.
-.It Nm sigmet_raw Cm reload
-Tells the daemon to reload the volume from the file that
-provided it. This command will fail if the volume has been modified, .e.g
-if new fields have been added, or times or azimuths have shifted.
-.It Xo
-.Nm sigmet_raw Cm new_data_type Ar name Ar descriptor Ar unit
-.Xc
-Defines a new data type named
-.Ar name ,
-with long description
-.Ar descriptor
-and unit
-.Ar unit .
-.Ar descriptor
-and
-.Ar unit
-are required, although they could be
-.Li Qo Qc .
-Upon return,
-.Ar name
-can be used in subseqent
-.Nm sigmet_raw
-calls that require a data type, such as
-.Nm new_field
-and
-.Nm colors .
-.It Nm sigmet_raw Cm colors Ar data_type Ar file
-Assigns a color table to
-.Ar data_type .
-.Ar data_type
-must be a native Sigmet type or must have been defined with a call to
-.Nm sigmet_raw Cm new_data_type .
-The color table is defined in file
-.Ar file ,
-which must have the following format:
-.Bd -filled
-    \fBraster\fP \fInum_colors\fP
-    \fIbounds[0]\fP \fIcolors[0]\fP
-    \fIbounds[1]\fP \fIcolors[1]\fP
-    ...
-    \fIbounds[num_colors-1]\fP \fIcolors[num_colors-1]\fP
-    \fIbounds[num_colors]\fP
-
-.Ed
-In subsequent displays,
-values for which
-bounds[i]\ \*(<=\ value\ \&<\ bounds[i+1] will be displayed with color colors[i].
-.It Nm sigmet_raw Cm volume_headers
+.It Nm sigmet_raw Cm volume_headers Ar socket
 Prints volume headers.  Values are those obtained from product header and ingest
 data header of the raw file.  Ray headers and data are not printed.  Output lines
 have form:
@@ -173,7 +131,7 @@ read on a screen. For a more readable list, filter with something like:
 .Ed
 Be aware that the same member might reside in several structure
 hierarchies. See the IRIS Programmer's Manual for details.
-.It Nm sigmet_raw Cm vol_hdr
+.It Nm sigmet_raw Cm vol_hdr Ar socket
 Prints commonly used volume headers. Output will look like:
 .Bd -filled
     \fBsite_name\fP="\fIsite_name_from_setup\fP"
@@ -188,35 +146,45 @@ Prints commonly used volume headers. Output will look like:
     \fBbin_step\fP=\fIinteger_cm\fP
 
 .Ed
-.It Nm sigmet_raw Cm near_sweep Ar angle
+.It Nm sigmet_raw Cm near_sweep Ar angle Ar socket
 Prints the index (base zero) of the sweep with sweep angle nearest
 .Ar angle
 degrees.
-.It Nm sigmet_raw Cm sweep_headers
+.It Nm sigmet_raw Cm sweep_headers Ar socket
 Lists times and angle for each sweep, as reported by the sweep headers in the
 volume. For each sweep, this command prints a line of form:
 .Bd -filled
-    \fBsweep\fP \fIindex\fP \fIYYYY\fP\fB/\fP\fIMM\fP\fB/\fP\fIDD\fP \fIHH\fP\fB:\fP\fIMM\fP\fB:\fP\fISS.SSS\fP   \fIangle\fP
+    \fBsweep\fP \fIindex\fP \fIYYYY\fP\fB/\fP\fIMM\fP\fB/\fP\fIDD\fP \fIHH\fP\fB:\fP\fIMM\fP\fB:\fP\fISS\fP   \fIangle\fP
 .Ed
-.It Nm sigmet_raw Cm ray_headers
+Unusable sweep time is printed as:
+\fI0000\fP\fB/\fP\fI00\fP\fB/\fP\fI00\fP \fI00\fP\fB:\fP\fI00\fP\fB:\fP\fI00\fP
+.It Nm sigmet_raw Cm ray_headers Ar socket
 Prints ray times and begining and ending azimuths and tilts for all rays
 in the volume. For each ray, this command prints a line of form:
 .Bd -filled
     \fBsweep\fP\ \fIindex\fP\ \fBray\fP\ \fIindex\fP\ |\ \fIYYYY\fP/\fIMM\fP/\fIDD\fP\ \fIHH\fP:\fIMM\fP:\fISS.SSS\fP\ |\ \fBaz\fP\ \fIstart\fP\ \fIend\fP\ |\ \fBtilt\fP\ \fIstart\fP\ \fIend\fP
 .Ed
-.It Nm sigmet_raw Cm new_field Ar data_type Op value
+.It
+.Xo
+.Nm sigmet_raw
+.Cm new_field
+.Ar data_type
+.Op Fl v Ar value
+.Op Fl d Ar description
+.Op Fl v Ar unit
+.Ar socket
+.Xc
 Adds a field named
 .Ar data_type
 to the volume.
-.Ar data_type
-must have been defined with a call to
-.Nm sigmet_raw Cm new_data_type .
-If no
+Optional
+.Ar description
+describes the new field.
+Optional
+.Ar unit
+provides a unit. This is not implicitly used in any calculation. If no
 .Ar value
-is given, all bins are set to
-.Li 0
-in the new field.
-If present,
+is given, all bins are set to an unusable value in the new field.  If present,
 .Ar value
 is interpreted as follows:
 .Bl -ohang -offset indent
@@ -230,11 +198,11 @@ Values from field
 .Ar data_type ,
 which must already exist in the volume, are copied to the new field.
 .El
-.It Nm sigmet_raw Cm del_field Ar data_type
+.It Nm sigmet_raw Cm del_field Ar data_type Ar socket
 Removes the specified field from the volume.
-.It Nm sigmet_raw Cm size
+.It Nm sigmet_raw Cm size Ar socket
 Prints the amount of memory the volume is using for headers and data.
-.It Nm sigmet_raw Cm set_field Ar data_type Ar value
+.It Nm sigmet_raw Cm set_field Ar data_type Ar value Ar socket
 Assigns a value to a field.
 .Ar value
 must be one of
@@ -249,7 +217,7 @@ Values from field
 .Ar data_type2 ,
 which must already exist in the volume, are copied to the new field.
 .El
-.It Nm sigmet_raw Cm add Ar data_type Ar value
+.It Nm sigmet_raw Cm add Ar data_type Ar value Ar socket
 Adds a value or values to the field of
 .Ar data_type .
 The sums replace the original bin values for
@@ -272,7 +240,7 @@ value. A field of
 .Ar data_type2
 must already exist in the volume.
 .El
-.It Nm sigmet_raw Cm sub Ar data_type Ar value
+.It Nm sigmet_raw Cm sub Ar data_type Ar value Ar socket
 Subtracts a value or values from the field of
 .Ar data_type .
 The differences replace the original bin values for
@@ -295,7 +263,7 @@ value. A field of
 .Ar data_type2
 must already exist in the volume.
 .El
-.It Nm sigmet_raw Cm mul Ar data_type Ar value
+.It Nm sigmet_raw Cm mul Ar data_type Ar value Ar socket
 Multiplies the field of
 .Ar data_type
 by a value or values. The products replace the original bin values for
@@ -316,7 +284,7 @@ field. A field of
 .Ar data_type2
 must already exist in the volume.
 .El
-.It Nm sigmet_raw Cm div Ar data_type Ar value
+.It Nm sigmet_raw Cm div Ar data_type Ar value Ar socket
 Divides the field of
 .Ar data_type
 by a value or values. The quotients replace the original bin values for
@@ -337,21 +305,21 @@ field. A field of
 .Ar data_type2
 must already exist in the volume.
 .El
-.It Nm sigmet_raw Cm log10 Ar data_type
+.It Nm sigmet_raw Cm log10 Ar data_type Ar socket
 In each bin, replaces the
 .Ar data_type
 value with its common logarithm.
-.It Nm sigmet_raw Cm incr_time
+.It Nm sigmet_raw Cm incr_time Ar socket
 Adds
 .Ar dt
 seconds to all times in the volume, sweep, and ray headers.
-.It Nm sigmet_raw Cm data
+.It Nm sigmet_raw Cm data Ar socket
 Prints all bin values for the volume to standard output as text.
-.It Nm sigmet_raw Cm data Ar data_type
+.It Nm sigmet_raw Cm data Ar data_type Ar socket
 Prints all bin values for
 .Ar data_type
 to standard output as text.
-.It Nm sigmet_raw Cm data Ar data_type Ar s
+.It Nm sigmet_raw Cm data Ar data_type Ar s Ar socket
 Prints all bin values for sweep
 .Ar s ,
 field
@@ -362,6 +330,7 @@ to standard output as text.
 .Ar data_type
 .Ar s
 .Ar r
+.Ar socket
 .Xc
 Prints all bin values for ray
 .Ar r ,
@@ -376,6 +345,7 @@ to standard output as text.
 .Ar s
 .Ar r
 .Ar b
+.Ar socket
 .Xc
 Prints the value of bin
 .Ar b ,
@@ -386,7 +356,7 @@ sweep
 field
 .Ar data_type
 to standard output as text.
-.It Nm sigmet_raw Cm bdata Ar data_type Ar s
+.It Nm sigmet_raw Cm bdata Ar data_type Ar s Ar socket
 Prints data for field
 .Ar data_type ,
 sweep index
@@ -398,7 +368,7 @@ by
 See
 .Xr sigmet_data 3 .
 .It Xo
-.Nm sigmet_raw Cm bin_outline Ar s Ar r Ar b
+.Nm sigmet_raw Cm bin_outline Ar s Ar r Ar b Ar socket
 .Xc
 Prints the longitudes and latitudes, in degrees, of the corners of sweep
 .Ar s ,
@@ -410,89 +380,19 @@ Output will be of form:
 .Bd -filled -offset indent
 \fIlat1 lon2 lat2 lon3 lat3 lon4 lat4\fP
 .Ed
-.It Nm sigmet_raw Cm radar_lon Ar lon
+.It Nm sigmet_raw Cm radar_lon Ar lon Ar socket
 Sets the radar longitude to
 .Ar lon
 degrees.
-.It Nm sigmet_raw Cm radar_lat Ar lat
+.It Nm sigmet_raw Cm radar_lat Ar lat Ar socket
 Sets the radar latitude to
 .Ar lat
 degrees.
-.It Nm sigmet_raw Cm shift_az
+.It Nm sigmet_raw Cm shift_az Ar socket
 Adds
 .Ar daz
 degrees to all azimuths in the volume.
-.It Nm sigmet_raw Cm set_proj Ar command Op args
-Determines how latitudes and longitudes will be converted to map coordinates.
-.Ar command
-must specify a command that reads longitude-latitude pairs from its standard
-input and writes the corresponding abscissa-ordinate pairs to its standard
-output. Values will be written and read as native doubles. The daemon will run
-this command as a child process when it needs to convert coordinates.
-.It Nm sigmet_raw Cm get_proj
-Prints the command used to convert latitudes and longitudes to map coordinates.
-.It Nm sigmet_raw Cm img_app Ar command
-Identifies the application used to generate sweep images.
-.Ar command
-must specify a unix command that will read image information from its standard
-input and produce an image file. The command must take one argument, the base
-name of the image file. The image application should add a suffix, e.g.
-.Li .png ,
-to the base name, if appropriate. Its input is described in the documentation
-for the
-.Fn Sigmet_Vol_Img_PPI
-function. See
-.Xr sigmet_vol 3 .
-.It Nm sigmet_raw Cm img_sz Op width Op height
-Gets or set the image size. Without arguments, this command prints image width
-and height in pixels. If only
-.Ar width
-is specified, images will be square with edge
-.Ar width
-pixels.
-If optional
-.Ar height
-is given, images will be rectangles
-.Ar width
-pixels wide and
-.Ar height
-pixels high.
-.It Nm sigmet_raw Cm alpha
-Specifies the alpha channel for images. An
-.Ar alpha
-value of
-.Li 0.0
-means the image will be completely transparent. An
-.Ar alpha
-value of
-.Li 1.0
-means the image will be completely opaque.
-.It Xo
-.Nm sigmet_raw Cm img Ar data_type Ar s Ar base_name
-.Xc
-Creates an image for field
-.Ar data_type
-and sweep
-.Ar s
-in the volume. The image file will be named
-.Ar base_name
-plus whatever suffix the image application adds.
-The image application must already be set with a call to
-.Nm sigmet_raw
-.Cm img_app .
-Image dimensions and alpha channel may be set with calls to
-.Nm sigmet_raw
-.Cm img_sz
-and
-.Nm sigmet_raw
-.Cm img_alpha ,
-or defaults will be used. This command will also create a kml (Keyhole Markup
-Language) file named
-.Ar basename
-with suffix
-.Li .kml .
-The kml file can help position the image on geographic displays.
-.It Nm sigmet_raw Cm dorade Op s
+.It Nm sigmet_raw Cm dorade Op s Ar socket
 Creates DORADE sweep files. If
 .Ar s
 is absent or
