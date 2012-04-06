@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.401 $ $Date: 2012/01/24 22:55:34 $
+ .	$Revision: 1.402 $ $Date: 2012/02/13 19:44:09 $
  */
 
 #include <stdlib.h>
@@ -164,7 +164,6 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	xstatus = SIGMET_IO_FAIL;
 	goto error;
     }
-    printf("sigmet_raw loading %s.\n", vol_fl_nm);
     switch (status = Sigmet_Vol_Read(in, &vol)) {
 	case SIGMET_OK:
 	case SIGMET_IO_FAIL:	/* Possibly truncated volume o.k. */
@@ -266,8 +265,6 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	exit(SIGMET_IO_FAIL);
     }
     sprintf(err_nm, "%s%s", vol_nm, ".err");
-    printf("Starting daemon, listening to %s\n"
-	    "Logging to %s and %s\n", sock_nm, log_nm, err_nm);
 
     /*
        Go to background.
@@ -326,10 +323,6 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	goto error;
     }
     fclose(stdin);
-
-    printf("%s: sigmet_rawd daemon starting.\nVersion %s\n"
-	    "Process id = %d.\nSocket = %s\n", time_stamp(), SIGMET_VERSION,
-	    getpid(), sa.sun_path);
 
     /*
        Start a thread to watch the socket
@@ -547,7 +540,6 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 
     unlink(sock_nm);
     FREE(cmd_ln);
-    printf("%s: exiting.\n", time_stamp());
     exit(xstatus);
 
 error:
