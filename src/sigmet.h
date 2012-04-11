@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.99 $ $Date: 2012/02/08 22:09:09 $
+   .	$Revision: 1.100 $ $Date: 2012/04/06 21:08:29 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -577,7 +577,7 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *, char *, int, double,
 	double, int, FILE *);
 int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *, char *, int, double,
-	double, int, FILE *);
+	double, int, int, FILE *);
 int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *, char *, float);
