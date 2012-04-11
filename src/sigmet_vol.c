@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.151 $ $Date: 2012/01/24 23:02:11 $
+   .	$Revision: 1.152 $ $Date: 2012/02/13 19:36:37 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2720,12 +2720,14 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
    For volume vol_p, data type abbrv, sweep s, print to stream out the
    coordinates of bins with data value d such that min <= d < max. If bnr
    is false, print formatted output. If bnr is true, send raw, double
-   precision output. For RHI, abscissa coordinate is distance along ground
+   precision output. If fill is true, draw beam outline half way to previous
+   and next rays, so there are no gaps.
+   For RHI, abscissa coordinate is distance along ground
    from radar. Ordinate is height above ground level.
  */
 
 int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
-	double min, double max, int bnr, FILE *out)
+	double min, double max, int bnr, int fill, FILE *out)
 {
     int status;				/* Result of a function */
     struct DataType *data_type;		/* Information about the data type */
@@ -2738,8 +2740,14 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     double step_out;			/* Bin size, meters */
     double r0, r1;			/* Distance to start and stop of a bin,
 					   meters */
-    double tilt0, tilt1;		/* Tilt angle at edges of ray,
-					   radians */
+    double tilt0, tilt1, tilt;		/* Start, end, and middle of currrent
+					   tilt */
+    double tilt0_prev, tilt1_prev,
+	   tilt_prev;			/* Start, end, and middle of previous
+					   tilt */
+    double tilt0_next, tilt1_next,
+	   tilt_next;			/* Start, end, and middle of next
+					   tilt */
     double abs, ord;			/* Abscissa, ordinate of a point */
     double cnr[8];			/* Longitude latitude values for the
 					   four corners of the bin */
@@ -2819,8 +2827,31 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 
 		    r0 = rng_1st_bin + b * step_out;
 		    r1 = r0 + step_out;
-		    tilt0 = vol_p->ray_tilt0[s][r];
-		    tilt1 = vol_p->ray_tilt1[s][r];
+
+		    if ( fill ) {
+			tilt0 = vol_p->ray_tilt0[s][r];
+			tilt1 = vol_p->ray_tilt1[s][r];
+			tilt = 0.5 * (tilt0 + tilt1);
+			if ( r == 0 ) {
+			    tilt0 = vol_p->ray_tilt0[s][r];
+			} else {
+			    tilt0_prev = vol_p->ray_tilt0[s][r - 1];
+			    tilt1_prev = vol_p->ray_tilt1[s][r - 1];
+			    tilt_prev = 0.5 * (tilt0_prev + tilt1_prev);
+			    tilt0 = 0.5 * (tilt + tilt_prev);
+			}
+			if ( r == vol_p->ih.ic.num_rays - 1 ) {
+			    tilt1 = vol_p->ray_tilt1[s][r];
+			} else {
+			    tilt0_next = vol_p->ray_tilt0[s][r + 1];
+			    tilt1_next = vol_p->ray_tilt1[s][r + 1];
+			    tilt_next = 0.5 * (tilt0_next + tilt1_next);
+			    tilt1 = 0.5 * (tilt + tilt_next);
+			}
+		    } else {
+			tilt0 = vol_p->ray_tilt0[s][r];
+			tilt1 = vol_p->ray_tilt1[s][r];
+		    }
 
 		    /*
 		       Make sure polygon is right handed.
