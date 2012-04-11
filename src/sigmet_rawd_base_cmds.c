@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.6 $ $Date: 2012/02/02 16:50:12 $
+   .	$Revision: 1.7 $ $Date: 2012/02/13 19:54:14 $
  */
 
 #include <limits.h>
@@ -1206,36 +1206,46 @@ static int outlines_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     char *argv1 = argv[1];
     int status = SIGMET_OK;		/* Return value of this function */
     int bnr;				/* If true, send raw binary output */
+    int fill;				/* If true, fill space between rays */
     char *s_s;				/* Sweep index, as a string */
     char *abbrv;			/* Data type abbreviation */
     char *min_s, *max_s;		/* Bounds of data interval of interest
 					 */
-    char *outFlNm;			/* Name of output file */
+    char *outlnFlNm;			/* Name of output file */
     FILE *outlnFl;			/* Output file */
     struct DataType *data_type;		/* Information about the data type */
     int s;				/* Sweep index */
     double min, max;			/* Bounds of data interval of interest
 					 */
+    int c;				/* Return value from getopt */
+    extern char *optarg;
+    extern int opterr, optind, optopt;	/* See getopt (3) */
 
-    if ( argc == 7 ) {
-	bnr = 0;
-	abbrv = argv[2];
-	s_s = argv[3];
-	min_s = argv[4];
-	max_s = argv[5];
-	outFlNm = argv[6];
-    } else if ( argc == 8 && strcmp(argv[2], "-b") == 0 ) {
-	bnr = 1;
-	abbrv = argv[3];
-	s_s = argv[4];
-	min_s = argv[5];
-	max_s = argv[6];
-	outFlNm = argv[7];
-    } else {
-	fprintf(err, "Usage: %s %s [-b] data_type sweep min max "
+    if ( argc < 7 ) {
+	fprintf(err, "Usage: %s %s [-f] [-b] data_type sweep min max "
 		"out_file socket\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
     }
+    for (bnr = fill = 0, opterr = 0, optind = 1;
+	    (c = getopt(argc - 1, argv + 1, "bf")) != -1; ) {
+	switch(c) {
+	    case 'b':
+		bnr = 1;
+		break;
+	    case 'f':
+		fill = 1;
+		break;
+	    case '?':
+		fprintf(err, "%s %s: unknown option \"-%c\"\n",
+			argv0, argv1, optopt);
+		return SIGMET_BAD_ARG;
+	}
+    }
+    abbrv = argv[argc - 5];
+    s_s = argv[argc - 4];
+    min_s = argv[argc - 3];
+    max_s = argv[argc - 2];
+    outlnFlNm = argv[argc - 1];
     if ( !(data_type = DataType_Get(abbrv)) ) {
 	fprintf(err, "%s %s: no data type named %s\n",
 		argv0, argv1, abbrv);
@@ -1265,16 +1275,16 @@ static int outlines_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 		argv0, argv1, min_s, max_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( strcmp(outFlNm, "-") == 0 ) {
+    if ( strcmp(outlnFlNm, "-") == 0 ) {
 	outlnFl = out;
-    } else if ( !(outlnFl = fopen(outFlNm, "w")) ) {
+    } else if ( !(outlnFl = fopen(outlnFlNm, "w")) ) {
 	fprintf(err, "%s %s: could not open %s for output.\n%s\n",
-		argv0, argv1, outFlNm, strerror(errno));
+		argv0, argv1, outlnFlNm, strerror(errno));
     }
     switch (vol_p->ih.tc.tni.scan_mode) {
 	case RHI:
 	    status = Sigmet_Vol_RHI_Outlns(vol_p, abbrv, s, min, max, bnr,
-		    outlnFl);
+		    fill, outlnFl);
 	    if ( status != SIGMET_OK ) {
 		fprintf(err, "%s %s: could not print outlines for "
 			"data type %s, sweep %d.\n", argv0, argv1, abbrv, s);
