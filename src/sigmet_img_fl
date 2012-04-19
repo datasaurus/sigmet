@@ -1,0 +1,195 @@
+#!/bin/sh
+#
+# sigmet_img_fl --
+#	Create an image for a sweep.
+# Usage:
+#	sigmet_img_fl img_type data_types sweep_angles raw_fl
+# where:
+#	img_type		- "svg", "ps", or "png"
+#	data_types		- list of desired data types (e.g. DB_DBZ,
+#				  DB_ZDR). If a data type is not in the volume,
+#				  script will quietly skip it.
+#	sweep_angles		- list of desired sweep angles, in degrees.
+#				  For each angle, script will generate an image
+#				  for the sweep whose sweep angle is closest to
+#				  the given angle.  Number of sweeps may be less
+#				  then the number of values in sweep_angles.
+#	raw_fl			- path to a Sigmet raw product volume.
+#
+# Environment variables:
+#	SIGMET_CORRECTIONS	- file with corrections for the volume. Must
+#				  be in format intelligible to sigmet_correct.
+#	SIGMET_SVG_PNG		- required for ppi sweeps. This variable stores
+#				  a command that reads svg from its standard
+#				  input and writes a png file to standard
+#				  output. Defaults to "svg2png - -"
+#				  svg2png is part of cairo, get from local
+#				  software manager or
+#				  http://cairographics.org/snapshots/ .
+#
+# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+
+# Arrange to clean up on exit.
+trap 'sigmet_cleanup "$sock"' EXIT TERM KILL QUIT INT HUP
+
+# Parse command line
+if [ $# -ne 4 ]
+then
+    echo Usage: $0 image_type data_types sweep_angles raw_fl 1>&2
+    exit 1
+fi
+img_type=$1
+data_types=$2
+sweep_angles=$3
+raw_fl="$4"
+base_nm=`basename "$raw_fl" | sed -e 's/\.gz//' -e 's/\.bz2//'`
+
+if [ "$img_type" != "svg" -a "$img_type" != "ps" -a $img_type != "png" ]
+then
+    printf "$0: unknown image type: $img_type. " 1>&2
+    printf "Image type must be \"svg\" or \"ps\" or \"png\".\n" 1>&2
+    exit 1
+fi
+
+# KML format, for ppi scans
+kml_tmpl='<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <GroundOverlay>
+    <name>%s</name>
+    <description>%s</description>
+    <LatLonBox>
+      <north>%.5f</north>
+      <south>%.5f</south>
+      <west>%.5f</west>
+      <east>%.5f</east>
+    </LatLonBox>
+    <Icon>%s</Icon>
+  </GroundOverlay>
+</kml>'
+
+# Load volume, if necessary.
+sock=`echo $raw_fl | sed -e 's!.*/!!' -e 's/\.gz$//' -e 's/\.bz2$//'`
+if ! test -S $sock
+then
+    if echo $raw_fl | grep -q '\.gz$'
+    then
+	gunzip -c $raw_fl | sigmet_raw load - $sock || exit 1
+    elif echo $raw_fl | grep -q '\.bz2$'
+    then
+	bzcat -c $raw_fl | sigmet_raw load - $sock || exit 1
+    else
+	sigmet_raw load $raw_fl $sock || exit 1
+    fi
+    if test $SIGMET_CORRECTIONS
+    then
+	sigmet_correct $SIGMET_CORRECTIONS $sock || exit 1
+    fi
+fi
+
+# Determine scan mode
+eval `sigmet_raw vol_hdr "$sock" | grep 'scan_mode'`
+case "$scan_mode" in
+    ppi*)
+	scan_mode="ppi"
+	;;
+    rhi)
+	scan_mode="rhi"
+	;;
+    *)
+	echo "Unknown scan mode \"$scan_mode\"" 1>&2
+	exit 1
+	;;
+esac
+
+# Create images
+for data_type in $data_types
+do
+    for a in $sweep_angles
+    do
+
+	# Identify sweep index s nearest desired angle a.
+	# a1 will contain actual angle for sweep s.
+	s=`sigmet_raw near_sweep $a "$sock"`
+	if ! test $s
+	then
+	    echo "Could not determine sweep index" 1>&2
+	    exit 1
+	fi
+	eval `sigmet_raw sweep_headers "$sock" | awk '
+	    /sweep +'$s' / {
+		printf "tm=\"%s %s\"\na1=%f\n", $3, $4, $5
+	    }'`
+
+	# Create image file
+	img_nm=`printf '%s_%s_%05.1f.%s' $base_nm $data_type $a1 $img_type`
+	if test -f "$img_nm"
+	then
+	    continue
+	fi
+	case $img_type in
+	    "svg")
+		{
+		    # Replace element start tag with document preamble.
+		    printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+		    printf '<!DOCTYPE svg'
+		    printf ' PUBLIC "-//W3C//DTD SVG 1.1//EN"\n    '
+		    printf '"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"'
+		    printf '>\n'
+		    printf '<svg\n'
+		    printf '  xmlns="http://www.w3.org/2000/svg"\n'
+		    printf '  xmlns:xlink="http://www.w3.org/1999/xlink"\n'
+		    sigmet_img svg $data_type $s "$sock" | grep -v '^<svg'
+		} > $img_nm
+		;;
+	    "ps")
+		sigmet_img ps $data_type $s "$sock" > $img_nm
+		;;
+	    "png")
+		svg2png=${SIGMET_SVG_PNG:-"svg2png - -"}
+		sigmet_img svg $data_type $s "$sock" | $svg2png > $img_nm
+		;;
+	esac
+
+	# If ppi, create kml
+	if [ $scan_mode = "ppi" ]
+	then
+	    eval `sigmet_ppi_bnds $s "$proj" "$sock"`
+	    kml_nm=`printf '%s_%s_%05.1f.kml' $base_nm $data_type $a1`
+	    if ! test -f $kml_nm
+	    then
+		site=`sigmet_raw volume_headers "$sock" \
+		     | awk -F \| '/su_site_name/ {print $1}'`
+		name="`printf '%s sweep' $site`"
+		descr="`printf "%s at %s %s Field: %s %04.1f degrees" \
+			$site $tm $data_type $a1`"
+		printf "$kml_tmpl" "$name" "$descr" $north $south $west $east \
+			$img_nm > $kml_nm
+	    fi
+	fi
+    done
+done
+exit 0

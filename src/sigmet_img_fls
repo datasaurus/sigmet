@@ -1,0 +1,132 @@
+#!/bin/sh
+#
+# sigmet_img_fls --
+#	This driver runs multiple instances of a sigmet_img_fl
+#	This script reads paths to volumes from its standard input and
+#	passes them to sigmet_img_fl
+#
+# Usage:
+#	echo raw_fl raw_fl ... \
+#	        | sigmet_img_fl image_type data_types sweep_angles
+#
+# Optional environment variables:
+#	SIGMET_SEM_NPROC	- number of background processes.
+#	SIGMET_SEM_MEM_SZ	- memory limit for background processes.
+#				  If these environment variables are set,
+#				  they will limit the number of instances
+#				  of sigmet_image_prog. When an instance
+#				  of sigmet_image_prog exits, it should
+#				  post back to the relevent semaphores
+#				  with calls to clsem, which should be
+#				  in the current path.
+#
+# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+
+# Clean up on exit
+cleanup() {
+    clsem -d $SIGMET_SEM_PROC 2> /dev/null
+    clsem -d $SIGMET_SEM_MEM 2> /dev/null
+}
+trap " cleanup; " EXIT
+trap " echo $0 exiting on TERM signal;exit 1; " TERM
+trap " echo $0 exiting on KILL signal;exit 1; " KILL
+trap " echo $0 exiting on QUIT signal;exit 1; " QUIT
+trap " echo $0 exiting on INT signal;exit 1; " INT
+trap " echo $0 exiting on HUP signal;exit 1; " HUP
+
+if [ $# -ne 3 ]
+then
+    echo 'Usage: echo raw_fl raw_fl ... | $0 image_type data_types sweep_angles'
+    exit 1
+fi
+img_type=$1
+shift
+data_types=$1
+shift
+sweep_angles=$1
+shift
+
+# Use command line semaphore facility to regulate background processes
+SIGMET_SEM_PROC=`clsem -c`
+export SIGMET_SEM_PROC
+if ! test $SIGMET_SEM_PROC
+then
+    echo Could not create proc semaphore
+    exit 1
+fi
+clsem ${SIGMET_SEM_NPROC:-"4"} $SIGMET_SEM_PROC || exit 1
+SIGMET_SEM_MEM=`clsem -c`
+export SIGMET_SEM_MEM
+if ! test $SIGMET_SEM_MEM
+then
+    echo Could not create memory semaphore
+    exit 1
+fi
+clsem ${SIGMET_SEM_MEM_SZ:-"600"} $SIGMET_SEM_MEM || exit 1
+
+while read raw_fl
+do
+    raw_fl_id=`basename $raw_fl`
+    echo Processing $raw_fl
+    echo Processing $raw_fl > ${raw_fl_id}.out
+    printf '%s ' "Waiting for process slot..."
+    clsem -1 $SIGMET_SEM_PROC
+    printf '%s\n' " ok"
+    if echo $raw_fl | grep -q '\.gz$'
+    then
+	sz_b=`gunzip -c $raw_fl | sigmet_hdr -a - | sigmet_sizex.awk` 
+    elif echo $raw_fl | grep -q '\.bz2$'
+    then
+	bzcat -c $raw_fl | sigmet_raw load - $sock
+	sz_b=`bzcat $raw_fl | sigmet_hdr -a - | sigmet_sizex.awk` 
+    else
+	sz_b=`sigmet_hdr -a $raw_fl | sigmet_sizex.awk` 
+    fi
+    if ! test $sz_b || [ $sz_b -eq 1 ]
+    then
+	echo Could not determine volume size for $raw_fl
+	clsem 1 $SIGMET_SEM_PROC
+	continue
+    fi
+    SIGMET_RAW_VOL_SZ=`echo 1 + $sz_b / 1024.0 / 1024.0 | bc`
+    export SIGMET_RAW_VOL_SZ
+    printf '%s ' "Waiting for memory..."
+    clsem -$SIGMET_RAW_VOL_SZ $SIGMET_SEM_MEM
+    printf '%s\n' " ok"
+
+    # Create images in a directory named for the volume
+    dir=`echo $raw_fl | sed -e 's!.*/!!' -e 's/\.gz$//' -e 's/\.bz2$//'`
+    mkdir -p $dir
+    (
+	cd $dir
+	sigmet_img_fl $img_type "$data_types" "$sweep_angles" $raw_fl \
+		>> ${raw_fl_id}.out 2>&1 &
+    )
+done
+wait
+
+# Exit. Will call cleanup function defined above.
