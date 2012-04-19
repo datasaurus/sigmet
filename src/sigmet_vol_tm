@@ -1,0 +1,76 @@
+#!/bin/sh
+#
+# This script reads input lines of form:
+#
+#	SiteYYMMDDHHMMSS
+#
+# where:
+#	Site = a radar name, with any number of leters
+#	YY   = year
+#	MM   = month
+#	DD   = day
+#	HH   = hour
+#	MM   = minute
+#	SS   = second
+#
+# It prints each input line to standard output prefixed with epoch time and
+# clock time of given date-time.  If DTZ exists, clock time is printed with
+# a time zone adjustment of DTZ hours.
+#
+# tm_calc should be in the current path.
+#
+# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+
+# Start of epoch
+jul0=`tm_calc caltojul 1970 1 1 0 0 0`
+
+# Scan the year, compute epoch time, and print.
+# Note: this assumes year is y2k stupid (way to go, Sigmet) 
+# so prefix year with "20"
+
+sed -e 's/^\(\(.*\)'\
+'\([0-9][0-9]\)\([0-9][0-9]\)'\
+'\([0-9][0-9]\)\([0-9][0-9]\)'\
+'\([0-9][0-9]\)\([0-9][0-9]\)\)'\
+'/\2 20\3 \4 \5 \6 \7 \8 \1/'    \
+    -e 's/[[:<:]]0//g'        \
+| while read radar yr mon day hr min sec vol
+do
+    if ! jul=`tm_calc caltojul $yr $mon $day $hr $min $sec 2> /dev/null`
+    then
+	continue
+    fi
+    t_epoch=`echo '('$jul' - '$jul0') * 86400' | bc -l`
+    if test $DTZ
+    then
+	jul=`echo 'scale=6;'$jul' + '$DTZ' / 24.0' | bc -l`
+	dattim="`tm_calc jultocal -f '%d %d %d %d %d %.0f' $jul`"
+    else
+	dattim="$yr $mon $day $hr $min $sec"
+    fi
+    printf '%.0f %02d/%02d/%02d %02d:%02d:%02.0f %s\n' $t_epoch $dattim $vol
+done

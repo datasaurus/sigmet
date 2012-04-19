@@ -1,0 +1,128 @@
+#!/bin/sh
+#
+# This script compares output from the Sigmet rays program to output from
+# sigmet_raw data.
+#
+# Usage:
+#	rays_diff.sh rays_dir raw_dir
+# where rays_dir is the name of a directory that contains files with output
+# from the Sigmet rays program, and ray_dir contains the corresponding
+# Sigmet raw volumes.
+# Files in rays_dir must have names of form "rays.SiteYYMMDDHHMMSS.NN.MOMENT",
+# where NN is a sweep number (first sweep is 1), and moment is one of "Xhdr",
+# "dBT", "dBZ", "V", "W", or "SQI".
+#
+# This script must run in an environment created by "sigmet_raw start".
+#
+# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+
+# Convert moment name from Sigmet rays output to corresponding moment name
+# from Sigmet programmers guide.
+db_moment() {
+    dBT=DB_DBT
+    dBZ=DB_DBZ
+    V=DB_VEL
+    W=DB_WIDTH
+    SQI=DB_SQI
+    eval eval echo \$$1
+}
+
+# Formats for various moments from Sigmet rays output.
+db_fmt() {
+    DB_DBT="%.1f"
+    DB_DBZ="%.1f"
+    DB_VEL="%.1f"
+    DB_WIDTH="%.2f"
+    DB_SQI="%.2f"
+    eval echo \$$1
+}
+
+# This awk script selects lines with bin values for Sigmet rays output.
+rays_vals='
+    /^[0-9. -]+$/ {
+	sub("^ *", "")
+	gsub("-+\.-+", "nodat")
+	gsub(" +", " ")
+	print
+    }'
+
+# This awk script prints bin values from "sigmet_raw data ..." output.
+sigmet_raw_vals='
+    /ray/ {
+	for (i = 3; i < imax + 3; i++) {
+	    if ( $i == "nodat" ) {
+		printf "%s", $i
+	    } else {
+		printf fmt, $i
+	    }
+	    printf " "
+	}
+	printf "\n"
+    }'
+
+# Parse command line
+if [ $# -ne 2 ]
+then
+    echo Usage: $0 rays_dir raw_dir
+    exit 1
+fi
+rays_dir=$1
+raw_dir=$2
+
+# Filter and compare output from sigmet_raw to output from Sigmet rays.
+typeset -L imax
+ls $rays_dir | awk -F. '{printf "%s %s %s\n", $2, $3, $4}' \
+    | while read v s m
+    do
+	raw_vol=`ls ${raw_dir}/${v}* 2> /dev/null`
+	if test $raw_vol
+	then
+	    moment=`db_moment $m`
+	    if test $moment
+	    then
+		echo "Checking $moment from $raw_vol"
+		rays_fl=rays.$v.$s.$m
+		sigmet_raw_fl=sigmet_raw.$v.$s.$m
+		cat sigmet_sample/$rays_fl			\
+		    | awk '/Reading file/, /Average Values/'	\
+		    | awk "$rays_vals"				\
+		    > $rays_fl
+		imax=`cat $rays_fl | while read l;do echo $l | wc -w;done | sort -u`
+		fmt="`db_fmt $moment`"
+		sigmet_raw data $moment `expr $s - 1` $raw_vol		\
+		    | awk -v imax=$imax -v fmt=$fmt "$sigmet_raw_vals"	\
+		    > $sigmet_raw_fl
+		if cmp $rays_fl $sigmet_raw_fl
+		then
+		    echo "Match"
+		    rm $rays_fl $sigmet_raw_fl
+		else
+		    echo "Outputs differ, saving $rays_fl $sigmet_raw_fl"
+		fi
+	    fi
+	fi
+    done

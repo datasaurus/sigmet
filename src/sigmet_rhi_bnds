@@ -1,0 +1,104 @@
+#!/bin/sh
+#
+#	sigmet_rhi_bnds --
+#		Determine the bounds of a rhi
+#
+# Usage:
+#	sigmet_rhi_bnds sweep_index socket
+# where:
+#	sweep_index	- sweep index. First sweep has index 0.
+#	socket		- socket that accesses a sigmet_raw daemon
+#
+#
+# If successful, the script prints the following lines:
+#	x_max_m=float_value
+#	y_max_m=float_value
+# where x_max_m, y_max_m specify the edges of a rectangle
+# that contains the longest ray at the highest tilt.
+#
+# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+
+if [ $# -ne 2 ]
+then
+    echo "Usage: $0 sweep_index socket"
+    exit 1
+fi
+sweep_index=$1
+sock=$2
+
+# Make sure volume is rhi
+if ! sigmet_raw vol_hdr $sock | grep -q "^scan_mode=rhi"
+then
+    echo "Volume at $sock is not a RHI"
+    exit 1
+fi
+
+# Get volume header values
+# ray_len_m = ray length in meters
+# ray_len_deg = ray length in great circle degrees. Assume 1' = 1852 m.
+hdr='num_bins|range_bin0|bin_step'
+for l in `sigmet_raw vol_hdr $sock | egrep $hdr`
+do
+    eval $l
+done
+
+# Determine coordinates of display area in map coordinates
+# Obtain Earth radius from 1852 meter nautical mile.
+# In calculations, angles are radians, so Earth radius is 1.0
+sigmet_raw ray_headers $sock \
+| sed -n 's/sweep  *'$sweep_index'.*\(tilt.*\)/\1/p' \
+| awk -v range_bin0=$range_bin0 -v num_bins=$num_bins -v bin_step=$bin_step '
+    BEGIN {
+	len = range_bin0 + num_bins * bin_step;
+	pi = atan2(0.0, -1.0);
+	rad_per_cm = 1.0 / 100.0 / 1852.0 / 60.0 * pi / 180.0;
+	m_per_rad = 1852.0 * 60.0 * 180.0 / pi;
+	len *= rad_per_cm;
+	rad_per_deg = pi / 180.0
+	x_max_m = -1.0e12;
+	y_max_m = -1.0e12;
+    }
+    {
+	tilt0 = $2;
+	tilt1 = $3;
+	tilt = (tilt0 > tilt1) ? tilt0 : tilt1;
+	tilt = tilt * rad_per_deg;
+	x = atan2(len * cos(tilt), 1.0 + len * sin(tilt)) * m_per_rad;
+	y = ((sqrt(1.0 + 2 * len * sin(tilt) + len * len)) - 1.0) * m_per_rad;
+	if ( x > x_max_m ) {
+	    x_max_m = x;
+	}
+	if ( y > y_max_m ) {
+	    y_max_m = y;
+	}
+    }
+    END {
+	printf "x_min_m=%f\n", 0.0
+	printf "x_max_m=%f\n", x_max_m
+	printf "y_min_m=%f\n", 0.0
+	printf "y_max_m=%f\n", y_max_m
+    }'

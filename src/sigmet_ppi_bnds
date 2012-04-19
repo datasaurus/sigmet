@@ -1,0 +1,138 @@
+#!/bin/sh
+#
+#	sigmet_ppi_bnds --
+#		Determine the bounds of a ppi in map coordinates
+#
+# Usage:
+#	sigmet_ppi_bnds sweep_index projection socket
+# where:
+#	sweep_index	- sweep index. First sweep has index 0.
+#	projection	- command that reads longitude latitude pairs from
+#			  standard input and prints map coordinates, in meters.
+#	socket		- socket that accesses a sigmet_raw daemon
+#
+# Current path should include the geog command.
+#
+# If successful, the script prints the following lines:
+#	x_min_m=float_value
+#	x_max_m=float_value
+#	y_min_m=float_value
+#	y_max_m=float_value
+#	west=float_value
+#	east=float_value
+#	south=float_value
+#	north=float_value
+# where x_min_m, x_max_m, y_min_m, y_max_m specify the edges of a rectangle
+# that contains all rays of a hypothetical sweep at 0 degrees
+# tilt, in projection coordinates. west, east, south, and north are the
+# corresponding longitudes and latitudes of the edges. This assumes, perhaps
+# recklessly,
+# that x_min_m is at western edge
+# that x_max_m is at eastern edge
+# that y_min_m is at southern edge
+# that y_max_m is at northern edge
+#
+# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+
+if [ $# -ne 3 ]
+then
+    echo "Usage: $0 projection socket"
+    exit 1
+fi
+sweep_index=$1
+proj=$2
+sock=$3
+
+# Make sure volume is ppi
+if ! sigmet_raw vol_hdr $sock | grep -q "^scan_mode=.*ppi"
+then
+    echo "Volume at $sock is not a PPI"
+    exit 1
+fi
+
+# Get volume header values
+# ray_len_m = ray length in meters
+# ray_len_deg = ray length in great circle degrees. Assume 1' = 1852 m.
+hdr='radar_lon|radar_lat|num_bins|range_bin0|bin_step'
+for l in `sigmet_raw vol_hdr $sock | egrep $hdr`
+do
+    eval $l
+done
+ray_len_m=`echo "($range_bin0 + $num_bins * $bin_step) / 100.0" | bc -l`
+ray_len_deg=`echo "($range_bin0 + $num_bins * $bin_step) \
+	/ 100.0 / 1852.0 / 60.0" | bc -l`
+
+# Determine coordinates of display area in map coordinates
+{
+    echo "$radar_lon $radar_lat"
+    sigmet_raw ray_headers $sock | egrep 'sweep +'$sweep_index \
+    | while read dum dum dum dum dum dum dum dum dum az0 az1 dum
+    do
+	geog step $radar_lat $radar_lon `geog lonr $az0 $az1` $ray_len_deg
+    done
+} | while read lon lat
+do
+    echo " $lon $lat `echo $lon $lat | $proj`"
+done | awk '
+    BEGIN {
+	x_min_m = 1.0e12;
+	x_max_m = -x_min_m;
+	y_min_m = 1.0e12;
+	y_max_m = -y_min_m;
+    }
+    {
+	lon = $1;
+	lat = $2;
+	x = $3;
+	y = $4;
+	if ( x < x_min_m ) {
+	    x_min_m = x;
+	    west = lon;
+	}
+	if ( x > x_max_m ) {
+	    x_max_m = x;
+	    east = lon;
+	}
+	if ( y < y_min_m ) {
+	    y_min_m = y;
+	    south = lat;
+	}
+	if ( y > y_max_m ) {
+	    y_max_m = y;
+	    north = lat;
+	}
+    }
+    END {
+	printf "x_min_m=%f\n", x_min_m
+	printf "x_max_m=%f\n", x_max_m
+	printf "y_min_m=%f\n", y_min_m
+	printf "y_max_m=%f\n", y_max_m
+	printf "west=%f\n", west
+	printf "east=%f\n", east
+	printf "south=%f\n", south
+	printf "north=%f\n", north
+}'
