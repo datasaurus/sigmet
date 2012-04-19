@@ -5,13 +5,17 @@
 #
 # It reads paths to Sigmet raw product volumes from standard input.
 # The paths should be absolute.
+#
+# Usage example:
+#	ls /root_dir/other_dirs/volume_dir/*RAW* | sigmet_dorades
+#
 # An input line of form "/*.RAW*" is assumed to be the absolute path of a
 # Sigmet raw product volume. This script will find or create a directory
 # named for the volume where it will put sweep files.  The name of the
 # directory will be the volume name without any .bz2 or .gz suffixes.
-# The new directory will contain sigmet_dorade output.
+# The new directory will contain sigmet_dorade.sh output.
 #
-# sigmet_dorade and sigmet_raw must be in the current path.
+# sigmet_dorade.sh and sigmet_raw must be in the current path.
 #
 # Optional environment variables:
 #	SIGMET_SEM_NPROC	- number of background processes.
@@ -85,9 +89,9 @@ else
     CLSEM=:
 fi
 
-if ! sigmet_dorade -v > /dev/null
+if ! sigmet_dorade.sh -v > /dev/null
 then
-    echo $0: could not execute sigmet_dorade
+    echo $0: could not execute sigmet_dorade.sh
     exit 1
 fi
 
@@ -97,7 +101,7 @@ do
     echo $0: processing $raw_fl
 
     # Wait until process count and memory usage allow for another
-    # instance of sigmet_dorade.
+    # instance of sigmet_dorade.sh.
     printf '%s ' "Waiting for process slot..."
     $CLSEM -1 $SIGMET_SEM_PROC
     printf '%s\n' " ok"
@@ -125,7 +129,7 @@ do
 
     # If necessary, make a directory for the sweep files.
     # In a background sub-shell, go into the new directory and run
-    # sigmet_dorade
+    # sigmet_dorade.sh
     dir=`basename $raw_fl | sed -e 's/\.gz$//' -e 's/.\.bz2$//'`
     echo Creating sweep files for $raw_fl in $dir
     ( { mkdir -p $dir && cd $dir; } || {
@@ -134,7 +138,7 @@ do
 	    $CLSEM $SIGMET_RAW_VOL_SZ $SIGMET_SEM_MEM
 	    exit 1;
 	}
-	sigmet_dorade $raw_fl > sigmet_dorade.out 2>&1 ) &
+	sigmet_dorade.sh $raw_fl > sigmet_dorade.out 2>&1 ) &
 done
 wait
 
