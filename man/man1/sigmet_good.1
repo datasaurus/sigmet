@@ -1,0 +1,58 @@
+.\"
+.\" Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\"
+.\"
+.\" Please address questions and feedback to dev0@trekix.net
+.\"
+.\" $Revision: $ $Date: $
+.\"
+.Dd $Mdocdate$
+.Dt SIGMET_HDR 1
+.Os Unix
+.Sh NAME
+.Nm sigmet_good
+.Nd determine if a Sigmet raw product file is complete and readable.
+.Sh SYNOPSIS
+.Nm sigmet_good
+.Ar raw_product_file
+.Sh DESCRIPTION
+The 
+.Nm sigmet_hdr
+returns success if Sigmet raw product volume if
+.Ar raw_product_file
+is readable and complete. Header and data are accessible, although they could
+still be bad.
+.Ar raw_product_file
+identifies the raw product volume, which can be a path to a file or
+.Li -
+for standard input.
+.Sh SEE ALSO
+.Xr sigmet_raw 1 ,
+.Xr sigmet_hdr 1
+.Rs
+.%B IRIS Programmer's Manual
+.Re
+.Sh AUTHOR
+Gordon Carrie (dev0@trekix.net)
