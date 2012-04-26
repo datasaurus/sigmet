@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.86 $ $Date: 2012/02/02 16:55:37 $
+   .	$Revision: 1.87 $ $Date: 2012/02/13 19:54:14 $
  */
 
 #include <limits.h>
@@ -554,25 +554,34 @@ int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
+    int status = EXIT_FAILURE;
 
     msg = "sigmet_raw command exiting                          \n";
     switch (signum) {
+	case SIGQUIT:
+	    msg = "sigmet_raw command exiting on quit signal           \n";
+	    status = EXIT_SUCCESS;
+	    break;
 	case SIGTERM:
 	    msg = "sigmet_raw command exiting on termination signal    \n";
+	    status = EXIT_SUCCESS;
 	    break;
 	case SIGFPE:
 	    msg = "sigmet_raw command exiting arithmetic exception     \n";
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGSYS:
 	    msg = "sigmet_raw command exiting on bad system call       \n";
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGXCPU:
 	    msg = "sigmet_raw command exiting: CPU time limit exceeded \n";
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGXFSZ:
 	    msg = "sigmet_raw command exiting: file size limit exceeded\n";
+	    status = EXIT_FAILURE;
 	    break;
     }
-    (void)write(STDERR_FILENO, msg, 53);
-    _exit(EXIT_FAILURE);
+    _exit(write(STDERR_FILENO, msg, 53) == 53 ?  status : EXIT_FAILURE);
 }

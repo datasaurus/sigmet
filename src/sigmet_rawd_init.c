@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.402 $ $Date: 2012/02/13 19:44:09 $
+ .	$Revision: 1.403 $ $Date: 2012/04/06 21:10:46 $
  */
 
 #include <stdlib.h>
@@ -786,26 +786,33 @@ static int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
+    int status = EXIT_FAILURE;
 
     msg = "sigmet_rawd daemon exiting                          \n";
     switch (signum) {
+	case SIGQUIT:
+	    msg = "sigmet_rawd daemon exiting on quit signal           \n";
+	    status = EXIT_SUCCESS;
+	    break;
 	case SIGTERM:
 	    msg = "sigmet_rawd daemon exiting on termination signal    \n";
-	    (void)write(STDOUT_FILENO, msg, 53);
-	    _exit(EXIT_SUCCESS);
+	    status = EXIT_SUCCESS;
 	case SIGFPE:
 	    msg = "sigmet_rawd daemon exiting arithmetic exception     \n";
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGSYS:
 	    msg = "sigmet_rawd daemon exiting on bad system call       \n";
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGXCPU:
 	    msg = "sigmet_rawd daemon exiting: CPU time limit exceeded \n";
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGXFSZ:
 	    msg = "sigmet_rawd daemon exiting: file size limit exceeded\n";
+	    status = EXIT_FAILURE;
 	    break;
     }
-    (void)write(STDERR_FILENO, msg, 53);
-    _exit(EXIT_FAILURE);
+    _exit(write(STDERR_FILENO, msg, 53) == 53 ?  status : EXIT_FAILURE);
 }
