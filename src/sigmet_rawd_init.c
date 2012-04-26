@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.403 $ $Date: 2012/04/06 21:10:46 $
+ .	$Revision: 1.404 $ $Date: 2012/04/26 22:23:21 $
  */
 
 #include <stdlib.h>
@@ -97,7 +97,6 @@ static SigmetRaw_Callback *get_cmd(char *);
 static char *time_stamp(void);
 static int handle_signals(void);
 static void handler(int);
-static void *watch_fl(void *);
 
 /*
    This function loads the volume in Sigmet raw product file vol_fl_nm
@@ -126,6 +125,8 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     mode_t m;			/* File mode */
     int i_log;			/* Daemon log */
     int i_err;			/* Daemon error log */
+    struct stat buf;
+    unsigned int check_intvl = 6;
     int cl_io_fd;		/* File descriptor to read client command
 				   and send results */
     pid_t client_pid = -1;	/* Client process id */
@@ -134,8 +135,6 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     size_t cmd_ln_lx = 0;	/* Given size of command line */
     int stop = 0;		/* If true, exit program */
     int xstatus = SIGMET_OK;	/* Exit status of process */
-    pthread_t t_id;		/* Id for socket monitor thread */
-    int l_errno;		/* Store return from pthread_create */
     size_t sz;
 
     /*
@@ -277,7 +276,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	    goto error;
 	case 0:
 	    /*
-	       Child = daemon process. Continues.
+	       Child continues.
 	     */
 
 	    if ( !handle_signals() ) {
@@ -325,14 +324,42 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     fclose(stdin);
 
     /*
-       Start a thread to watch the socket
+       Call fork again. Child will become daemon. Parent will watch socket.
+       If socket disappears, parent will kill self and daemon.
      */
 
-    if ( (l_errno = pthread_create(&t_id, NULL, watch_fl, sock_nm)) != 0 ) {
-	fprintf(stderr, "%s: could not start socket monitor.\n"
-		"%s\n", time_stamp(), strerror(l_errno));
-	xstatus = SIGMET_IO_FAIL;
-	goto error;
+    switch (pid = fork()) {
+	case -1:
+	    fprintf(stderr, "Could not fork.\n%s\n", strerror(errno));
+	    xstatus = SIGMET_NOT_INIT;
+	    goto error;
+	case 0:
+	    /*
+	       Child = daemon process. Continues.
+	     */
+
+	    if ( !handle_signals() ) {
+		fprintf(stderr, "Could not set up signal management "
+			"in daemon.");
+		xstatus = SIGMET_NOT_INIT;
+		goto error;
+	    }
+
+	    break;
+	default:
+	    /*
+	       Parent.
+	     */
+
+	    while (1) {
+		sleep(check_intvl);
+		if ( stat(sock_nm, &buf) == -1 || buf.st_nlink == 0 ) {
+		    fprintf(stderr, "%s: daemon exiting. Socket gone.\n",
+			    time_stamp());
+		    kill(0, SIGTERM);
+		    exit(EXIT_SUCCESS);
+		}
+	    }
     }
 
     /*
@@ -538,6 +565,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
        Out of loop. No longer waiting for clients.
      */
 
+    kill(getppid(), SIGTERM);
     unlink(sock_nm);
     FREE(cmd_ln);
     exit(xstatus);
@@ -652,28 +680,6 @@ static unsigned hash(const char *k)
 	h = HASH_X * h + (unsigned)*k;
     }
     return h % N_BUCKETS;
-}
-
-/*
-   This thread callback occassionally checks the file identified by
-   path p. If the file becomes unlinked, this daemon process exits.
- */
-
-static void *watch_fl(void *p)
-{
-    char *path = (char *)p;
-    struct stat buf;
-    unsigned int sec = 6;
-
-    while (1) {
-	sleep(sec);
-	if ( stat(path, &buf) == -1 || buf.st_nlink == 0 ) {
-	    fprintf(stderr, "%s: daemon exiting. Socket gone.\n",
-		    time_stamp());
-	    exit(EXIT_SUCCESS);
-	}
-    }
-    return NULL;
 }
 
 /*
@@ -797,6 +803,7 @@ void handler(int signum)
 	case SIGTERM:
 	    msg = "sigmet_rawd daemon exiting on termination signal    \n";
 	    status = EXIT_SUCCESS;
+	    break;
 	case SIGFPE:
 	    msg = "sigmet_rawd daemon exiting arithmetic exception     \n";
 	    status = EXIT_FAILURE;
