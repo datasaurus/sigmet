@@ -5,7 +5,7 @@
 #	SiteYYMMDDHHMMSS
 #
 # where:
-#	Site = a radar name, with any number of leters
+#	Site = a radar name, with any number of letters
 #	YY   = year
 #	MM   = month
 #	DD   = day

@@ -2,7 +2,7 @@
 #
 #	sigmet_correct --
 #		Apply correction information for sigmet_raw daemon using the
-#		current working dirctory. See sigmet_correct (1).
+#		current working directory. See sigmet_correct (1).
 #
 # Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
 # 

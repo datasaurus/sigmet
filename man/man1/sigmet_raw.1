@@ -26,7 +26,7 @@
 .\"
 .\" Please address questions and feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.33 $ $Date: 2011/11/28 16:58:37 $
+.\" $Revision: 1.34 $ $Date: 2012/04/06 21:07:43 $
 .\"
 .Dd $Mdocdate$
 .Dt SIGMET_RAW 1
@@ -159,7 +159,7 @@ volume. For each sweep, this command prints a line of form:
 Unusable sweep time is printed as:
 \fI0000\fP\fB/\fP\fI00\fP\fB/\fP\fI00\fP \fI00\fP\fB:\fP\fI00\fP\fB:\fP\fI00\fP
 .It Nm sigmet_raw Cm ray_headers Ar socket
-Prints ray times and begining and ending azimuths and tilts for all rays
+Prints ray times and beginning and ending azimuths and tilts for all rays
 in the volume. For each ray, this command prints a line of form:
 .Bd -filled
     \fBsweep\fP\ \fIindex\fP\ \fBray\fP\ \fIindex\fP\ |\ \fIYYYY\fP/\fIMM\fP/\fIDD\fP\ \fIHH\fP:\fIMM\fP:\fISS.SSS\fP\ |\ \fBaz\fP\ \fIstart\fP\ \fIend\fP\ |\ \fBtilt\fP\ \fIstart\fP\ \fIend\fP
@@ -361,7 +361,7 @@ Prints data for field
 .Ar data_type ,
 sweep index
 .Ar s ,
-to standard output as a binary stream. Output will be dimensioned ray by bin.
+to standard output as a binary stream. Output will have dimensions ray by bin.
 Values will be native floats. Missing values will be given as the value returned
 by
 .Fn Sigmet_NoData .

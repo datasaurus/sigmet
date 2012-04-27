@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.152 $ $Date: 2012/02/13 19:36:37 $
+   .	$Revision: 1.153 $ $Date: 2012/04/11 17:33:25 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -492,7 +492,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     }
     vol_p->dat = dat_p;
     if ( !type_tbl_set(vol_p) ) {
-	Err_Append("Allocation failed while reseting volume types table. ");
+	Err_Append("Allocation failed while resetting volume types table. ");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
@@ -1276,7 +1276,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
     }
     vol_p->dat = dat_p;
     if ( !type_tbl_set(vol_p) ) {
-	Err_Append("Allocation failed while reseting volume types table. ");
+	Err_Append("Allocation failed while resetting volume types table. ");
 	return SIGMET_ALLOC_FAIL;
     }
     dat_p = vol_p->dat + vol_p->num_types;
@@ -1352,7 +1352,7 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
     vol_p->dat = d_p;
     vol_p->num_types--;
     if ( !type_tbl_set(vol_p) ) {
-	Err_Append("Allocation failed while reseting volume types table. ");
+	Err_Append("Allocation failed while resetting volume types table. ");
 	return SIGMET_ALLOC_FAIL;
     }
     return SIGMET_OK;
@@ -2740,7 +2740,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
     double step_out;			/* Bin size, meters */
     double r0, r1;			/* Distance to start and stop of a bin,
 					   meters */
-    double tilt0, tilt1, tilt;		/* Start, end, and middle of currrent
+    double tilt0, tilt1, tilt;		/* Start, end, and middle of current
 					   tilt */
     double tilt0_prev, tilt1_prev,
 	   tilt_prev;			/* Start, end, and middle of previous
@@ -3577,7 +3577,7 @@ void print_task_sched_info(FILE *out, char *pfx,
     print_i(out, tsi.time_last_run, prefix, "time_last_run",
 	    "Time last run (seconds within a day)(0 for passive ingest)");
     print_i(out, tsi.time_used_last_run, prefix, "time_used_last_run",
-	    "Time used on last run (seconds) (in file time to writeout)");
+	    "Time used on last run (seconds) (in file time to write out)");
     print_i(out, tsi.rel_day_last_run, prefix, "rel_day_last_run",
 	    "Relative day of last run (zero for passive ingest)");
     print_x(out, tsi.flag, prefix, "flag",
@@ -3618,7 +3618,7 @@ void print_task_dsp_mode_batch(FILE *out, char *pfx,
     print_i(out, tdmb.lo_prf_avg, prefix, "lo_prf_avg",
 	    "Low PRF range averaging in bins");
     print_i(out, tdmb.dz_unfold_thresh, prefix, "dz_unfold_thresh",
-	    "Theshold for reflectivity unfolding in 1/100 of dB");
+	    "Threshold for reflectivity unfolding in 1/100 of dB");
     print_i(out, tdmb.vr_unfold_thresh, prefix, "vr_unfold_thresh",
 	    "Threshold for velocity unfolding in 1/100 of dB");
     print_i(out, tdmb.sw_unfold_thresh, prefix, "sw_unfold_thresh",

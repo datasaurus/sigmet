@@ -38,7 +38,7 @@ BEGIN {
 /START +DATA_TYPE/ {
     # Line is assumed to be of form:
     # epoch_time YYYY/MM/DD HH:MM:SS radar START DATA_TYPE | data_type \
-    #	| desription | unit
+    #	| description | unit
     # Note that the line uses | as a field separator, so description and unit
     # can have white space.
     # Add entry to corr array ordering creation of a new data type.
@@ -121,7 +121,7 @@ BEGIN {
 /END +DT/ {
     # Line is assumed to be of form:
     # epoch_time YYYY/MM/DD HH:MM:SS radar END DT seconds
-    # Remove entry for time correction from corr arry.
+    # Remove entry for time correction from corr array.
     n_del = n_corr["DT"]
     delete corr[n_del]
     n_cmd--
