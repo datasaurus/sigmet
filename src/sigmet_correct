@@ -2,7 +2,7 @@
 #
 #	sigmet_correct --
 #		Apply correction information for sigmet_raw daemon using the
-#		current working dirctory
+#		current working dirctory. See sigmet_correct (1).
 #
 # Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
 # 
@@ -30,7 +30,6 @@
 #
 # Please send feedback to dev0@trekix.net
 
-
 if [ $# -ne 2 ]
 then
     echo "Usage: $0 correction_file socket" 1>&2
@@ -48,11 +47,8 @@ then
     echo "%0: $sock is not a socket" 1>&2
     exit 1
 fi
-if test $corr_fl
-then
-    sigmet_correct.awk -v sock="$sock" $corr_fl	\
-    | while read l
-    do
-	eval $l
-    done
-fi
+sigmet_correct.awk -v sock="$sock" $corr_fl \
+| while read l
+do
+    eval $l
+done
