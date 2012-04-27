@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.7 $ $Date: 2012/02/13 19:54:14 $
+   .	$Revision: 1.8 $ $Date: 2012/04/11 17:46:12 $
  */
 
 #include <limits.h>
@@ -406,10 +406,10 @@ static int new_field_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	    return SIGMET_BAD_ARG;
 	}
     }
-    if ( !descr ) {
+    if ( !descr || strlen(descr) == 0 ) {
 	descr = "No description";
     }
-    if ( !unit ) {
+    if ( !unit || strlen(unit) == 0 ) {
 	unit = "Dimensionless";
     }
 
