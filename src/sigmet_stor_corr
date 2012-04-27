@@ -52,7 +52,7 @@ BEGIN {
     sub(" *$", "", description)
     sub("^ *", "", unit)
     sub(" *$", "", unit)
-    corr[n_cmd] = sprintf("New data type: | %s | %s | %s",
+    corr[n_cmd] = sprintf("New field: | %s | %s | %s",
 	data_type, description, unit)
     n_corr["DATA_TYPE",data_type] = n_cmd
     n_cmd++
