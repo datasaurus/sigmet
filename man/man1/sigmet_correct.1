@@ -1,0 +1,135 @@
+.\"
+.\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\"
+.\"
+.\" Please address questions and feedback to dev0@trekix.net
+.\"
+.\" $Revision: $ $Date: $
+.\"
+.Dd $Mdocdate$
+.Dt SIGMET_CORRECT 1
+.Os Unix
+.Sh NAME
+.Nm sigmet_correct
+.Nd apply corrections to Sigmet volumes in memory.
+.Sh SYNOPSIS
+.Nm sigmet_correct Ar correction_file Ar socket
+.Sh DESCRIPTION
+The 
+.Nm sigmet_correct
+command modifies the memory contents of a daemon started with the
+.Nm sigmet_raw
+.Ar load
+command. It does not modify any Sigmet raw product file that provided the
+original data to
+.Nm sigmet_raw
+.Ar load .
+To save the modified values, write them with output commands
+such as
+.Nm sigmet_raw
+.Ar data
+or
+.Nm sigmet_raw
+.Ar dorade .
+File
+.Ar correction_file
+describes the desired modifications.
+The
+.Ar socket
+argument identified a socket that communicates with a
+.Nm sigmet_raw
+daemon. It should have been given as an argument to the
+.Nm sigmet_raw
+.Ar load
+command.
+.Sh COMMANDS
+The following lines in
+.Ar correction_file
+are recognized. All others are ignored.
+.Bl -ohang
+.It Nm New field Li | Ar data_type Li | Ar description Li | Ar unit
+Creates a new field in the volume. It's values are initialized to a value
+interpreted as unknown.
+.Ar data_type ,
+.Ar description ,
+and
+.Ar unit
+are given to a call to
+.Nm sigmet_raw
+.Ar new_field .
+See
+.Xr sigmet_raw 1
+for details.
+.It Nm Copy Ar source Li to Ar dest
+Replaces all values in
+.Ar dest
+with corresponding values from
+.Ar source .
+Both fields should be defined in the volume. They should either be implicit
+Sigmet data types, or fabrications created by a previous
+.Nm New field
+entry.
+.It Nm Add Ar scalar Li to Ar field
+Replaces all values of
+.Ar field
+with
+.Ar field
++
+.Ar scalar .
+.It Nm Multiply Ar field Li by Ar scalar
+Replaces all values of
+.Ar field
+with
+.Ar field
+*
+.Ar scalar .
+.It Nm Increment time Li by Ar dt Li seconds
+Adds
+.Ar dt
+seconds to all times in the volume.
+.It Nm Radar lat Li = Ar latitude
+Sets radar latitude to
+.Ar latitude
+decimal degrees north.
+.It Nm Radar lon Li = Ar longitude
+Sets radar longitude to
+.Ar longitude
+decimal degrees east.
+.It Nm Add Ar delta_az Li degrees to all azimuths
+Adds
+.Ar delta_az
+decimal degrees to ray azimuths.
+.It Nm Delete Ar field
+Deletes
+.Ar field ,
+if present in the volume.
+.El
+.Sh SEE ALSO
+.Xr sigmet_raw 1
+.Rs
+.%B IRIS Programmer's Manual
+.Re
+.Sh AUTHOR
+Gordon Carrie (dev0@trekix.net)
