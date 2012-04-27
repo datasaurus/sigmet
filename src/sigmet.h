@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.101 $ $Date: 2012/04/11 17:31:22 $
+   .	$Revision: 1.102 $ $Date: 2012/04/19 15:31:11 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -430,7 +430,7 @@ struct Sigmet_Ingest_Header {
 
 /*
    Data array.  A volume will have one of these for each data type in the
-   volume. If not NULL, u1, u2, or f is an array dimensioned
+   volume. If not NULL, u1, u2, or f is an array with dimensions
    [sweep][ray][bin] with data values from the volume.
  */
 
@@ -487,40 +487,40 @@ struct Sigmet_Vol {
 						   "STOP NOW" during the task,
 						   or if a volume transfer fails */
     int num_sweeps_ax;				/* Actual number of sweeps */
-    int *sweep_ok;				/* Sweep status, dimensioned
+    int *sweep_ok;				/* Sweep status, dimensions
 						   [sweep]. If sweep_ok[i],
 						   i'th sweep is complete. */
     double *sweep_time;				/* Sweep start time, Julian day,
-						   dimensioned [sweep] */
+						   dimensions [sweep] */
     double *sweep_angle;			/* Sweep angle, radians,
-						   dimensioned [sweep] */
-    int **ray_ok;				/* Ray status, dimesioned
+						   dimensions [sweep] */
+    int **ray_ok;				/* Ray status, dimensions
 						   [sweep][ray].  If ray_ok[j][i]
 						   == 1, ray is good */
     double **ray_time;				/* Ray time, Julian day,
-						   dimesioned [sweep][ray] */
+						   dimensions [sweep][ray] */
     int **ray_num_bins;				/* Number of bins in ray,
-						   dimensioned [sweep][ray],
+						   dimensions [sweep][ray],
 						   varies from ray to ray */
     double **ray_tilt0;				/* Tilt at start of ray,
-						   radians, dimensioned
+						   radians, dimensions
 						   [sweep][ray] */
     double **ray_tilt1;				/* Tilt at end of ray, radians,
-						   dimensioned [sweep][ray] */
+						   dimensions [sweep][ray] */
     double **ray_az0;				/* Azimuth at start of ray,
-						   radians, dimensioned
+						   radians, dimensions
 						   [sweep][ray] */
     double **ray_az1;				/* Azimuth at end of ray,
-						   radians, dimensioned
+						   radians, dimensions
 						   [sweep][ray] */
     struct Hash_Tbl types_tbl;			/* Map abbreviations to elements
 						   in dat array */
-    struct Sigmet_DatArr *dat;			/* Data, dimensioned [type] */
+    struct Sigmet_DatArr *dat;			/* Data, dimensions [type] */
     size_t size;				/* Number of bytes of memory
 						   this structure is using */
     int mod;					/* If true, volume in memory
 						   is different from volume in
-						   ray product file */
+						   raw product file */
     char *raw_fl_nm;				/* Path to file that provided
 						   the volume */
 };
