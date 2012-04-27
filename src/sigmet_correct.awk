@@ -73,6 +73,6 @@
 	printf "if sigmet_raw volume_headers %s | grep -q '%s|types';then", \
 		sock, $n
 	printf " sigmet_raw del_field %s %s;", $n, sock
-	printf "else echo Not deleting %s, not in volume;fi\n", $n
+	printf "else echo Not deleting %s, not in volume 1>&2 | : ;fi\n", $n
     }
 }
