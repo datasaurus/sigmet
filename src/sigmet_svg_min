@@ -85,7 +85,7 @@ case "$scan_mode" in
 	scan_mode="ppi"
 	if ! test "$SIGMET_RAW_PROJ"
 	then
-	    echo "PPI requires projection" 1>&2
+	    echo "PPI requires projection. Please set SIGMET_RAW_PROJ." 1>&2
 	    exit 1
 	fi
 	proj_cmd="$SIGMET_RAW_PROJ"
