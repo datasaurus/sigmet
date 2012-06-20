@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.404 $ $Date: 2012/04/26 22:23:21 $
+ .	$Revision: 1.405 $ $Date: 2012/04/26 22:53:38 $
  */
 
 #include <stdlib.h>
@@ -301,7 +301,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
      */
 
     m = S_IRUSR | S_IWUSR | S_IRGRP;
-    if ( (i_log = open(log_nm, O_CREAT | O_WRONLY, m)) == -1 ) {
+    if ( (i_log = open(log_nm, O_CREAT | O_WRONLY | O_TRUNC, m)) == -1 ) {
 	fprintf(stderr, "Daemon could not open log file: %s\n%s\n",
 		log_nm, strerror(errno));
 	goto error;
@@ -311,7 +311,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 		"to log file: %s\n%s\n", log_nm, strerror(errno));
 	goto error;
     }
-    if ( (i_err = open(err_nm, O_CREAT | O_WRONLY, m)) == -1 ) {
+    if ( (i_err = open(err_nm, O_CREAT | O_WRONLY | O_TRUNC, m)) == -1 ) {
 	fprintf(stderr, "Daemon could not open error file: %s\n%s\n",
 		err_nm, strerror(errno));
 	goto error;
@@ -361,6 +361,9 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 		}
 	    }
     }
+
+    printf("%s: sigmet_raw daemon started. pid=%d\n", time_stamp(), getpid());
+    fflush(stdout);
 
     /*
        Wait for clients until "unload" subcommand is received or this process
@@ -565,8 +568,8 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
        Out of loop. No longer waiting for clients.
      */
 
-    kill(getppid(), SIGTERM);
     unlink(sock_nm);
+    printf("%s: sigmet_raw daemon exiting\n", time_stamp());
     FREE(cmd_ln);
     exit(xstatus);
 
