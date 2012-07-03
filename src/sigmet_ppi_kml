@@ -1,18 +1,19 @@
 #!/bin/sh
 #
-#	sigmet_ppi_kml --
-#		Print a kml file for a sigmet PPI.
+# sigmet_ppi_kml --
+#	Print KML code for a sweep
 #
 # Usage:
-#	sigmet_kml proj socket
+#	sigmet_svg sweep_index socket
 # where:
-#	proj		- command that reads longitude latitude pairs from
-#			  standard input and prints map coordinates, in meters.
-#	socket		- socket that accesses a sigmet_raw daemon
-# Optional environment variables SIGMET_RAW_KML_NAME and SIGMET_RAW_KML_DESC
-# will be copied to the <name> and <description> elements of the kml file.
+#	sweep_index	- index of sweep in volume. First sweep is 0.
+#	socket		- socket created by a call to "sigmet_raw load ..."
 #
-# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# sigmet_raw_proj and sigmet_raw_ppi_bnds must be in current path.
+#
+# The KML code goes to standard output.
+#
+# Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -38,22 +39,27 @@
 #
 # Please send feedback to dev0@trekix.net
 
-if [ $# -ne 2 ]
+# Parse command line
+if [ $# -eq 2 ]
 then
-    echo "Usage: $0 proj socket"
-    exit 1
-fi
-proj="$1"
-sock="$2"
-
-# Make sure volume is ppi
-if ! { sigmet_raw vol_hdr "$sock" | grep -q 'scan_mode=.*ppi'; }
-then
-    echo "Volume at "$sock" is not a PPI"
+    sweep_index=$1
+    sock="$2"
+else
+    echo Usage: $0 sweep_index socket 1>&2
     exit 1
 fi
 
-# KML format
+# Assign volume header information to shell variables
+eval `sigmet_raw vol_hdr "$sock"`
+
+# Ensure volume is ppi
+if ! echo $scan_mode | grep -q "ppi"
+then
+    echo $0: volume at $sock is not a PPI
+    exit 1
+fi
+
+# KML format. Include Icon element, but do not give it a value.
 kml_tmpl='<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <GroundOverlay>
@@ -69,7 +75,33 @@ kml_tmpl='<?xml version="1.0" encoding="UTF-8"?>
   </GroundOverlay>
 </kml>'
 
-# Create kml file
-eval `sigmet_ppi_bnds "$proj" "$sock"`
-printf "$kml_tmpl" "SIGMET_RAW_KML_NAME" "SIGMET_RAW_KML_DESC" \
-	$north $south $west $east
+# Determine and test projection command.
+proj_cmd=`sigmet_raw_proj $sock`
+if ! test "$proj_cmd"
+then
+    echo Could not determine a projection 1>&2
+    exit 1
+fi
+if ! $proj_cmd < /dev/null > /dev/null
+then
+    echo Projection command \"$proj_cmd\" does not work 1>&2
+    exit 1
+fi
+
+
+# Get site name from volume headers
+# Get sweep time and angle from sweep headers.
+# Get sweep boundaries with sigmet_ppi_bnds command.
+site=`sigmet_raw volume_headers "$sock" \
+     | awk -F \| '/su_site_name/ {print $1}'`
+eval `sigmet_raw sweep_headers "$sock" | awk '
+    /sweep +'$s' / {
+	printf "sweep_time=\"%s %s\"\nsweep_angle=%f\n", $3, $4, $5
+    }'`
+eval `sigmet_ppi_bnds $sweep_index "$proj_cmd" "$sock"`
+
+# Print KML
+name="`printf '%s sweep' $site`"
+descr="`printf "%s at %s %s %04.1f degrees" \
+	$site $sweep_time $sweep_angle`"
+printf "$kml_tmpl" "$name" "$descr" $north $south $west $east
