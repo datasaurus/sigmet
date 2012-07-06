@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.405 $ $Date: 2012/04/26 22:53:38 $
+ .	$Revision: 1.406 $ $Date: 2012/06/20 02:51:06 $
  */
 
 #include <stdlib.h>
@@ -325,7 +325,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 
     /*
        Call fork again. Child will become daemon. Parent will watch socket.
-       If socket disappears, parent will kill self and daemon.
+       If socket disappears, parent will kill daemon.
      */
 
     switch (pid = fork()) {
@@ -356,7 +356,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 		if ( stat(sock_nm, &buf) == -1 || buf.st_nlink == 0 ) {
 		    fprintf(stderr, "%s: daemon exiting. Socket gone.\n",
 			    time_stamp());
-		    kill(0, SIGTERM);
+		    kill(pid, SIGTERM);
 		    exit(EXIT_SUCCESS);
 		}
 	    }
