@@ -14,23 +14,23 @@
 # Current path should include the geog command.
 #
 # If successful, the script prints the following lines:
-#	x_min_m=float_value
-#	x_max_m=float_value
-#	y_min_m=float_value
-#	y_max_m=float_value
-#	west=float_value
-#	east=float_value
-#	south=float_value
-#	north=float_value
-# where x_min_m, x_max_m, y_min_m, y_max_m specify the edges of a rectangle
+#	X_MIN_M=float_value
+#	X_MAX_M=float_value
+#	Y_MIN_M=float_value
+#	Y_MAX_M=float_value
+#	WEST=float_value
+#	EAST=float_value
+#	SOUTH=float_value
+#	NORTH=float_value
+# where X_MIN_M, X_MAX_M, Y_MIN_M, Y_MAX_M specify the edges of a rectangle
 # that contains all rays of a hypothetical sweep at 0 degrees
 # tilt, in projection coordinates. west, east, south, and north are the
 # corresponding longitudes and latitudes of the edges. This assumes, perhaps
 # recklessly,
-# that x_min_m is at western edge
-# that x_max_m is at eastern edge
-# that y_min_m is at southern edge
-# that y_max_m is at northern edge
+# that X_MIN_M is at western edge
+# that X_MAX_M is at eastern edge
+# that Y_MIN_M is at southern edge
+# that Y_MAX_M is at northern edge
 #
 # Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
 # 
@@ -60,7 +60,7 @@
 
 if [ $# -ne 3 ]
 then
-    echo "Usage: $0 projection socket"
+    echo "Usage: $0 sweep_index projection socket"
     exit 1
 fi
 sweep_index=$1
@@ -88,21 +88,21 @@ ray_len_deg=`echo "($range_bin0 + $num_bins * $bin_step) \
 
 # Determine coordinates of display area in map coordinates
 {
-    echo "$radar_lon $radar_lat"
-    sigmet_raw ray_headers $sock | egrep 'sweep +'$sweep_index \
+    echo "$radar_lat $radar_lon"
+    sigmet_raw ray_headers $sock | egrep 'sweep +'$sweep_index' +' \
     | while read dum dum dum dum dum dum dum dum dum az0 az1 dum
     do
 	geog step $radar_lat $radar_lon `geog lonr $az0 $az1` $ray_len_deg
     done
-} | while read lon lat
+} | while read lat lon
 do
     echo " $lon $lat `echo $lon $lat | $proj`"
 done | awk '
     BEGIN {
 	x_min_m = 1.0e12;
-	x_max_m = -x_min_m;
+	x_max_m = -1.0e12;
 	y_min_m = 1.0e12;
-	y_max_m = -y_min_m;
+	y_max_m = -1.0e12;
     }
     {
 	lon = $1;
@@ -127,12 +127,12 @@ done | awk '
 	}
     }
     END {
-	printf "x_min_m=%f\n", x_min_m
-	printf "x_max_m=%f\n", x_max_m
-	printf "y_min_m=%f\n", y_min_m
-	printf "y_max_m=%f\n", y_max_m
-	printf "west=%f\n", west
-	printf "east=%f\n", east
-	printf "south=%f\n", south
-	printf "north=%f\n", north
+	printf "X_MIN_M=%f\n", x_min_m
+	printf "X_MAX_M=%f\n", x_max_m
+	printf "Y_MIN_M=%f\n", y_min_m
+	printf "Y_MAX_M=%f\n", y_max_m
+	printf "WEST=%f\n", west
+	printf "EAST=%f\n", east
+	printf "SOUTH=%f\n", south
+	printf "NORTH=%f\n", north
 }'
