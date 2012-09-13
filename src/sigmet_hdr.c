@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.6 $ $Date: 2012/01/24 22:52:59 $
+   .	$Revision: 1.7 $ $Date: 2012/02/13 19:54:14 $
  */
 
 #include <limits.h>
@@ -132,6 +132,7 @@ static int print_vol_hdr(struct Sigmet_Vol *vol_p)
     double wavlen, prf, vel_ua;
     enum Sigmet_Multi_PRF mp;
     char *mp_s = "unknown";
+    char *abbrv;
 
     printf("site_name=\"%s\"\n", vol_p->ih.ic.su_site_name);
     printf("radar_lon=%.4lf\n",
@@ -157,12 +158,12 @@ static int print_vol_hdr(struct Sigmet_Vol *vol_p)
     }
     printf("task_name=\"%s\"\n", vol_p->ph.pc.task_name);
     printf("types=\"");
-    if ( vol_p->dat[0].data_type->abbrv ) {
-	printf("%s", vol_p->dat[0].data_type->abbrv);
+    if ( (abbrv = DataType_GetAbbrv(vol_p->dat[0].data_type)) ) {
+	printf("%s", abbrv);
     }
     for (y = 1; y < vol_p->num_types; y++) {
-	if ( vol_p->dat[y].data_type->abbrv ) {
-	    printf(" %s", vol_p->dat[y].data_type->abbrv);
+	if ( (abbrv = DataType_GetAbbrv(vol_p->dat[y].data_type)) ) {
+	    printf(" %s", abbrv);
 	}
     }
     printf("\"\n");

@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.153 $ $Date: 2012/04/11 17:33:25 $
+   .	$Revision: 1.154 $ $Date: 2012/04/27 20:27:02 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -286,7 +286,7 @@ void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
     free2d(vol_p->ray_az1);
     if ( vol_p->dat ) {
 	for (y = 0; y < vol_p->num_types; y++) {
-	    switch (vol_p->dat[y].data_type->stor_fmt) {
+	    switch (DataType_GetStorFmt(vol_p->dat[y].data_type)) {
 		case DATA_TYPE_U1:
 		    free3_u1(vol_p->dat[y].arr.u1);
 		    break;
@@ -316,7 +316,7 @@ static int type_tbl_set(struct Sigmet_Vol *vol_p)
     struct Sigmet_DatArr *dat_p;
 
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + vol_p->num_types; dat_p++) {
-	if ( !Hash_Set(&vol_p->types_tbl, dat_p->data_type->abbrv, dat_p) ) {
+	if ( !Hash_Set(&vol_p->types_tbl, DataType_GetAbbrv(dat_p->data_type), dat_p) ) {
 	    return 0;
 	}
     }
@@ -454,7 +454,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		goto error;
 	    }
 	    vol_p->dat[y].data_type = data_type;
-	    switch (data_type->stor_fmt) {
+	    switch (DataType_GetStorFmt(data_type)) {
 		case DATA_TYPE_MT:
 		    break;
 		case DATA_TYPE_U1:
@@ -524,7 +524,9 @@ void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
 
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
 	fprintf(out, "%s" FS "%s" FS "%s\n",
-		data_type->abbrv, elem_nm, data_type->descr);
+		DataType_GetAbbrv(data_type),
+		elem_nm,
+		DataType_GetDescr(data_type));
     }
 }
 
@@ -907,7 +909,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->size += num_sweeps * num_rays * sizeof(double);
 
     for (y = 0; y < vol_p->num_types; y++) {
-	switch (vol_p->dat[y].data_type->stor_fmt) {
+	switch (DataType_GetStorFmt(vol_p->dat[y].data_type)) {
 	    case DATA_TYPE_U1:
 		vol_p->dat[y].arr.u1 = calloc3_u1(num_sweeps, num_rays, num_bins);
 		if ( !vol_p->dat[y].arr.u1 ) {
@@ -1377,7 +1379,7 @@ int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    dat_p->data_type->stor_fmt = DATA_TYPE_FLT;
+    DataType_SetStorFmt(dat_p->data_type, DATA_TYPE_FLT);
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
 	if ( vol_p->sweep_ok[s] ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
@@ -1414,7 +1416,7 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    dat_p->data_type->stor_fmt = DATA_TYPE_FLT;
+    DataType_SetStorFmt(dat_p->data_type, DATA_TYPE_FLT);
     arr = dat_p->arr.flt;
     bin_step = 0.01 * vol_p->ih.tc.tri.step_out;	/* cm -> meter */
     bin0 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin + 0.5 * bin_step;
@@ -1466,7 +1468,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	return SIGMET_BAD_ARG;
     }
     data_type1 = dat_p1->data_type;
-    if ( data_type1->stor_fmt != DATA_TYPE_FLT ) {
+    if ( DataType_GetStorFmt(data_type1) != DATA_TYPE_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -1477,7 +1479,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	return SIGMET_BAD_ARG;
     }
     data_type2 = dat_p2->data_type;
-    switch (data_type2->stor_fmt) {
+    switch (DataType_GetStorFmt(data_type2)) {
 	case DATA_TYPE_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
 		if ( vol_p->sweep_ok[s] ) {
@@ -1565,7 +1567,7 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_ARG;
     }
     data_type = dat_p->data_type;
-    if ( data_type->stor_fmt != DATA_TYPE_FLT ) {
+    if ( DataType_GetStorFmt(data_type) != DATA_TYPE_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -1620,7 +1622,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	return SIGMET_BAD_ARG;
     }
     data_type1 = dat_p1->data_type;
-    if ( data_type1->stor_fmt != DATA_TYPE_FLT ) {
+    if ( DataType_GetStorFmt(data_type1) != DATA_TYPE_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -1635,7 +1637,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	return SIGMET_BAD_ARG;
     }
     data_type2 = dat_p2->data_type;
-    switch (dat_p2->data_type->stor_fmt) {
+    switch (DataType_GetStorFmt(dat_p2->data_type)) {
 	case DATA_TYPE_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
 		if ( vol_p->sweep_ok[s] ) {
@@ -1745,7 +1747,7 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_ARG;
     }
     data_type = dat_p->data_type;
-    if ( data_type->stor_fmt != DATA_TYPE_FLT ) {
+    if ( DataType_GetStorFmt(data_type) != DATA_TYPE_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -1800,7 +1802,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	return SIGMET_BAD_ARG;
     }
     data_type1 = dat_p1->data_type;
-    if ( data_type1->stor_fmt != DATA_TYPE_FLT ) {
+    if ( DataType_GetStorFmt(data_type1) != DATA_TYPE_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -1815,7 +1817,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	return SIGMET_BAD_ARG;
     }
     data_type2 = dat_p2->data_type;
-    switch (dat_p2->data_type->stor_fmt) {
+    switch (DataType_GetStorFmt(dat_p2->data_type)) {
 	case DATA_TYPE_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
 		if ( vol_p->sweep_ok[s] ) {
@@ -1925,7 +1927,7 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_ARG;
     }
     data_type = dat_p->data_type;
-    if ( data_type->stor_fmt != DATA_TYPE_FLT ) {
+    if ( DataType_GetStorFmt(data_type) != DATA_TYPE_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -1980,7 +1982,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	return SIGMET_BAD_ARG;
     }
     data_type1 = dat_p1->data_type;
-    if ( data_type1->stor_fmt != DATA_TYPE_FLT ) {
+    if ( DataType_GetStorFmt(data_type1) != DATA_TYPE_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -1995,7 +1997,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	return SIGMET_BAD_ARG;
     }
     data_type2 = dat_p2->data_type;
-    switch (dat_p2->data_type->stor_fmt) {
+    switch (DataType_GetStorFmt(dat_p2->data_type)) {
 	case DATA_TYPE_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
 		if ( vol_p->sweep_ok[s] ) {
@@ -2109,7 +2111,7 @@ int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_ARG;
     }
     data_type = dat_p->data_type;
-    if ( data_type->stor_fmt != DATA_TYPE_FLT ) {
+    if ( DataType_GetStorFmt(data_type) != DATA_TYPE_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -2164,7 +2166,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	return SIGMET_BAD_ARG;
     }
     data_type1 = dat_p1->data_type;
-    if ( data_type1->stor_fmt != DATA_TYPE_FLT ) {
+    if ( DataType_GetStorFmt(data_type1) != DATA_TYPE_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -2179,7 +2181,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	return SIGMET_BAD_ARG;
     }
     data_type2 = dat_p2->data_type;
-    switch (dat_p2->data_type->stor_fmt) {
+    switch (DataType_GetStorFmt(dat_p2->data_type)) {
 	case DATA_TYPE_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
 		if ( vol_p->sweep_ok[s] ) {
@@ -2292,7 +2294,7 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
 	return SIGMET_BAD_ARG;
     }
     data_type = dat_p->data_type;
-    if ( data_type->stor_fmt != DATA_TYPE_FLT ) {
+    if ( DataType_GetStorFmt(data_type) != DATA_TYPE_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -2400,7 +2402,7 @@ float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    || b < 0 || b >= vol_p->ray_num_bins[s][r] ) {
 	return Sigmet_NoData();
     }
-    switch (vol_p->dat[y].data_type->stor_fmt) {
+    switch (DataType_GetStorFmt(vol_p->dat[y].data_type)) {
 	case DATA_TYPE_U1:
 	    v = vol_p->dat[y].arr.u1[s][r][b];
 	    break;
@@ -2455,7 +2457,7 @@ int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s, int r,
 	}
     }
     data_type = vol_p->dat[y].data_type;
-    switch (vol_p->dat[y].data_type->stor_fmt) {
+    switch (DataType_GetStorFmt(vol_p->dat[y].data_type)) {
 	case DATA_TYPE_U1:
 	    u1_p = vol_p->dat[y].arr.u1[s][r];
 	    u1_e = u1_p + ray_num_bins;

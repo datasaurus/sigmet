@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.8 $ $Date: 2012/04/11 17:46:12 $
+   .	$Revision: 1.9 $ $Date: 2012/04/27 16:48:58 $
  */
 
 #include <limits.h>
@@ -133,7 +133,7 @@ static int pid_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 static int data_types_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	FILE *out, FILE *err)
 {
-    struct DataType *data_type;		/* Information about a data type */
+    DataType data_type;			/* Information about a data type */
     size_t n;
     char **abbrvs, **a;
 
@@ -143,7 +143,9 @@ static int data_types_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	    data_type = DataType_Get(*a);
 	    assert(data_type);
 	    fprintf(out, "%s | %s | %s | ",
-		    *a, data_type->descr, data_type->unit);
+		    *a,
+		    DataType_GetDescr(data_type),
+		    DataType_GetDescr(data_type));
 	    if ( Hash_Get(&vol_p->types_tbl, *a) ) {
 		fprintf(out, "present\n");
 	    } else {
@@ -207,12 +209,12 @@ static int vol_hdr_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     }
     fprintf(out, "task_name=\"%s\"\n", vol_p->ph.pc.task_name);
     fprintf(out, "types=\"");
-    if ( vol_p->dat && vol_p->dat[0].data_type->abbrv ) {
-	fprintf(out, "%s", vol_p->dat[0].data_type->abbrv);
+    if ( vol_p->dat && DataType_GetAbbrv(vol_p->dat[0].data_type) ) {
+	fprintf(out, "%s", DataType_GetAbbrv(vol_p->dat[0].data_type));
     }
     for (y = 1; y < vol_p->num_types; y++) {
-	if ( vol_p->dat[y].data_type->abbrv ) {
-	    fprintf(out, " %s", vol_p->dat[y].data_type->abbrv);
+	if ( DataType_GetAbbrv(vol_p->dat[y].data_type) ) {
+	    fprintf(out, " %s", DataType_GetAbbrv(vol_p->dat[y].data_type));
 	}
     }
     fprintf(out, "\"\n");
@@ -876,7 +878,7 @@ static int data_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     if ( y == all && s == all && r == all && b == all ) {
 	for (y = 0; y < vol_p->num_types; y++) {
 	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-		abbrv = vol_p->dat[y].data_type->abbrv;
+		abbrv = DataType_GetAbbrv(vol_p->dat[y].data_type);
 		fprintf(out, "%s. sweep %d\n", abbrv, s);
 		for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
 		    if ( !vol_p->ray_ok[s][r] ) {

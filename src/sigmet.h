@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.102 $ $Date: 2012/04/19 15:31:11 $
+   .	$Revision: 1.103 $ $Date: 2012/04/27 19:49:47 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -435,7 +435,7 @@ struct Sigmet_Ingest_Header {
  */
 
 struct Sigmet_DatArr {
-    struct DataType *data_type;			/* Meta data, for description,
+    DataType data_type;				/* Meta data, for description,
 						   display, and conversions */
     union {
 	U1BYT ***u1;				/* 1 byte data */
