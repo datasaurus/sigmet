@@ -26,7 +26,7 @@
 .\"
 .\" Please address questions and feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.34 $ $Date: 2012/04/06 21:07:43 $
+.\" $Revision: 1.35 $ $Date: 2012/04/27 20:27:02 $
 .\"
 .Dd $Mdocdate$
 .Dt SIGMET_RAW 1
@@ -35,8 +35,14 @@
 .Nm sigmet_raw
 .Nd interact with data from Sigmet raw volumes
 .Sh SYNOPSIS
-.Nm sigmet_raw Cm load Ar raw_product_file Ar socket
-.Nm sigmet_raw Ar command Op options Ar socket
+.Nm sigmet_raw
+.Cm load
+.Ar raw_product_file
+.Ar socket
+.Nm sigmet_raw
+.Ar command
+.Op options
+.Ar socket
 .Sh DESCRIPTION
 The 
 .Nm sigmet_raw
@@ -392,7 +398,12 @@ degrees.
 Adds
 .Ar daz
 degrees to all azimuths in the volume.
-.It Nm sigmet_raw Cm dorade Op s Ar socket
+.It Xo
+.Nm sigmet_raw
+.Cm dorade
+.Op s
+.Ar socket
+.Xc
 Creates DORADE sweep files. If
 .Ar s
 is absent or
@@ -402,6 +413,58 @@ all
 this command will make DORADE sweep files for all sweeps in the volume.
 Otherwise, it will make one sweep file for sweep
 .Ar s .
+.It Xo
+.Nm sigmet_raw
+.Cm outlines
+.Op Fl b
+.Op Fl f
+.Ar data_type
+.Ar s
+.Ar min
+.Ar max
+.Ar out_file
+.Ar socket
+.Xc
+Prints outlines of bins for data type
+.Ar data_type
+sweep
+.Ar s
+for which the field has values
+.Ar min
+.Li <=
+value
+.Li <
+.Ar max .
+The outlines are printed to file
+.Ar out_file .
+If
+.Ar out_file
+is
+.Li - ,
+they are printed to standard output of the sigmet_raw client. By default,
+output is a text stream. For a PPI sweep, each line of output contains the
+corners of one bin as
+.Bd -literal -offset indent
+lon1 lat1 lon2 lat2 lon3 lat3 lon4 lat4
+
+.Ed
+where lon denotes longitude in decimal degrees east and lat denotes latitude
+in decimal degrees north.
+For a RHI sweep, each line of output contains the corners of one bin as
+.Bd -literal -offset indent
+rng1 alt1 rng2 alt2 rng3 alt3 rng4 alt4
+
+.Ed
+where rng denotes range along the ground to the point below the corner, in
+meters, and alt denotes height above ground in meters.
+Bin outlines are right handed polygons. If
+.Fl b
+is present, output is a native binary stream instead of text, and longitudes
+and latitudes for PPI bins are given in radians. If
+.Fl f
+is present, outlines are expanded so that they touch, if necessary.
+Otherwise, the bin outline stated in the file is used, which might
+result in gaps between adjacent bins.
 .El
 .Sh SEE ALSO
 .Xr sigmet_data 3 ,
