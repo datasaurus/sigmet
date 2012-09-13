@@ -1,29 +1,28 @@
 #!/bin/sh
 #
 # sigmet_ppi_svg --
-#	Create a svg image for a ppi sweep.
+#	Print PPI bin outlines as SVG polygons.
 #
 # Usage:
-#	sigmet_svg data_type sweep_index proj socket
+#	sigmet_svg data_type sweep_index socket
 # where:
 #	data_type	- data type (e.g. DB_DBZ, DB_ZDR).
 #	sweep_index	- index of sweep in volume. First sweep is 0.
-#	proj		- command that transforms coordinate pairs
-#			  read from standard input. Transformed values
-#			  must be printed to standard output.
-#	socket		- socket that communicates with a sigmet_raw daemon.
+#	socket		- socket created by a call to "sigmet_raw load ..."
 #
-# Optional environment variables:
-#	SIGMET_RAW_COLORS		- path to directory with color table
-#					  files. For each data type DB_XXX
-#					  this directory must contain a file
-#					  named DB_XXX.clrs with output from
-#					  the raster_clrs program appropriate
-#					  for the data type. Defaults to
-#					  current working directory.
-#	SIGMET_RAW_IMG_SZ		- width of the svg image, in pixels.
+# sigmet_raw_proj, sigmet_raw_ppi_bnds, and cart_svg must be in current path.
 #
-# The svg code for the image goes to standard output.
+# Environment variables:
+#	SIGMET_RAW_COLORS	- (optional) path to directory with color
+#				  table files. For each data type DB_XXX
+#				  this directory must contain a file
+#				  named DB_XXX.clrs with output from
+#				  the raster_clrs program appropriate
+#				  for the data type. Defaults to
+#				  current working directory.
+#	SIGMET_RAW_IMG_SZ	- (optional) image width, pixels
+#
+# The SVG code goes to standard output.
 #
 # Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
 # 
@@ -52,61 +51,92 @@
 # Please send feedback to dev0@trekix.net
 
 # Parse command line
-if [ $# -ne 4 ]
+if [ $# -eq 3 ]
 then
-    echo Usage: $0 data_type sweep_index proj socket
+    data_type=$1
+    sweep_index=$2
+    sock="$3"
+else
+    echo Usage: $0 data_type sweep_index socket 1>&2
     exit 1
 fi
-data_type=$1
-sweep_index=$2
-proj="$3"
-sock="$4"
+w_px=${SIGMET_RAW_IMG_SZ:-"800"}
 
-# Determine image bounds and scale
-eval `sigmet_ppi_bnds "$proj" "$sock"`
-img_width_m=`echo "$x_max_m - $x_min_m" | bc -l`
-img_height_m=`echo "$y_max_m - $y_min_m" | bc -l`
-img_width_px=${SIGMET_RAW_IMG_SZ:-"1400"}
-px_per_m=`echo "$img_width_px / ($x_max_m - $x_min_m)" | bc -l`
-img_height_px=`echo "($y_max_m - $y_min_m) * $px_per_m" | bc -l`
+# Assign volume header information to shell variables
+eval `sigmet_raw vol_hdr "$sock"`
 
+# Ensure volume is ppi
+if ! echo $scan_mode | grep -q "ppi"
+then
+    echo $0: volume at $sock is not a PPI
+    exit 1
+fi
+
+# Locate color table file
 color_dir=${SIGMET_RAW_COLORS:-"."}
-
-# Print SVG for PPI image
-svg_dtd='PUBLIC "-//W3C//DTD SVG 1.0//EN" '\
-'"http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd"'
 color_fl=${color_dir}/${data_type}.clrs
 if ! test -f "$color_fl"
 then
-    echo "Could not find color file $color_fl"
+    echo "$0: could not find color file $color_fl" 1>&2
     exit 1
 fi
-printf '<?xml version="1.0" encoding="UTF-8"?>\n'
-printf '<!DOCTYPE svg %s>\n' "$svg_dtd"
-printf '<svg\n'
-printf '  xmlns="http://www.w3.org/2000/svg"'
-printf '  xmlns:xlink="http://www.w3.org/1999/xlink"\n'
-printf '  width="%f" height="%f"\n' $img_width_px $img_height_px
-printf '  viewBox="0 0 %f %f"\n' $img_width_m $img_height_m
-printf '>\n'
-egrep '([0-9.+-]+|INF|inf) #[0-9A-Fa-f]+ ([0-9.e+-]+|INF|inf)' $color_fl \
+
+# Determine and test projection command
+proj_cmd=`sigmet_raw_proj $sock`
+if ! test "$proj_cmd"
+then
+    echo Could not determine a projection 1>&2
+    exit 1
+fi
+if ! $proj_cmd < /dev/null > /dev/null
+then
+    echo Projection command \"$proj_cmd\" does not work 1>&2
+    exit 1
+fi
+
+# Determine boundaries of sweep
+if ! test $X_MAX_M || ! test $X_MIN_M || ! test $Y_MAX_M || ! test $Y_MIN_M
+then
+    eval `sigmet_ppi_bnds $sweep_index "$proj_cmd" "$sock"`
+fi
+
+# Send beginning of SVG code
+printf '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+    "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+'
+
+# Set up svg element for ppi
+w=`echo $X_MAX_M - $X_MIN_M | bc -l`
+h=`echo $Y_MAX_M - $Y_MIN_M | bc -l`
+SVG_ATT=\
+'xmlns="http://www.w3.org/2000/svg"
+    xmlns:xlink="http://www.w3.org/1999/xlink"'
+export SVG_ATT
+cart_svg $X_MIN_M $Y_MIN_M $w $h $w_px
+
+# Make polygons for ppi bins
+cat $color_fl								\
+| egrep '([0-9.+-]+|INF|inf) #[0-9A-Fa-f]+ ([0-9.e+-]+|INF|inf)'	\
 | while read min color max
 do
-    printf "<g style=\"fill: %s;\">\n" $color;
-    sigmet_raw outlines $data_type $sweep_index $min $max - "$sock" \
-    | $proj \
-    | awk -v x_min_m=$x_min_m -v y_max_m=$y_max_m '
+    printf "<path style=\"fill: %s;\" d=\"\n" $color;
+    sigmet_raw outlines $data_type $sweep_index $min $max - "$sock"	\
+    | $proj_cmd								\
+    | awk '
 	{
-	    printf "<polygon points=\"%.0f,%.0f ",
-		    $1 - x_min_m, y_max_m - $2;
+	    printf "M %.0f %.0f ", $1, $2;
 	    getline
-	    printf "%.0f,%.0f ", $1 - x_min_m, y_max_m - $2;
+	    printf "L %.0f %.0f ", $1, $2;
 	    getline
-	    printf "%.0f,%.0f ", $1 - x_min_m, y_max_m - $2;
+	    printf "L %.0f %.0f ", $1, $2;
 	    getline
-	    printf "%.0f,%.0f\" />\n", $1 - x_min_m, y_max_m - $2;
+	    printf "L %.0f %.0f Z\n", $1, $2;
 	}'
-    printf "</g>\n"
+    printf "\"/>\n"
 done
-printf "</svg>\n"
+
+# Close elements
+printf '</g>\n</svg>\n'
+
 exit 0
