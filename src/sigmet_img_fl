@@ -54,7 +54,7 @@
 # Please send feedback to dev0@trekix.net
 
 # Arrange to clean up on exit.
-trap 'sigmet_cleanup "$sock"' EXIT TERM KILL QUIT INT HUP
+trap 'sigmet_raw unload "$sock"' EXIT TERM KILL QUIT INT HUP
 
 # Parse command line
 if [ $# -ne 4 ]
@@ -186,7 +186,7 @@ do
 		name="`printf '%s sweep' $site`"
 		descr="`printf "%s at %s %s Field: %s %04.1f degrees" \
 			$site $tm $data_type $a1`"
-		printf "$kml_tmpl" "$name" "$descr" $north $south $west $east \
+		printf "$kml_tmpl" "$name" "$descr" $NORTH $SOUTH $WEST $EAST \
 			$img_nm > $kml_nm
 	    fi
 	fi
