@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.45 $ $Date: 2012/02/13 19:54:14 $
+   .	$Revision: 1.46 $ $Date: 2012/04/06 21:09:51 $
  */
 
 #include <string.h>
@@ -273,7 +273,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	status = SIGMET_BAD_VOL;
 	goto error;
     }
-    sensor_p->cell_geo_t = CSFD;
+    sensor_p->cell_geo_t = CG_CSFD;
     csfd_p = &sensor_p->cell_geo.csfd;
     Dorade_CSFD_Init(csfd_p);
     csfd_p->num_segments = 1;
