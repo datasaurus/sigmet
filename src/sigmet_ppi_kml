@@ -91,14 +91,18 @@ fi
 
 # Get site name from volume headers
 # Get sweep time and angle from sweep headers.
-# Get sweep boundaries with sigmet_ppi_bnds command.
+# If necessary, get sweep boundaries with sigmet_ppi_bnds command.
 site=`sigmet_raw volume_headers "$sock" \
      | awk -F \| '/su_site_name/ {print $1}'`
 eval `sigmet_raw sweep_headers "$sock" | awk '
     /sweep +'$s' / {
 	printf "sweep_time=\"%s %s\"\nsweep_angle=%f\n", $3, $4, $5
     }'`
-eval `sigmet_ppi_bnds $sweep_index "$proj_cmd" "$sock"`
+if ! test $X_MAX_M || ! test $X_MIN_M || ! test $Y_MAX_M || ! test $Y_MIN_M
+then
+    eval `sigmet_ppi_bnds $sweep_index "$proj_cmd" "$sock"`
+fi
+
 
 # Print KML
 name="`printf '%s sweep' $site`"
