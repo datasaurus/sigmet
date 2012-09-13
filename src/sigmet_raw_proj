@@ -4,9 +4,9 @@
 #		Print a projection command suitable for ppi's.
 #
 # Usage:
-#	sigmet_raw_proj raw_file
+#	sigmet_raw_proj sock
 # where:
-#	raw_file is a file that contains a Sigmet raw product volume.
+#	sock		- socket created by a call to "sigmet_raw load ..."
 #
 # utm_zone command must be in path
 #
@@ -36,13 +36,14 @@
 #
 # Please send feedback to dev0@trekix.net
 
-if [ $# -ne 1 ]
+if [ $# -eq 1 ]
 then
-    echo "Usage: $0 raw_file"
+    sock="$1"
+else
+    echo "Usage: $0 socket"
     exit 1
 fi
-raw_fl="$1"
-eval `sigmet_hdr -a "$raw_fl" | grep radar_lon`
+eval `sigmet_raw vol_hdr "$sock" | grep radar_lon`
 zn=`utm_zone $radar_lon`
 proj_opt=\
 "-f %.5f +proj=utm +zone=$zn +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
