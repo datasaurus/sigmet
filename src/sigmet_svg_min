@@ -11,8 +11,6 @@
 #	socket		- socket that communicates with a sigmet_raw daemon.
 #
 # Environment variables:
-#	SIGMET_RAW_X0		- x coordinate of svg element
-#	SIGMET_RAW_Y0		- x coordinate of svg element
 #	SIGMET_RAW_PROJ		- command that reads longitude latitude
 #				  values from standard input and prints
 #				  x y values to standard output.
@@ -25,15 +23,17 @@
 #				  the raster_clrs program appropriate
 #				  for the data type. Defaults to
 #				  current working directory.
+#	SIGMET_RAW_FILL		- if set, then outlines are drawn using the 
+#				  "-f" option. See sigmet_raw (1).
 #
 # The svg code for the image goes to standard output.  Output coordinates will
-# be regular cartesian coordinates with origin  at (x_min_m, y_min_m), x
-# increasing to the right, and y increasing upward.  All distances are meters.
+# be regular cartesian coordinates with origin determined by the output from
+# the sigmet_raw outlines command and SIGMET_RAW_PROJ, if defined.
 # Output should be wrapped in svg code that imposes suitable scaling, offsets,
-# and transformations for the display (recall that svg starts assuming y
-# increases downward from top of image).
+# and transformations for the projection display (recall that svg starts
+# assuming y increases downward from top of image).
 #
-# Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+# Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -75,71 +75,17 @@ then
     echo "Could not find color file $color_fl" 1>&2
     exit 1
 fi
+proj_cmd=${SIGMET_RAW_PROJ:-"cat"}
+if test "$SIGMET_RAW_FILL"
+then
+    fill="-f"
+fi
 
-# Get volume headers
-eval `sigmet_raw vol_hdr "$sock"`
-
-# Identify and set up for scan mode
-case "$scan_mode" in
-    ppi*)
-	scan_mode="ppi"
-	if ! test "$SIGMET_RAW_PROJ"
-	then
-	    echo "PPI requires projection. Please set SIGMET_RAW_PROJ." 1>&2
-	    exit 1
-	fi
-	proj_cmd="$SIGMET_RAW_PROJ"
-	eval `sigmet_ppi_bnds $sweep_index "$SIGMET_RAW_PROJ" "$sock"`
-	;;
-    rhi)
-	scan_mode="rhi"
-	proj_cmd="cat"
-	eval `sigmet_rhi_bnds $sweep_index "$sock"`
-	;;
-    *)
-	echo "Unknown scan mode \"$scan_mode\"" 1>&2
-	exit 1
-	;;
-esac
-
-# Location of svg element in parent
-x0=${SIGMET_RAW_X0:-"0.0"}
-y0=${SIGMET_RAW_Y0:-"0.0"}
-
-# Image size in meters
-img_width_m=`echo "$x_max_m - $x_min_m" | bc -l`
-img_height_m=`echo "$y_max_m - $y_min_m" | bc -l`
-
-# Print an svg element for the sweep.
-printf '<svg\n'
-printf '  x="%.0f"\n' $x0
-printf '  y="%.0f"\n' $y0
-printf '  width="%.0f"\n' $img_width_m
-printf '  height="%.0f"\n' $img_height_m
-printf '  viewBox="0 0 %.0f %.0f"\n' $img_width_m $img_height_m
-printf '>\n'
-printf '<desc>%s %s' "$site_name" $data_type
-sweep_hdr=`sigmet_raw sweep_headers $sock \
-	  | egrep 'sweep +'${sweep_index}' ' | sed 's/  */ /g'`
-printf ' %s degrees</desc>\n' "$sweep_hdr"
+# Print SVG outline elements for the sweep.
 cat $color_fl \
 | egrep '([0-9.+-]+|INF|inf) #[0-9A-Fa-f]+ ([0-9.e+-]+|INF|inf)' \
 | while read min color max
 do
-    printf "<path style=\"fill: %s;\" d=\"\n" $color;
-    sigmet_raw outlines $data_type $sweep_index $min $max - "$sock" \
-    | $proj_cmd \
-    | awk -v x_min_m=$x_min_m -v y_max_m=$y_max_m '
-	{
-	    printf "M %.0f %.0f ", $1 - x_min_m, $2 - y_min_m;
-	    getline
-	    printf "L %.0f %.0f ", $1 - x_min_m, $2 - y_min_m;
-	    getline
-	    printf "L %.0f %.0f ", $1 - x_min_m, $2 - y_min_m;
-	    getline
-	    printf "L %.0f %.0f Z\n", $1 - x_min_m, $2 - y_min_m;
-	}'
-    printf "\"/>\n"
+    echo sigmet_raw outlines $fill -- $data_type $sweep_index $min $max - "$sock"
 done
-printf "</svg>\n"
 exit 0
