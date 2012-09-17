@@ -116,8 +116,26 @@ export SVG_ATT
 cart_svg $X_MIN_M $Y_MIN_M $w $h $w_px
 
 # Make polygons for ppi bins
-cat $color_fl								\
-| egrep '([0-9.+-]+|INF|inf) #[0-9A-Fa-f]+ ([0-9.e+-]+|INF|inf)'	\
+awk '
+    BEGIN {
+	max = "nan"
+    }
+    /^[0-9.+-]+|INF|inf #[0-9A-Fa-f]+/ {
+	if (max == "nan") {
+	    min = $1;
+	    color = $2;
+	    printf "%s %s ", min, color
+	} else {
+	    max = $1;
+	    printf "%s\n", max
+	    color = $2;
+	    min = max;
+	    if ( color != "" ) {
+		printf "%s %s ", min, color
+	    }
+	};
+	max = min;
+    }' $color_fl							\
 | while read min color max
 do
     printf "<path style=\"fill: %s;\" d=\"\n" $color;
