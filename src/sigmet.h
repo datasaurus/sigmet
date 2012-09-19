@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.104 $ $Date: 2012/09/13 22:07:12 $
+   .	$Revision: 1.105 $ $Date: 2012/09/19 20:54:50 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -543,13 +543,14 @@ struct Sigmet_Vol {
 						   "STOP NOW" during the task,
 						   or if a volume transfer fails */
     int num_sweeps_ax;				/* Actual number of sweeps */
-    int *sweep_ok;				/* Sweep status, dimensions
-						   [sweep]. If sweep_ok[i],
+    struct {
+	int ok;					/* Sweep status. If ok[i],
 						   i'th sweep is complete. */
-    double *sweep_time;				/* Sweep start time, Julian day,
-						   dimensions [sweep] */
-    double *sweep_angle;			/* Sweep angle, radians,
-						   dimensions [sweep] */
+	double time;				/* Sweep start time, Julian
+						   day */
+	double angle;				/* Sweep angle, radians */
+    } *sweep;					/* Sweep headers, dimensioned
+						   num_sweeps_ax */
     int **ray_ok;				/* Ray status, dimensions
 						   [sweep][ray].  If ray_ok[j][i]
 						   == 1, ray is good */
@@ -571,7 +572,7 @@ struct Sigmet_Vol {
 						   [sweep][ray] */
     struct {
 	char abbrv[SIGMET_NAME_LEN];		/* Data type abbreviation */
-	struct Sigmet_Dat *dat_p;		/* Point into dat */
+	struct Sigmet_Dat *dat_p;		/* Member of dat for abbrv */
     } types_tbl[SIGMET_MAX_TYPES];		/* Map data type abbreviations
 						   to members of dat */
     struct Sigmet_Dat dat[SIGMET_MAX_TYPES];	/* Data, dimensioned [type] */

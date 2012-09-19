@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.48 $ $Date: 2012/09/13 22:08:25 $
+   .	$Revision: 1.49 $ $Date: 2012/09/19 20:56:00 $
  */
 
 #include <string.h>
@@ -307,7 +307,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	    swib_p->stop_angle = DORADE_BAD_F;
 	    break;
     };
-    swib_p->fixed_angle = vol_p->sweep_angle[s] * DEG_PER_RAD;
+    swib_p->fixed_angle = vol_p->sweep[s].angle * DEG_PER_RAD;
 
     /*
        Populate struct Dorade_Ray_Hdr *ray_hdr array

@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.154 $ $Date: 2012/04/27 20:27:02 $
+   .	$Revision: 1.155 $ $Date: 2012/09/13 22:07:12 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -47,14 +47,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/wait.h>
-#include "strlcpy.h"
 #include "alloc.h"
 #include "tm_calc_lib.h"
 #include "err_msg.h"
 #include "swap.h"
 #include "type_nbit.h"
 #include "geog_lib.h"
-#include "data_types.h"
 #include "sigmet.h"
 
 /*
@@ -114,8 +112,10 @@ static int get_sint16(void *);
 static unsigned get_uint16(void *);
 static int get_sint32(void *);
 static unsigned get_uint32(void *);
-static int type_tbl_set(struct Sigmet_Vol *);
 static int vol_good(FILE *);
+static unsigned hash(const char *);
+static void hash_add(struct Sigmet_Vol *, char *, struct Sigmet_Dat *);
+static struct Sigmet_Dat *hash_get(struct Sigmet_Vol *, char *);
 
 /*
    Default length for character strings
@@ -243,23 +243,25 @@ static int ymds_incr(struct Sigmet_YMDS_Time *tm_p, double dt)
 
 void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
 {
-    int n;
+    int n, y;
 
     if (!vol_p) {
 	return;
     }
     memset(vol_p, 0, sizeof(struct Sigmet_Vol));
     vol_p->num_types = 0;
-    Hash_Init(&vol_p->types_tbl, 0);
     for (n = 0; n < SIGMET_NTYPES; n++) {
 	vol_p->types_fl[n] = DB_XHDR;		/* Force error if used */
     }
-    vol_p->sweep_ok = NULL;
-    vol_p->sweep_time = NULL;
-    vol_p->sweep_angle = NULL;
+    vol_p->sweep = NULL;
     vol_p->ray_tilt0 = vol_p->ray_tilt1
 	= vol_p->ray_az0 = vol_p->ray_az1 = NULL;
-    vol_p->dat = NULL;
+    for (y = 0; y < SIGMET_MAX_TYPES; y++) {
+	memset(vol_p->dat[y].abbrv, 0, sizeof(vol_p->dat[y].abbrv));
+	memset(vol_p->dat[y].descr, 0, sizeof(vol_p->dat[y].descr));
+	memset(vol_p->dat[y].unit, 0, sizeof(vol_p->dat[y].unit));
+	vol_p->dat[y].stor_fmt = SIGMET_MT;
+    }
     vol_p->truncated = 1;
     vol_p->size = sizeof(struct Sigmet_Vol);
     vol_p->mod = 0;
@@ -274,9 +276,7 @@ void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
     if (!vol_p) {
 	return;
     }
-    FREE(vol_p->sweep_ok);
-    FREE(vol_p->sweep_time);
-    FREE(vol_p->sweep_angle);
+    FREE(vol_p->sweep);
     free2i(vol_p->ray_ok);
     free2d(vol_p->ray_time);
     free2i(vol_p->ray_num_bins);
@@ -284,43 +284,83 @@ void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
     free2d(vol_p->ray_tilt1);
     free2d(vol_p->ray_az0);
     free2d(vol_p->ray_az1);
-    if ( vol_p->dat ) {
-	for (y = 0; y < vol_p->num_types; y++) {
-	    switch (DataType_GetStorFmt(vol_p->dat[y].data_type)) {
-		case DATA_TYPE_U1:
-		    free3_u1(vol_p->dat[y].arr.u1);
-		    break;
-		case DATA_TYPE_U2:
-		    free3_u2(vol_p->dat[y].arr.u2);
-		    break;
-		case DATA_TYPE_FLT:
-		    free3_flt(vol_p->dat[y].arr.flt);
-		    break;
-		case DATA_TYPE_DBL:
-		case DATA_TYPE_MT:
-		    break;
-	    }
+    for (y = 0; y < SIGMET_MAX_TYPES; y++) {
+	switch (vol_p->dat[y].stor_fmt) {
+	    case SIGMET_U1:
+		free3_u1(vol_p->dat[y].vals.u1);
+		break;
+	    case SIGMET_U2:
+		free3_u2(vol_p->dat[y].vals.u2);
+		break;
+	    case SIGMET_FLT:
+		free3_flt(vol_p->dat[y].vals.f);
+		break;
+	    case SIGMET_DBL:
+	    case SIGMET_MT:
+		break;
 	}
-	FREE(vol_p->dat);
     }
-    Hash_Clear(&vol_p->types_tbl);
     Sigmet_Vol_Init(vol_p);
 }
 
 /*
-   Set values in volume types table
+ * hash - return a random index h, 0 < h < SIGMET_MAX_TYPES, for key k.
+ *
+ * Reference:
+ *   Kernighan, Brian W. and Rob Pike.
+ *   The Practice of Programming.
+ *   Reading, Massachusetts. 1999
  */
 
-static int type_tbl_set(struct Sigmet_Vol *vol_p)
+static unsigned hash(const char *k)
 {
-    struct Sigmet_DatArr *dat_p;
+    unsigned h;
+    unsigned hash_x =  31;
 
-    for (dat_p = vol_p->dat; dat_p < vol_p->dat + vol_p->num_types; dat_p++) {
-	if ( !Hash_Set(&vol_p->types_tbl, DataType_GetAbbrv(dat_p->data_type), dat_p) ) {
-	    return 0;
+    for (h = 0; *k != '\0'; k++) {
+	h = hash_x * h + (unsigned)*k;
+    }
+    return h % SIGMET_MAX_TYPES;
+}
+
+/*
+   Make an entry in vol_p->types_tbl for abbreviation abbrv pointing to dat_p.
+ */
+
+static void hash_add(struct Sigmet_Vol *vol_p, char *abbrv,
+	struct Sigmet_Dat *dat_p)
+{
+    unsigned h;
+
+    for (h = hash(abbrv);
+	    strlen(vol_p->types_tbl[h].abbrv) != 0;
+	    h = (h + 1) % SIGMET_MAX_TYPES) {
+    }
+    strncpy(vol_p->types_tbl[h].abbrv, abbrv, SIGMET_NAME_LEN - 1);
+    vol_p->types_tbl[h].dat_p = dat_p;
+}
+
+/*
+   Get an entry from vol_p->types_tbl for abbreviation abbrv.
+   Return associated dat_p or NULL.
+ */
+
+static struct Sigmet_Dat *hash_get(struct Sigmet_Vol *vol_p, char *abbrv)
+{
+    unsigned h, h0;
+
+    h0 = hash(abbrv);
+    if ( strcmp(vol_p->types_tbl[h0].abbrv, abbrv) == 0 ) {
+	return vol_p->types_tbl[h0].dat_p;
+    }
+    for (h = (h0 + 1) % SIGMET_MAX_TYPES;
+	    h != h0;
+	    h = (h + 1) % SIGMET_MAX_TYPES) {
+	if ( strcmp(vol_p->types_tbl[h].abbrv, abbrv) == 0 ) {
+	    return vol_p->types_tbl[h].dat_p;
 	}
     }
-    return 1;
+    return NULL;
 }
 
 int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
@@ -331,24 +371,23 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     /*
        yf will increment as bits are found in the volume type mask.
        It will end up with a count of the Sigmet data types in the
-       file, including DB_XHDR.
+       file, including the extended header type, DB_XHDR, if present.
 
        y will receive the number of types in the volume, excluding the
        extended header type.
-       vol_p->types array will store type identifiers that end up in vol_p.
 
        If the volume uses extended headers, yf = y + 1,
-       and types_fl will have one more element than vol_p->types.
+       and types_fl will have one more element than vol_p->n_types.
        The extra type is the "extended header type".
      */
 
     int y, yf;
     enum Sigmet_DataTypeN sig_type;
-    struct Sigmet_DatArr *dat_p;
-    char *abbrv;
-    struct DataType *data_type;
+    enum Sigmet_StorFmt stor_fmt;
+    char *abbrv, *descr, *unit;
+    Sigmet_StorToMxFn stor_to_comp;
 
-    /*
+   /*
        These masks are placed against the data type mask in the task dsp info
        structure to determine what data types are in the volume.
      */
@@ -362,7 +401,6 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	(1 << 26), (1 << 27), (1 << 28)
     };
     unsigned vol_type_mask;
-    size_t sz;
 
     if ( !f ) {
 	Err_Append("Read header function called with bogus input stream. ");
@@ -375,29 +413,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	goto error;
     }
 
-    Sigmet_DataType_Init();
     Sigmet_Vol_Free(vol_p);
-
-    /*
-       Initialize dat array with SIGMET_NTYPES members.
-       Do not allocate arrays within dat.
-     */
-
-    vol_p->dat = CALLOC(SIGMET_NTYPES, sizeof(struct Sigmet_DatArr));
-    if ( !vol_p->dat ) {
-	Err_Append("Could not allocate data array (data type dimension). ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_NTYPES; dat_p++) {
-	dat_p->data_type = NULL;
-	dat_p->arr.flt = NULL;
-    }
-    if ( !Hash_Init(&vol_p->types_tbl, SIGMET_NTYPES * 2) ) {
-	Err_Append("Could not allocate space for volume types table. ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
 
     /*
        record 1, <product_header>
@@ -447,56 +463,49 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     }
     for (sig_type = 0, yf = y = 0; sig_type < SIGMET_NTYPES; sig_type++) {
 	if (vol_type_mask & type_mask_bit[sig_type]) {
-	    if ( !(abbrv = Sigmet_DataType_Abbrv(sig_type))
-		    || !(data_type = DataType_Get(abbrv)) ) {
-		Err_Append("Unknown data type in volume file. ");
-		status = SIGMET_BAD_FILE;
-		goto error;
-	    }
-	    vol_p->dat[y].data_type = data_type;
-	    switch (DataType_GetStorFmt(data_type)) {
-		case DATA_TYPE_MT:
+	    abbrv = Sigmet_DataType_Abbrv(sig_type);
+	    descr = Sigmet_DataType_Descr(sig_type);
+	    unit = Sigmet_DataType_Unit(sig_type);
+	    stor_fmt = Sigmet_DataType_StorFmt(sig_type);
+	    stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
+	    switch (stor_fmt) {
+		case SIGMET_MT:
+		    /* This is normally DB_XHDR. Skip. */
 		    break;
-		case DATA_TYPE_U1:
-		    vol_p->dat[y].arr.u1 = NULL;
+		case SIGMET_U1:
+		    strcpy(vol_p->dat[y].abbrv, abbrv);
+		    strcpy(vol_p->dat[y].descr, descr);
+		    strcpy(vol_p->dat[y].unit, unit);
+		    vol_p->dat[y].stor_fmt = stor_fmt;
+		    vol_p->dat[y].stor_to_comp = stor_to_comp;
+		    hash_add(vol_p, abbrv, vol_p->dat + y);
+		    vol_p->dat[y].vals.u1 = NULL;
 		    y++;
 		    break;
-		case DATA_TYPE_U2:
-		    vol_p->dat[y].arr.u2 = NULL;
+		case SIGMET_U2:
+		    strcpy(vol_p->dat[y].abbrv, abbrv);
+		    strcpy(vol_p->dat[y].descr, descr);
+		    strcpy(vol_p->dat[y].unit, unit);
+		    vol_p->dat[y].stor_fmt = stor_fmt;
+		    vol_p->dat[y].stor_to_comp = stor_to_comp;
+		    hash_add(vol_p, abbrv, vol_p->dat + y);
+		    vol_p->dat[y].vals.u2 = NULL;
 		    y++;
 		    break;
-		case DATA_TYPE_FLT:
-		case DATA_TYPE_DBL:
+		case SIGMET_FLT:
+		case SIGMET_DBL:
 		    Err_Append("Volume in memory is corrupt. Unknown "
 			    "data type in data array.");
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		    break;
 	    }
-	    if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
-		Err_Append("Could not initialize volume types table. ");
-		status = SIGMET_ALLOC_FAIL;
-		goto error;
-	    }
 	    vol_p->types_fl[yf] = sig_type;
 	    yf++;
 	}
     }
     vol_p->num_types = y;
-    sz = vol_p->num_types * sizeof(struct Sigmet_DatArr);
-    dat_p = REALLOC(vol_p->dat, sz);
-    if ( !dat_p ) {
-	Err_Append("Could not reallocate space for volume types array. ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->dat = dat_p;
-    if ( !type_tbl_set(vol_p) ) {
-	Err_Append("Allocation failed while resetting volume types table. ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->size += sz;
+    vol_p->size += vol_p->num_types * sizeof(struct Sigmet_Dat);
     vol_p->has_headers = 1;
     return SIGMET_OK;
 
@@ -520,13 +529,9 @@ void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
     fprintf(out, "%d" FS "%s" FS "%s\n",
 	    vol_p->num_types, "num_types", "Number of Sigmet data types");
     for (y = 0; y < vol_p->num_types; y++) {
-	struct DataType *data_type = vol_p->dat[y].data_type;
-
 	snprintf(elem_nm, STR_LEN, "%s%d%s", "types[", y, "]");
 	fprintf(out, "%s" FS "%s" FS "%s\n",
-		DataType_GetAbbrv(data_type),
-		elem_nm,
-		DataType_GetDescr(data_type));
+		vol_p->dat[y].abbrv, elem_nm, vol_p->dat[y].descr);
     }
 }
 
@@ -828,29 +833,13 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
 
-    vol_p->sweep_ok = (int *)CALLOC(num_sweeps, sizeof(int));
-    if ( !vol_p->sweep_ok ) {
-	Err_Append("Could not allocate sweep status array.  ");
+    vol_p->sweep = CALLOC(num_sweeps, sizeof(*vol_p->sweep));
+    if ( !vol_p->sweep ) {
+	Err_Append("Could not allocate sweep header array.  ");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
-    vol_p->size += num_sweeps * sizeof(int);
-
-    vol_p->sweep_time = (double *)CALLOC(num_sweeps, sizeof(double));
-    if ( !vol_p->sweep_time ) {
-	Err_Append("Could not allocate sweep time array.  ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->size += num_sweeps * sizeof(double);
-
-    vol_p->sweep_angle = (double *)CALLOC(num_sweeps, sizeof(double));
-    if ( !vol_p->sweep_angle ) {
-	Err_Append("Could not allocate sweep angle array.  ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->size += num_sweeps * sizeof(double);
+    vol_p->size += num_sweeps * sizeof(*vol_p->sweep);
 
     vol_p->ray_ok = calloc2i(num_sweeps, num_rays);
     if ( !vol_p->ray_ok ) {
@@ -909,24 +898,29 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->size += num_sweeps * num_rays * sizeof(double);
 
     for (y = 0; y < vol_p->num_types; y++) {
-	switch (DataType_GetStorFmt(vol_p->dat[y].data_type)) {
-	    case DATA_TYPE_U1:
-		vol_p->dat[y].arr.u1 = calloc3_u1(num_sweeps, num_rays, num_bins);
-		if ( !vol_p->dat[y].arr.u1 ) {
+	switch (vol_p->dat[y].stor_fmt) {
+	    case SIGMET_U1:
+		vol_p->dat[y].vals.u1
+		    = calloc3_u1(num_sweeps, num_rays, num_bins);
+		if ( !vol_p->dat[y].vals.u1 ) {
 		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins;
 		break;
-	    case DATA_TYPE_U2:
-		vol_p->dat[y].arr.u2 = calloc3_u2(num_sweeps, num_rays, num_bins);
-		if ( !vol_p->dat[y].arr.u2 ) {
+	    case SIGMET_U2:
+		vol_p->dat[y].vals.u2
+		    = calloc3_u2(num_sweeps, num_rays, num_bins);
+		if ( !vol_p->dat[y].vals.u2 ) {
 		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins * 2;
 		break;
 	    default:
+	    case SIGMET_FLT:
+	    case SIGMET_DBL:
+	    case SIGMET_MT:
 		Err_Append("Volume in memory is corrupt. Unknown data type "
 			"in data array.");
 		status = SIGMET_BAD_VOL;
@@ -998,7 +992,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    goto error;
 		}
 	    }
-	    vol_p->sweep_ok[sweep_num] = 1;
+	    vol_p->sweep[sweep_num].ok = 1;
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
 		Err_Append("Volume has excess sweeps.  ");
@@ -1030,7 +1024,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    month = get_sint16(rec + 32);
 	    day = get_sint16(rec + 34);
 	    if (year < 1900 || month == 0 || day == 0) {
-		vol_p->sweep_ok[sweep_num] = 0;
+		vol_p->sweep[sweep_num].ok = 0;
 	    }
 
 	    /*
@@ -1039,11 +1033,11 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 
 	    swpTm = Tm_CalToJul(year, month, day, 0, 0, sec);
 	    if ( swpTm == 0.0 ) {
-		vol_p->sweep_ok[sweep_num] = 0;
+		vol_p->sweep[sweep_num].ok = 0;
 	    }
 	    angle = Sigmet_Bin2Rad(get_uint16(rec + 46));
-	    vol_p->sweep_time[s] = swpTm;
-	    vol_p->sweep_angle[s] = angle;
+	    vol_p->sweep[s].time = swpTm;
+	    vol_p->sweep[s].angle = angle;
 
 	    /*
 	       Initialize ray.
@@ -1166,14 +1160,14 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    U2BYT *vol_u2;
 
 		    switch (Sigmet_DataType_StorFmt(vol_p->types_fl[yf])) {
-			case DATA_TYPE_U1:
-			    vol_u1 = vol_p->dat[y].arr.u1[s][r];
+			case SIGMET_U1:
+			    vol_u1 = vol_p->dat[y].vals.u1[s][r];
 			    for (b = 0; b < nbins; b++)  {
 				vol_u1[b] = u1[b];
 			    }
 			    break;
-			case DATA_TYPE_U2:
-			    vol_u2 = vol_p->dat[y].arr.u2[s][r];
+			case SIGMET_U2:
+			    vol_u2 = vol_p->dat[y].vals.u2[s][r];
 			    for (b = 0; b < nbins; b++)  {
 				vol_u2[b] = get_uint16(u2 + b);
 			    }
@@ -1214,7 +1208,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    }
 	}
     }
-    for (s = 0; s < vol_p->ih.tc.tni.num_sweeps && vol_p->sweep_ok[s]; s++) {
+    for (s = 0; s < vol_p->ih.tc.tni.num_sweeps && vol_p->sweep[s].ok; s++) {
 	continue;
     }
     vol_p->truncated = (r + 1 < num_rays || s + 1 < num_sweeps) ? 1 : 0;
@@ -1242,11 +1236,10 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
    dat array.
  */
 
-int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
+int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
+	char *unit)
 {
-    struct DataType *data_type;
-    size_t sz;
-    struct Sigmet_DatArr *dat_p;
+    struct Sigmet_Dat *dat_p;
     float ***flt_p;
     int num_sweeps, num_rays, num_bins;
 
@@ -1258,58 +1251,57 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv)
 	Err_Append("Attempted to add data type to a bogus volume. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(data_type = DataType_Get(abbrv)) ) {
-	Err_Append("No data type named %s. ");
+    if ( Sigmet_DataType_GetN(abbrv, NULL) ) {
 	Err_Append(abbrv);
-	Err_Append( " Please add with the new_data_type command. ");
+	Err_Append( " is a built in Sigmet data type. ");
+	Err_Append( " Please choose another name. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( Hash_Get(&vol_p->types_tbl, abbrv) ) {
+    if ( hash_get(vol_p, abbrv) ) {
 	Err_Append("Data type ");
 	Err_Append(abbrv);
 	Err_Append(" already exists in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    sz = (vol_p->num_types + 1) * sizeof(struct Sigmet_DatArr);
-    if ( !(dat_p = REALLOC(vol_p->dat, sz)) ) {
-	Err_Append("Allocation failed while enlarging volume data "
-		"array. ");
-	return SIGMET_ALLOC_FAIL;
-    }
-    vol_p->dat = dat_p;
-    if ( !type_tbl_set(vol_p) ) {
-	Err_Append("Allocation failed while resetting volume types table. ");
-	return SIGMET_ALLOC_FAIL;
-    }
-    dat_p = vol_p->dat + vol_p->num_types;
-    dat_p->data_type = data_type;
-    dat_p->arr.flt = NULL;
-    if ( !Hash_Add(&vol_p->types_tbl, abbrv, dat_p) ) {
-	Err_Append("Could not add ");
+    if ( vol_p->num_types + 1 > SIGMET_MAX_TYPES ) {
+	Err_Append("Adding ");
 	Err_Append(abbrv);
-	Err_Append(" to volume types table. ");
-	return SIGMET_ALLOC_FAIL;
+	Err_Append(" to volume would exceed maximum type count. ");
+	return SIGMET_BAD_ARG;
     }
+
+    dat_p = vol_p->dat + vol_p->num_types;
+    strcpy(dat_p->abbrv, "");
+    strcpy(dat_p->descr, "");
+    strcpy(dat_p->unit, "");
+    dat_p->stor_fmt = SIGMET_FLT;
+    dat_p->vals.f = NULL;
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
+
     flt_p = calloc3_flt(num_sweeps, num_rays, num_bins);
     if ( !flt_p ) {
-	dat_p->data_type = NULL;
 	Err_Append("Could not allocate new field ");
 	return SIGMET_ALLOC_FAIL;
     }
-    dat_p->arr.flt = flt_p;
+
+    dat_p->vals.f = flt_p;
+    strncpy(dat_p->abbrv, abbrv, SIGMET_NAME_LEN - 1);
+    strncpy(dat_p->descr, descr, SIGMET_NAME_LEN - 1);
+    strncpy(dat_p->unit, unit, SIGMET_NAME_LEN - 1);
+    hash_add(vol_p, abbrv, dat_p);
+    dat_p->stor_to_comp = Sigmet_DblDbl;
+
     vol_p->size += num_sweeps * num_rays * num_bins * sizeof(float);
     vol_p->num_types++;
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
 int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 {
-    struct DataType *data_type;
-    size_t sz;
-    struct Sigmet_DatArr *d_p, *d1_p;
+    struct Sigmet_Dat *d_p, *d1_p;
     int num_sweeps, num_rays, num_bins;
 
     if ( !abbrv ) {
@@ -1320,24 +1312,18 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 	Err_Append("Attempted to remove a field from a bogus volume. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(data_type = DataType_Get(abbrv)) ) {
-	Err_Append("No data type named %s. ");
-	Err_Append(abbrv);
-	Err_Append( ".  ");
-	return SIGMET_BAD_ARG;
-    }
-    if ( !(d_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+    if ( !(d_p = hash_get(vol_p, abbrv)) ) {
 	Err_Append("Data type ");
 	Err_Append(abbrv);
 	Err_Append(" not in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    free3_flt(d_p->arr.flt);
+    free3_flt(d_p->vals.f);
+    memset(d_p, 0, sizeof(struct Sigmet_Dat));
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
     vol_p->size -= num_sweeps * num_rays * num_bins * sizeof(float);
-    Hash_Rm(&vol_p->types_tbl, abbrv);
 
     /*
        Slide the rest of the members of dat down one to fill the hole.
@@ -1345,46 +1331,42 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 
     for (d1_p = d_p + 1; d1_p < vol_p->dat + vol_p->num_types; d_p++, d1_p++) {
 	*d_p = *d1_p;
+	hash_add(vol_p, d_p->abbrv, d_p);
     }
-    sz = (vol_p->num_types - 1) * sizeof(struct Sigmet_DatArr);
-    if ( !(d_p = REALLOC(vol_p->dat, sz)) ) {
-	Err_Append("Allocation failed while reallocating volume data array.");
-	return SIGMET_ALLOC_FAIL;
-    }
-    vol_p->dat = d_p;
     vol_p->num_types--;
-    if ( !type_tbl_set(vol_p) ) {
-	Err_Append("Allocation failed while resetting volume types table. ");
-	return SIGMET_ALLOC_FAIL;
+    memset(vol_p->types_tbl, 0, sizeof(vol_p->types_tbl));
+    for (d_p = vol_p->dat; d1_p < vol_p->dat + vol_p->num_types; d_p++) {
+	hash_add(vol_p, d_p->abbrv, d_p);
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
 /*
-   Initialize data array to value v.
+   Set data array to value v.
  */
 
 int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
-    struct Sigmet_DatArr *dat_p;
+    struct Sigmet_Dat *dat_p;
     int s, r;
     float *dp, *dp1;
 
     if ( !vol_p || !abbrv ) {
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+    if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    DataType_SetStorFmt(dat_p->data_type, DATA_TYPE_FLT);
+    dat_p->stor_fmt = SIGMET_FLT;
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep_ok[s] ) {
+	if ( vol_p->sweep[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    dp = dat_p->arr.flt[s][r];
+		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_num_bins[s][r];
 		    for ( ; dp < dp1; dp++) {
 			*dp = v;
@@ -1393,6 +1375,7 @@ int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	    }
 	}
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -1402,35 +1385,36 @@ int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 
 int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 {
-    struct Sigmet_DatArr *dat_p;
-    float ***arr;
+    struct Sigmet_Dat *dat_p;
+    float ***f;
     int s, r, b;
     double bin0, bin_step;
 
     if ( !vol_p || !abbrv ) {
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+    if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    DataType_SetStorFmt(dat_p->data_type, DATA_TYPE_FLT);
-    arr = dat_p->arr.flt;
+    dat_p->stor_fmt = SIGMET_FLT;
+    f = dat_p->vals.f;
     bin_step = 0.01 * vol_p->ih.tc.tri.step_out;	/* cm -> meter */
     bin0 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin + 0.5 * bin_step;
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep_ok[s] ) {
+	if ( vol_p->sweep[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
 		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-			arr[s][r][b] = bin0 + b * bin_step;
+			f[s][r][b] = bin0 + b * bin_step;
 		    }
 		}
 	    }
 	}
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -1440,9 +1424,7 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 
 int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 {
-    enum Sigmet_DataTypeN sig_type1;
-    struct Sigmet_DatArr *dat_p1, *dat_p2;
-    struct DataType *data_type1, *data_type2;
+    struct Sigmet_Dat *dat_p1, *dat_p2;
     int s, r, b;
     int num_sweeps, num_rays, num_bins;
     size_t sz;
@@ -1456,75 +1438,74 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	Err_Append("Attempted to add bogus field. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( Sigmet_DataType_GetN(abbrv1, &sig_type1) ) {
-	Err_Append("Sigmet raw data cannot be modified. "
-		"Please copy the field and modify the copy. ");
+    if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
+	Err_Append(abbrv1);
+	Err_Append( " is a built in Sigmet data type. ");
+	Err_Append( " No modification allowed. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p1 = Hash_Get(&vol_p->types_tbl, abbrv1)) ) {
+    if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv1);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type1 = dat_p1->data_type;
-    if ( DataType_GetStorFmt(data_type1) != DATA_TYPE_FLT ) {
+    if ( dat_p1->stor_fmt != SIGMET_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
-    if ( !(dat_p2 = Hash_Get(&vol_p->types_tbl, abbrv2)) ) {
+    if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv2);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type2 = dat_p2->data_type;
-    switch (DataType_GetStorFmt(data_type2)) {
-	case DATA_TYPE_U1:
+    switch (dat_p2->stor_fmt) {
+	case SIGMET_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v2 = dat_p2->arr.u1[s][r][b];
-				v2 = DataType_StorToComp(data_type2, v2, vol_p);
-				dat_p1->arr.flt[s][r][b] = v2;
+				v2 = dat_p2->vals.u1[s][r][b];
+				v2 = dat_p2->stor_to_comp(v2, vol_p);
+				dat_p1->vals.f[s][r][b] = v2;
 			    }
 			}
 		    }
 		}
 	    }
 	    break;
-	case DATA_TYPE_U2:
+	case SIGMET_U2:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v2 = dat_p2->arr.u2[s][r][b];
-				v2 = DataType_StorToComp(data_type2, v2, vol_p);
-				dat_p1->arr.flt[s][r][b] = v2;
+				v2 = dat_p2->vals.u2[s][r][b];
+				v2 = dat_p2->stor_to_comp(v2, vol_p);
+				dat_p1->vals.f[s][r][b] = v2;
 			    }
 			}
 		    }
 		}
 	    }
 	    break;
-	case DATA_TYPE_FLT:
+	case SIGMET_FLT:
 	    num_sweeps = vol_p->ih.tc.tni.num_sweeps;
 	    num_rays = vol_p->ih.ic.num_rays;
 	    num_bins = vol_p->ih.tc.tri.num_bins_out;
 	    sz = num_sweeps * num_rays * num_bins;
-	    memcpy(dat_p1->arr.flt, dat_p2->arr.flt, sz);
+	    memcpy(dat_p1->vals.f, dat_p2->vals.f, sz);
 	    break;
-	case DATA_TYPE_DBL:
-	case DATA_TYPE_MT:
+	case SIGMET_DBL:
+	case SIGMET_MT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
 		    }
@@ -1532,6 +1513,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    }
 	    break;
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -1542,8 +1524,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
-    struct Sigmet_DatArr *dat_p;
-    struct DataType *data_type;
+    struct Sigmet_Dat *dat_p;
     int s, r;
     float *dp, *dp1;
 
@@ -1556,26 +1537,26 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	Err_Append("Sigmet raw data cannot be modified. "
-		"Please copy the field and modify the copy. ");
+	Err_Append(abbrv);
+	Err_Append( " is a built in Sigmet data type. ");
+	Err_Append( " No modification allowed. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+    if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type = dat_p->data_type;
-    if ( DataType_GetStorFmt(data_type) != DATA_TYPE_FLT ) {
+    if ( dat_p->stor_fmt != SIGMET_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep_ok[s] ) {
+	if ( vol_p->sweep[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    dp = dat_p->arr.flt[s][r];
+		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_num_bins[s][r];
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
@@ -1586,6 +1567,7 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	    }
 	}
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -1595,9 +1577,7 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 
 int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 {
-    enum Sigmet_DataTypeN sig_type1;
-    struct Sigmet_DatArr *dat_p1, *dat_p2;
-    struct DataType *data_type1, *data_type2;
+    struct Sigmet_Dat *dat_p1, *dat_p2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
     int s, r, b;
     float v1, v2;
@@ -1610,19 +1590,19 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	Err_Append("Attempted to add bogus field. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( Sigmet_DataType_GetN(abbrv1, &sig_type1) ) {
-	Err_Append("Sigmet raw data cannot be modified. "
-		"Please copy the field and modify the copy. ");
+    if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
+	Err_Append(abbrv1);
+	Err_Append( " Please choose another name. ");
+	Err_Append( " No modification allowed. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p1 = Hash_Get(&vol_p->types_tbl, abbrv1)) ) {
+    if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv1);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type1 = dat_p1->data_type;
-    if ( DataType_GetStorFmt(data_type1) != DATA_TYPE_FLT ) {
+    if ( dat_p1->stor_fmt != SIGMET_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -1630,27 +1610,26 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	sgn = -1;
 	abbrv2++;
     }
-    if ( !(dat_p2 = Hash_Get(&vol_p->types_tbl, abbrv2)) ) {
+    if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv2);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type2 = dat_p2->data_type;
-    switch (DataType_GetStorFmt(dat_p2->data_type)) {
-	case DATA_TYPE_U1:
+    switch (dat_p2->stor_fmt) {
+	case SIGMET_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.u1[s][r][b];
-				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.u1[s][r][b];
+				v2 = dat_p2->stor_to_comp(v2, vol_p);
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->arr.flt[s][r][b] = v1 + sgn * v2;
+				    dat_p1->vals.f[s][r][b] = v1 + sgn * v2;
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -1658,19 +1637,19 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_U2:
+	case SIGMET_U2:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.u2[s][r][b];
-				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.u2[s][r][b];
+				v2 = dat_p2->stor_to_comp (v2, vol_p);
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->arr.flt[s][r][b] = v1 + sgn * v2;
+				    dat_p1->vals.f[s][r][b] = v1 + sgn * v2;
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -1678,18 +1657,18 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_FLT:
+	case SIGMET_FLT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.flt[s][r][b];
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.f[s][r][b];
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->arr.flt[s][r][b] = v1 + sgn * v2;
+				    dat_p1->vals.f[s][r][b] = v1 + sgn * v2;
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -1697,14 +1676,14 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_DBL:
-	case DATA_TYPE_MT:
+	case SIGMET_DBL:
+	case SIGMET_MT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
 		    }
@@ -1712,6 +1691,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    }
 	    break;
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -1722,8 +1702,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
-    struct Sigmet_DatArr *dat_p;
-    struct DataType *data_type;
+    struct Sigmet_Dat *dat_p;
     int s, r;
     float *dp, *dp1;
 
@@ -1736,26 +1715,26 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	Err_Append("Sigmet raw data cannot be modified. "
-		"Please copy the field and modify the copy. ");
+	Err_Append(abbrv);
+	Err_Append( " is a built in Sigmet data type. ");
+	Err_Append( " No modification allowed. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+    if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type = dat_p->data_type;
-    if ( DataType_GetStorFmt(data_type) != DATA_TYPE_FLT ) {
+    if ( dat_p->stor_fmt != SIGMET_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep_ok[s] ) {
+	if ( vol_p->sweep[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    dp = dat_p->arr.flt[s][r];
+		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_num_bins[s][r];
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
@@ -1766,6 +1745,7 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	    }
 	}
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -1775,9 +1755,7 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 
 int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 {
-    enum Sigmet_DataTypeN sig_type1;
-    struct Sigmet_DatArr *dat_p1, *dat_p2;
-    struct DataType *data_type1, *data_type2;
+    struct Sigmet_Dat *dat_p1, *dat_p2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
     int s, r, b;
     float v1, v2;
@@ -1790,19 +1768,19 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	Err_Append("Attempted to add bogus field. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( Sigmet_DataType_GetN(abbrv1, &sig_type1) ) {
-	Err_Append("Sigmet raw data cannot be modified. "
-		"Please copy the field and modify the copy. ");
+    if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
+	Err_Append(abbrv1);
+	Err_Append( " is a built in Sigmet data type. ");
+	Err_Append( " No modification allowed. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p1 = Hash_Get(&vol_p->types_tbl, abbrv1)) ) {
+    if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv1);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type1 = dat_p1->data_type;
-    if ( DataType_GetStorFmt(data_type1) != DATA_TYPE_FLT ) {
+    if ( dat_p1->stor_fmt != SIGMET_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -1810,27 +1788,26 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	sgn = -1;
 	abbrv2++;
     }
-    if ( !(dat_p2 = Hash_Get(&vol_p->types_tbl, abbrv2)) ) {
+    if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv2);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type2 = dat_p2->data_type;
-    switch (DataType_GetStorFmt(dat_p2->data_type)) {
-	case DATA_TYPE_U1:
+    switch (dat_p2->stor_fmt) {
+	case SIGMET_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.u1[s][r][b];
-				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.u1[s][r][b];
+				v2 = dat_p2->stor_to_comp(v2, vol_p);
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->arr.flt[s][r][b] = v1 - sgn * v2;
+				    dat_p1->vals.f[s][r][b] = v1 - sgn * v2;
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -1838,19 +1815,19 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_U2:
+	case SIGMET_U2:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.u2[s][r][b];
-				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.u2[s][r][b];
+				v2 = dat_p2->stor_to_comp(v2, vol_p);
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->arr.flt[s][r][b] = v1 - sgn * v2;
+				    dat_p1->vals.f[s][r][b] = v1 - sgn * v2;
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -1858,18 +1835,18 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_FLT:
+	case SIGMET_FLT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.flt[s][r][b];
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.f[s][r][b];
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->arr.flt[s][r][b] = v1 - sgn * v2;
+				    dat_p1->vals.f[s][r][b] = v1 - sgn * v2;
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -1877,14 +1854,14 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_DBL:
-	case DATA_TYPE_MT:
+	case SIGMET_DBL:
+	case SIGMET_MT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
 		    }
@@ -1892,6 +1869,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    }
 	    break;
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -1902,8 +1880,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
-    struct Sigmet_DatArr *dat_p;
-    struct DataType *data_type;
+    struct Sigmet_Dat *dat_p;
     int s, r;
     float *dp, *dp1;
 
@@ -1916,26 +1893,26 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	Err_Append("Sigmet raw data cannot be modified. "
-		"Please copy the field and modify the copy. ");
+	Err_Append(abbrv);
+	Err_Append( " is a built in Sigmet data type. ");
+	Err_Append( " No modification allowed. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+    if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type = dat_p->data_type;
-    if ( DataType_GetStorFmt(data_type) != DATA_TYPE_FLT ) {
+    if ( dat_p->stor_fmt != SIGMET_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep_ok[s] ) {
+	if ( vol_p->sweep[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    dp = dat_p->arr.flt[s][r];
+		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_num_bins[s][r];
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
@@ -1946,6 +1923,7 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	    }
 	}
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -1955,9 +1933,7 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 
 int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 {
-    enum Sigmet_DataTypeN sig_type1;
-    struct Sigmet_DatArr *dat_p1, *dat_p2;
-    struct DataType *data_type1, *data_type2;
+    struct Sigmet_Dat *dat_p1, *dat_p2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
     int s, r, b;
     float v1, v2;
@@ -1970,19 +1946,19 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	Err_Append("Attempted to add bogus field. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( Sigmet_DataType_GetN(abbrv1, &sig_type1) ) {
-	Err_Append("Sigmet raw data cannot be modified. "
-		"Please copy the field and modify the copy. ");
+    if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
+	Err_Append(abbrv1);
+	Err_Append( " is a built in Sigmet data type. ");
+	Err_Append( " No modification allowed. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p1 = Hash_Get(&vol_p->types_tbl, abbrv1)) ) {
+    if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv1);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type1 = dat_p1->data_type;
-    if ( DataType_GetStorFmt(data_type1) != DATA_TYPE_FLT ) {
+    if ( dat_p1->stor_fmt != SIGMET_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -1990,27 +1966,26 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	sgn = -1;
 	abbrv2++;
     }
-    if ( !(dat_p2 = Hash_Get(&vol_p->types_tbl, abbrv2)) ) {
+    if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv2);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type2 = dat_p2->data_type;
-    switch (DataType_GetStorFmt(dat_p2->data_type)) {
-	case DATA_TYPE_U1:
+    switch (dat_p2->stor_fmt) {
+	case SIGMET_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.u1[s][r][b];
-				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.u1[s][r][b];
+				v2 = dat_p2->stor_to_comp(v2, vol_p);
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->arr.flt[s][r][b] = v1 * sgn * v2;
+				    dat_p1->vals.f[s][r][b] = v1 * sgn * v2;
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -2018,19 +1993,19 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_U2:
+	case SIGMET_U2:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.u2[s][r][b];
-				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.u2[s][r][b];
+				v2 = dat_p2->stor_to_comp(v2, vol_p);
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->arr.flt[s][r][b] = v1 * sgn * v2;
+				    dat_p1->vals.f[s][r][b] = v1 * sgn * v2;
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -2038,18 +2013,18 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_FLT:
+	case SIGMET_FLT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.flt[s][r][b];
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.f[s][r][b];
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->arr.flt[s][r][b] = v1 * sgn * v2;
+				    dat_p1->vals.f[s][r][b] = v1 * sgn * v2;
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -2057,14 +2032,14 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_DBL:
-	case DATA_TYPE_MT:
+	case SIGMET_DBL:
+	case SIGMET_MT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
 		    }
@@ -2072,6 +2047,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    }
 	    break;
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -2082,8 +2058,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 {
     enum Sigmet_DataTypeN sig_type;
-    struct Sigmet_DatArr *dat_p;
-    struct DataType *data_type;
+    struct Sigmet_Dat *dat_p;
     int s, r;
     float *dp, *dp1;
 
@@ -2100,26 +2075,26 @@ int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	Err_Append("Sigmet raw data cannot be modified. "
-		"Please copy the field and modify the copy. ");
+	Err_Append(abbrv);
+	Err_Append( " is a built in Sigmet data type. ");
+	Err_Append( " No modification allowed. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+    if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type = dat_p->data_type;
-    if ( DataType_GetStorFmt(data_type) != DATA_TYPE_FLT ) {
+    if ( dat_p->stor_fmt != SIGMET_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep_ok[s] ) {
+	if ( vol_p->sweep[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    dp = dat_p->arr.flt[s][r];
+		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_num_bins[s][r];
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
@@ -2130,18 +2105,17 @@ int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	    }
 	}
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
 /*
-   Replace field abbrv1 with abbrv1 * abbrv2.
+   Replace field abbrv1 with abbrv1 / abbrv2.
  */
 
 int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 {
-    enum Sigmet_DataTypeN sig_type1;
-    struct Sigmet_DatArr *dat_p1, *dat_p2;
-    struct DataType *data_type1, *data_type2;
+    struct Sigmet_Dat *dat_p1, *dat_p2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
     int s, r, b;
     float v1, v2;
@@ -2154,19 +2128,19 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	Err_Append("Attempted to add bogus field. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( Sigmet_DataType_GetN(abbrv1, &sig_type1) ) {
-	Err_Append("Sigmet raw data cannot be modified. "
-		"Please copy the field and modify the copy. ");
+    if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
+	Err_Append(abbrv1);
+	Err_Append( " is a built in Sigmet data type. ");
+	Err_Append( " No modification allowed. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p1 = Hash_Get(&vol_p->types_tbl, abbrv1)) ) {
+    if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv1);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type1 = dat_p1->data_type;
-    if ( DataType_GetStorFmt(data_type1) != DATA_TYPE_FLT ) {
+    if ( dat_p1->stor_fmt != SIGMET_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
@@ -2174,28 +2148,27 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	sgn = -1;
 	abbrv2++;
     }
-    if ( !(dat_p2 = Hash_Get(&vol_p->types_tbl, abbrv2)) ) {
+    if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv2);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type2 = dat_p2->data_type;
-    switch (DataType_GetStorFmt(dat_p2->data_type)) {
-	case DATA_TYPE_U1:
+    switch (dat_p2->stor_fmt) {
+	case SIGMET_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.u1[s][r][b];
-				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.u1[s][r][b];
+				v2 = dat_p2->stor_to_comp(v2, vol_p);
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2)
 					&& v2 != 0.0 ) {
-				    dat_p1->arr.flt[s][r][b] = v1 / (sgn * v2);
+				    dat_p1->vals.f[s][r][b] = v1 / (sgn * v2);
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -2203,20 +2176,20 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_U2:
+	case SIGMET_U2:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.u2[s][r][b];
-				v2 = DataType_StorToComp(data_type2, v2, vol_p);
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.u2[s][r][b];
+				v2 = dat_p2->stor_to_comp(v2, vol_p);
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2)
 					&& v2 != 0.0) {
-				    dat_p1->arr.flt[s][r][b] = v1 / (sgn * v2);
+				    dat_p1->vals.f[s][r][b] = v1 / (sgn * v2);
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -2224,19 +2197,19 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_FLT:
+	case SIGMET_FLT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				v1 = dat_p1->arr.flt[s][r][b];
-				v2 = dat_p2->arr.flt[s][r][b];
+				v1 = dat_p1->vals.f[s][r][b];
+				v2 = dat_p2->vals.f[s][r][b];
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2)
 					&& v2 != 0.0 ) {
-				    dat_p1->arr.flt[s][r][b] = v1 / (sgn * v2);
+				    dat_p1->vals.f[s][r][b] = v1 / (sgn * v2);
 				} else {
-				    dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 				}
 			    }
 			}
@@ -2244,14 +2217,14 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		}
 	    }
 	    break;
-	case DATA_TYPE_DBL:
-	case DATA_TYPE_MT:
+	case SIGMET_DBL:
+	case SIGMET_MT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep_ok[s] ) {
+		if ( vol_p->sweep[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_ok[s][r] ) {
 			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
-				dat_p1->arr.flt[s][r][b] = Sigmet_NoData();
+				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
 		    }
@@ -2259,6 +2232,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    }
 	    break;
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -2269,8 +2243,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     enum Sigmet_DataTypeN sig_type;
-    struct Sigmet_DatArr *dat_p;
-    struct DataType *data_type;
+    struct Sigmet_Dat *dat_p;
     int s, r;
     float *dp, *dp1;
 
@@ -2283,26 +2256,26 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	Err_Append("Sigmet raw data cannot be modified. "
-		"Please copy the field and modify the copy. ");
+	Err_Append(abbrv);
+	Err_Append( " is a built in Sigmet data type. ");
+	Err_Append( " No modification allowed. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+    if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
 	Err_Append("No field of ");
 	Err_Append(abbrv);
 	Err_Append(" in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    data_type = dat_p->data_type;
-    if ( DataType_GetStorFmt(data_type) != DATA_TYPE_FLT ) {
+    if ( dat_p->stor_fmt != SIGMET_FLT ) {
 	Err_Append("Editable field in volume not in correct format. ");
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep_ok[s] ) {
+	if ( vol_p->sweep[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( vol_p->ray_ok[s][r] ) {
-		    dp = dat_p->arr.flt[s][r];
+		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_num_bins[s][r];
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
@@ -2313,6 +2286,7 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
 	    }
 	}
     }
+    vol_p->mod = 1;
     return SIGMET_OK;
 }
 
@@ -2354,11 +2328,12 @@ int Sigmet_Vol_IncrTm(struct Sigmet_Vol *vol_p, double dt)
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     for (s = 0; s < num_sweeps; s++) {
-	vol_p->sweep_time[s] += dt;
+	vol_p->sweep[s].time += dt;
 	for (r = 0; r < num_rays; r++) {
 	    vol_p->ray_time[s][r] += dt;
 	}
     }
+    vol_p->mod = 1;
     return 1;
 }
 
@@ -2402,21 +2377,21 @@ float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    || b < 0 || b >= vol_p->ray_num_bins[s][r] ) {
 	return Sigmet_NoData();
     }
-    switch (DataType_GetStorFmt(vol_p->dat[y].data_type)) {
-	case DATA_TYPE_U1:
-	    v = vol_p->dat[y].arr.u1[s][r][b];
+    switch (vol_p->dat[y].stor_fmt) {
+	case SIGMET_U1:
+	    v = vol_p->dat[y].vals.u1[s][r][b];
 	    break;
-	case DATA_TYPE_U2:
-	    v = vol_p->dat[y].arr.u2[s][r][b];
+	case SIGMET_U2:
+	    v = vol_p->dat[y].vals.u2[s][r][b];
 	    break;
-	case DATA_TYPE_FLT:
-	    v = vol_p->dat[y].arr.flt[s][r][b];
+	case SIGMET_FLT:
+	    v = vol_p->dat[y].vals.f[s][r][b];
 	    break;
-	case DATA_TYPE_DBL:
-	case DATA_TYPE_MT:
+	case SIGMET_DBL:
+	case SIGMET_MT:
 	    return Sigmet_NoData();
     }
-    return DataType_StorToComp(vol_p->dat[y].data_type, v, vol_p);
+    return vol_p->dat[y].stor_to_comp(v, vol_p);
 }
 
 /*
@@ -2429,7 +2404,6 @@ int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s, int r,
 	float **ray_p, int *n)
 {
     int ray_num_bins;
-    struct DataType *data_type;
     U1BYT *u1_p, *u1_e;
     U2BYT *u2_p, *u2_e;
     float *f_p, *f_e;
@@ -2456,32 +2430,31 @@ int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s, int r,
 	    *r_p = Sigmet_NoData();
 	}
     }
-    data_type = vol_p->dat[y].data_type;
-    switch (DataType_GetStorFmt(vol_p->dat[y].data_type)) {
-	case DATA_TYPE_U1:
-	    u1_p = vol_p->dat[y].arr.u1[s][r];
+    switch (vol_p->dat[y].stor_fmt) {
+	case SIGMET_U1:
+	    u1_p = vol_p->dat[y].vals.u1[s][r];
 	    u1_e = u1_p + ray_num_bins;
 	    r_p = *ray_p;
 	    for ( ; u1_p < u1_e; u1_p++, r_p++) {
-		*r_p = DataType_StorToComp(data_type, *u1_p, vol_p);
+		*r_p = vol_p->dat[y].stor_to_comp(*u1_p, vol_p);
 	    }
 	    for ( ; r_p < *ray_p + *n; r_p++) {
 		*r_p = Sigmet_NoData();
 	    }
 	    break;
-	case DATA_TYPE_U2:
-	    u2_p = vol_p->dat[y].arr.u2[s][r];
+	case SIGMET_U2:
+	    u2_p = vol_p->dat[y].vals.u2[s][r];
 	    u2_e = u2_p + ray_num_bins;
 	    r_p = *ray_p;
 	    for ( ; u2_p < u2_e; u2_p++, r_p++) {
-		*r_p = DataType_StorToComp(data_type, *u2_p, vol_p);
+		*r_p = vol_p->dat[y].stor_to_comp(*u2_p, vol_p);
 	    }
 	    for ( ; r_p < *ray_p + *n; r_p++) {
 		*r_p = Sigmet_NoData();
 	    }
 	    break;
-	case DATA_TYPE_FLT:
-	    f_p = vol_p->dat[y].arr.flt[s][r];
+	case SIGMET_FLT:
+	    f_p = vol_p->dat[y].vals.f[s][r];
 	    f_e = f_p + ray_num_bins;
 	    r_p = *ray_p;
 	    for ( ; f_p < f_e; f_p++, r_p++) {
@@ -2491,8 +2464,8 @@ int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s, int r,
 		*r_p = Sigmet_NoData();
 	    }
 	    break;
-	case DATA_TYPE_DBL:
-	case DATA_TYPE_MT:
+	case SIGMET_DBL:
+	case SIGMET_MT:
 	    return SIGMET_BAD_VOL;
     }
     return SIGMET_OK;
@@ -2579,8 +2552,7 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	double min, double max, int bnr, FILE *out)
 {
     int status;				/* Result of a function */
-    struct DataType *data_type;		/* Information about the data type */
-    struct Sigmet_DatArr *dat_p;
+    struct Sigmet_Dat *dat_p;
     int y, r, b;			/* Indeces: data type, sweep, ray, bin */
     double lon, lat;			/* Geographic coordinates (longitude
 					   latitude) */
@@ -2605,13 +2577,7 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	Err_Append("Volume must be PPI. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(data_type = DataType_Get(abbrv)) ) {
-	Err_Append("no data type named ");
-	Err_Append(abbrv);
-	Err_Append(". ");
-	return SIGMET_BAD_ARG;
-    }
-    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+    if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
 	Err_Append("no data type named ");
 	Err_Append(abbrv);
 	Err_Append(" in volume.");
@@ -2622,7 +2588,7 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	Err_Append("sweep index out of range for volume. ");
 	return SIGMET_RNG_ERR;
     }
-    if ( !vol_p->sweep_ok[s] ) {
+    if ( !vol_p->sweep[s].ok ) {
 	Err_Append("sweep not valid in volume. ");
 	return SIGMET_RNG_ERR;
     }
@@ -2732,8 +2698,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	double min, double max, int bnr, int fill, FILE *out)
 {
     int status;				/* Result of a function */
-    struct DataType *data_type;		/* Information about the data type */
-    struct Sigmet_DatArr *dat_p;
+    struct Sigmet_Dat *dat_p;
     int y, r, b;			/* Indeces: data type, sweep, ray, bin */
     int num_bins_out, n;		/* Max number of output bins */
     static float *ray_dat;		/* Buffer to receive ray data */
@@ -2763,13 +2728,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	Err_Append("Volume must be RHI. ");
 	return SIGMET_BAD_ARG;
     }
-    if ( !(data_type = DataType_Get(abbrv)) ) {
-	Err_Append("no data type named ");
-	Err_Append(abbrv);
-	Err_Append(". ");
-	return SIGMET_BAD_ARG;
-    }
-    if ( !(dat_p = Hash_Get(&vol_p->types_tbl, abbrv)) ) {
+    if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
 	Err_Append("no data type named ");
 	Err_Append(abbrv);
 	Err_Append(" in volume.");
@@ -2780,7 +2739,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	Err_Append("sweep index out of range for volume. ");
 	return SIGMET_RNG_ERR;
     }
-    if ( !vol_p->sweep_ok[s] ) {
+    if ( !vol_p->sweep[s].ok ) {
 	Err_Append("sweep not valid in volume. ");
 	return SIGMET_RNG_ERR;
     }
