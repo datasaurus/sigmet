@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.47 $ $Date: 2012/09/13 18:20:30 $
+   .	$Revision: 1.48 $ $Date: 2012/09/13 22:08:25 $
  */
 
 #include <string.h>
@@ -226,13 +226,11 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	char *abbrv;				/* Data type abbreviation,
 						   e.g. "DZ" or "DB_ZDR" */
 	enum Sigmet_DataTypeN sig_type;
-	struct DataType *data_type;
 
-	abbrv = DataType_GetAbbrv(vol_p->dat[p].data_type);
-	if ( !abbrv ) {
+	abbrv = vol_p->dat[p].abbrv;
+	if ( strlen(abbrv) == 0 ) {
 	    continue;
 	}
-	data_type = vol_p->dat[p].data_type;
 	parm_p = sensor_p->parm + p;
 	Dorade_PARM_Init(parm_p);
 	if ( Sigmet_DataType_GetN(abbrv, &sig_type) && soloii_abbrv[sig_type] )
@@ -241,8 +239,8 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	} else {
 	    strncpy(parm_p->parameter_name, abbrv, 8);
 	}
-	strncpy(parm_p->param_description, DataType_GetDescr(data_type), 40);
-	strncpy(parm_p->param_units, DataType_GetUnit(data_type), 8);
+	strncpy(parm_p->param_description, vol_p->dat[p].descr, 40);
+	strncpy(parm_p->param_units, vol_p->dat[p].unit, 8);
 	parm_p->xmitted_freq = round(1.0e-9 * 2.9979e8 / wave_len);
 	parm_p->recvr_bandwidth = 1.0e-3 * vol_p->ih.tc.tci.bandwidth;
 	parm_p->pulse_width
@@ -406,7 +404,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	*r_p = Sigmet_NoData();
     }
     for (p = 0; p < num_parms; p++) {
-	if ( !vol_p->dat[p].data_type ) {
+	if ( strlen(vol_p->dat[p].abbrv) == 0 ) {
 	    continue;
 	}
 	for (r = 0; r < num_rays_d; r++) {

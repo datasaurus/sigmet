@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.103 $ $Date: 2012/04/27 19:49:47 $
+   .	$Revision: 1.104 $ $Date: 2012/09/13 22:07:12 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -45,7 +45,6 @@
 #include <sys/types.h>
 #include "type_nbit.h"
 #include "hash.h"
-#include "data_types.h"
 #include "dorade_lib.h"
 
 #define RAD_PER_DEG	0.01745329251994329576
@@ -64,6 +63,19 @@ enum Sigmet_DataTypeN {
     DB_PHIDP,	DB_VELC,	DB_SQI,		DB_RHOHV,	DB_RHOHV2,
     DB_DBZC2,	DB_VELC2,	DB_SQI2,	DB_PHIDP2,	DB_LDRH,
     DB_LDRH2,	DB_LDRV,	DB_LDRV2
+};
+
+/*
+   This enumerator indicates a storage format.
+       SIGMET_U1	1 byte unsigned integer
+       SIGMET_U2	2 byte unsigned integer
+       SIGMET_FLT	float
+       SIGMET_DBL	double
+       SIGMET_MT	empty. Unknown or pseudo data type
+ */
+
+enum Sigmet_StorFmt {
+    SIGMET_U1, SIGMET_U2, SIGMET_FLT, SIGMET_DBL, SIGMET_MT
 };
 
 /*
@@ -429,20 +441,64 @@ struct Sigmet_Ingest_Header {
 };
 
 /*
+   Functions of this type convert storage values to computational values
+   (measurements).
+ */
+
+typedef double (*Sigmet_StorToMxFn)(double, void *);
+
+/*
+   These functions access and manipulate built in Sigmet data types.
+   They do NOT provide information about additional, user defined, types.
+ */
+
+float Sigmet_NoData(void);
+int Sigmet_IsData(float);
+int Sigmet_IsNoData(float);
+double Sigmet_Bin4Rad(unsigned long);
+double Sigmet_Bin2Rad(unsigned short);
+unsigned long Sigmet_RadBin4(double);
+unsigned long Sigmet_RadBin2(double);
+
+int Sigmet_DataType_GetN(char *, enum Sigmet_DataTypeN *);
+char *Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN);
+char *Sigmet_DataType_Descr(enum Sigmet_DataTypeN);
+char *Sigmet_DataType_Unit(enum Sigmet_DataTypeN);
+enum Sigmet_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN);
+double Sigmet_DblDbl(double, void *);
+Sigmet_StorToMxFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
+
+/*
    Data array.  A volume will have one of these for each data type in the
    volume. If not NULL, u1, u2, or f is an array with dimensions
    [sweep][ray][bin] with data values from the volume.
  */
 
-struct Sigmet_DatArr {
-    DataType data_type;				/* Meta data, for description,
-						   display, and conversions */
+#define SIGMET_NAME_LEN 32
+#define SIGMET_DESCR_LEN 128
+
+struct Sigmet_Dat {
+    char abbrv[SIGMET_NAME_LEN];	/* Data type abbreviation */
+    char descr[SIGMET_DESCR_LEN];	/* Information about the data type */
+    char unit[SIGMET_NAME_LEN];		/* Physical unit */
+    enum Sigmet_StorFmt stor_fmt;	/* Storage format, determines which
+					   member of vals is in use for this
+					   data type */
+    Sigmet_StorToMxFn stor_to_comp;	/* Function to convert storage value to
+					   computation value */
     union {
-	U1BYT ***u1;				/* 1 byte data */
-	U2BYT ***u2;				/* 2 byte data */
-	float ***flt;				/* Floating point data */
-    } arr;
+	U1BYT ***u1;			/* 1 byte data */
+	U2BYT ***u2;			/* 2 byte data */
+	float ***f;			/* Floating point data */
+    } vals;
 };
+
+/*
+   Maximum number of data types allowed in a Sigmet volume.
+ */
+
+#define SIGMET_MAX_TYPES 512
+
 
 /*
    struct Sigmet_Vol:
@@ -513,9 +569,12 @@ struct Sigmet_Vol {
     double **ray_az1;				/* Azimuth at end of ray,
 						   radians, dimensions
 						   [sweep][ray] */
-    struct Hash_Tbl types_tbl;			/* Map abbreviations to elements
-						   in dat array */
-    struct Sigmet_DatArr *dat;			/* Data, dimensions [type] */
+    struct {
+	char abbrv[SIGMET_NAME_LEN];		/* Data type abbreviation */
+	struct Sigmet_Dat *dat_p;		/* Point into dat */
+    } types_tbl[SIGMET_MAX_TYPES];		/* Map data type abbreviations
+						   to members of dat */
+    struct Sigmet_Dat dat[SIGMET_MAX_TYPES];	/* Data, dimensioned [type] */
     size_t size;				/* Number of bytes of memory
 						   this structure is using */
     int mod;					/* If true, volume in memory
@@ -524,28 +583,6 @@ struct Sigmet_Vol {
     char *raw_fl_nm;				/* Path to file that provided
 						   the volume */
 };
-
-/*
-   These functions access and manipulate built in Sigmet data types.
-   They do NOT provide information about additional, user defined, types.
-   Use the DataType interface for additional types.
- */
-
-float Sigmet_NoData(void);
-int Sigmet_IsData(float);
-int Sigmet_IsNoData(float);
-double Sigmet_Bin4Rad(unsigned long);
-double Sigmet_Bin2Rad(unsigned short);
-unsigned long Sigmet_RadBin4(double);
-unsigned long Sigmet_RadBin2(double);
-
-int Sigmet_DataType_GetN(char *, enum Sigmet_DataTypeN *);
-char *Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN);
-char *Sigmet_DataType_Descr(enum Sigmet_DataTypeN);
-char *Sigmet_DataType_Unit(enum Sigmet_DataTypeN);
-void Sigmet_DataType_Init(void);
-enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN);
-DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 
 /*
    Return values. See sigmet(3).
@@ -578,7 +615,7 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *, char *, int, double,
 	double, int, FILE *);
 int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *, char *, int, double,
 	double, int, int, FILE *);
-int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *);
+int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *, char *, char *);
 int Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *, char *, float);
 int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *, char *);

@@ -31,7 +31,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.35 $ $Date: 2012/01/25 16:41:27 $
+   .	$Revision: 1.36 $ $Date: 2012/02/02 16:56:55 $
  */
 
 #include <stdlib.h>
@@ -39,7 +39,6 @@
 #include <math.h>
 #include <assert.h>
 #include "err_msg.h"
-#include "data_types.h"
 #include "sigmet.h"
 
 /*
@@ -72,6 +71,14 @@ static char *abbrv[SIGMET_NTYPES] = {
 #define N_BUCKETS 182
 static unsigned hash(const char *);
 static enum Sigmet_DataTypeN sig_data_type[N_BUCKETS];
+
+/*
+   If init is true, data type interface is initialized.
+   Otherwise, need to call data_type_init.
+ */
+
+static int init;
+static void data_type_init(void);
 
 /*
    Descriptors for Sigmet data types. Index with enum Sigmet_DataTypeN.
@@ -127,14 +134,14 @@ static char *unit[SIGMET_NTYPES] = {
    Index with enum Sigmet_DataTypeN.
  */
 
-static enum DataType_StorFmt stor_fmt[SIGMET_NTYPES] = {
-    DATA_TYPE_MT,	DATA_TYPE_U1,	DATA_TYPE_U1,	DATA_TYPE_U1,
-    DATA_TYPE_U1,	DATA_TYPE_U1,	DATA_TYPE_U1,	DATA_TYPE_U2,
-    DATA_TYPE_U2,	DATA_TYPE_U2,	DATA_TYPE_U2,	DATA_TYPE_U2,
-    DATA_TYPE_U2,	DATA_TYPE_U1,	DATA_TYPE_U2,	DATA_TYPE_U1,
-    DATA_TYPE_U1,	DATA_TYPE_U1,	DATA_TYPE_U1,	DATA_TYPE_U2,
-    DATA_TYPE_U2,	DATA_TYPE_U2,	DATA_TYPE_U2,	DATA_TYPE_U2,
-    DATA_TYPE_U1,	DATA_TYPE_U2,	DATA_TYPE_U1,	DATA_TYPE_U2,
+static enum Sigmet_StorFmt stor_fmt[SIGMET_NTYPES] = {
+    SIGMET_MT,	SIGMET_U1,	SIGMET_U1,	SIGMET_U1,
+    SIGMET_U1,	SIGMET_U1,	SIGMET_U1,	SIGMET_U2,
+    SIGMET_U2,	SIGMET_U2,	SIGMET_U2,	SIGMET_U2,
+    SIGMET_U2,	SIGMET_U1,	SIGMET_U2,	SIGMET_U1,
+    SIGMET_U1,	SIGMET_U1,	SIGMET_U1,	SIGMET_U2,
+    SIGMET_U2,	SIGMET_U2,	SIGMET_U2,	SIGMET_U2,
+    SIGMET_U1,	SIGMET_U2,	SIGMET_U1,	SIGMET_U2,
 };
 
 /*
@@ -176,7 +183,7 @@ static double stor_comp_PHIDP2(double, void *);
    Index with enum Sigmet_DataTypeN.
  */
 
-DataType_StorToCompFn stor_to_comp[SIGMET_NTYPES] = {
+Sigmet_StorToMxFn stor_to_comp[SIGMET_NTYPES] = {
     stor_comp_XHDR,		stor_comp_DBT,	stor_comp_DBZ,
     stor_comp_VEL,		stor_comp_WIDTH,	stor_comp_ZDR,
     stor_comp_DBZC,		stor_comp_DBT2,	stor_comp_DBZ2,
@@ -225,41 +232,18 @@ char * Sigmet_DataType_Unit(enum Sigmet_DataTypeN y)
 }
 
 /*
-   Register Sigmet data types in the DataType interface.
+   Initialize the hash table.
  */
 
-void Sigmet_DataType_Init(void)
+static void data_type_init(void)
 {
-    static int init;		/* If true, done */
     int sig_type;		/* Loop index */
-    int status;
     unsigned i;
 
     if ( init ) {
 	return;
     }
     for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
-	status = DataType_Add( Sigmet_DataType_Abbrv(sig_type),
-		Sigmet_DataType_Descr(sig_type),
-		Sigmet_DataType_Unit(sig_type),
-		Sigmet_DataType_StorFmt(sig_type),
-		Sigmet_DataType_StorToComp(sig_type));
-	if ( status != DATATYPE_SUCCESS ) {
-	    fprintf(stderr, "could not register data type %s\n%s\n",
-		    Sigmet_DataType_Abbrv(sig_type), Err_Get());
-	    switch (status) {
-		case DATATYPE_INPUT_FAIL:
-		    status = SIGMET_IO_FAIL;
-		    break;
-		case DATATYPE_ALLOC_FAIL:
-		    status = SIGMET_ALLOC_FAIL;
-		    break;
-		case DATATYPE_BAD_ARG:
-		    status = SIGMET_BAD_ARG;
-		    break;
-	    }
-	    exit(status);
-	}
 	i = hash(abbrv[sig_type]);
 	assert(i < N_BUCKETS);
 	sig_data_type[i] = sig_type;
@@ -281,23 +265,28 @@ int Sigmet_DataType_GetN(char *a, enum Sigmet_DataTypeN *y_p)
     if ( !a ) {
 	return 0;
     }
+    if ( !init ) {
+	data_type_init();
+    }
     i = hash(a);
     if ( i < N_BUCKETS ) {
 	y = sig_data_type[i];
 	if ( strcmp(a, abbrv[sig_data_type[i]]) == 0 ) {
-	    *y_p = y;
+	    if ( y_p ) {
+		*y_p = y;
+	    }
 	    return 1;
 	}
     }
     return 0;
 }
 
-enum DataType_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN y)
+enum Sigmet_StorFmt Sigmet_DataType_StorFmt(enum Sigmet_DataTypeN y)
 {
-    return (y < SIGMET_NTYPES) ?  stor_fmt[y] : DATA_TYPE_MT;
+    return (y < SIGMET_NTYPES) ?  stor_fmt[y] : SIGMET_MT;
 }
 
-DataType_StorToCompFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN y)
+Sigmet_StorToMxFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN y)
 {
     return (y < SIGMET_NTYPES) ?  stor_to_comp[y] : NULL;
 }
@@ -315,6 +304,11 @@ int Sigmet_IsData(float v)
 int Sigmet_IsNoData(float v)
 {
     return v == FLT_MAX;
+}
+
+double Sigmet_DblDbl(double v, void *meta)
+{
+    return v;
 }
 
 static double stor_comp_XHDR(double v, void *meta)
@@ -508,10 +502,7 @@ static double stor_comp_PHIDP2(double v, void *meta)
 }
 
 /*
- * hash - compute an index in a hash table given the command name.
- * k = string key (in)
- * n = number of buckets in hash table (in)
- * Return value is a pseudo-random integer in range [0,n)
+ * hash - return a random index h, 0 < h < N_BUCKETS, for key k.
  *
  * Reference:
  *   Kernighan, Brian W. and Rob Pike.

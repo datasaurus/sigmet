@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.406 $ $Date: 2012/06/20 02:51:06 $
+ .	$Revision: 1.407 $ $Date: 2012/07/06 03:14:59 $
  */
 
 #include <stdlib.h>
@@ -152,7 +152,6 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
        Read the volume.
      */
 
-    Sigmet_DataType_Init();
     Sigmet_Vol_Init(&vol);
     if ( strcmp(vol_fl_nm, "-") == 0 ) {
 	in = stdin;
