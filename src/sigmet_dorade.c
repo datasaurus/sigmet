@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.49 $ $Date: 2012/09/19 20:56:00 $
+   .	$Revision: 1.50 $ $Date: 2012/09/19 21:55:16 $
  */
 
 #include <string.h>
@@ -38,7 +38,6 @@
 #include "sigmet.h"
 #include "alloc.h"
 #include "err_msg.h"
-#include "strlcpy.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "dorade_lib.h"
@@ -115,7 +114,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     sswb_p->i_start_time = round((vol_p->ray_time[s][0] - epoch) * 86400);
     sswb_p->compression_flag = 0;
     num_parms = sswb_p->num_parms = vol_p->num_types;
-    strlcpy(sswb_p->radar_name, vol_p->ih.ic.su_site_name, 9);
+    snprintf(sswb_p->radar_name, 9, "%s", vol_p->ih.ic.su_site_name);
     sswb_p->start_time = (vol_p->ray_time[s][0] - epoch) * 86400;
     sswb_p->stop_time = (vol_p->ray_time[s][num_rays - 1] - epoch) * 86400;
 
@@ -154,7 +153,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
      */
 
     radd_p = &sensor_p->radd;
-    strlcpy(radd_p->radar_name, vol_p->ih.ic.su_site_name, 9);
+    snprintf(radd_p->radar_name, 9, "%s", vol_p->ih.ic.su_site_name);
     radd_p->radar_const
 	= 0.01 * vol_p->ih.tc.tci.hpol_radar_const;	/* Ignore vpol */
     radd_p->peak_power = 0.001 * vol_p->ih.tc.tmi.power;

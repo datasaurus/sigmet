@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.407 $ $Date: 2012/07/06 03:14:59 $
+ .	$Revision: 1.408 $ $Date: 2012/09/19 20:56:00 $
  */
 
 #include <stdlib.h>
@@ -48,7 +48,6 @@
 #include <sys/wait.h>
 #include <pthread.h>
 #include "alloc.h"
-#include "strlcpy.h"
 #include "err_msg.h"
 #include "sigmet.h"
 #include "sigmet_raw.h"
@@ -201,7 +200,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
 	xstatus = SIGMET_ALLOC_FAIL;
 	goto error;
     }
-    strlcpy(vol.raw_fl_nm, vol_fl_nm, sz);
+    strcpy(vol.raw_fl_nm, vol_fl_nm);
 
     /*
        Initialize command table
@@ -638,7 +637,7 @@ int SigmetRaw_AddCmd(char *cmd, SigmetRaw_Callback cb)
 	FREE(ep);
 	return SIGMET_ALLOC_FAIL;
     }
-    strlcpy(ep->cmd, cmd, len);
+    strcpy(ep->cmd, cmd);
     ep->cb = cb;
     ep->next = commands.buckets[b];
     commands.buckets[b] = ep;

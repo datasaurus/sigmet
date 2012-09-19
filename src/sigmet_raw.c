@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.87 $ $Date: 2012/02/13 19:54:14 $
+   .	$Revision: 1.88 $ $Date: 2012/04/26 22:22:49 $
  */
 
 #include <limits.h>
@@ -48,7 +48,6 @@
 #include <sys/select.h>
 #include "alloc.h"
 #include "err_msg.h"
-#include "strlcpy.h"
 #include "geog_lib.h"
 #include "sigmet_raw.h"
 
@@ -243,7 +242,7 @@ static int daemon_task(int argc, char *argv[])
     sock_nm = argv[argc - 1];
     memset(&sa, '\0', SA_UN_SZ);
     sa.sun_family = AF_UNIX;
-    strlcpy(sa.sun_path, sock_nm, SA_PLEN);
+    snprintf(sa.sun_path, SA_PLEN, "%s", sock_nm);
     if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
 	fprintf(stderr, "%s (%d): could not create socket to connect "
 		"with daemon\n%s\n", argv0, pid, strerror(errno));
