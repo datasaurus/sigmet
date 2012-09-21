@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.157 $ $Date: 2012/09/21 18:32:26 $
+   .	$Revision: 1.158 $ $Date: 2012/09/21 19:57:37 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -257,7 +257,7 @@ void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 	return;
     }
     FREE(vol_p->sweep_hdr);
-    free(vol_p->ray_hdr);
+    FREE(vol_p->ray_hdr);
     for (y = 0; y < SIGMET_MAX_TYPES; y++) {
 	switch (vol_p->dat[y].stor_fmt) {
 	    case SIGMET_U1:
@@ -4293,7 +4293,7 @@ static unsigned get_uint32(void *b) {
 
 /*
    Allocate a 2 dimensional array of ray headers.
-   Free allocation with free().
+   Free allocation with FREE().
  */
 
 static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i)
@@ -4322,7 +4322,7 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i)
 
     sz = jj * sizeof(struct Sigmet_Ray_Hdr *)
 	+ jj * ii * sizeof(struct Sigmet_Ray_Hdr);
-    ray_hdr = (struct Sigmet_Ray_Hdr **)malloc(sz);
+    ray_hdr = (struct Sigmet_Ray_Hdr **)MALLOC(sz);
     if ( !ray_hdr ) {
 	Err_Append("Could not allocate memory for ray header array.\n");
 	return NULL;
