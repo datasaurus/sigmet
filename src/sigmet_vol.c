@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.159 $ $Date: 2012/09/21 20:02:53 $
+   .	$Revision: 1.160 $ $Date: 2012/09/21 20:14:17 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -191,12 +191,9 @@ static void print_s(FILE *, char *, char *, char *, char *);
  */
 
 static struct Sigmet_Ray_Hdr ** malloc2rh(long, long);
-static U1BYT *** calloc3_u1(long, long, long);
-static void free3_u1(U1BYT ***);
-static U2BYT *** calloc3_u2(long, long, long);
-static void free3_u2(U2BYT ***);
-static float *** calloc3_flt(long, long, long);
-static void free3_flt(float ***);
+static U1BYT *** malloc3_u1(long, long, long);
+static U2BYT *** malloc3_u2(long, long, long);
+static float *** malloc3_flt(long, long, long);
 
 /*
    Add dt DAYS to the time structure at time_p. Return success/failure.
@@ -261,13 +258,13 @@ void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
     for (y = 0; y < SIGMET_MAX_TYPES; y++) {
 	switch (vol_p->dat[y].stor_fmt) {
 	    case SIGMET_U1:
-		free3_u1(vol_p->dat[y].vals.u1);
+		FREE(vol_p->dat[y].vals.u1);
 		break;
 	    case SIGMET_U2:
-		free3_u2(vol_p->dat[y].vals.u2);
+		FREE(vol_p->dat[y].vals.u2);
 		break;
 	    case SIGMET_FLT:
-		free3_flt(vol_p->dat[y].vals.f);
+		FREE(vol_p->dat[y].vals.f);
 		break;
 	    case SIGMET_DBL:
 	    case SIGMET_MT:
@@ -828,7 +825,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	switch (vol_p->dat[y].stor_fmt) {
 	    case SIGMET_U1:
 		vol_p->dat[y].vals.u1
-		    = calloc3_u1(num_sweeps, num_rays, num_bins);
+		    = malloc3_u1(num_sweeps, num_rays, num_bins);
 		if ( !vol_p->dat[y].vals.u1 ) {
 		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
@@ -837,7 +834,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		break;
 	    case SIGMET_U2:
 		vol_p->dat[y].vals.u2
-		    = calloc3_u2(num_sweeps, num_rays, num_bins);
+		    = malloc3_u2(num_sweeps, num_rays, num_bins);
 		if ( !vol_p->dat[y].vals.u2 ) {
 		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
@@ -1209,7 +1206,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
 
-    flt_p = calloc3_flt(num_sweeps, num_rays, num_bins);
+    flt_p = malloc3_flt(num_sweeps, num_rays, num_bins);
     if ( !flt_p ) {
 	Err_Append("Could not allocate new field ");
 	return SIGMET_ALLOC_FAIL;
@@ -1247,7 +1244,7 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 	Err_Append(" not in volume. ");
 	return SIGMET_BAD_ARG;
     }
-    free3_flt(d_p->vals.f);
+    FREE(d_p->vals.f);
     memset(d_p, 0, sizeof(struct Sigmet_Dat));
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
@@ -4338,13 +4335,16 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i)
    Allocate a 3 dimensional array of unsigned one byte integers.  Return the
    array. If something goes wrong, post an error message with Err_Append and
    return NULL.
+
+   Free allocation with FREE.
  */
 
-static U1BYT ***calloc3_u1(long kmax, long jmax, long imax)
+static U1BYT ***malloc3_u1(long kmax, long jmax, long imax)
 {
     U1BYT ***dat;
     long k, j;
     size_t kk, jj, ii;
+    size_t sz;
 
     /*
        Make sure casting to size_t does not overflow anything.
@@ -4362,24 +4362,15 @@ static U1BYT ***calloc3_u1(long kmax, long jmax, long imax)
 	return NULL;
     }
 
-    dat = (U1BYT ***)CALLOC(kk + 2, sizeof(U1BYT **));
+    sz = kk * sizeof(U1BYT **)
+	+ kk * jj * sizeof(U1BYT *) + (kk * jj * ii + 1) * sizeof(U1BYT);
+    dat = (U1BYT ***)MALLOC(sz);
     if ( !dat ) {
 	Err_Append("Could not allocate 3rd dimension.\n");
 	return NULL;
     }
-    dat[0] = (U1BYT **)CALLOC(kk * jj + 1, sizeof(U1BYT *));
-    if ( !dat[0] ) {
-	FREE(dat);
-	Err_Append("Could not allocate 2nd dimension.\n");
-	return NULL;
-    }
-    dat[0][0] = (U1BYT *)CALLOC(kk * jj * ii + 1, sizeof(U1BYT));
-    if ( !dat[0][0] ) {
-	FREE(dat[0]);
-	FREE(dat);
-	Err_Append("Could not allocate 1st dimension.\n");
-	return NULL;
-    }
+    dat[0] = (U1BYT **)(dat + kk);
+    dat[0][0] = (U1BYT *)(dat[0] + kk * jj);
     for (k = 1; k <= kmax; k++) {
 	dat[k] = dat[k - 1] + jmax;
     }
@@ -4387,36 +4378,22 @@ static U1BYT ***calloc3_u1(long kmax, long jmax, long imax)
 	dat[0][j] = dat[0][j - 1] + imax;
     }
     return dat;
-}
-
-/*
-   Free array created by calloc3_u1
- */
-
-static void free3_u1(U1BYT ***dat)
-{
-    if (dat) {
-	if (dat[0]) {
-	    if (dat[0][0]) {
-		FREE(dat[0][0]);
-	    }
-	    FREE(dat[0]);
-	}
-	FREE(dat);
-    }
 }
 
 /*
    Allocate a 3 dimensional array of unsigned two byte integers.  Return the
    array. If something goes wrong, post an error message with Err_Append and
    return NULL.
+
+   Free allocation with FREE.
  */
 
-static U2BYT ***calloc3_u2(long kmax, long jmax, long imax)
+static U2BYT ***malloc3_u2(long kmax, long jmax, long imax)
 {
     U2BYT ***dat;
     long k, j;
     size_t kk, jj, ii;
+    size_t sz;
 
     /*
        Make sure casting to size_t does not overflow anything.
@@ -4434,24 +4411,15 @@ static U2BYT ***calloc3_u2(long kmax, long jmax, long imax)
 	return NULL;
     }
 
-    dat = (U2BYT ***)CALLOC(kk + 2, sizeof(U2BYT **));
+    sz = kk * sizeof(U2BYT **)
+	+ kk * jj * sizeof(U2BYT *) + (kk * jj * ii + 1) * sizeof(U2BYT);
+    dat = (U2BYT ***)MALLOC(sz);
     if ( !dat ) {
 	Err_Append("Could not allocate 3rd dimension.\n");
 	return NULL;
     }
-    dat[0] = (U2BYT **)CALLOC(kk * jj + 1, sizeof(U2BYT *));
-    if ( !dat[0] ) {
-	FREE(dat);
-	Err_Append("Could not allocate 2nd dimension.\n");
-	return NULL;
-    }
-    dat[0][0] = (U2BYT *)CALLOC(kk * jj * ii + 1, sizeof(U2BYT));
-    if ( !dat[0][0] ) {
-	FREE(dat[0]);
-	FREE(dat);
-	Err_Append("Could not allocate 1st dimension.\n");
-	return NULL;
-    }
+    dat[0] = (U2BYT **)(dat + kk);
+    dat[0][0] = (U2BYT *)(dat[0] + kk * jj);
     for (k = 1; k <= kmax; k++) {
 	dat[k] = dat[k - 1] + jmax;
     }
@@ -4459,23 +4427,6 @@ static U2BYT ***calloc3_u2(long kmax, long jmax, long imax)
 	dat[0][j] = dat[0][j - 1] + imax;
     }
     return dat;
-}
-
-/*
-   Free array created by calloc3_u1
- */
-
-static void free3_u2(U2BYT ***dat)
-{
-    if (dat) {
-	if (dat[0]) {
-	    if (dat[0][0]) {
-		FREE(dat[0][0]);
-	    }
-	    FREE(dat[0]);
-	}
-	FREE(dat);
-    }
 }
 
 /*
@@ -4484,11 +4435,12 @@ static void free3_u2(U2BYT ***dat)
    Err_Append and return NULL.
  */
 
-static float ***calloc3_flt(long kmax, long jmax, long imax)
+static float ***malloc3_flt(long kmax, long jmax, long imax)
 {
     float ***dat, *d;
     long k, j;
     size_t kk, jj, ii;
+    size_t sz;
 
     /*
        Make sure casting to size_t does not overflow anything.
@@ -4506,24 +4458,15 @@ static float ***calloc3_flt(long kmax, long jmax, long imax)
 	return NULL;
     }
 
-    dat = (float ***)CALLOC(kk + 2, sizeof(float **));
+    sz = kk * sizeof(float **)
+	+ kk * jj * sizeof(float *) + (kk * jj * ii + 1) * sizeof(float);
+    dat = (float ***)MALLOC(sz);
     if ( !dat ) {
 	Err_Append("Could not allocate 3rd dimension.\n");
 	return NULL;
     }
-    dat[0] = (float **)CALLOC(kk * jj + 1, sizeof(float *));
-    if ( !dat[0] ) {
-	FREE(dat);
-	Err_Append("Could not allocate 2nd dimension.\n");
-	return NULL;
-    }
-    dat[0][0] = (float *)CALLOC(kk * jj * ii + 1, sizeof(float));
-    if ( !dat[0][0] ) {
-	FREE(dat[0]);
-	FREE(dat);
-	Err_Append("Could not allocate 1st dimension.\n");
-	return NULL;
-    }
+    dat[0] = (float **)(dat + kk);
+    dat[0][0] = (float *)(dat[0] + kk * jj);
     for (k = 1; k <= kmax; k++) {
 	dat[k] = dat[k - 1] + jmax;
     }
@@ -4534,21 +4477,4 @@ static float ***calloc3_flt(long kmax, long jmax, long imax)
 	*d = Sigmet_NoData();
     }
     return dat;
-}
-
-/*
-   Free array created by calloc3_flt
- */
-
-static void free3_flt(float ***dat)
-{
-    if (dat) {
-	if (dat[0]) {
-	    if (dat[0][0]) {
-		FREE(dat[0][0]);
-	    }
-	    FREE(dat[0]);
-	}
-	FREE(dat);
-    }
 }
