@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.106 $ $Date: 2012/09/19 21:55:16 $
+   .	$Revision: 1.107 $ $Date: 2012/09/21 18:35:56 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -469,7 +469,22 @@ double Sigmet_DblDbl(double, void *);
 Sigmet_StorToMxFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 
 /*
-   Data array.  A volume will have one of these for each data type in the
+   Ray header
+ */
+
+struct Sigmet_Ray_Hdr {
+    int ok;				/* Status. ok == 1 => ray is good */
+    double time;			/* Time, Julian day, */
+    int num_bins;			/* Number of bins in ray,
+					   varies from ray to ray */
+    double tilt0;			/* Tilt at start of ray, radians */
+    double tilt1;			/* Tilt at end of ray, radians, */
+    double az0;				/* Azimuth at start of ray, radians */
+    double az1;				/* Azimuth at end of ray, radians */
+};
+
+/*
+   Data array. A volume will have one of these for each data type in the
    volume. If not NULL, u1, u2, or f is an array with dimensions
    [sweep][ray][bin] with data values from the volume.
  */
@@ -549,27 +564,10 @@ struct Sigmet_Vol {
 	double time;			/* Sweep start time, Julian
 					   day */
 	double angle;			/* Sweep angle, radians */
-    } *sweep;				/* Sweep headers, dimensioned
+    } *sweep_hdr;			/* Sweep headers, dimensioned
 					   num_sweeps_ax */
-    int **ray_ok;			/* Ray status, dimensions
-					   [sweep][ray].  If ray_ok[j][i]
-					   == 1, ray is good */
-    double **ray_time;			/* Ray time, Julian day,
-					   dimensions [sweep][ray] */
-    int **ray_num_bins;			/* Number of bins in ray,
-					   dimensions [sweep][ray],
-					   varies from ray to ray */
-    double **ray_tilt0;			/* Tilt at start of ray,
-					   radians, dimensions
-					   [sweep][ray] */
-    double **ray_tilt1;			/* Tilt at end of ray, radians,
-					   dimensions [sweep][ray] */
-    double **ray_az0;			/* Azimuth at start of ray,
-					   radians, dimensions
-					   [sweep][ray] */
-    double **ray_az1;			/* Azimuth at end of ray,
-					   radians, dimensions
-					   [sweep][ray] */
+    struct Sigmet_Ray_Hdr **ray_hdr;	/* Ray headers,
+					   dimensioned [sweep][ray] */
     struct {
 	char abbrv[SIGMET_NAME_LEN];	/* Data type abbreviation */
 	struct Sigmet_Dat *dat_p;	/* Member of dat for abbrv */

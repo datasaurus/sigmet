@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.50 $ $Date: 2012/09/19 21:55:16 $
+   .	$Revision: 1.51 $ $Date: 2012/09/19 22:09:47 $
  */
 
 #include <string.h>
@@ -111,12 +111,12 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     num_rays = vol_p->ih.ic.num_rays;
     sswb_p = &swp_p->sswb;
     epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0);
-    sswb_p->i_start_time = round((vol_p->ray_time[s][0] - epoch) * 86400);
+    sswb_p->i_start_time = round((vol_p->ray_hdr[s][0].time - epoch) * 86400);
     sswb_p->compression_flag = 0;
     num_parms = sswb_p->num_parms = vol_p->num_types;
     snprintf(sswb_p->radar_name, 9, "%s", vol_p->ih.ic.su_site_name);
-    sswb_p->start_time = (vol_p->ray_time[s][0] - epoch) * 86400;
-    sswb_p->stop_time = (vol_p->ray_time[s][num_rays - 1] - epoch) * 86400;
+    sswb_p->start_time = (vol_p->ray_hdr[s][0].time - epoch) * 86400;
+    sswb_p->stop_time = (vol_p->ray_hdr[s][num_rays - 1].time - epoch) * 86400;
 
     /*
        Populate vold block
@@ -124,7 +124,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     swp_p->vold.volume_num = 1;
     swp_p->vold.maximum_bytes = 65500;
-    if ( !Tm_JulToCal(vol_p->ray_time[s][0],
+    if ( !Tm_JulToCal(vol_p->ray_hdr[s][0].time,
 		&year, &mon, &day, &hr, &min, &sec) ) {
 	Err_Append("Could not set sweep time. ");
 	status = SIGMET_BAD_TIME;
@@ -292,13 +292,14 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     switch (vol_p->ih.tc.tni.scan_mode) {
 	case PPI_S:
 	case PPI_C:
-	    swib_p->start_angle = DEG_PER_RAD * vol_p->ray_az0[s][0];
-	    swib_p->stop_angle = DEG_PER_RAD * vol_p->ray_az1[s][num_rays - 1];
+	    swib_p->start_angle = DEG_PER_RAD * vol_p->ray_hdr[s][0].az0;
+	    swib_p->stop_angle
+		= DEG_PER_RAD * vol_p->ray_hdr[s][num_rays - 1].az1;
 	    break;
 	case RHI:
-	    swib_p->start_angle = DEG_PER_RAD * vol_p->ray_tilt0[s][0];
+	    swib_p->start_angle = DEG_PER_RAD * vol_p->ray_hdr[s][0].tilt0;
 	    swib_p->stop_angle
-		= DEG_PER_RAD * vol_p->ray_tilt1[s][num_rays - 1];
+		= DEG_PER_RAD * vol_p->ray_hdr[s][num_rays - 1].tilt1;
 	    break;
 	case FILE_SCAN:
 	case MAN_SCAN:
@@ -306,7 +307,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	    swib_p->stop_angle = DORADE_BAD_F;
 	    break;
     };
-    swib_p->fixed_angle = vol_p->sweep[s].angle * DEG_PER_RAD;
+    swib_p->fixed_angle = vol_p->sweep_hdr[s].angle * DEG_PER_RAD;
 
     /*
        Populate struct Dorade_Ray_Hdr *ray_hdr array
@@ -333,7 +334,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	double julian0;			/* 00:00 01 Jan of ray year */
 	double az0, az1;		/* Ray start and end azimuth */
 
-	if ( !vol_p->ray_ok[s][r] ) {
+	if ( !vol_p->ray_hdr[s][r].ok ) {
 	    continue;
 	}
 	ray_hdr_p = swp_p->ray_hdr + num_rays_d++;
@@ -345,24 +346,24 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	 */
 
 	ryib_p->sweep_num = s;
-	if ( !Tm_JulToCal(vol_p->ray_time[s][r],
+	if ( !Tm_JulToCal(vol_p->ray_hdr[s][r].time,
 		    &year, &mon, &day, &hr, &min, &sec) ) {
 	    Err_Append("Could not get ray time. ");
 	    status = SIGMET_BAD_VOL;
 	    goto error;
 	}
 	julian0 = Tm_CalToJul(year, 1, 1, 0, 0, 0);
-	ryib_p->julian_day = vol_p->ray_time[s][r] - julian0 + 1;
+	ryib_p->julian_day = vol_p->ray_hdr[s][r].time - julian0 + 1;
 	ryib_p->hour = hr;
 	ryib_p->minute = min;
 	ryib_p->second = sec;
 	ryib_p->millisecond = round((sec - ryib_p->second) * 1000);
-	az0 = vol_p->ray_az0[s][r];
-	az1 = vol_p->ray_az1[s][r];
+	az0 = vol_p->ray_hdr[s][r].az0;
+	az1 = vol_p->ray_hdr[s][r].az1;
 	ryib_p->azimuth = 0.5 * (az0 + GeogLonR(az1, az0));
 	ryib_p->azimuth = DEG_PER_RAD * GeogLonR(ryib_p->azimuth, 0.0);
 	ryib_p->elevation = DEG_PER_RAD * 0.5
-	    * (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
+	    * (vol_p->ray_hdr[s][r].tilt0 + vol_p->ray_hdr[s][r].tilt1);
 	ryib_p->peak_power = 0.001 * vol_p->ih.tc.tmi.power;
 	ryib_p->ray_status = 0;
 
@@ -407,7 +408,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	    continue;
 	}
 	for (r = 0; r < num_rays_d; r++) {
-	    if ( vol_p->ray_ok[s][r] ) {
+	    if ( vol_p->ray_hdr[s][r].ok ) {
 		status = Sigmet_Vol_GetRayDat(vol_p, p, s, r,
 			&ray_p, &num_bins);
 		if ( (status != SIGMET_OK) ) {

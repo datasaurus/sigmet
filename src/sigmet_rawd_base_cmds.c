@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.10 $ $Date: 2012/09/13 22:07:12 $
+   .	$Revision: 1.11 $ $Date: 2012/09/19 21:56:21 $
  */
 
 #include <limits.h>
@@ -254,7 +254,7 @@ static int near_sweep_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	return SIGMET_BAD_ARG;
     }
     ang *= RAD_PER_DEG;
-    if ( !vol_p->sweep ) {
+    if ( !vol_p->sweep_hdr ) {
 	fprintf(err, "%s %s: sweep headers not loaded. "
 		"Is volume truncated?.\n", argv0, argv1);
 	return SIGMET_BAD_ARG;
@@ -263,7 +263,7 @@ static int near_sweep_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     for (da_min = DBL_MAX, s = 0; s < vol_p->num_sweeps_ax; s++) {
 	double swang, da;	/* Sweep angle, angle difference */
 
-	swang = GeogLonR(vol_p->sweep[s].angle, ang);
+	swang = GeogLonR(vol_p->sweep_hdr[s].angle, ang);
 	da = fabs(swang - ang);
 	if ( da < da_min ) {
 	    da_min = da;
@@ -287,19 +287,19 @@ static int sweep_headers_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     }
     for (s = 0; s < vol_p->ih.tc.tni.num_sweeps; s++) {
 	fprintf(out, "sweep %2d ", s);
-	if ( !vol_p->sweep[s].ok ) {
+	if ( !vol_p->sweep_hdr[s].ok ) {
 	    fprintf(out, "bad\n");
 	} else {
 	    int yr, mon, da, hr, min, sec;
 
-	    if ( Tm_JulToCal(vol_p->sweep[s].time,
+	    if ( Tm_JulToCal(vol_p->sweep_hdr[s].time,
 			&yr, &mon, &da, &hr, &min, &sec) ) {
 		fprintf(out, "%04d/%02d/%02d %02d:%02d:%02d ",
 			yr, mon, da, hr, min, sec);
 	    } else {
 		fprintf(out, "0000/00/00 00:00:00 ");
 	    }
-	    fprintf(out, "%7.3f\n", vol_p->sweep[s].angle * DEG_PER_RAD);
+	    fprintf(out, "%7.3f\n", vol_p->sweep_hdr[s].angle * DEG_PER_RAD);
 	}
     }
     return SIGMET_OK;
@@ -317,15 +317,15 @@ static int ray_headers_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	return SIGMET_BAD_ARG;
     }
     for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-	if ( vol_p->sweep[s].ok ) {
+	if ( vol_p->sweep_hdr[s].ok ) {
 	    for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
 		int yr, mon, da, hr, min, sec;
 
-		if ( !vol_p->ray_ok || !vol_p->ray_ok[s][r] ) {
+		if ( !vol_p->ray_hdr[s][r].ok ) {
 		    continue;
 		}
 		fprintf(out, "sweep %3d ray %4d | ", s, r);
-		if ( !Tm_JulToCal(vol_p->ray_time[s][r],
+		if ( !Tm_JulToCal(vol_p->ray_hdr[s][r].time,
 			    &yr, &mon, &da, &hr, &min, &sec) ) {
 		    fprintf(err, "%s %s: bad ray time\n",
 			    argv0, argv1);
@@ -334,11 +334,11 @@ static int ray_headers_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 		fprintf(out, "%04d/%02d/%02d %02d:%02d:%02d | ",
 			yr, mon, da, hr, min, sec);
 		fprintf(out, "az %7.3f %7.3f | ",
-			vol_p->ray_az0[s][r] * DEG_PER_RAD,
-			vol_p->ray_az1[s][r] * DEG_PER_RAD);
+			vol_p->ray_hdr[s][r].az0 * DEG_PER_RAD,
+			vol_p->ray_hdr[s][r].az1 * DEG_PER_RAD);
 		fprintf(out, "tilt %6.3f %6.3f\n",
-			vol_p->ray_tilt0[s][r] * DEG_PER_RAD,
-			vol_p->ray_tilt1[s][r] * DEG_PER_RAD);
+			vol_p->ray_hdr[s][r].tilt0 * DEG_PER_RAD,
+			vol_p->ray_hdr[s][r].tilt1 * DEG_PER_RAD);
 	    }
 	}
     }
@@ -802,11 +802,11 @@ static int data_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 		fprintf(out, "%s. sweep %d\n", vol_p->dat[y].abbrv, s);
 		for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
-		    if ( !vol_p->ray_ok[s][r] ) {
+		    if ( !vol_p->ray_hdr[s][r].ok ) {
 			continue;
 		    }
 		    fprintf(out, "ray %d: ", r);
-		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
+		    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
 			d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 			if ( Sigmet_IsData(d) ) {
 			    fprintf(out, "%f ", d);
@@ -822,11 +822,11 @@ static int data_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 	    fprintf(out, "%s. sweep %d\n", abbrv, s);
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-		if ( !vol_p->ray_ok[s][r] ) {
+		if ( !vol_p->ray_hdr[s][r].ok ) {
 		    continue;
 		}
 		fprintf(out, "ray %d: ", r);
-		for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
+		for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
 		    d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 		    if ( Sigmet_IsData(d) ) {
 			fprintf(out, "%f ", d);
@@ -840,11 +840,11 @@ static int data_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     } else if ( r == all && b == all ) {
 	fprintf(out, "%s. sweep %d\n", abbrv, s);
 	for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-	    if ( !vol_p->ray_ok[s][r] ) {
+	    if ( !vol_p->ray_hdr[s][r].ok ) {
 		continue;
 	    }
 	    fprintf(out, "ray %d: ", r);
-	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
+	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
 		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 		if ( Sigmet_IsData(d) ) {
 		    fprintf(out, "%f ", d);
@@ -855,9 +855,9 @@ static int data_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	    fprintf(out, "\n");
 	}
     } else if ( b == all ) {
-	if ( vol_p->ray_ok[s][r] ) {
+	if ( vol_p->ray_hdr[s][r].ok ) {
 	    fprintf(out, "%s. sweep %d, ray %d: ", abbrv, s, r);
-	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
+	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
 		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 		if ( Sigmet_IsData(d) ) {
 		    fprintf(out, "%f ", d);
@@ -868,7 +868,7 @@ static int data_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	    fprintf(out, "\n");
 	}
     } else {
-	if ( vol_p->ray_ok[s][r] ) {
+	if ( vol_p->ray_hdr[s][r].ok ) {
 	    fprintf(out, "%s. sweep %d, ray %d, bin %d: ", abbrv, s, r, b);
 	    d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 	    if ( Sigmet_IsData(d) ) {
@@ -933,7 +933,7 @@ static int bdata_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
 	for (b = 0; b < num_bins_out; b++) {
 	    ray_p[b] = Sigmet_NoData();
 	}
-	if ( vol_p->ray_ok[s][r] ) {
+	if ( vol_p->ray_hdr[s][r].ok ) {
 	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p, &n);
 	    if ( status != SIGMET_OK ) {
 		fprintf(err, "Could not get ray data for data type %s, "
@@ -1113,10 +1113,10 @@ static int shift_az_cb(int argc, char *argv[], struct Sigmet_Vol *vol_p,
     }
     for (s = 0; s < vol_p->num_sweeps_ax; s++) {
 	for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
-	    vol_p->ray_az0[s][r]
-		= GeogLonR(vol_p->ray_az0[s][r] + daz, 180.0 * RAD_PER_DEG);
-	    vol_p->ray_az1[s][r]
-		= GeogLonR(vol_p->ray_az1[s][r] + daz, 180.0 * RAD_PER_DEG);
+	    vol_p->ray_hdr[s][r].az0
+		= GeogLonR(vol_p->ray_hdr[s][r].az0 + daz, 180.0 * RAD_PER_DEG);
+	    vol_p->ray_hdr[s][r].az1
+		= GeogLonR(vol_p->ray_hdr[s][r].az1 + daz, 180.0 * RAD_PER_DEG);
 	}
     }
     vol_p->mod = 1;

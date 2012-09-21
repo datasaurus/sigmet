@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.156 $ $Date: 2012/09/19 21:56:21 $
+   .	$Revision: 1.157 $ $Date: 2012/09/21 18:32:26 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -190,10 +190,7 @@ static void print_s(FILE *, char *, char *, char *, char *);
    Allocators
  */
 
-static double ** calloc2d(long, long);
-static void free2d(double **);
-static int ** calloc2i(long, long);
-static void free2i(int **);
+static struct Sigmet_Ray_Hdr ** malloc2rh(long, long);
 static U1BYT *** calloc3_u1(long, long, long);
 static void free3_u1(U1BYT ***);
 static U2BYT *** calloc3_u2(long, long, long);
@@ -237,9 +234,8 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
     for (n = 0; n < SIGMET_NTYPES; n++) {
 	vol_p->types_fl[n] = DB_XHDR;		/* Force error if used */
     }
-    vol_p->sweep = NULL;
-    vol_p->ray_tilt0 = vol_p->ray_tilt1
-	= vol_p->ray_az0 = vol_p->ray_az1 = NULL;
+    vol_p->sweep_hdr = NULL;
+    vol_p->ray_hdr = NULL;
     for (y = 0; y < SIGMET_MAX_TYPES; y++) {
 	memset(vol_p->dat[y].abbrv, 0, sizeof(vol_p->dat[y].abbrv));
 	memset(vol_p->dat[y].descr, 0, sizeof(vol_p->dat[y].descr));
@@ -260,14 +256,8 @@ void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
     if (!vol_p) {
 	return;
     }
-    FREE(vol_p->sweep);
-    free2i(vol_p->ray_ok);
-    free2d(vol_p->ray_time);
-    free2i(vol_p->ray_num_bins);
-    free2d(vol_p->ray_tilt0);
-    free2d(vol_p->ray_tilt1);
-    free2d(vol_p->ray_az0);
-    free2d(vol_p->ray_az1);
+    FREE(vol_p->sweep_hdr);
+    free(vol_p->ray_hdr);
     for (y = 0; y < SIGMET_MAX_TYPES; y++) {
 	switch (vol_p->dat[y].stor_fmt) {
 	    case SIGMET_U1:
@@ -782,7 +772,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     int s, r, b;			/* Sweep, ray, bin indeces */
     int yf, y;				/* Indeces for type in file, type in dat */
     int i, n;				/* Temporary values */
-    int nbins;				/* vol_p->ray_num_bins */
+    int nbins;				/* vol_p->ray_hdr[s][r]num_bins */
     int tm_incr;			/* Ray time adjustment */
 
     if ( !f ) {
@@ -817,69 +807,22 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
 
-    vol_p->sweep = CALLOC(num_sweeps, sizeof(*vol_p->sweep));
-    if ( !vol_p->sweep ) {
+    vol_p->sweep_hdr = CALLOC(num_sweeps, sizeof(*vol_p->sweep_hdr));
+    if ( !vol_p->sweep_hdr ) {
 	Err_Append("Could not allocate sweep header array.  ");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
-    vol_p->size += num_sweeps * sizeof(*vol_p->sweep);
+    vol_p->size += num_sweeps * sizeof(*vol_p->sweep_hdr);
 
-    vol_p->ray_ok = calloc2i(num_sweeps, num_rays);
-    if ( !vol_p->ray_ok ) {
-	Err_Append("Could not allocate ray status array.  ");
+    vol_p->ray_hdr = malloc2rh(num_sweeps, num_rays);
+    if ( !vol_p->ray_hdr ) {
+	Err_Append("Could not allocate ray header array.  ");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
-    vol_p->size += num_sweeps * num_rays * sizeof(int);
+    vol_p->size += num_sweeps * num_rays * sizeof(struct Sigmet_Ray_Hdr);
 
-    vol_p->ray_time = calloc2d(num_sweeps, num_rays);
-    if ( !vol_p->ray_time ) {
-	Err_Append("Could not allocate ray time array.  ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->size += num_sweeps * num_rays * sizeof(double);
-
-    vol_p->ray_num_bins = calloc2i(num_sweeps, num_rays);
-    if ( !vol_p->ray_num_bins ) {
-	Err_Append("Could not allocate array of ray bin counts.  ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->size += num_sweeps * num_rays * sizeof(int);
-
-    vol_p->ray_tilt0 = calloc2d(num_sweeps, num_rays);
-    if ( !vol_p->ray_tilt0 ) {
-	Err_Append("Could not allocate array of ray initial tilts.  ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->size += num_sweeps * num_rays * sizeof(double);
-
-    vol_p->ray_tilt1 = calloc2d(num_sweeps, num_rays);
-    if ( !vol_p->ray_tilt1 ) {
-	Err_Append("Could not allocate array of ray final tilts.  ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->size += num_sweeps * num_rays * sizeof(double);
-
-    vol_p->ray_az0 = calloc2d(num_sweeps, num_rays);
-    if ( !vol_p->ray_az0 ) {
-	Err_Append("Could not allocate array of ray initial azimuths.  ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->size += num_sweeps * num_rays * sizeof(double);
-
-    vol_p->ray_az1 = calloc2d(num_sweeps, num_rays);
-    if ( !vol_p->ray_az1 ) {
-	Err_Append("Could not allocate array of ray final azimuths.  ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->size += num_sweeps * num_rays * sizeof(double);
 
     for (y = 0; y < vol_p->num_types; y++) {
 	switch (vol_p->dat[y].stor_fmt) {
@@ -976,7 +919,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    goto error;
 		}
 	    }
-	    vol_p->sweep[sweep_num].ok = 1;
+	    vol_p->sweep_hdr[sweep_num].ok = 1;
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
 		Err_Append("Volume has excess sweeps.  ");
@@ -1008,7 +951,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    month = get_sint16(rec + 32);
 	    day = get_sint16(rec + 34);
 	    if (year < 1900 || month == 0 || day == 0) {
-		vol_p->sweep[sweep_num].ok = 0;
+		vol_p->sweep_hdr[sweep_num].ok = 0;
 	    }
 
 	    /*
@@ -1017,11 +960,11 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 
 	    swpTm = Tm_CalToJul(year, month, day, 0, 0, sec);
 	    if ( swpTm == 0.0 ) {
-		vol_p->sweep[sweep_num].ok = 0;
+		vol_p->sweep_hdr[sweep_num].ok = 0;
 	    }
 	    angle = Sigmet_Bin2Rad(get_uint16(rec + 46));
-	    vol_p->sweep[s].time = swpTm;
-	    vol_p->sweep[s].angle = angle;
+	    vol_p->sweep_hdr[s].time = swpTm;
+	    vol_p->sweep_hdr[s].angle = angle;
 
 	    /*
 	       Initialize ray.
@@ -1117,18 +1060,18 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		az1_i = get_uint16(ray_buf + 4);
 		tilt1_i = get_uint16(ray_buf + 6);
 
-		vol_p->ray_az0[s][r] = Sigmet_Bin2Rad(az0_i);
-		vol_p->ray_tilt0[s][r] = Sigmet_Bin2Rad(tilt0_i);
-		vol_p->ray_az1[s][r] = Sigmet_Bin2Rad(az1_i);
-		vol_p->ray_tilt1[s][r] = Sigmet_Bin2Rad(tilt1_i);
+		vol_p->ray_hdr[s][r].az0 = Sigmet_Bin2Rad(az0_i);
+		vol_p->ray_hdr[s][r].tilt0 = Sigmet_Bin2Rad(tilt0_i);
+		vol_p->ray_hdr[s][r].az1 = Sigmet_Bin2Rad(az1_i);
+		vol_p->ray_hdr[s][r].tilt1 = Sigmet_Bin2Rad(tilt1_i);
 
-		vol_p->ray_ok[s][r] = !(az0_i == az1_i && tilt0_i == tilt1_i);
+		vol_p->ray_hdr[s][r].ok = !(az0_i == az1_i && tilt0_i == tilt1_i);
 
-		nbins = vol_p->ray_num_bins[s][r] = get_sint16(ray_buf + 8);
+		nbins = vol_p->ray_hdr[s][r].num_bins = get_sint16(ray_buf + 8);
 		if ( !vol_p->xhdr ) {
 		    unsigned sec = get_uint16(ray_buf + 10);
 
-		    vol_p->ray_time[s][r] = swpTm + sec / 86400.0;
+		    vol_p->ray_hdr[s][r].time = swpTm + sec / 86400.0;
 		}
 
 		/*
@@ -1138,7 +1081,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		y = yf - vol_p->xhdr;
 		if ( vol_p->types_fl[yf] == DB_XHDR ) {
 		    tm_incr = get_sint32(ray_buf + SZ_RAY_HDR);
-		    vol_p->ray_time[s][r] = swpTm + tm_incr * 0.001 / 86400.0;
+		    vol_p->ray_hdr[s][r].time = swpTm + tm_incr * 0.001 / 86400.0;
 		} else {
 		    U1BYT *vol_u1;
 		    U2BYT *vol_u2;
@@ -1192,7 +1135,9 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    }
 	}
     }
-    for (s = 0; s < vol_p->ih.tc.tni.num_sweeps && vol_p->sweep[s].ok; s++) {
+    for (s = 0;
+	    s < vol_p->ih.tc.tni.num_sweeps && vol_p->sweep_hdr[s].ok;
+	    s++) {
 	continue;
     }
     vol_p->truncated = (r + 1 < num_rays || s + 1 < num_sweeps) ? 1 : 0;
@@ -1212,7 +1157,7 @@ error:
 
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 {
-    return vol_p->ray_az0[s][r] == vol_p->ray_az1[s][r];
+    return vol_p->ray_hdr[s][r].az0 == vol_p->ray_hdr[s][r].az1;
 }
 
 /*
@@ -1347,11 +1292,11 @@ int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
     }
     dat_p->stor_fmt = SIGMET_FLT;
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep[s].ok ) {
+	if ( vol_p->sweep_hdr[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-		if ( vol_p->ray_ok[s][r] ) {
+		if ( vol_p->ray_hdr[s][r].ok ) {
 		    dp = dat_p->vals.f[s][r];
-		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
 			*dp = v;
 		    }
@@ -1388,10 +1333,10 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
     bin_step = 0.01 * vol_p->ih.tc.tri.step_out;	/* cm -> meter */
     bin0 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin + 0.5 * bin_step;
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep[s].ok ) {
+	if ( vol_p->sweep_hdr[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-		if ( vol_p->ray_ok[s][r] ) {
-		    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+		if ( vol_p->ray_hdr[s][r].ok ) {
+		    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)  {
 			f[s][r][b] = bin0 + b * bin_step;
 		    }
 		}
@@ -1447,10 +1392,11 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     switch (dat_p2->stor_fmt) {
 	case SIGMET_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v2 = dat_p2->vals.u1[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
 				dat_p1->vals.f[s][r][b] = v2;
@@ -1462,10 +1408,10 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    break;
 	case SIGMET_U2:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)  {
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
 				dat_p1->vals.f[s][r][b] = v2;
@@ -1485,10 +1431,10 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	case SIGMET_DBL:
 	case SIGMET_MT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)  {
 				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
@@ -1537,11 +1483,11 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep[s].ok ) {
+	if ( vol_p->sweep_hdr[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-		if ( vol_p->ray_ok[s][r] ) {
+		if ( vol_p->ray_hdr[s][r].ok ) {
 		    dp = dat_p->vals.f[s][r];
-		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
 			    *dp += v;
@@ -1603,10 +1549,11 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     switch (dat_p2->stor_fmt) {
 	case SIGMET_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u1[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
@@ -1623,10 +1570,10 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    break;
 	case SIGMET_U2:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)  {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp (v2, vol_p);
@@ -1643,10 +1590,11 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    break;
 	case SIGMET_FLT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.f[s][r][b];
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
@@ -1663,10 +1611,11 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	case SIGMET_DBL:
 	case SIGMET_MT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
@@ -1715,11 +1664,11 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep[s].ok ) {
+	if ( vol_p->sweep_hdr[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-		if ( vol_p->ray_ok[s][r] ) {
+		if ( vol_p->ray_hdr[s][r].ok ) {
 		    dp = dat_p->vals.f[s][r];
-		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
 			    *dp -= v;
@@ -1781,10 +1730,11 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     switch (dat_p2->stor_fmt) {
 	case SIGMET_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u1[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
@@ -1801,10 +1751,11 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    break;
 	case SIGMET_U2:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
@@ -1821,10 +1772,11 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    break;
 	case SIGMET_FLT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.f[s][r][b];
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
@@ -1841,10 +1793,11 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	case SIGMET_DBL:
 	case SIGMET_MT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
@@ -1893,11 +1846,11 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep[s].ok ) {
+	if ( vol_p->sweep_hdr[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-		if ( vol_p->ray_ok[s][r] ) {
+		if ( vol_p->ray_hdr[s][r].ok ) {
 		    dp = dat_p->vals.f[s][r];
-		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
 			    *dp *= v;
@@ -1959,10 +1912,11 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     switch (dat_p2->stor_fmt) {
 	case SIGMET_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u1[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
@@ -1979,10 +1933,11 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    break;
 	case SIGMET_U2:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
@@ -1999,10 +1954,11 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    break;
 	case SIGMET_FLT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.f[s][r][b];
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
@@ -2019,10 +1975,10 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	case SIGMET_DBL:
 	case SIGMET_MT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)  {
 				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
@@ -2075,11 +2031,11 @@ int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep[s].ok ) {
+	if ( vol_p->sweep_hdr[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-		if ( vol_p->ray_ok[s][r] ) {
+		if ( vol_p->ray_hdr[s][r].ok ) {
 		    dp = dat_p->vals.f[s][r];
-		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
 			    *dp /= v;
@@ -2141,10 +2097,11 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     switch (dat_p2->stor_fmt) {
 	case SIGMET_U1:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u1[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
@@ -2162,10 +2119,11 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    break;
 	case SIGMET_U2:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
@@ -2183,10 +2141,11 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	    break;
 	case SIGMET_FLT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.f[s][r][b];
 				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2)
@@ -2204,10 +2163,11 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	case SIGMET_DBL:
 	case SIGMET_MT:
 	    for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-		if ( vol_p->sweep[s].ok ) {
+		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-			if ( vol_p->ray_ok[s][r] ) {
-			    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++)  {
+			if ( vol_p->ray_hdr[s][r].ok ) {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
@@ -2256,11 +2216,11 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
-	if ( vol_p->sweep[s].ok ) {
+	if ( vol_p->sweep_hdr[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-		if ( vol_p->ray_ok[s][r] ) {
+		if ( vol_p->ray_hdr[s][r].ok ) {
 		    dp = dat_p->vals.f[s][r];
-		    dp1 = dp + vol_p->ray_num_bins[s][r];
+		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
 			if ( Sigmet_IsData(*dp) ) {
 			    *dp = (*dp > 0.0) ? log10(*dp) : Sigmet_NoData();
@@ -2312,9 +2272,9 @@ int Sigmet_Vol_IncrTm(struct Sigmet_Vol *vol_p, double dt)
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     for (s = 0; s < num_sweeps; s++) {
-	vol_p->sweep[s].time += dt;
+	vol_p->sweep_hdr[s].time += dt;
 	for (r = 0; r < num_rays; r++) {
-	    vol_p->ray_time[s][r] += dt;
+	    vol_p->ray_hdr[s][r].time += dt;
 	}
     }
     vol_p->mod = 1;
@@ -2357,8 +2317,8 @@ float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
     if ( y < 0 || y >= vol_p->num_types
 	    || s < 0 || s >= vol_p->num_sweeps_ax
 	    || r < 0 || r >= vol_p->ih.ic.num_rays
-	    || !vol_p->ray_num_bins
-	    || b < 0 || b >= vol_p->ray_num_bins[s][r] ) {
+	    || !vol_p->ray_hdr
+	    || b < 0 || b >= vol_p->ray_hdr[s][r].num_bins ) {
 	return Sigmet_NoData();
     }
     switch (vol_p->dat[y].stor_fmt) {
@@ -2398,10 +2358,10 @@ int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s, int r,
 	    || r < 0 || r >= vol_p->ih.ic.num_rays ) {
 	return SIGMET_BAD_ARG;
     }
-    if ( !vol_p->ray_num_bins ) {
+    if ( !vol_p->ray_hdr ) {
 	return SIGMET_BAD_VOL;
     }
-    ray_num_bins = vol_p->ray_num_bins[s][r];
+    ray_num_bins = vol_p->ray_hdr[s][r].num_bins;
     if ( *n < ray_num_bins ) {
 	float *t;
 
@@ -2477,7 +2437,7 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
 	Err_Append("Ray index out of bounds.  ");
 	return SIGMET_RNG_ERR;
     }
-    if (b >= vol_p->ray_num_bins[s][r]) {
+    if (b >= vol_p->ray_hdr[s][r].num_bins) {
 	Err_Append("Bin index out of bounds.  ");
 	return SIGMET_RNG_ERR;
     }
@@ -2495,8 +2455,8 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
     r0 = 0.01 * (r00 + b * dr);
     r1 = 0.01 * (r00 + (b + 1) * dr);
 
-    az0 = vol_p->ray_az0[s][r];
-    az1 = vol_p->ray_az1[s][r];
+    az0 = vol_p->ray_hdr[s][r].az0;
+    az1 = vol_p->ray_hdr[s][r].az1;
 
     /*
        Make sure polygon is right handed.
@@ -2508,7 +2468,7 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
 	az0 = t;
     }
 
-    tilt = 0.5 * (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
+    tilt = 0.5 * (vol_p->ray_hdr[s][r].tilt0 + vol_p->ray_hdr[s][r].tilt1);
 
     /*
        Distance along ground to point under the bin
@@ -2572,7 +2532,7 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	Err_Append("sweep index out of range for volume. ");
 	return SIGMET_RNG_ERR;
     }
-    if ( !vol_p->sweep[s].ok ) {
+    if ( !vol_p->sweep_hdr[s].ok ) {
 	Err_Append("sweep not valid in volume. ");
 	return SIGMET_RNG_ERR;
     }
@@ -2607,13 +2567,13 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
      */
 
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-	if ( vol_p->ray_ok[s][r] ) {
+	if ( vol_p->ray_hdr[s][r].ok ) {
 	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p, &n);
 	    if ( status != SIGMET_OK ) {
 		Err_Append("Could not get ray data. ");
 		return status;
 	    }
-	    for (r_p = ray_p; r_p < ray_p + vol_p->ray_num_bins[s][r]; r_p++) {
+	    for (r_p = ray_p; r_p < ray_p + vol_p->ray_hdr[s][r].num_bins; r_p++) {
 		if ( Sigmet_IsData(*r_p) && min <= *r_p && *r_p < max ) {
 		    /*
 		       Bin value is in an interval of interest.
@@ -2626,8 +2586,8 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 		    b = r_p - ray_p;
 		    r0 = rng_1st_bin + b * step_out;
 		    r1 = r0 + step_out;
-		    az0 = vol_p->ray_az0[s][r];
-		    az1 = vol_p->ray_az1[s][r];
+		    az0 = vol_p->ray_hdr[s][r].az0;
+		    az1 = vol_p->ray_hdr[s][r].az1;
 
 		    /*
 		       Make sure polygon is right handed.
@@ -2639,8 +2599,8 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 			az0 = t;
 		    }
 
-		    tilt = 0.5
-			* (vol_p->ray_tilt0[s][r] + vol_p->ray_tilt1[s][r]);
+		    tilt = 0.5 * (vol_p->ray_hdr[s][r].tilt0
+			    + vol_p->ray_hdr[s][r].tilt1);
 		    r0 = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
 		    r1 = atan(r1 * cos(tilt) / (re + r1 * sin(tilt)));
 		    GeogStep(lon, lat, az0, r0, cnr, cnr + 1);
@@ -2723,7 +2683,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	Err_Append("sweep index out of range for volume. ");
 	return SIGMET_RNG_ERR;
     }
-    if ( !vol_p->sweep[s].ok ) {
+    if ( !vol_p->sweep_hdr[s].ok ) {
 	Err_Append("sweep not valid in volume. ");
 	return SIGMET_RNG_ERR;
     }
@@ -2756,13 +2716,13 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
      */
 
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-	if ( vol_p->ray_ok[s][r] ) {
+	if ( vol_p->ray_hdr[s][r].ok ) {
 	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_dat, &n);
 	    if ( status != SIGMET_OK ) {
 		Err_Append("Could not get ray data. ");
 		return status;
 	    }
-	    for (b = 0; b < vol_p->ray_num_bins[s][r]; b++) {
+	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
 		if ( Sigmet_IsData(ray_dat[b])
 			&& min <= ray_dat[b] && ray_dat[b] < max ) {
 		    /*
@@ -2774,28 +2734,28 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 		    r1 = r0 + step_out;
 
 		    if ( fill ) {
-			tilt0 = vol_p->ray_tilt0[s][r];
-			tilt1 = vol_p->ray_tilt1[s][r];
+			tilt0 = vol_p->ray_hdr[s][r].tilt0;
+			tilt1 = vol_p->ray_hdr[s][r].tilt1;
 			tilt = 0.5 * (tilt0 + tilt1);
 			if ( r == 0 ) {
-			    tilt0 = vol_p->ray_tilt0[s][r];
+			    tilt0 = vol_p->ray_hdr[s][r].tilt0;
 			} else {
-			    tilt0_prev = vol_p->ray_tilt0[s][r - 1];
-			    tilt1_prev = vol_p->ray_tilt1[s][r - 1];
+			    tilt0_prev = vol_p->ray_hdr[s][r - 1].tilt0;
+			    tilt1_prev = vol_p->ray_hdr[s][r - 1].tilt1;
 			    tilt_prev = 0.5 * (tilt0_prev + tilt1_prev);
 			    tilt0 = 0.5 * (tilt + tilt_prev);
 			}
 			if ( r == vol_p->ih.ic.num_rays - 1 ) {
-			    tilt1 = vol_p->ray_tilt1[s][r];
+			    tilt1 = vol_p->ray_hdr[s][r].tilt1;
 			} else {
-			    tilt0_next = vol_p->ray_tilt0[s][r + 1];
-			    tilt1_next = vol_p->ray_tilt1[s][r + 1];
+			    tilt0_next = vol_p->ray_hdr[s][r + 1].tilt0;
+			    tilt1_next = vol_p->ray_hdr[s][r + 1].tilt1;
 			    tilt_next = 0.5 * (tilt0_next + tilt1_next);
 			    tilt1 = 0.5 * (tilt + tilt_next);
 			}
 		    } else {
-			tilt0 = vol_p->ray_tilt0[s][r];
-			tilt1 = vol_p->ray_tilt1[s][r];
+			tilt0 = vol_p->ray_hdr[s][r].tilt0;
+			tilt1 = vol_p->ray_hdr[s][r].tilt1;
 		    }
 
 		    /*
@@ -4332,15 +4292,17 @@ static unsigned get_uint32(void *b) {
 }
 
 /*
-   Allocate a 2 dimensional array of doubles
+   Allocate a 2 dimensional array of ray headers.
+   Free allocation with free().
  */
 
-static double ** calloc2d(long j, long i)
+static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i)
 {
-    double **dat = NULL;
+    struct Sigmet_Ray_Hdr **ray_hdr = NULL;
     long n;
-    size_t jj, ii;		/* Addends for pointer arithmetic */
+    size_t jj, ii;			/* Addends for pointer arithmetic */
     size_t ji;
+    size_t sz;
 
     /*
        Make sure casting to size_t does not overflow anything.
@@ -4358,93 +4320,18 @@ static double ** calloc2d(long j, long i)
 	return NULL;
     }
 
-    dat = (double **)CALLOC(jj + 2, sizeof(double *));
-    if ( !dat ) {
-	Err_Append("Could not allocate memory for 1st dimension of two dimensional"
-		" array.\n");
+    sz = jj * sizeof(struct Sigmet_Ray_Hdr *)
+	+ jj * ii * sizeof(struct Sigmet_Ray_Hdr);
+    ray_hdr = (struct Sigmet_Ray_Hdr **)malloc(sz);
+    if ( !ray_hdr ) {
+	Err_Append("Could not allocate memory for ray header array.\n");
 	return NULL;
     }
-    dat[0] = (double *)CALLOC(ji, sizeof(double));
-    if ( !dat[0] ) {
-	FREE(dat);
-	Err_Append("Could not allocate memory for values of two dimensional "
-		"array.\n");
-	return NULL;
-    }
+    ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(ray_hdr + jj);
     for (n = 1; n <= j; n++) {
-	dat[n] = dat[n - 1] + i;
+	ray_hdr[n] = ray_hdr[n - 1] + i;
     }
-    return dat;
-}
-
-/*
-   Free array created by calloc2d
- */
-
-static void free2d(double **dat)
-{
-    if (dat && dat[0]) {
-	FREE(dat[0]);
-    }
-    FREE(dat);
-}
-
-/*
-   Allocate a 2 dimensional array of ints
- */
-
-static int ** calloc2i(long j, long i)
-{
-    int **dat = NULL;
-    long n;
-    size_t jj, ii;		/* Addends for pointer arithmetic */
-    size_t ji;
-
-    /*
-       Make sure casting to size_t does not overflow anything.
-     */
-
-    if (j <= 0 || i <= 0) {
-	Err_Append("Array dimensions must be positive.\n");
-	return NULL;
-    }
-    jj = (size_t)j;
-    ii = (size_t)i;
-    ji = jj * ii;
-    if (ji / jj != ii) {
-	Err_Append("Dimensions too big for pointer arithmetic.\n");
-	return NULL;
-    }
-
-    dat = (int **)CALLOC(jj + 2, sizeof(int *));
-    if ( !dat ) {
-	Err_Append("Could not allocate memory for 1st dimension of two dimensional"
-		" array.\n");
-	return NULL;
-    }
-    dat[0] = (int *)CALLOC(ji, sizeof(int));
-    if ( !dat[0] ) {
-	FREE(dat);
-	Err_Append("Could not allocate memory for values of two dimensional "
-		"array.\n");
-	return NULL;
-    }
-    for (n = 1; n <= j; n++) {
-	dat[n] = dat[n - 1] + i;
-    }
-    return dat;
-}
-
-/*
-   Free array created by calloc2i
- */
-
-static void free2i(int **dat)
-{
-    if (dat && dat[0]) {
-	FREE(dat[0]);
-    }
-    FREE(dat);
+    return ray_hdr;
 }
 
 /*
