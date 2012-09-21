@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.158 $ $Date: 2012/09/21 19:57:37 $
+   .	$Revision: 1.159 $ $Date: 2012/09/21 20:02:53 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -4321,7 +4321,7 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i)
     }
 
     sz = jj * sizeof(struct Sigmet_Ray_Hdr *)
-	+ jj * ii * sizeof(struct Sigmet_Ray_Hdr);
+	+ (jj * ii + 1) * sizeof(struct Sigmet_Ray_Hdr);
     ray_hdr = (struct Sigmet_Ray_Hdr **)MALLOC(sz);
     if ( !ray_hdr ) {
 	Err_Append("Could not allocate memory for ray header array.\n");
