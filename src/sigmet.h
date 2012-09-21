@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.105 $ $Date: 2012/09/19 20:54:50 $
+   .	$Revision: 1.106 $ $Date: 2012/09/19 21:55:16 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -99,9 +99,9 @@ enum Sigmet_ScanMode {PPI_S = 1, RHI, MAN_SCAN, PPI_C, FILE_SCAN};
  */
 
 struct Sigmet_YMDS_Time {
-    int sec;		/* Seconds since midnight */
-    unsigned msec;	/* Milliseconds */
-    char utc;		/* If true, time is UTC */
+    int sec;				/* Seconds since midnight */
+    unsigned msec;			/* Milliseconds */
+    char utc;				/* If true, time is UTC */
     int year;
     int month;
     int day;
@@ -520,69 +520,70 @@ struct Sigmet_Vol {
        Volume headers
      */
 
-    int has_headers;				/* true => struct has headers */
-    struct Sigmet_Product_Hdr ph;		/* Record #1 */
-    struct Sigmet_Ingest_Header ih;		/* Record #2 */
+    int has_headers;			/* true => struct has headers */
+    struct Sigmet_Product_Hdr ph;	/* Record #1 */
+    struct Sigmet_Ingest_Header ih;	/* Record #2 */
 
     /*
        Ray headers and data
      */
 
-    int xhdr;					/* true => volume uses extended
-						   headers */
-    int num_types;				/* Number of data types */
+    int xhdr;				/* true => volume uses extended
+					   headers */
+    int num_types;			/* Number of data types */
     enum Sigmet_DataTypeN
-	types_fl[SIGMET_NTYPES];		/* Data types in raw product
-						   file. This means Sigmet
-						   types, including DB_XDR. */
-    int truncated;				/* If true, volume does not
-						   have data for the number
-						   of sweeps and rays given
-						   in the headers.  This usually
-						   happens when operator orders
-						   "STOP NOW" during the task,
-						   or if a volume transfer fails */
-    int num_sweeps_ax;				/* Actual number of sweeps */
+	types_fl[SIGMET_NTYPES];	/* Data types in raw product
+					   file. This means Sigmet
+					   types, including DB_XDR. */
+    int truncated;			/* If true, volume does not
+					   have data for the number
+					   of sweeps and rays given
+					   in the headers.  This usually
+					   happens when operator orders
+					   "STOP NOW" during the task,
+					   or if a volume transfer fails */
+    int num_sweeps_ax;			/* Actual number of sweeps */
     struct {
-	int ok;					/* Sweep status. If ok[i],
-						   i'th sweep is complete. */
-	double time;				/* Sweep start time, Julian
-						   day */
-	double angle;				/* Sweep angle, radians */
-    } *sweep;					/* Sweep headers, dimensioned
-						   num_sweeps_ax */
-    int **ray_ok;				/* Ray status, dimensions
-						   [sweep][ray].  If ray_ok[j][i]
-						   == 1, ray is good */
-    double **ray_time;				/* Ray time, Julian day,
-						   dimensions [sweep][ray] */
-    int **ray_num_bins;				/* Number of bins in ray,
-						   dimensions [sweep][ray],
-						   varies from ray to ray */
-    double **ray_tilt0;				/* Tilt at start of ray,
-						   radians, dimensions
-						   [sweep][ray] */
-    double **ray_tilt1;				/* Tilt at end of ray, radians,
-						   dimensions [sweep][ray] */
-    double **ray_az0;				/* Azimuth at start of ray,
-						   radians, dimensions
-						   [sweep][ray] */
-    double **ray_az1;				/* Azimuth at end of ray,
-						   radians, dimensions
-						   [sweep][ray] */
+	int ok;				/* Sweep status. If ok[i],
+					   i'th sweep is complete. */
+	double time;			/* Sweep start time, Julian
+					   day */
+	double angle;			/* Sweep angle, radians */
+    } *sweep;				/* Sweep headers, dimensioned
+					   num_sweeps_ax */
+    int **ray_ok;			/* Ray status, dimensions
+					   [sweep][ray].  If ray_ok[j][i]
+					   == 1, ray is good */
+    double **ray_time;			/* Ray time, Julian day,
+					   dimensions [sweep][ray] */
+    int **ray_num_bins;			/* Number of bins in ray,
+					   dimensions [sweep][ray],
+					   varies from ray to ray */
+    double **ray_tilt0;			/* Tilt at start of ray,
+					   radians, dimensions
+					   [sweep][ray] */
+    double **ray_tilt1;			/* Tilt at end of ray, radians,
+					   dimensions [sweep][ray] */
+    double **ray_az0;			/* Azimuth at start of ray,
+					   radians, dimensions
+					   [sweep][ray] */
+    double **ray_az1;			/* Azimuth at end of ray,
+					   radians, dimensions
+					   [sweep][ray] */
     struct {
-	char abbrv[SIGMET_NAME_LEN];		/* Data type abbreviation */
-	struct Sigmet_Dat *dat_p;		/* Member of dat for abbrv */
-    } types_tbl[SIGMET_MAX_TYPES];		/* Map data type abbreviations
-						   to members of dat */
-    struct Sigmet_Dat dat[SIGMET_MAX_TYPES];	/* Data, dimensioned [type] */
-    size_t size;				/* Number of bytes of memory
-						   this structure is using */
-    int mod;					/* If true, volume in memory
-						   is different from volume in
-						   raw product file */
-    char *raw_fl_nm;				/* Path to file that provided
-						   the volume */
+	char abbrv[SIGMET_NAME_LEN];	/* Data type abbreviation */
+	struct Sigmet_Dat *dat_p;	/* Member of dat for abbrv */
+    } types_tbl[SIGMET_MAX_TYPES];	/* Map data type abbreviations
+					   to members of dat */
+    struct Sigmet_Dat
+	dat[SIGMET_MAX_TYPES];		/* Data, dimensioned [type] */
+    size_t size;			/* Number of bytes of memory
+					   this structure is using */
+    int mod;				/* If true, volume in memory
+					   is different from volume in
+					   raw product file */
+    char *raw_fl_nm;			/* Path to file that provided
+					   the volume */
 };
 
 /*
