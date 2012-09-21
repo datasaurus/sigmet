@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.155 $ $Date: 2012/09/13 22:07:12 $
+   .	$Revision: 1.156 $ $Date: 2012/09/19 21:56:21 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -86,22 +86,6 @@
  */
 
 enum SCAN_MODE {ppi_sec = 1, rhi, man, ppi_cont, file};
-
-/*
-   Polar coordinates for a point
- */
-
-struct polar_coord {
-    double rng;			/* Distance from origin, meters */
-    double az;			/* Azimuth (angle in x-y plane), radians */
-    double tilt;		/* Tilt, radians */
-    int s, r;			/* Indeces for beam at corner of beam set
-				   containing the point.
-				   az and tilt for the point satisfy:
-				   ray_az0[s][r] <= az < ray_az1[s][r+1]
-				   ray_tilt0[s][r] <= tilt < ray_tilt1[s][r+1]
-				 */
-};
 
 /*
    Convenience functions
