@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.408 $ $Date: 2012/09/19 20:56:00 $
+ .	$Revision: 1.409 $ $Date: 2012/09/19 22:09:47 $
  */
 
 #include <stdlib.h>
@@ -195,12 +195,6 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
     have_vol = 1;
     vol.mod = 0;
     sz = strlen(vol_fl_nm) + 1;
-    if ( !(vol.raw_fl_nm = MALLOC(sz)) ) {
-	fprintf(stderr, "Could not allocate space for volume file name.\n");
-	xstatus = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    strcpy(vol.raw_fl_nm, vol_fl_nm);
 
     /*
        Initialize command table
