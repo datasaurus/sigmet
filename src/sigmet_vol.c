@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.160 $ $Date: 2012/09/21 20:14:17 $
+   .	$Revision: 1.161 $ $Date: 2012/09/21 20:47:40 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -242,7 +242,6 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
     vol_p->truncated = 1;
     vol_p->size = sizeof(struct Sigmet_Vol);
     vol_p->mod = 0;
-    vol_p->raw_fl_nm = NULL;
     return;
 }
 

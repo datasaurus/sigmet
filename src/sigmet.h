@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.107 $ $Date: 2012/09/21 18:35:56 $
+   .	$Revision: 1.108 $ $Date: 2012/09/21 19:56:58 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -40,6 +40,7 @@
 
 #define SIGMET_VERSION "1.1"
 
+#include "unix_defs.h"
 #include <float.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -530,21 +531,10 @@ struct Sigmet_Dat {
  */
 
 struct Sigmet_Vol {
-
-    /*
-       Volume headers
-     */
-
     int has_headers;			/* true => struct has headers */
     struct Sigmet_Product_Hdr ph;	/* Record #1 */
     struct Sigmet_Ingest_Header ih;	/* Record #2 */
-
-    /*
-       Ray headers and data
-     */
-
-    int xhdr;				/* true => volume uses extended
-					   headers */
+    int xhdr;				/* true => extended headers present */
     int num_types;			/* Number of data types */
     enum Sigmet_DataTypeN
 	types_fl[SIGMET_NTYPES];	/* Data types in raw product
@@ -580,8 +570,6 @@ struct Sigmet_Vol {
     int mod;				/* If true, volume in memory
 					   is different from volume in
 					   raw product file */
-    char *raw_fl_nm;			/* Path to file that provided
-					   the volume */
 };
 
 /*
@@ -606,6 +594,7 @@ struct Sigmet_Vol {
 
 void Sigmet_Vol_Init(struct Sigmet_Vol *);
 void Sigmet_Vol_Free(struct Sigmet_Vol *);
+int Sigmet_ShMemAtt(struct Sigmet_Vol *);
 int Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
