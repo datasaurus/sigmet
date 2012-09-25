@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.161 $ $Date: 2012/09/21 20:47:40 $
+   .	$Revision: 1.162 $ $Date: 2012/09/24 21:22:32 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -47,6 +47,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <sys/shm.h>
 #include "alloc.h"
 #include "tm_calc_lib.h"
 #include "err_msg.h"
@@ -190,10 +191,10 @@ static void print_s(FILE *, char *, char *, char *, char *);
    Allocators
  */
 
-static struct Sigmet_Ray_Hdr ** malloc2rh(long, long);
-static U1BYT *** malloc3_u1(long, long, long);
-static U2BYT *** malloc3_u2(long, long, long);
-static float *** malloc3_flt(long, long, long);
+static struct Sigmet_Ray_Hdr ** malloc2rh(long, long, int *);
+static U1BYT *** malloc3_u1(long, long, long, int *);
+static U2BYT *** malloc3_u2(long, long, long, int *);
+static float *** malloc3_flt(long, long, long, int *);
 
 /*
    Add dt DAYS to the time structure at time_p. Return success/failure.
@@ -232,12 +233,17 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
 	vol_p->types_fl[n] = DB_XHDR;		/* Force error if used */
     }
     vol_p->sweep_hdr = NULL;
+    vol_p->sweep_hdr_id = -1;
     vol_p->ray_hdr = NULL;
+    vol_p->ray_hdr_id = -1;
     for (y = 0; y < SIGMET_MAX_TYPES; y++) {
 	memset(vol_p->dat[y].abbrv, 0, sizeof(vol_p->dat[y].abbrv));
 	memset(vol_p->dat[y].descr, 0, sizeof(vol_p->dat[y].descr));
 	memset(vol_p->dat[y].unit, 0, sizeof(vol_p->dat[y].unit));
 	vol_p->dat[y].stor_fmt = SIGMET_MT;
+	vol_p->dat[y].stor_to_comp = Sigmet_DblDbl;
+	vol_p->dat[y].vals.u1 = NULL;
+	vol_p->dat[y].vals_id = -1;
     }
     vol_p->truncated = 1;
     vol_p->size = sizeof(struct Sigmet_Vol);
@@ -245,32 +251,183 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
     return;
 }
 
-void Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
+int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
+{
+    if (!vol_p) {
+	return 0;
+    }
+    if ( vol_p->shm ) {
+	if ( !Sigmet_ShMemDetach(vol_p) ) {
+	    fprintf(stderr, "Could not detach volume from shared memory.\n");
+	    return 0;
+	}
+    } else {
+	int y;
+
+	FREE(vol_p->sweep_hdr);
+	FREE(vol_p->ray_hdr);
+	for (y = 0; y < SIGMET_MAX_TYPES; y++) {
+	    switch (vol_p->dat[y].stor_fmt) {
+		case SIGMET_U1:
+		    FREE(vol_p->dat[y].vals.u1);
+		    break;
+		case SIGMET_U2:
+		    FREE(vol_p->dat[y].vals.u2);
+		    break;
+		case SIGMET_FLT:
+		    FREE(vol_p->dat[y].vals.f);
+		    break;
+		case SIGMET_DBL:
+		case SIGMET_MT:
+		    break;
+	    }
+	}
+    }
+    Sigmet_Vol_Init(vol_p);
+    return 1;
+}
+
+/*
+   Map pointers in vol_p to shared memory.
+ */
+
+int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 {
     int y;
 
-    if (!vol_p) {
-	return;
+    if ( !vol_p || !vol_p->shm) {
+	return 0;
     }
-    FREE(vol_p->sweep_hdr);
-    FREE(vol_p->ray_hdr);
-    for (y = 0; y < SIGMET_MAX_TYPES; y++) {
+    vol_p->sweep_hdr = shmat(vol_p->sweep_hdr_id, NULL, 0);
+    if ( vol_p->sweep_hdr == (void *)-1) {
+	fprintf(stderr, "Could not attach to sweep headers "
+		"in shared memory.\n");
+	vol_p->sweep_hdr = NULL;
+	return 0;
+    }
+    vol_p->ray_hdr = shmat(vol_p->ray_hdr_id, NULL, 0);
+    if ( vol_p->ray_hdr == (void *)-1) {
+	fprintf(stderr, "Could not attach to ray headers "
+		"in shared memory.\n");
+	vol_p->ray_hdr = NULL;
+	return 0;
+    }
+    for (y = 0; y < vol_p->num_types; y++) {
+	struct Sigmet_Dat *dat_p = vol_p->dat + y;
+	enum Sigmet_DataTypeN sig_type = vol_p->types_fl[y];
+
 	switch (vol_p->dat[y].stor_fmt) {
 	    case SIGMET_U1:
-		FREE(vol_p->dat[y].vals.u1);
+		dat_p->vals.u1 = shmat(dat_p->vals_id, NULL, 0);
+		if ( dat_p->vals.u1 == (void *)-1) {
+		    fprintf(stderr, "Could not attach to data array for "
+			    "field %s in shared memory.\n",
+			    dat_p->abbrv);
+		    vol_p->ray_hdr = NULL;
+		    return 0;
+		}
+		dat_p->stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
 		break;
 	    case SIGMET_U2:
-		FREE(vol_p->dat[y].vals.u2);
+		dat_p->vals.u2 = shmat(dat_p->vals_id, NULL, 0);
+		if ( dat_p->vals.u2 == (void *)-1) {
+		    fprintf(stderr, "Could not attach to data array for field"
+			    " %s in shared memory.\n", dat_p->abbrv);
+		    vol_p->ray_hdr = NULL;
+		    return 0;
+		}
+		dat_p->stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
 		break;
 	    case SIGMET_FLT:
-		FREE(vol_p->dat[y].vals.f);
+		dat_p->vals.f = shmat(dat_p->vals_id, NULL, 0);
+		if ( dat_p->vals.f == (void *)-1) {
+		    fprintf(stderr, "Could not attach to data array for field"
+			    " %s in shared memory.\n", dat_p->abbrv);
+		    vol_p->ray_hdr = NULL;
+		    return 0;
+		}
+		dat_p->stor_to_comp = Sigmet_DblDbl;
+		break;
+	    case SIGMET_DBL:
+	    case SIGMET_MT:
+		fprintf(stderr, "Volume in memory is corrupt. Unknown data "
+			"type in data array for field %s.\n", dat_p->abbrv);
+		return 0;
+		break;
+	}
+    }
+    return 1;
+}
+
+/*
+   Detach vol_p from shared memory
+ */
+
+int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
+{
+    struct Sigmet_Dat *dat_p;
+
+    if ( !vol_p || !vol_p->shm ) {
+	return 0;
+    }
+    if ( vol_p->sweep_hdr && shmdt(vol_p->sweep_hdr) == -1 ) {
+	fprintf(stderr, "Could not detach shared memory for sweep headers.\n");
+    }
+    if ( vol_p->sweep_hdr_id != -1
+	    && shmctl(vol_p->sweep_hdr_id, IPC_RMID, NULL) == -1 ) {
+	fprintf(stderr, "Could not remove shared memory for "
+		"sweep headers.\n%s\nPlease use ipcrm command for id %d\n",
+		strerror(errno), vol_p->sweep_hdr_id);
+    }
+    vol_p->sweep_hdr = NULL;
+    vol_p->sweep_hdr_id = -1;
+    if ( vol_p->ray_hdr && shmdt(vol_p->ray_hdr) == -1 ) {
+	fprintf(stderr, "Could not detach shared memory for ray headers.\n");
+    }
+    if ( vol_p->ray_hdr_id != -1
+	    && shmctl(vol_p->ray_hdr_id, IPC_RMID, NULL) == -1 ) {
+	fprintf(stderr, "Could not remove shared memory for "
+		"ray headers.\n%s\nPlease use ipcrm command for id %d\n",
+		strerror(errno), vol_p->ray_hdr_id);
+    }
+    vol_p->ray_hdr = NULL;
+    vol_p->ray_hdr_id = -1;
+    for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_MAX_TYPES; dat_p++) {
+	switch (dat_p->stor_fmt) {
+	    case SIGMET_U1:
+		if ( dat_p->vals.u1 && shmdt(dat_p->vals.u1) == -1 ) {
+		    fprintf(stderr, "Could not detach shared memory "
+			    "for %s.\n%s\n",
+			    dat_p->abbrv, strerror(errno));
+		}
+		break;
+	    case SIGMET_U2:
+		if ( dat_p->vals.u2 && shmdt(dat_p->vals.u2) == -1 ) {
+		    fprintf(stderr, "Could not detach shared memory "
+			    "for %s.\n%s\n",
+			    dat_p->abbrv, strerror(errno));
+		}
+		break;
+	    case SIGMET_FLT:
+		if ( dat_p->vals.f && shmdt(dat_p->vals.f) == -1 ) {
+		    fprintf(stderr, "Could not detach shared memory "
+			    "for %s.\n%s\n",
+			    dat_p->abbrv, strerror(errno));
+		}
 		break;
 	    case SIGMET_DBL:
 	    case SIGMET_MT:
 		break;
 	}
+	if ( dat_p->vals_id != -1
+		&& shmctl(dat_p->vals_id, IPC_RMID, NULL) == -1 ) {
+	    fprintf(stderr, "Could not remove shared memory for "
+		    "%s array.\n%s\nPlease use ipcrm command for id %d\n",
+		    dat_p->abbrv, strerror(errno),
+		    dat_p->vals_id);
+	}
     }
-    Sigmet_Vol_Init(vol_p);
+    return 1;
 }
 
 /*
@@ -333,6 +490,11 @@ static struct Sigmet_Dat *hash_get(struct Sigmet_Vol *vol_p, char *abbrv)
     return NULL;
 }
 
+/*
+   vol_p should point to a volume structure initialized with a call to
+   Sigmet_Vol_Init.
+ */
+
 int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
@@ -382,8 +544,6 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	status = SIGMET_BAD_ARG;
 	goto error;
     }
-
-    Sigmet_Vol_Free(vol_p);
 
     /*
        record 1, <product_header>
@@ -770,6 +930,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     int i, n;				/* Temporary values */
     int nbins;				/* vol_p->ray_hdr[s][r]num_bins */
     int tm_incr;			/* Ray time adjustment */
+    int *id_p;				/* Receive shared memory identifier */
 
     if ( !f ) {
 	Err_Append("Read header function called with bogus input stream. ");
@@ -803,15 +964,37 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
 
-    vol_p->sweep_hdr = CALLOC(num_sweeps, sizeof(*vol_p->sweep_hdr));
-    if ( !vol_p->sweep_hdr ) {
-	Err_Append("Could not allocate sweep header array.  ");
-	status = SIGMET_ALLOC_FAIL;
-	goto error;
-    }
-    vol_p->size += num_sweeps * sizeof(*vol_p->sweep_hdr);
+    if ( vol_p->shm ) {
+	size_t sz;
 
-    vol_p->ray_hdr = malloc2rh(num_sweeps, num_rays);
+	sz = num_sweeps * sizeof(*vol_p->sweep_hdr);
+	vol_p->sweep_hdr_id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
+	if ( vol_p->sweep_hdr_id == -1 ) {
+	    fprintf(stderr, "Could not create shared memory for "
+		    "sweep headers.\n%s\n", strerror(errno));
+	    status = SIGMET_ALLOC_FAIL;
+	    goto error;
+	}
+	vol_p->sweep_hdr = shmat(vol_p->sweep_hdr_id, NULL, 0);
+	if ( vol_p->sweep_hdr == (void *)-1 ) {
+	    fprintf(stderr, "Could not attach to shared memory for "
+		    "sweep headers.\n%s\n", strerror(errno));
+	    status = SIGMET_ALLOC_FAIL;
+	    goto error;
+	}
+	vol_p->size += num_sweeps * sizeof(*vol_p->sweep_hdr);
+    } else {
+	vol_p->sweep_hdr = CALLOC(num_sweeps, sizeof(*vol_p->sweep_hdr));
+	if ( !vol_p->sweep_hdr ) {
+	    Err_Append("Could not allocate sweep header array.  ");
+	    status = SIGMET_ALLOC_FAIL;
+	    goto error;
+	}
+	vol_p->size += num_sweeps * sizeof(*vol_p->sweep_hdr);
+    }
+
+    id_p = vol_p->shm ? &vol_p->ray_hdr_id : NULL;
+    vol_p->ray_hdr = malloc2rh(num_sweeps, num_rays, id_p);
     if ( !vol_p->ray_hdr ) {
 	Err_Append("Could not allocate ray header array.  ");
 	status = SIGMET_ALLOC_FAIL;
@@ -819,13 +1002,15 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     }
     vol_p->size += num_sweeps * num_rays * sizeof(struct Sigmet_Ray_Hdr);
 
-
     for (y = 0; y < vol_p->num_types; y++) {
+	id_p = vol_p->shm ? &vol_p->dat[y].vals_id : NULL;
 	switch (vol_p->dat[y].stor_fmt) {
 	    case SIGMET_U1:
 		vol_p->dat[y].vals.u1
-		    = malloc3_u1(num_sweeps, num_rays, num_bins);
+		    = malloc3_u1(num_sweeps, num_rays, num_bins, id_p);
 		if ( !vol_p->dat[y].vals.u1 ) {
+		    fprintf(stderr, "Could not allocate memory for %s\n",
+			    vol_p->dat[y].abbrv);
 		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
 		}
@@ -833,14 +1018,15 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		break;
 	    case SIGMET_U2:
 		vol_p->dat[y].vals.u2
-		    = malloc3_u2(num_sweeps, num_rays, num_bins);
+		    = malloc3_u2(num_sweeps, num_rays, num_bins, id_p);
 		if ( !vol_p->dat[y].vals.u2 ) {
+		    fprintf(stderr, "Could not allocate memory for %s\n",
+			    vol_p->dat[y].abbrv);
 		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins * 2;
 		break;
-	    default:
 	    case SIGMET_FLT:
 	    case SIGMET_DBL:
 	    case SIGMET_MT:
@@ -850,6 +1036,12 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		goto error;
 		break;
 	}
+    }
+
+    printf("sweep_hdr_id = %d\n", vol_p->sweep_hdr_id);
+    printf("ray_hdr_id = %d\n", vol_p->ray_hdr_id);
+    for (y = 0; y < vol_p->num_types; y++) {
+	printf("vals_id[%d] = %d\n", y, vol_p->dat[y].vals_id);
     }
 
     /*
@@ -1167,6 +1359,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     struct Sigmet_Dat *dat_p;
     float ***flt_p;
     int num_sweeps, num_rays, num_bins;
+    int id;
 
     if ( !abbrv ) {
 	Err_Append("Attempted to add bogus data type to a volume. ");
@@ -1201,11 +1394,13 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     strcpy(dat_p->unit, "");
     dat_p->stor_fmt = SIGMET_FLT;
     dat_p->vals.f = NULL;
+    dat_p->vals_id = -1;
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
 
-    flt_p = malloc3_flt(num_sweeps, num_rays, num_bins);
+    flt_p = malloc3_flt(num_sweeps, num_rays, num_bins,
+	    vol_p->shm ? &id : NULL);
     if ( !flt_p ) {
 	Err_Append("Could not allocate new field ");
 	return SIGMET_ALLOC_FAIL;
@@ -1217,6 +1412,9 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     strncpy(dat_p->unit, unit, SIGMET_NAME_LEN - 1);
     hash_add(vol_p, abbrv, dat_p);
     dat_p->stor_to_comp = Sigmet_DblDbl;
+    if ( vol_p->shm ) {
+	dat_p->vals_id = id;
+    }
 
     vol_p->size += num_sweeps * num_rays * num_bins * sizeof(float);
     vol_p->num_types++;
@@ -4289,12 +4487,14 @@ static unsigned get_uint32(void *b) {
 
 /*
    Allocate a 2 dimensional array of ray headers.
-   Free allocation with FREE().
+   If id_p is not NULL, use shared memory and copy shared memory identifier
+   to it.
  */
 
-static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i)
+static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i, int *id_p)
 {
     struct Sigmet_Ray_Hdr **ray_hdr = NULL;
+    int id;
     long n;
     size_t jj, ii;			/* Addends for pointer arithmetic */
     size_t ji;
@@ -4318,10 +4518,25 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i)
 
     sz = jj * sizeof(struct Sigmet_Ray_Hdr *)
 	+ (jj * ii + 1) * sizeof(struct Sigmet_Ray_Hdr);
-    ray_hdr = (struct Sigmet_Ray_Hdr **)MALLOC(sz);
-    if ( !ray_hdr ) {
-	Err_Append("Could not allocate memory for ray header array.\n");
-	return NULL;
+    if ( id_p ) {
+	id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
+	if ( id == -1 ) {
+	    fprintf(stderr, "Could not create shared memory for "
+		    "ray headers.\n%s\n", strerror(errno));
+	    return NULL;
+	}
+	if ( (ray_hdr = shmat(id, NULL, 0)) == (void *)-1 ) {
+	    fprintf(stderr, "Could not attach to shared memory for "
+		    "ray headers.\n%s\n", strerror(errno));
+	    return NULL;
+	}
+	*id_p = id;
+    } else {
+	ray_hdr = (struct Sigmet_Ray_Hdr **)MALLOC(sz);
+	if ( !ray_hdr ) {
+	    Err_Append("Could not allocate memory for ray header array.\n");
+	    return NULL;
+	}
     }
     ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(ray_hdr + jj);
     for (n = 1; n <= j; n++) {
@@ -4335,15 +4550,17 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i)
    array. If something goes wrong, post an error message with Err_Append and
    return NULL.
 
-   Free allocation with FREE.
+   If id_p is not NULL, use shared memory and copy shared memory identifier
+   to it.
  */
 
-static U1BYT ***malloc3_u1(long kmax, long jmax, long imax)
+static U1BYT ***malloc3_u1(long kmax, long jmax, long imax, int *id_p)
 {
     U1BYT ***dat;
     long k, j;
     size_t kk, jj, ii;
     size_t sz;
+    int id;
 
     /*
        Make sure casting to size_t does not overflow anything.
@@ -4363,10 +4580,25 @@ static U1BYT ***malloc3_u1(long kmax, long jmax, long imax)
 
     sz = kk * sizeof(U1BYT **)
 	+ kk * jj * sizeof(U1BYT *) + (kk * jj * ii + 1) * sizeof(U1BYT);
-    dat = (U1BYT ***)MALLOC(sz);
-    if ( !dat ) {
-	Err_Append("Could not allocate 3rd dimension.\n");
-	return NULL;
+    if ( id_p ) {
+	id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
+	if ( id == -1 ) {
+	    fprintf(stderr, "Could not create shared memory of %lu bytes for "
+		    "field.\n%s\n", (unsigned long)sz, strerror(errno));
+	    return NULL;
+	}
+	if ( (dat = shmat(id, NULL, 0)) == (void *)-1 ) {
+	    fprintf(stderr, "Could not attach to shared memory for "
+		    "field.\n%s\n", strerror(errno));
+	    return NULL;
+	}
+	*id_p = id;
+    } else {
+	dat = (U1BYT ***)MALLOC(sz);
+	if ( !dat ) {
+	    Err_Append("Could not allocate 3rd dimension.\n");
+	    return NULL;
+	}
     }
     dat[0] = (U1BYT **)(dat + kk);
     dat[0][0] = (U1BYT *)(dat[0] + kk * jj);
@@ -4384,15 +4616,17 @@ static U1BYT ***malloc3_u1(long kmax, long jmax, long imax)
    array. If something goes wrong, post an error message with Err_Append and
    return NULL.
 
-   Free allocation with FREE.
+   If id_p is not NULL, use shared memory and copy shared memory identifier
+   to it.
  */
 
-static U2BYT ***malloc3_u2(long kmax, long jmax, long imax)
+static U2BYT ***malloc3_u2(long kmax, long jmax, long imax, int *id_p)
 {
     U2BYT ***dat;
     long k, j;
     size_t kk, jj, ii;
     size_t sz;
+    int id;
 
     /*
        Make sure casting to size_t does not overflow anything.
@@ -4412,10 +4646,25 @@ static U2BYT ***malloc3_u2(long kmax, long jmax, long imax)
 
     sz = kk * sizeof(U2BYT **)
 	+ kk * jj * sizeof(U2BYT *) + (kk * jj * ii + 1) * sizeof(U2BYT);
-    dat = (U2BYT ***)MALLOC(sz);
-    if ( !dat ) {
-	Err_Append("Could not allocate 3rd dimension.\n");
-	return NULL;
+    if ( id_p ) {
+	id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
+	if ( id == -1 ) {
+	    fprintf(stderr, "Could not create shared memory of %lu bytes for "
+		    "field.\n%s\n", (unsigned long)sz, strerror(errno));
+	    return NULL;
+	}
+	if ( (dat = shmat(id, NULL, 0)) == (void *)-1 ) {
+	    fprintf(stderr, "Could not attach to shared memory for "
+		    "field.\n%s\n", strerror(errno));
+	    return NULL;
+	}
+	*id_p = id;
+    } else {
+	dat = (U2BYT ***)MALLOC(sz);
+	if ( !dat ) {
+	    Err_Append("Could not allocate 3rd dimension.\n");
+	    return NULL;
+	}
     }
     dat[0] = (U2BYT **)(dat + kk);
     dat[0][0] = (U2BYT *)(dat[0] + kk * jj);
@@ -4432,14 +4681,18 @@ static U2BYT ***malloc3_u2(long kmax, long jmax, long imax)
    Allocate a 3 dimensional array of floats. Initialize with Sigmet_NoData().
    Return the array. If something goes wrong, post an error message with
    Err_Append and return NULL.
+
+   If id_p is not NULL, use shared memory and copy shared memory identifier
+   to it.
  */
 
-static float ***malloc3_flt(long kmax, long jmax, long imax)
+static float ***malloc3_flt(long kmax, long jmax, long imax, int *id_p)
 {
     float ***dat, *d;
     long k, j;
     size_t kk, jj, ii;
     size_t sz;
+    int id;
 
     /*
        Make sure casting to size_t does not overflow anything.
@@ -4459,10 +4712,25 @@ static float ***malloc3_flt(long kmax, long jmax, long imax)
 
     sz = kk * sizeof(float **)
 	+ kk * jj * sizeof(float *) + (kk * jj * ii + 1) * sizeof(float);
-    dat = (float ***)MALLOC(sz);
-    if ( !dat ) {
-	Err_Append("Could not allocate 3rd dimension.\n");
-	return NULL;
+    if ( id_p ) {
+	id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
+	if ( id == -1 ) {
+	    fprintf(stderr, "Could not create shared memory of %lu bytes for "
+		    "field.\n%s\n", (unsigned long)sz, strerror(errno));
+	    return NULL;
+	}
+	if ( (dat = shmat(id, NULL, 0)) == (void *)-1 ) {
+	    fprintf(stderr, "Could not attach to shared memory for "
+		    "field.\n%s\n", strerror(errno));
+	    return NULL;
+	}
+	*id_p = id;
+    } else {
+	dat = (float ***)MALLOC(sz);
+	if ( !dat ) {
+	    Err_Append("Could not allocate 3rd dimension.\n");
+	    return NULL;
+	}
     }
     dat[0] = (float **)(dat + kk);
     dat[0][0] = (float *)(dat[0] + kk * jj);

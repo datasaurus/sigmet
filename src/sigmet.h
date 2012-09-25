@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.108 $ $Date: 2012/09/21 19:56:58 $
+   .	$Revision: 1.109 $ $Date: 2012/09/24 21:25:59 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -507,6 +507,7 @@ struct Sigmet_Dat {
 	U2BYT ***u2;			/* 2 byte data */
 	float ***f;			/* Floating point data */
     } vals;
+    int vals_id;			/* Shared memory identifiers for vals */
 };
 
 /*
@@ -556,8 +557,12 @@ struct Sigmet_Vol {
 	double angle;			/* Sweep angle, radians */
     } *sweep_hdr;			/* Sweep headers, dimensioned
 					   num_sweeps_ax */
+    int sweep_hdr_id;			/* Shared memory identifier for sweep
+					   headers */
     struct Sigmet_Ray_Hdr **ray_hdr;	/* Ray headers,
 					   dimensioned [sweep][ray] */
+    int ray_hdr_id;			/* Shared memory identifier for ray
+					   headers */
     struct {
 	char abbrv[SIGMET_NAME_LEN];	/* Data type abbreviation */
 	struct Sigmet_Dat *dat_p;	/* Member of dat for abbrv */
@@ -570,6 +575,9 @@ struct Sigmet_Vol {
     int mod;				/* If true, volume in memory
 					   is different from volume in
 					   raw product file */
+    int shm;				/* If true, volume allocations are in
+					   shared memory. Otherwise, allocations
+					   are in process address space. */
 };
 
 /*
@@ -593,8 +601,9 @@ struct Sigmet_Vol {
  */
 
 void Sigmet_Vol_Init(struct Sigmet_Vol *);
-void Sigmet_Vol_Free(struct Sigmet_Vol *);
-int Sigmet_ShMemAtt(struct Sigmet_Vol *);
+int Sigmet_Vol_Free(struct Sigmet_Vol *);
+int Sigmet_ShMemAttach(struct Sigmet_Vol *);
+int Sigmet_ShMemDetach(struct Sigmet_Vol *);
 int Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);

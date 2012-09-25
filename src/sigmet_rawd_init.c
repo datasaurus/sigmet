@@ -31,7 +31,7 @@
  .
  .	Please send feedback to dev0@trekix.net
  .
- .	$Revision: 1.409 $ $Date: 2012/09/19 22:09:47 $
+ .	$Revision: 1.410 $ $Date: 2012/09/24 21:08:45 $
  */
 
 #include <stdlib.h>
@@ -152,6 +152,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
      */
 
     Sigmet_Vol_Init(&vol);
+    vol.shm = 1;
     if ( strcmp(vol_fl_nm, "-") == 0 ) {
 	in = stdin;
 	vol_fl_nm = "standard input";
@@ -560,6 +561,7 @@ void SigmetRaw_Load(char *vol_fl_nm, char *vol_nm)
        Out of loop. No longer waiting for clients.
      */
 
+    Sigmet_Vol_Free(&vol);
     unlink(sock_nm);
     printf("%s: sigmet_raw daemon exiting\n", time_stamp());
     FREE(cmd_ln);
