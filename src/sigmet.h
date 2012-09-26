@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.110 $ $Date: 2012/09/25 21:33:11 $
+   .	$Revision: 1.111 $ $Date: 2012/09/26 20:44:37 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -591,6 +591,7 @@ struct Sigmet_Vol {
 #define SIGMET_BAD_ARG 5
 #define SIGMET_RNG_ERR 6
 #define SIGMET_BAD_TIME 7
+#define SIGMET_HELPER_FAIL 8
 
 /*
    These functions access Sigmet raw product files.
