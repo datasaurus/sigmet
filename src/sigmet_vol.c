@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.162 $ $Date: 2012/09/24 21:22:32 $
+   .	$Revision: 1.163 $ $Date: 2012/09/25 21:33:24 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -253,6 +253,8 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
 
 int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 {
+    struct Sigmet_Dat *dat_p;
+
     if (!vol_p) {
 	return 0;
     }
@@ -260,6 +262,29 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 	if ( !Sigmet_ShMemDetach(vol_p) ) {
 	    fprintf(stderr, "Could not detach volume from shared memory.\n");
 	    return 0;
+	}
+	if ( vol_p->sweep_hdr_id != -1
+		&& shmctl(vol_p->sweep_hdr_id, IPC_RMID, NULL) == -1 ) {
+	    fprintf(stderr, "Could not remove shared memory for "
+		    "sweep headers.\n%s\nPlease use ipcrm command for id %d\n",
+		    strerror(errno), vol_p->sweep_hdr_id);
+	}
+	if ( vol_p->ray_hdr_id != -1
+		&& shmctl(vol_p->ray_hdr_id, IPC_RMID, NULL) == -1 ) {
+	    fprintf(stderr, "Could not remove shared memory for "
+		    "ray headers.\n%s\nPlease use ipcrm command for id %d\n",
+		    strerror(errno), vol_p->ray_hdr_id);
+	}
+	for (dat_p = vol_p->dat;
+		dat_p < vol_p->dat + SIGMET_MAX_TYPES;
+		dat_p++) {
+	    if ( dat_p->vals_id != -1
+		    && shmctl(dat_p->vals_id, IPC_RMID, NULL) == -1 ) {
+		fprintf(stderr, "Could not remove shared memory for "
+			"%s array.\n%s\nPlease use ipcrm command for id %d\n",
+			dat_p->abbrv, strerror(errno),
+			dat_p->vals_id);
+	    }
 	}
     } else {
 	int y;
@@ -373,22 +398,10 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
     if ( vol_p->sweep_hdr && shmdt(vol_p->sweep_hdr) == -1 ) {
 	fprintf(stderr, "Could not detach shared memory for sweep headers.\n");
     }
-    if ( vol_p->sweep_hdr_id != -1
-	    && shmctl(vol_p->sweep_hdr_id, IPC_RMID, NULL) == -1 ) {
-	fprintf(stderr, "Could not remove shared memory for "
-		"sweep headers.\n%s\nPlease use ipcrm command for id %d\n",
-		strerror(errno), vol_p->sweep_hdr_id);
-    }
     vol_p->sweep_hdr = NULL;
     vol_p->sweep_hdr_id = -1;
     if ( vol_p->ray_hdr && shmdt(vol_p->ray_hdr) == -1 ) {
 	fprintf(stderr, "Could not detach shared memory for ray headers.\n");
-    }
-    if ( vol_p->ray_hdr_id != -1
-	    && shmctl(vol_p->ray_hdr_id, IPC_RMID, NULL) == -1 ) {
-	fprintf(stderr, "Could not remove shared memory for "
-		"ray headers.\n%s\nPlease use ipcrm command for id %d\n",
-		strerror(errno), vol_p->ray_hdr_id);
     }
     vol_p->ray_hdr = NULL;
     vol_p->ray_hdr_id = -1;
@@ -418,13 +431,6 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 	    case SIGMET_DBL:
 	    case SIGMET_MT:
 		break;
-	}
-	if ( dat_p->vals_id != -1
-		&& shmctl(dat_p->vals_id, IPC_RMID, NULL) == -1 ) {
-	    fprintf(stderr, "Could not remove shared memory for "
-		    "%s array.\n%s\nPlease use ipcrm command for id %d\n",
-		    dat_p->abbrv, strerror(errno),
-		    dat_p->vals_id);
 	}
     }
     return 1;
