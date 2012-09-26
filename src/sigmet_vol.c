@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.163 $ $Date: 2012/09/25 21:33:24 $
+   .	$Revision: 1.164 $ $Date: 2012/09/26 20:50:27 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -50,7 +50,6 @@
 #include <sys/shm.h>
 #include "alloc.h"
 #include "tm_calc_lib.h"
-#include "err_msg.h"
 #include "swap.h"
 #include "type_nbit.h"
 #include "geog_lib.h"
@@ -261,7 +260,6 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
     if ( vol_p->shm ) {
 	if ( !Sigmet_ShMemDetach(vol_p) ) {
 	    fprintf(stderr, "Could not detach volume from shared memory.\n");
-	    return 0;
 	}
 	if ( vol_p->sweep_hdr_id != -1
 		&& shmctl(vol_p->sweep_hdr_id, IPC_RMID, NULL) == -1 ) {
@@ -399,12 +397,10 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 	fprintf(stderr, "Could not detach shared memory for sweep headers.\n");
     }
     vol_p->sweep_hdr = NULL;
-    vol_p->sweep_hdr_id = -1;
     if ( vol_p->ray_hdr && shmdt(vol_p->ray_hdr) == -1 ) {
 	fprintf(stderr, "Could not detach shared memory for ray headers.\n");
     }
     vol_p->ray_hdr = NULL;
-    vol_p->ray_hdr_id = -1;
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_MAX_TYPES; dat_p++) {
 	switch (dat_p->stor_fmt) {
 	    case SIGMET_U1:
@@ -541,12 +537,13 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     unsigned vol_type_mask;
 
     if ( !f ) {
-	Err_Append("Read header function called with bogus input stream. ");
+	fprintf(stderr, "Read header function called with bogus "
+		"input stream.\n");
 	status = SIGMET_BAD_ARG;
 	goto error;
     }
     if ( !vol_p ) {
-	Err_Append("Read header function called with bogus volume. ");
+	fprintf(stderr, "Read header function called with bogus volume.\n");
 	status = SIGMET_BAD_ARG;
 	goto error;
     }
@@ -556,7 +553,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
      */
 
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
-	Err_Append("Could not read record 1 of Sigmet volume.  ");
+	fprintf(stderr, "Could not read record 1 of Sigmet volume.\n");
 	status = SIGMET_IO_FAIL;
 	goto error;
     }
@@ -569,7 +566,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     if (get_sint16(rec) != 27) {
 	Toggle_Swap();
 	if (get_sint16(rec) != 27) {
-	    Err_Append( "Bad magic number (should be 27).  ");
+	    fprintf(stderr,  "Bad magic number (should be 27).\n");
 	    status = SIGMET_BAD_FILE;
 	    goto error;
 	}
@@ -582,7 +579,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
      */
 
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
-	Err_Append("Could not read record 2 of Sigmet volume.  ");
+	fprintf(stderr, "Could not read record 2 of Sigmet volume.\n");
 	status = SIGMET_IO_FAIL;
 	goto error;
     }
@@ -630,7 +627,7 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		    break;
 		case SIGMET_FLT:
 		case SIGMET_DBL:
-		    Err_Append("Volume in memory is corrupt. Unknown "
+		    fprintf(stderr, "Volume in memory is corrupt. Unknown "
 			    "data type in data array.");
 		    status = SIGMET_BAD_FILE;
 		    goto error;
@@ -939,7 +936,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     int *id_p;				/* Receive shared memory identifier */
 
     if ( !f ) {
-	Err_Append("Read header function called with bogus input stream. ");
+	fprintf(stderr, "Read function called with bogus input stream.\n");
 	status = SIGMET_BAD_ARG;
 	goto error;
     }
@@ -955,7 +952,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
      */
 
     if ( (status = Sigmet_Vol_ReadHdr(f, vol_p)) != SIGMET_OK ) {
-	Err_Append("Could not read volume headers.\n");
+	fprintf(stderr, "Could not read volume headers.\n");
 	Sigmet_Vol_Free(vol_p);
 	return status;
     }
@@ -992,7 +989,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     } else {
 	vol_p->sweep_hdr = CALLOC(num_sweeps, sizeof(*vol_p->sweep_hdr));
 	if ( !vol_p->sweep_hdr ) {
-	    Err_Append("Could not allocate sweep header array.  ");
+	    fprintf(stderr, "Could not allocate sweep header array.\n");
 	    status = SIGMET_ALLOC_FAIL;
 	    goto error;
 	}
@@ -1002,7 +999,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     id_p = vol_p->shm ? &vol_p->ray_hdr_id : NULL;
     vol_p->ray_hdr = malloc2rh(num_sweeps, num_rays, id_p);
     if ( !vol_p->ray_hdr ) {
-	Err_Append("Could not allocate ray header array.  ");
+	fprintf(stderr, "Could not allocate ray header array.\n");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
@@ -1036,18 +1033,12 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    case SIGMET_FLT:
 	    case SIGMET_DBL:
 	    case SIGMET_MT:
-		Err_Append("Volume in memory is corrupt. Unknown data type "
-			"in data array.");
+		fprintf(stderr, "Volume in memory is corrupt. Unknown data "
+			"type in data array.");
 		status = SIGMET_BAD_VOL;
 		goto error;
 		break;
 	}
-    }
-
-    printf("sweep_hdr_id = %d\n", vol_p->sweep_hdr_id);
-    printf("ray_hdr_id = %d\n", vol_p->ray_hdr_id);
-    for (y = 0; y < vol_p->num_types; y++) {
-	printf("vals_id[%d] = %d\n", y, vol_p->dat[y].vals_id);
     }
 
     /*
@@ -1059,7 +1050,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	+ vol_p->num_types * 2 * num_bins;
     ray_buf = (U1BYT *)MALLOC(raySz);
     if ( !ray_buf ) {
-	Err_Append("Could not allocate input ray buffer.  ");
+	fprintf(stderr, "Could not allocate input ray buffer.\n");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
@@ -1083,8 +1074,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	n = get_sint16(rec + 2);
 
 	if (i != rec_idx + 1) {
-	    Err_Append(
-		    "Sigmet raw product file records out of sequence.  ");
+	    fprintf(stderr, "Sigmet raw product file records out of "
+		    "sequence.\n");
 	    status = SIGMET_BAD_FILE;
 	    goto error;
 	}
@@ -1108,7 +1099,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    vol_p->num_sweeps_ax = sweep_num;
 		    return SIGMET_OK;
 		} else {
-		    Err_Append("Sweep number out of order in raw product file.  ");
+		    fprintf(stderr, "Sweep number out of order in raw product "
+			    "file.\n");
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
@@ -1116,7 +1108,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    vol_p->sweep_hdr[sweep_num].ok = 1;
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
-		Err_Append("Volume has excess sweeps.  ");
+		fprintf(stderr, "Volume has excess sweeps.\n");
 		status = SIGMET_BAD_FILE;
 		goto error;
 	    }
@@ -1206,8 +1198,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 			}
 			i = get_sint16(rec);
 			if (i != rec_idx + 1) {
-			    Err_Append("Corrupt Sigmet raw product file: "
-				    "records  out of sequence.  ");
+			    fprintf(stderr, "Corrupt Sigmet raw product file: "
+				    "records  out of sequence.\n");
 			    status = SIGMET_BAD_FILE;
 			    goto error;
 			}
@@ -1220,8 +1212,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    numWds--;
 		}
 		if ( ray_p == ray_e && rec_p < rec_e ) {
-		    Err_Append("Corrupt Sigmet raw product file: record "
-			    "provided more data than could fit in a ray. ");
+		    fprintf(stderr, "Corrupt Sigmet raw product file: record "
+			    "provided more data than could fit in a ray.\n");
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
@@ -1232,14 +1224,14 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		 */
 
 		if (s > num_sweeps) {
-		    Err_Append("Volume has more sweeps than reported in "
-			    "header. ");
+		    fprintf(stderr, "Volume has more sweeps than reported in "
+			    "header.\n");
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
 		if (r > num_rays) {
-		    Err_Append("Volume has more rays than reported in "
-			    "header. ");
+		    fprintf(stderr, "Volume has more rays than reported in "
+			    "header.\n");
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
@@ -1294,7 +1286,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 			    }
 			    break;
 			default:
-			    Err_Append("Volume has unknown data type.  ");
+			    fprintf(stderr, "Volume has unknown data type.\n");
 			    status = SIGMET_BAD_FILE;
 			    goto error;
 			    break;
@@ -1319,8 +1311,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 
 		numWds = 0x7FFF & cc;
 		if ( numWds > ray_e - ray_p ) {
-		    Err_Append("Corrupt volume.  "
-			    "Run of zeros tried to go past end of ray.  ");
+		    fprintf(stderr, "Corrupt volume.\n"
+			    "Run of zeros tried to go past end of ray.\n");
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
@@ -1368,29 +1360,25 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     int id;
 
     if ( !abbrv ) {
-	Err_Append("Attempted to add bogus data type to a volume. ");
+	fprintf(stderr, "Attempted to add bogus data type to a volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !vol_p ) {
-	Err_Append("Attempted to add data type to a bogus volume. ");
+	fprintf(stderr, "Attempted to add data type to a bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, NULL) ) {
-	Err_Append(abbrv);
-	Err_Append( " is a built in Sigmet data type. ");
-	Err_Append( " Please choose another name. ");
+	fprintf(stderr, "%s is a build in Sigmet data type. Please choose "
+		"another name.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( hash_get(vol_p, abbrv) ) {
-	Err_Append("Data type ");
-	Err_Append(abbrv);
-	Err_Append(" already exists in volume. ");
+	fprintf(stderr, "Data type %s already exists in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( vol_p->num_types + 1 > SIGMET_MAX_TYPES ) {
-	Err_Append("Adding ");
-	Err_Append(abbrv);
-	Err_Append(" to volume would exceed maximum type count. ");
+	fprintf(stderr, "Adding %s to volume would exceed maximum type "
+		"count.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
 
@@ -1408,7 +1396,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     flt_p = malloc3_flt(num_sweeps, num_rays, num_bins,
 	    vol_p->shm ? &id : NULL);
     if ( !flt_p ) {
-	Err_Append("Could not allocate new field ");
+	fprintf(stderr, "Could not allocate new field ");
 	return SIGMET_ALLOC_FAIL;
     }
 
@@ -1434,17 +1422,15 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
     int num_sweeps, num_rays, num_bins;
 
     if ( !abbrv ) {
-	Err_Append("Attempted to remove a bogus field. ");
+	fprintf(stderr, "Attempted to remove a bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !vol_p ) {
-	Err_Append("Attempted to remove a field from a bogus volume. ");
+	fprintf(stderr, "Attempted to remove a field from a bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !(d_p = hash_get(vol_p, abbrv)) ) {
-	Err_Append("Data type ");
-	Err_Append(abbrv);
-	Err_Append(" not in volume. ");
+	fprintf(stderr, "Data type %s not in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     FREE(d_p->vals.f);
@@ -1485,9 +1471,7 @@ int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     dat_p->stor_fmt = SIGMET_FLT;
@@ -1523,9 +1507,7 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     dat_p->stor_fmt = SIGMET_FLT;
@@ -1560,33 +1542,28 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     float v2;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to add field to bogus volume. ");
+	fprintf(stderr, "Attempted to add field to bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv1 || !abbrv2 ) {
-	Err_Append("Attempted to add bogus field. ");
+	fprintf(stderr, "Attempted to add bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
-	Err_Append(abbrv1);
-	Err_Append( " is a built in Sigmet data type. ");
-	Err_Append( " No modification allowed. ");
+	fprintf(stderr, "%s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv1);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p1->stor_fmt != SIGMET_FLT ) {
-	Err_Append("Editable field in volume not in correct format. ");
+	fprintf(stderr, "Editable field in volume not in correct format.\n");
 	return SIGMET_BAD_VOL;
     }
     if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv2);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv2);
 	return SIGMET_BAD_ARG;
     }
     switch (dat_p2->stor_fmt) {
@@ -1659,27 +1636,24 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
     float *dp, *dp1;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to add field to bogus volume. ");
+	fprintf(stderr, "Attempted to add field to bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv ) {
-	Err_Append("Attempted to add bogus field. ");
+	fprintf(stderr, "Attempted to add bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	Err_Append(abbrv);
-	Err_Append( " is a built in Sigmet data type. ");
-	Err_Append( " No modification allowed. ");
+	fprintf(stderr, "%s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p->stor_fmt != SIGMET_FLT ) {
-	Err_Append("Editable field in volume not in correct format. ");
+	fprintf(stderr, "Editable field in volume not in correct format.\n");
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -1713,27 +1687,24 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     float v1, v2;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to add field to bogus volume. ");
+	fprintf(stderr, "Attempted to add field to bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv1 || !abbrv2 ) {
-	Err_Append("Attempted to add bogus field. ");
+	fprintf(stderr, "Attempted to add bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
-	Err_Append(abbrv1);
-	Err_Append( " Please choose another name. ");
-	Err_Append( " No modification allowed. ");
+	fprintf(stderr, "%s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv1);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p1->stor_fmt != SIGMET_FLT ) {
-	Err_Append("Editable field in volume not in correct format. ");
+	fprintf(stderr, "Editable field in volume not in correct format.\n");
 	return SIGMET_BAD_VOL;
     }
     if ( *abbrv2 == '-' ) {
@@ -1741,9 +1712,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	abbrv2++;
     }
     if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv2);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv2);
 	return SIGMET_BAD_ARG;
     }
     switch (dat_p2->stor_fmt) {
@@ -1840,27 +1809,24 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
     float *dp, *dp1;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to add field to bogus volume. ");
+	fprintf(stderr, "Attempted to add field to bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv ) {
-	Err_Append("Attempted to add bogus field. ");
+	fprintf(stderr, "Attempted to add bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	Err_Append(abbrv);
-	Err_Append( " is a built in Sigmet data type. ");
-	Err_Append( " No modification allowed. ");
+	fprintf(stderr, "%s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p->stor_fmt != SIGMET_FLT ) {
-	Err_Append("Editable field in volume not in correct format. ");
+	fprintf(stderr, "Editable field in volume not in correct format.\n");
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -1894,27 +1860,24 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     float v1, v2;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to add field to bogus volume. ");
+	fprintf(stderr, "Attempted to add field to bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv1 || !abbrv2 ) {
-	Err_Append("Attempted to add bogus field. ");
+	fprintf(stderr, "Attempted to add bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
-	Err_Append(abbrv1);
-	Err_Append( " is a built in Sigmet data type. ");
-	Err_Append( " No modification allowed. ");
+	fprintf(stderr, "%s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv1);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p1->stor_fmt != SIGMET_FLT ) {
-	Err_Append("Editable field in volume not in correct format. ");
+	fprintf(stderr, "Editable field in volume not in correct format.\n");
 	return SIGMET_BAD_VOL;
     }
     if ( *abbrv2 == '-' ) {
@@ -1922,9 +1885,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	abbrv2++;
     }
     if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv2);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv2);
 	return SIGMET_BAD_ARG;
     }
     switch (dat_p2->stor_fmt) {
@@ -2022,27 +1983,24 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
     float *dp, *dp1;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to add field to bogus volume. ");
+	fprintf(stderr, "Attempted to add field to bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv ) {
-	Err_Append("Attempted to add bogus field. ");
+	fprintf(stderr, "Attempted to add bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	Err_Append(abbrv);
-	Err_Append( " is a built in Sigmet data type. ");
-	Err_Append( " No modification allowed. ");
+	fprintf(stderr, "%s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p->stor_fmt != SIGMET_FLT ) {
-	Err_Append("Editable field in volume not in correct format. ");
+	fprintf(stderr, "Editable field in volume not in correct format.\n");
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -2076,27 +2034,24 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     float v1, v2;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to add field to bogus volume. ");
+	fprintf(stderr, "Attempted to add field to bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv1 || !abbrv2 ) {
-	Err_Append("Attempted to add bogus field. ");
+	fprintf(stderr, "Attempted to add bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
-	Err_Append(abbrv1);
-	Err_Append( " is a built in Sigmet data type. ");
-	Err_Append( " No modification allowed. ");
+	fprintf(stderr, "%s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv1);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p1->stor_fmt != SIGMET_FLT ) {
-	Err_Append("Editable field in volume not in correct format. ");
+	fprintf(stderr, "Editable field in volume not in correct format.\n");
 	return SIGMET_BAD_VOL;
     }
     if ( *abbrv2 == '-' ) {
@@ -2104,9 +2059,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	abbrv2++;
     }
     if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv2);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv2);
 	return SIGMET_BAD_ARG;
     }
     switch (dat_p2->stor_fmt) {
@@ -2203,31 +2156,28 @@ int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
     float *dp, *dp1;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to add field to bogus volume. ");
+	fprintf(stderr, "Attempted to add field to bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv ) {
-	Err_Append("Attempted to add bogus field. ");
+	fprintf(stderr, "Attempted to add bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( v == 0.0 ) {
-	Err_Append("Attempted to divide by zero. ");
+	fprintf(stderr, "Attempted to divide by zero.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	Err_Append(abbrv);
-	Err_Append( " is a built in Sigmet data type. ");
-	Err_Append( " No modification allowed. ");
+	fprintf(stderr, "%s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p->stor_fmt != SIGMET_FLT ) {
-	Err_Append("Editable field in volume not in correct format. ");
+	fprintf(stderr, "Editable field in volume not in correct format.\n");
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -2261,27 +2211,24 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     float v1, v2;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to add field to bogus volume. ");
+	fprintf(stderr, "Attempted to add field to bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv1 || !abbrv2 ) {
-	Err_Append("Attempted to add bogus field. ");
+	fprintf(stderr, "Attempted to add bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
-	Err_Append(abbrv1);
-	Err_Append( " is a built in Sigmet data type. ");
-	Err_Append( " No modification allowed. ");
+	fprintf(stderr, "%s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv1);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p1->stor_fmt != SIGMET_FLT ) {
-	Err_Append("Editable field in volume not in correct format. ");
+	fprintf(stderr, "Editable field in volume not in correct format.\n");
 	return SIGMET_BAD_VOL;
     }
     if ( *abbrv2 == '-' ) {
@@ -2289,9 +2236,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	abbrv2++;
     }
     if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv2);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv2);
 	return SIGMET_BAD_ARG;
     }
     switch (dat_p2->stor_fmt) {
@@ -2392,27 +2337,24 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
     float *dp, *dp1;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to add field to bogus volume. ");
+	fprintf(stderr, "Attempted to add field to bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv ) {
-	Err_Append("Attempted to add bogus field. ");
+	fprintf(stderr, "Attempted to add bogus field.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	Err_Append(abbrv);
-	Err_Append( " is a built in Sigmet data type. ");
-	Err_Append( " No modification allowed. ");
+	fprintf(stderr, "%s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	Err_Append("No field of ");
-	Err_Append(abbrv);
-	Err_Append(" in volume. ");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p->stor_fmt != SIGMET_FLT ) {
-	Err_Append("Editable field in volume not in correct format. ");
+	fprintf(stderr, "Editable field in volume not in correct format.\n");
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -2445,7 +2387,7 @@ int Sigmet_Vol_IncrTm(struct Sigmet_Vol *vol_p, double dt)
     int s, num_sweeps, r, num_rays;
 
     if ( !vol_p ) {
-	Err_Append("Attempted to increment time on bogus volume. ");
+	fprintf(stderr, "Attempted to increment time on bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if (       !ymds_incr(&vol_p->ph.pc.gen_tm, dt)
@@ -2630,15 +2572,15 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
     double tilt;		/* Mean tilt */
 
     if (s >= vol_p->ih.ic.num_sweeps) {
-	Err_Append("Sweep index out of bounds.  ");
+	fprintf(stderr, "Sweep index out of bounds.\n");
 	return SIGMET_RNG_ERR;
     }
     if (r >= vol_p->ih.ic.num_rays) {
-	Err_Append("Ray index out of bounds.  ");
+	fprintf(stderr, "Ray index out of bounds.\n");
 	return SIGMET_RNG_ERR;
     }
     if (b >= vol_p->ray_hdr[s][r].num_bins) {
-	Err_Append("Bin index out of bounds.  ");
+	fprintf(stderr, "Bin index out of bounds.\n");
 	return SIGMET_RNG_ERR;
     }
 
@@ -2713,27 +2655,25 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 
     status = SIGMET_OK;
     if ( !vol_p ) {
-	Err_Append("Bogus volume. ");
+	fprintf(stderr, "Bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( vol_p->ih.tc.tni.scan_mode != PPI_S
 	    && vol_p->ih.tc.tni.scan_mode != PPI_C ) {
-	Err_Append("Volume must be PPI. ");
+	fprintf(stderr, "Volume must be PPI.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	Err_Append("no data type named ");
-	Err_Append(abbrv);
-	Err_Append(" in volume.");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     y = dat_p - vol_p->dat;
     if ( s >= vol_p->num_sweeps_ax ) {
-	Err_Append("sweep index out of range for volume. ");
+	fprintf(stderr, "sweep index out of range for volume.\n");
 	return SIGMET_RNG_ERR;
     }
     if ( !vol_p->sweep_hdr[s].ok ) {
-	Err_Append("sweep not valid in volume. ");
+	fprintf(stderr, "sweep not valid in volume.\n");
 	return SIGMET_RNG_ERR;
     }
 
@@ -2755,7 +2695,7 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
      */
 
     if ( !ray_p && !(ray_p = CALLOC(num_bins_out, sizeof(float))) ) {
-	Err_Append("Could not allocate output buffer for ray. ");
+	fprintf(stderr, "Could not allocate output buffer for ray.\n");
 	return SIGMET_ALLOC_FAIL;
     }
 
@@ -2770,7 +2710,7 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	if ( vol_p->ray_hdr[s][r].ok ) {
 	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p, &n);
 	    if ( status != SIGMET_OK ) {
-		Err_Append("Could not get ray data. ");
+		fprintf(stderr, "Could not get ray data.\n");
 		return status;
 	    }
 	    for (r_p = ray_p; r_p < ray_p + vol_p->ray_hdr[s][r].num_bins; r_p++) {
@@ -2815,9 +2755,8 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 				    cnr[4] * DEG_PER_RAD, cnr[5] * DEG_PER_RAD,
 				    cnr[6] * DEG_PER_RAD, cnr[7] * DEG_PER_RAD)
 				== EOF ) ) {
-			Err_Append("Could not write corner coordinates "
-				"for bin. ");
-			Err_Append(strerror(errno));
+			fprintf(stderr, "Could not write corner coordinates "
+				"for bin.\n%s\n", strerror(errno));
 			return SIGMET_IO_FAIL;
 		    }
 		}
@@ -2865,26 +2804,24 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 
     status = SIGMET_OK;
     if ( !vol_p ) {
-	Err_Append("Bogus volume. ");
+	fprintf(stderr, "Bogus volume.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( vol_p->ih.tc.tni.scan_mode != RHI ) {
-	Err_Append("Volume must be RHI. ");
+	fprintf(stderr, "Volume must be RHI.\n");
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	Err_Append("no data type named ");
-	Err_Append(abbrv);
-	Err_Append(" in volume.");
+	fprintf(stderr, "No field of %s in volume.\n", abbrv);
 	return SIGMET_BAD_ARG;
     }
     y = dat_p - vol_p->dat;
     if ( s >= vol_p->num_sweeps_ax ) {
-	Err_Append("sweep index out of range for volume. ");
+	fprintf(stderr, "sweep index %d out of range for volume.\n", s);
 	return SIGMET_RNG_ERR;
     }
     if ( !vol_p->sweep_hdr[s].ok ) {
-	Err_Append("sweep not valid in volume. ");
+	fprintf(stderr, "sweep %d not valid in volume.\n", s);
 	return SIGMET_RNG_ERR;
     }
 
@@ -2904,7 +2841,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
      */
 
     if ( !ray_dat && !(ray_dat = CALLOC(num_bins_out, sizeof(float))) ) {
-	Err_Append("Could not allocate output buffer for ray. ");
+	fprintf(stderr, "Could not allocate output buffer for ray.\n");
 	return SIGMET_ALLOC_FAIL;
     }
 
@@ -2919,7 +2856,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	if ( vol_p->ray_hdr[s][r].ok ) {
 	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_dat, &n);
 	    if ( status != SIGMET_OK ) {
-		Err_Append("Could not get ray data. ");
+		fprintf(stderr, "Could not get ray data.\n");
 		return status;
 	    }
 	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
@@ -2990,9 +2927,8 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 				    "%lf %lf\n%lf %lf\n%lf %lf\n%lf %lf\n",
 				    cnr[0], cnr[1], cnr[2], cnr[3],
 				    cnr[4], cnr[5], cnr[6], cnr[7]) == EOF ) ) {
-			Err_Append("Could not write corner coordinates "
-				"for bin. ");
-			Err_Append(strerror(errno));
+			fprintf(stderr, "Could not write corner coordinates "
+				"for bin.\n%s\n", strerror(errno));
 			return SIGMET_IO_FAIL;
 		    }
 		}
@@ -4511,14 +4447,14 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i, int *id_p)
      */
 
     if (j <= 0 || i <= 0) {
-	Err_Append("Array dimensions must be positive.\n");
+	fprintf(stderr, "Array dimensions must be positive.\n");
 	return NULL;
     }
     jj = (size_t)j;
     ii = (size_t)i;
     ji = jj * ii;
     if (ji / jj != ii) {
-	Err_Append("Dimensions too big for pointer arithmetic.\n");
+	fprintf(stderr, "Dimensions too big for pointer arithmetic.\n");
 	return NULL;
     }
 
@@ -4540,7 +4476,8 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i, int *id_p)
     } else {
 	ray_hdr = (struct Sigmet_Ray_Hdr **)MALLOC(sz);
 	if ( !ray_hdr ) {
-	    Err_Append("Could not allocate memory for ray header array.\n");
+	    fprintf(stderr, "Could not allocate memory for ray header "
+		    "array.\n");
 	    return NULL;
 	}
     }
@@ -4553,8 +4490,7 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i, int *id_p)
 
 /*
    Allocate a 3 dimensional array of unsigned one byte integers.  Return the
-   array. If something goes wrong, post an error message with Err_Append and
-   return NULL.
+   array. If something goes wrong, return NULL.
 
    If id_p is not NULL, use shared memory and copy shared memory identifier
    to it.
@@ -4573,14 +4509,14 @@ static U1BYT ***malloc3_u1(long kmax, long jmax, long imax, int *id_p)
      */
 
     if ( kmax <= 0 || jmax <= 0 || imax <= 0 ) {
-	Err_Append("Array dimensions must be positive.\n");
+	fprintf(stderr, "Array dimensions must be positive.\n");
 	return NULL;
     }
     kk = (size_t)kmax;
     jj = (size_t)jmax;
     ii = (size_t)imax;
     if ( (kk * jj) / kk != jj || (kk * jj * ii) / (kk * jj) != ii) {
-	Err_Append("Dimensions too big for pointer arithmetic.\n");
+	fprintf(stderr, "Dimensions too big for pointer arithmetic.\n");
 	return NULL;
     }
 
@@ -4602,7 +4538,7 @@ static U1BYT ***malloc3_u1(long kmax, long jmax, long imax, int *id_p)
     } else {
 	dat = (U1BYT ***)MALLOC(sz);
 	if ( !dat ) {
-	    Err_Append("Could not allocate 3rd dimension.\n");
+	    fprintf(stderr, "Could not allocate 3rd dimension.\n");
 	    return NULL;
 	}
     }
@@ -4619,8 +4555,7 @@ static U1BYT ***malloc3_u1(long kmax, long jmax, long imax, int *id_p)
 
 /*
    Allocate a 3 dimensional array of unsigned two byte integers.  Return the
-   array. If something goes wrong, post an error message with Err_Append and
-   return NULL.
+   array. If something goes wrong, return NULL.
 
    If id_p is not NULL, use shared memory and copy shared memory identifier
    to it.
@@ -4639,14 +4574,14 @@ static U2BYT ***malloc3_u2(long kmax, long jmax, long imax, int *id_p)
      */
 
     if ( kmax <= 0 || jmax <= 0 || imax <= 0 ) {
-	Err_Append("Array dimensions must be positive.\n");
+	fprintf(stderr, "Array dimensions must be positive.\n");
 	return NULL;
     }
     kk = (size_t)kmax;
     jj = (size_t)jmax;
     ii = (size_t)imax;
     if ( (kk * jj) / kk != jj || (kk * jj * ii) / (kk * jj) != ii) {
-	Err_Append("Dimensions too big for pointer arithmetic.\n");
+	fprintf(stderr, "Dimensions too big for pointer arithmetic.\n");
 	return NULL;
     }
 
@@ -4668,7 +4603,7 @@ static U2BYT ***malloc3_u2(long kmax, long jmax, long imax, int *id_p)
     } else {
 	dat = (U2BYT ***)MALLOC(sz);
 	if ( !dat ) {
-	    Err_Append("Could not allocate 3rd dimension.\n");
+	    fprintf(stderr, "Could not allocate 3rd dimension.\n");
 	    return NULL;
 	}
     }
@@ -4685,8 +4620,7 @@ static U2BYT ***malloc3_u2(long kmax, long jmax, long imax, int *id_p)
 
 /*
    Allocate a 3 dimensional array of floats. Initialize with Sigmet_NoData().
-   Return the array. If something goes wrong, post an error message with
-   Err_Append and return NULL.
+   Return the array. If something goes wrong, return NULL.
 
    If id_p is not NULL, use shared memory and copy shared memory identifier
    to it.
@@ -4705,14 +4639,14 @@ static float ***malloc3_flt(long kmax, long jmax, long imax, int *id_p)
      */
 
     if ( kmax <= 0 || jmax <= 0 || imax <= 0 ) {
-	Err_Append("Array dimensions must be positive.\n");
+	fprintf(stderr, "Array dimensions must be positive.\n");
 	return NULL;
     }
     kk = (size_t)kmax;
     jj = (size_t)jmax;
     ii = (size_t)imax;
     if ( (kk * jj) / kk != jj || (kk * jj * ii) / (kk * jj) != ii) {
-	Err_Append("Dimensions too big for pointer arithmetic.\n");
+	fprintf(stderr, "Dimensions too big for pointer arithmetic.\n");
 	return NULL;
     }
 
@@ -4734,7 +4668,7 @@ static float ***malloc3_flt(long kmax, long jmax, long imax, int *id_p)
     } else {
 	dat = (float ***)MALLOC(sz);
 	if ( !dat ) {
-	    Err_Append("Could not allocate 3rd dimension.\n");
+	    fprintf(stderr, "Could not allocate 3rd dimension.\n");
 	    return NULL;
 	}
     }
