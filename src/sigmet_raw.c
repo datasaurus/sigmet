@@ -30,42 +30,15 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.88 $ $Date: 2012/04/26 22:22:49 $
+   .	$Revision: 1.89 $ $Date: 2012/09/19 22:09:47 $
  */
 
-#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <stdio.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <signal.h>
-#include <sys/select.h>
-#include "alloc.h"
-#include "err_msg.h"
-#include "geog_lib.h"
 #include "sigmet_raw.h"
-
-/*
-   Size of various objects
- */
-
-#define SA_UN_SZ (sizeof(struct sockaddr_un))
-#define SA_PLEN (sizeof(sa.sun_path))
-#define LEN 4096
-
-/*
-   Names of fifos that will receive standard output and error output from
-   the sigmet_rawd daemon. (These variables are global for cleanup).
- */
-
-static char out_nm[LEN];
-static char err_nm[LEN];
 
 /*
    Local functions
@@ -73,16 +46,79 @@ static char err_nm[LEN];
 
 static int handle_signals(void);
 static void handler(int signum);
-static void cleanup(void);
-static int daemon_task(int argc, char *argv[]);
+
+/*
+   Subcommand names and associated callbacks. The hash function defined
+   below returns the index from cmd1v or cb1v corresponding to string argv1.
+ */
+
+#define N_HASH_CMD 133
+static char *cmd1v[N_HASH_CMD] = {
+    "", "log10", "size", "", "radar_lon", "",
+    "", "bdata", "", "", "", "",
+    "", "", "", "", "", "",
+    "", "", "", "", "del_field", "",
+    "", "", "", "", "", "",
+    "", "", "", "volume_headers", "bin_outline", "",
+    "set_field", "", "", "", "", "",
+    "", "", "near_sweep", "", "", "version",
+    "", "", "", "", "", "",
+    "", "", "", "", "", "",
+    "", "", "", "", "", "pid",
+    "outlines", "", "", "ray_headers", "", "",
+    "", "incr_time", "data_types", "", "", "",
+    "load", "", "", "", "", "",
+    "", "", "", "", "dorade", "mul",
+    "", "", "", "", "", "",
+    "", "shift_az", "", "", "", "",
+    "sweep_headers", "", "", "", "", "",
+    "radar_lat", "new_field", "", "", "", "",
+    "", "", "", "", "vol_hdr", "data",
+    "", "", "div", "", "", "add",
+    "sub", "", "", "", "", "", ""
+};
+static SigmetRaw_Callback *cb1v[N_HASH_CMD] = {
+    NULL, log10_cb, size_cb, NULL, radar_lon_cb, NULL,
+    NULL, bdata_cb, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, del_field_cb, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, volume_headers_cb, bin_outline_cb, NULL,
+    set_field_cb, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, near_sweep_cb, NULL, NULL, version_cb,
+    NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, pid_cb,
+    outlines_cb, NULL, NULL, ray_headers_cb, NULL, NULL,
+    NULL, incr_time_cb, data_types_cb, NULL, NULL, NULL,
+    load_cb, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, dorade_cb, mul_cb,
+    NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, shift_az_cb, NULL, NULL, NULL, NULL,
+    sweep_headers_cb, NULL, NULL, NULL, NULL, NULL,
+    radar_lat_cb, new_field_cb, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, vol_hdr_cb, data_cb,
+    NULL, NULL, div_cb, NULL, NULL, add_cb,
+    sub_cb, NULL, NULL, NULL, NULL, NULL, NULL
+};
+#define HASH_X 31
+static int hash(const char *);
+static int hash(const char *argv1)
+{
+    unsigned h;
+
+    for (h = 0 ; *argv1 != '\0'; argv1++) {
+	h = HASH_X * h + (unsigned)*argv1;
+    }
+    return h % N_HASH_CMD;
+}
 
 int main(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1;
-    char *vol_fl_nm = "-";	/* Name of Sigmet raw product file */
-    char *sock_nm;		/* Name of socket to communicate with daemon */
-    FILE *in;
+    int n;
+    int status;
 
     if ( !handle_signals() ) {
 	fprintf(stderr, "%s (%d): could not set up signal management.",
@@ -94,370 +130,22 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
     argv1 = argv[1];
-
-    /*
-       Branch according to subcommand - second word of command line.
-     */
-
-    if ( strcmp(argv1, "-v") == 0 ) {
-	printf("%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
-		"All rights reserved.\n", argv[0], SIGMET_VERSION);
-	return EXIT_SUCCESS;
-    } else if ( strcmp(argv1, "data_types") == 0 ) {
-	enum Sigmet_DataTypeN y;
-
-	if ( argc == 2 ) {
-
-	    /*
-	       Just list data types from the Sigmet programmers manual.
-	     */
-
-	    for (y = 0; y < SIGMET_NTYPES; y++) {
-		printf("%s | %s | %s\n", Sigmet_DataType_Abbrv(y),
-			Sigmet_DataType_Descr(y), Sigmet_DataType_Unit(y));
-	    }
-	} else if ( argc == 3 ) {
-
-	    /*
-	       If current working directory contains a daemon socket, send this
-	       command to it. The daemon might know of data types besides the
-	       basic Sigmet ones.
-	     */
-
-	    sock_nm = argv[argc - 1];
-	    if ( access(sock_nm, F_OK) == 0 ) {
-		return daemon_task(argc, argv);
-	    }
-	} else {
-	    fprintf(stderr, "Usage: %s data_types [socket_name]\n", argv0);
-	    exit(EXIT_FAILURE);
-	}
-    } else if ( strcmp(argv1, "load") == 0 ) {
-	/*
-	   Start a raw volume daemon.
-	 */
-
-	if ( argc != 4 ) {
-	    fprintf(stderr, "Usage: %s load raw_file socket_name\n", argv0);
-	    exit(EXIT_FAILURE);
-	}
-	vol_fl_nm = argv[2];
-	sock_nm = argv[3];
-	SigmetRaw_Load(vol_fl_nm, sock_nm);
-    } else if ( strcmp(argv1, "good") == 0 ) {
-	/*
-	   Determine if file given as stdin is navigable Sigmet volume.
-	 */
-
-	if ( argc == 2 ) {
-	    in = stdin;
-	    return Sigmet_Vol_Read(stdin, NULL);
-	} else if ( argc == 3 ) {
-	    vol_fl_nm = argv[2];
-	    if ( strcmp(vol_fl_nm, "-") == 0 ) {
-		in = stdin;
-	    } else { 
-		in = fopen(vol_fl_nm, "r");
-	    }
-	    if ( !in ) {
-		fprintf(stderr, "%s: could not open %s for input\n%s\n",
-			argv0, vol_fl_nm, Err_Get());
-		exit(EXIT_FAILURE);
-	    }
-	    return Sigmet_Vol_Read(in, NULL);
-	} else {
-	    fprintf(stderr, "Usage: %s %s [raw_file]\n", argv0, argv1);
-	    exit(EXIT_FAILURE);
-	}
+    n = hash(argv1);
+    if ( strcmp(argv1, cmd1v[n]) == 0 ) {
+	status = ((cb1v[n])(argc, argv) == SIGMET_OK)
+	    ? EXIT_SUCCESS : EXIT_FAILURE;
     } else {
-	return daemon_task(argc, argv);
-    }
-    return EXIT_SUCCESS;
-}
-
-/*
-   Send a command to raw product daemon.
- */
-
-static int daemon_task(int argc, char *argv[])
-{
-    char *argv0 = argv[0];
-    char *sock_nm;		/* Name of socket to communicate with daemon */
-    mode_t m;			/* File permissions */
-    struct sockaddr_un sa;	/* Address of socket that connects with
-				   daemon */
-    int i_dmn = -1;		/* File descriptor associated with sa */
-    FILE *dmn;			/* File associated with sa */
-    pid_t pid = getpid();	/* Id for this process */
-    char buf[LEN];		/* Line sent to or received from daemon */
-    char **a;			/* Pointer into argv */
-    size_t cmd_ln_l;		/* Command line length */
-    int i_out = -1;		/* File descriptor for standard output from
-				   daemon*/
-    int i_err = -1;		/* File descriptors error output from daemon */
-    fd_set set, read_set;	/* Give i_dmn, i_out, and i_err to select */
-    int fd_hwm = 0;		/* Highest file descriptor */
-    ssize_t ll;			/* Number of bytes read from server */
-    int sstatus;		/* Result of callback */
-
-    if ( argc > SIGMET_RAWD_ARGCX ) {
-	fprintf(stderr, "%s: cannot parse %d arguments. Maximum argument "
-		"count is %d\n", argv0, argc, SIGMET_RAWD_ARGCX);
-	goto error;
-    }
-    *out_nm = '\0';
-    *err_nm = '\0';
-    atexit(cleanup);
-
-    /*
-       Create input and output fifo's in daemon working directory.
-     */
-
-    m = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-    if ( snprintf(out_nm, LEN, ".%d.1", pid) > LEN ) {
-	fprintf(stderr, "%s (%d): could not create name for result pipe.\n",
-		argv0, pid);
-	goto error;
-    }
-    if ( mkfifo(out_nm, m) == -1 ) {
-	fprintf(stderr, "%s (%d): could not create pipe for standard output\n"
-		"%s\n", argv0, pid, strerror(errno));
-	goto error;
-    }
-    if ( snprintf(err_nm, LEN, ".%d.2", pid) > LEN ) {
-	fprintf(stderr, "%s (%d): could not create name for error pipe.\n",
-		argv0, pid);
-	goto error;
-    }
-    if ( mkfifo(err_nm, m) == -1 ) {
-	fprintf(stderr, "%s (%d): could not create pipe for error messages\n"
-		"%s\n", argv0, pid, strerror(errno));
-	goto error;
-    }
-
-    /*
-       Connect to daemon via daemon socket
-     */
-
-    sock_nm = argv[argc - 1];
-    memset(&sa, '\0', SA_UN_SZ);
-    sa.sun_family = AF_UNIX;
-    snprintf(sa.sun_path, SA_PLEN, "%s", sock_nm);
-    if ( (i_dmn = socket(AF_UNIX, SOCK_STREAM, 0)) == -1 ) {
-	fprintf(stderr, "%s (%d): could not create socket to connect "
-		"with daemon\n%s\n", argv0, pid, strerror(errno));
-	goto error;
-    }
-    if ( connect(i_dmn, (struct sockaddr *)&sa, SA_UN_SZ) == -1
-	    || !(dmn = fdopen(i_dmn, "w")) ) {
-	fprintf(stderr, "%s (%d): could not connect to daemon at %s\n"
-		"Error %d: %s\n",
-		argv0, pid, sock_nm, errno, strerror(errno));
-	goto error;
-    }
-
-    /*
-       Send to input socket of volume daemon:
-       Id of this process.
-       Argument count, excluding socket name.
-       Command line length.
-       Arguments, excluding socket name.
-     */
-
-    argc--;
-    for (cmd_ln_l = 0, a = argv; *a; a++) {
-	cmd_ln_l += strlen(*a) + 1;
-    }
-    if ( fwrite(&pid, sizeof(pid_t), 1, dmn) != 1 ) {
-	fprintf(stderr, "%s (%d): could not send process id to daemon\n%s\n",
-		argv0, pid, strerror(errno));
-	goto error;
-    }
-    if ( fwrite(&argc, sizeof(int), 1, dmn) != 1 ) {
-	fprintf(stderr, "%s (%d): could not send argument count to daemon\n"
-		"%s\n", argv0, pid, strerror(errno));
-	goto error;
-    }
-    if ( fwrite(&cmd_ln_l, sizeof(size_t), 1, dmn) != 1 ) {
-	fprintf(stderr, "%s (%d): could not send command line length to "
-		"daemon\n%s\n", argv0, pid, strerror(errno));
-	goto error;
-    }
-    for (a = argv; a < argv + argc; a++) {
-	size_t a_l;
-
-	a_l = strlen(*a);
-	if ( fwrite(*a, 1, a_l, dmn) != a_l || fputc('\0', dmn) == EOF ) {
-	    fprintf(stderr, "%s (%d): could not send command to daemon\n%s\n",
-		    argv0, pid, strerror(errno));
-	    goto error;
+	fprintf(stderr, "%s: unknown subcommand %s. Subcommand must be one of ",
+		argv0, argv1);
+	for (n = 0; n < N_HASH_CMD; n++) {
+	    if ( strlen(cmd1v[n]) > 0 ) {
+		fprintf(stderr, " %s", cmd1v[n]);
+	    }
 	}
+	fprintf(stderr, "\n");
+	status = EXIT_FAILURE;
     }
-    fflush(dmn);
-
-    /*
-       Get standard output and errors from fifos.
-       Get exit status (single byte 0 or 1) from i_dmn.
-     */
-
-    if ( (i_out = open(out_nm, O_RDONLY)) == -1 ) {
-	fprintf(stderr, "%s (%d): could not open pipe for standard output\n"
-		"%s\n", argv0, pid, strerror(errno));
-	goto error;
-    }
-    if ( (i_err = open(err_nm, O_RDONLY)) == -1 ) {
-	fprintf(stderr, "%s (%d): could not open pipe for error messages\n%s\n",
-		argv0, pid, strerror(errno));
-	goto error;
-    }
-    if ( i_dmn > fd_hwm ) {
-	fd_hwm = i_dmn;
-    }
-    if ( i_out > fd_hwm ) {
-	fd_hwm = i_out;
-    }
-    if ( i_err > fd_hwm ) {
-	fd_hwm = i_err;
-    }
-    FD_ZERO(&set);
-    FD_SET(i_dmn, &set);
-    FD_SET(i_out, &set);
-    FD_SET(i_err, &set);
-    while ( 1 ) {
-	read_set = set;
-	if ( select(fd_hwm + 1, &read_set, NULL, NULL, NULL) == -1 ) {
-	    fprintf(stderr, "%s (%d): could not get output from daemon\n%s\n",
-		    argv0, pid, strerror(errno));
-	    goto error;
-	}
-	if ( i_out != -1 && FD_ISSET(i_out, &read_set) ) {
-	    /*
-	       Daemon has sent standard output
-	     */
-
-	    if ( (ll = read(i_out, buf, LEN)) == -1 ) {
-		fprintf(stderr, "%s (%d): could not get standard output from "
-			"daemon\n%s\n", argv0, pid, strerror(errno));
-		goto error;
-	    }
-	    if ( ll == 0 ) {
-		/*
-		   Zero bytes read => no more standard output from daemon.
-		 */
-
-		FD_CLR(i_out, &set);
-		if ( i_out == fd_hwm ) {
-		    fd_hwm--;
-		}
-		if ( close(i_out) == -1 ) {
-		    fprintf(stderr, "%s (%d): could not close standard output "
-			    "stream from daemon\n%s\n",
-			    argv0, pid, strerror(errno));
-		    goto error;
-		}
-		i_out = -1;
-		fflush(stdout);
-	    } else {
-		/*
-		   Non-empty standard output from daemon. Forward to stdout
-		   for this process.
-		 */
-
-		if ( (fwrite(buf, 1, ll, stdout)) != ll ) {
-		    fprintf(stderr, "%s (%d): failed to write "
-			    "standard output.\n", argv0, pid);
-		    goto error;
-		}
-	    }
-	} else if ( i_err != -1 && FD_ISSET(i_err, &read_set) ) {
-	    /*
-	       Daemon has sent error output
-	     */
-
-	    if ( (ll = read(i_err, buf, LEN)) == -1 ) {
-		fprintf(stderr, "%s (%d): could not get error output from "
-			"daemon\n%s\n", argv0, pid, strerror(errno));
-		goto error;
-	    }
-	    if ( ll == 0 ) {
-		/*
-		   Zero bytes read => no more error output from daemon.
-		 */
-
-		FD_CLR(i_err, &set);
-		if ( i_err == fd_hwm ) {
-		    fd_hwm--;
-		}
-		if ( close(i_err) == -1 ) {
-		    fprintf(stderr, "%s (%d): could not close error "
-			    "output stream from daemon\n%s\n",
-			    argv0, pid, strerror(errno));
-		    goto error;
-		}
-		i_err = -1;
-		fflush(stderr);
-	    } else {
-		/* 
-		   Non-empty error output from daemon. Forward to stderr
-		   for this process.
-		 */
-
-		if ( (fwrite(buf, 1, ll, stderr)) != ll ) {
-		    fprintf(stderr, "%s (%d): failed to write error output.\n",
-			    argv0, pid);
-		    goto error;
-		}
-	    }
-	} else if ( i_dmn != -1 && FD_ISSET(i_dmn, &read_set) ) {
-	    /*
-	       Daemon is done with this command and has sent return status.
-	       Clean up and return the status.
-	     */
-
-	    if ( (ll = read(i_dmn, &sstatus, sizeof(int))) == -1 || ll == 0 ) {
-		fprintf(stderr, "%s (%d): could not get exit status from "
-			"daemon\n%s\n", argv0, pid,
-			(ll == -1) ? strerror(errno) : "nothing to read");
-		goto error;
-	    }
-	    if ( i_dmn != -1 ) {
-		close(i_dmn);
-	    }
-	    if ( i_out != -1 ) {
-		close(i_out);
-	    }
-	    if ( i_err != -1 ) {
-		close(i_err);
-	    }
-	    unlink(out_nm);
-	    unlink(err_nm);
-	    return sstatus;
-	}
-    }
-
-error:
-    if ( strcmp(out_nm, "") != 0 ) {
-	unlink(out_nm);
-    }
-    if ( strcmp(err_nm, "") != 0 ) {
-	unlink(err_nm);
-    }
-    if ( i_dmn != -1 ) {
-	close(i_dmn);
-    }
-    if ( i_out != -1 ) {
-	close(i_out);
-    }
-    if ( i_err != -1 ) {
-	close(i_err);
-    }
-    return EXIT_FAILURE;
-}
-
-static void cleanup(void)
-{
-    unlink(out_nm);
-    unlink(err_nm);
+    return status;
 }
 
 /*
