@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.109 $ $Date: 2012/09/24 21:25:59 $
+   .	$Revision: 1.110 $ $Date: 2012/09/25 21:33:11 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -45,7 +45,6 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include "type_nbit.h"
-#include "hash.h"
 #include "dorade_lib.h"
 
 #define RAD_PER_DEG	0.01745329251994329576
@@ -585,16 +584,13 @@ struct Sigmet_Vol {
  */
 
 #define SIGMET_OK 0
-#define SIGMET_NOT_INIT 1
-#define SIGMET_IO_FAIL 2
-#define SIGMET_HELPER_FAIL 3
-#define SIGMET_BAD_FILE 4
-#define SIGMET_BAD_VOL 5
-#define SIGMET_ALLOC_FAIL 6
-#define SIGMET_FLUSH_FAIL 7
-#define SIGMET_BAD_ARG 8
-#define SIGMET_RNG_ERR 9
-#define SIGMET_BAD_TIME 10
+#define SIGMET_IO_FAIL 1
+#define SIGMET_BAD_FILE 2
+#define SIGMET_BAD_VOL 3
+#define SIGMET_ALLOC_FAIL 4
+#define SIGMET_BAD_ARG 5
+#define SIGMET_RNG_ERR 6
+#define SIGMET_BAD_TIME 7
 
 /*
    These functions access Sigmet raw product files.
