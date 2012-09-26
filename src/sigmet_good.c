@@ -30,9 +30,10 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.2 $ $Date: 2011/11/22 18:03:13 $
+   .	$Revision: 1.3 $ $Date: 2012/01/24 22:52:59 $
  */
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include "sigmet.h"
