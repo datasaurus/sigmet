@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.164 $ $Date: 2012/09/26 20:50:27 $
+   .	$Revision: 1.165 $ $Date: 2012/09/26 23:21:44 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -324,14 +324,14 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
     vol_p->sweep_hdr = shmat(vol_p->sweep_hdr_id, NULL, 0);
     if ( vol_p->sweep_hdr == (void *)-1) {
 	fprintf(stderr, "Could not attach to sweep headers "
-		"in shared memory.\n");
+		"in shared memory.\n%s\n", strerror(errno));
 	vol_p->sweep_hdr = NULL;
 	return 0;
     }
     vol_p->ray_hdr = shmat(vol_p->ray_hdr_id, NULL, 0);
     if ( vol_p->ray_hdr == (void *)-1) {
 	fprintf(stderr, "Could not attach to ray headers "
-		"in shared memory.\n");
+		"in shared memory.\n%s\n", strerror(errno));
 	vol_p->ray_hdr = NULL;
 	return 0;
     }
@@ -344,8 +344,8 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		dat_p->vals.u1 = shmat(dat_p->vals_id, NULL, 0);
 		if ( dat_p->vals.u1 == (void *)-1) {
 		    fprintf(stderr, "Could not attach to data array for "
-			    "field %s in shared memory.\n",
-			    dat_p->abbrv);
+			    "field %s in shared memory.\n%s\n",
+			    dat_p->abbrv, strerror(errno));
 		    vol_p->ray_hdr = NULL;
 		    return 0;
 		}
@@ -355,7 +355,8 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		dat_p->vals.u2 = shmat(dat_p->vals_id, NULL, 0);
 		if ( dat_p->vals.u2 == (void *)-1) {
 		    fprintf(stderr, "Could not attach to data array for field"
-			    " %s in shared memory.\n", dat_p->abbrv);
+			    " %s in shared memory.\n%s\n",
+			    dat_p->abbrv, strerror(errno));
 		    vol_p->ray_hdr = NULL;
 		    return 0;
 		}
@@ -365,7 +366,8 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		dat_p->vals.f = shmat(dat_p->vals_id, NULL, 0);
 		if ( dat_p->vals.f == (void *)-1) {
 		    fprintf(stderr, "Could not attach to data array for field"
-			    " %s in shared memory.\n", dat_p->abbrv);
+			    " %s in shared memory.\n%s\n",
+			    dat_p->abbrv, strerror(errno));
 		    vol_p->ray_hdr = NULL;
 		    return 0;
 		}
