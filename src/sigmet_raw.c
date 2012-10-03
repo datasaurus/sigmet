@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.92 $ $Date: 2012/10/03 16:01:49 $
+   .	$Revision: 1.93 $ $Date: 2012/10/03 16:04:36 $
  */
 
 #include <stdlib.h>
@@ -167,7 +167,13 @@ static int hash(const char *argv1)
 }
 
 /*
-   See sigmet_raw (1)
+   Default static string length
+ */
+
+#define LEN 255
+
+/*
+   main function. See sigmet_raw (1)
  */
 
 int main(int argc, char *argv[])
@@ -205,12 +211,6 @@ int main(int argc, char *argv[])
     return status;
 }
 
-/*
-   Default static string length
- */
-
-#define LEN 255
-
 static int version_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -242,22 +242,31 @@ static int load_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char **arg;
-    int status;
+    char **arg;				/* Member of argv */
+    int status;				/* Return value */
     struct Sigmet_Vol *vol_p = NULL;	/* Volume to load */
-    int shmid = -1;			/* Shared memory identifier */
+    int shmid = -1;			/* Identifier for shared memory
+					   which will store the Sigmet_Vol
+					   structure */
     char shmid_s[LEN];			/* String representation of shmid */
-    char *vol_fl_nm;
-    FILE *vol_fl;
-    pid_t pid;
-    int sem_id = -1;			/* Semaphore to control access to volume
-					   in shared memory */
+    char *vol_fl_nm;			/* Name of file with Sigmet raw
+					   volume */
+    FILE *vol_fl;			/* Input stream associated with
+					   vol_fl_nm */
+    pid_t pid;				/* Process id for child process
+					   specified on command line  */
+    int sem_id = -1;			/* Semaphore to control access to
+					   volume */
     char sem_id_s[LEN];			/* String representation of sem_id */
     union semun {
 	int val;
 	struct semid_ds *buf;
 	unsigned short *array;
-    } sem_arg;				/* Data for semaphore sem_id */
+    } sem_arg;				/* Semaphore data */
+
+    /*
+       Parse command line.
+     */
 
     if ( argc < 4 ) {
 	fprintf(stderr, "Usage: %s %s sigmet_volume command [args ...]\n",
@@ -265,6 +274,11 @@ static int load_cb(int argc, char *argv[])
 	return SIGMET_BAD_ARG;
     }
     vol_fl_nm = argv[2];
+    
+    /*
+       Allocate and initialize shared memory for volume.
+     */
+
     shmid = shmget(IPC_PRIVATE, sizeof(struct Sigmet_Vol), S_IRUSR | S_IWUSR);
     if ( shmid == -1 ) {
 	fprintf(stderr, "%s %s: could not allocate volume in shared memory.\n"
@@ -281,47 +295,71 @@ static int load_cb(int argc, char *argv[])
     }
     Sigmet_Vol_Init(vol_p);
     vol_p->shm = 1;
-    if ( !(vol_fl = fopen(vol_fl_nm, "r")) ) {
-	fprintf(stderr, "%s %s: could not open %s for reading.\n%s\n",
-		argv0, argv1, vol_fl_nm, strerror(errno));
-	goto error;
-    }
-    if ( (status = Sigmet_Vol_Read(vol_fl, vol_p)) != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: could not read volume.\n", argv0, argv1);
-	goto error;
-    }
     if ( snprintf(shmid_s, LEN, "SIGMET_VOL_SHMEM=%d", shmid) > LEN ) {
 	fprintf(stderr, "%s %s: could not create environment variable for "
 		"volume shared memory identifier.\n", argv0, argv1);
+	status = SIGMET_BAD_ARG;
 	goto error;
     }
     if ( putenv(shmid_s) != 0 ) {
 	fprintf(stderr, "%s %s: could not put shared memory identifier for "
 		"volume into environment.\n%s\n",
 		argv0, argv1, strerror(errno));
+	status = SIGMET_BAD_ARG;
 	goto error;
     }
+
+    /*
+       Read the volume.
+     */
+
+    if ( !(vol_fl = fopen(vol_fl_nm, "r")) ) {
+	fprintf(stderr, "%s %s: could not open %s for reading.\n%s\n",
+		argv0, argv1, vol_fl_nm, strerror(errno));
+	status = SIGMET_BAD_FILE;
+	goto error;
+    }
+    if ( (status = Sigmet_Vol_Read(vol_fl, vol_p)) != SIGMET_OK ) {
+	fprintf(stderr, "%s %s: could not read volume.\n", argv0, argv1);
+	goto error;
+    }
+
+    /*
+       Create a semaphore to control access to the volume. Initialize it
+       with value 1. Callbacks should attempt to decrement the semaphore
+       before accessing it, and restore the value when done.
+     */
+
     sem_id = semget(IPC_PRIVATE, 1, S_IRUSR | S_IWUSR);
     if ( sem_id == -1 ) {
 	perror("could not create new semaphore");
-	exit(EXIT_FAILURE);
+	status = SIGMET_ALLOC_FAIL;
+	goto error;
     }
     sem_arg.val = 1;
     if ( semctl(sem_id, 0, SETVAL, sem_arg) == -1 ) {
 	perror("could not initialize new semaphore");
+	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
     if ( snprintf(sem_id_s, LEN, "SIGMET_VOL_SEM=%d", sem_id) > LEN ) {
 	fprintf(stderr, "%s %s: could not create environment variable for "
 		"volume semaphore identifier.\n", argv0, argv1);
+	status = SIGMET_BAD_ARG;
 	goto error;
     }
     if ( putenv(sem_id_s) != 0 ) {
 	fprintf(stderr, "%s %s: could not put semaphore identifier for "
 		"volume into environment.\n%s\n",
 		argv0, argv1, strerror(errno));
+	status = SIGMET_BAD_ARG;
 	goto error;
     }
+
+    /*
+       Spawn the command specified on command line as a child.
+     */
+
     pid = fork();
     if ( pid == -1 ) {
 	fprintf(stderr, "%s %s: could not fork\n%s\n",
@@ -331,7 +369,14 @@ static int load_cb(int argc, char *argv[])
 	execvp(argv[3], argv + 3);
 	fprintf(stderr, "%s %s: failed to execute child process.\n%s\n",
 		argv0, argv1, strerror(errno));
+	status = SIGMET_HELPER_FAIL;
+	goto error;
     }
+
+    /*
+       Wait for child to exit. Free resources and return to main.
+     */
+
     waitpid(pid, &status, 0);
     if ( WIFEXITED(status) ) {
 	for (arg = argv + 3; *arg; arg++) {
@@ -349,20 +394,24 @@ static int load_cb(int argc, char *argv[])
     if ( !Sigmet_Vol_Free(vol_p) ) {
 	fprintf(stderr, "%s %s: could not free memory for volume.\n",
 		argv0, argv1);
+	status = SIGMET_ALLOC_FAIL;
     }
     if ( shmdt(vol_p) == -1 ) {
 	fprintf(stderr, "%s %s: could not detach shared memory for "
 		"volume.\n%s\n", argv0, argv1, strerror(errno));
+	status = SIGMET_HELPER_FAIL;
     }
     if ( shmctl(shmid, IPC_RMID, NULL) == -1 ) {
 	fprintf(stderr, "%s %s: could not remove shared memory for "
 		"volume.\n%s\nPlease use ipcrm command for id %d\n",
 		argv0, argv1, strerror(errno), shmid);
+	status = SIGMET_HELPER_FAIL;
     }
     if ( shmctl(sem_id, IPC_RMID, NULL) == -1 ) {
 	fprintf(stderr, "%s %s: could not remove semaphore for "
 		"volume.\n%s\nPlease use ipcrm command for id %d\n",
 		argv0, argv1, strerror(errno), sem_id);
+	status = SIGMET_HELPER_FAIL;
     }
     return status;
 
