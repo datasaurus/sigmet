@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.90 $ $Date: 2012/09/26 23:19:23 $
+   .	$Revision: 1.91 $ $Date: 2012/10/03 15:24:12 $
  */
 
 #include <stdlib.h>
@@ -48,6 +48,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/shm.h>
+#include <sys/sem.h>
 #include "alloc.h"
 #include "err_msg.h"
 #include "tm_calc_lib.h"
@@ -245,10 +246,18 @@ int load_cb(int argc, char *argv[])
     int status;
     struct Sigmet_Vol *vol_p = NULL;	/* Volume to load */
     int shmid = -1;			/* Shared memory identifier */
-    char shmid_s[LEN];			/* shmid as string */
+    char shmid_s[LEN];			/* String representation of shmid */
     char *vol_fl_nm;
     FILE *vol_fl;
     pid_t pid;
+    int sem_id = -1;			/* Semaphore to control access to volume
+					   in shared memory */
+    char sem_id_s[LEN];			/* String representation of sem_id */
+    union semun {
+	int val;
+	struct semid_ds *buf;
+	unsigned short *array;
+    } sem_arg;				/* Data for semaphore sem_id */
 
     if ( argc < 4 ) {
 	fprintf(stderr, "Usage: %s %s sigmet_volume command [args ...]\n",
@@ -292,6 +301,27 @@ int load_cb(int argc, char *argv[])
 		argv0, argv1, strerror(errno));
 	goto error;
     }
+    sem_id = semget(IPC_PRIVATE, 1, S_IRUSR | S_IWUSR);
+    if ( sem_id == -1 ) {
+	perror("could not create new semaphore");
+	exit(EXIT_FAILURE);
+    }
+    sem_arg.val = 1;
+    if ( semctl(sem_id, 0, SETVAL, sem_arg) == -1 ) {
+	perror("could not initialize new semaphore");
+	goto error;
+    }
+    if ( snprintf(sem_id_s, LEN, "SIGMET_VOL_SEM=%d", sem_id) > LEN ) {
+	fprintf(stderr, "%s %s: could not create environment variable for "
+		"volume semaphore identifier.\n", argv0, argv1);
+	goto error;
+    }
+    if ( putenv(sem_id_s) != 0 ) {
+	fprintf(stderr, "%s %s: could not put semaphore identifier for "
+		"volume into environment.\n%s\n",
+		argv0, argv1, strerror(errno));
+	goto error;
+    }
     pid = fork();
     if ( pid == -1 ) {
 	fprintf(stderr, "%s %s: could not fork\n%s\n",
@@ -329,6 +359,11 @@ int load_cb(int argc, char *argv[])
 		"volume.\n%s\nPlease use ipcrm command for id %d\n",
 		argv0, argv1, strerror(errno), shmid);
     }
+    if ( shmctl(sem_id, IPC_RMID, NULL) == -1 ) {
+	fprintf(stderr, "%s %s: could not remove semaphore for "
+		"volume.\n%s\nPlease use ipcrm command for id %d\n",
+		argv0, argv1, strerror(errno), sem_id);
+    }
     return status;
 
 error:
@@ -346,6 +381,11 @@ error:
 	fprintf(stderr, "%s %s: could not remove shared memory for "
 		"volume.\n%s\nPlease use ipcrm command for id %d\n",
 		argv0, argv1, strerror(errno), shmid);
+    }
+    if ( sem_id != -1 && shmctl(sem_id, IPC_RMID, NULL) == -1 ) {
+	fprintf(stderr, "%s %s: could not remove semaphore for "
+		"volume.\n%s\nPlease use ipcrm command for id %d\n",
+		argv0, argv1, strerror(errno), sem_id);
     }
     return status;
 }
