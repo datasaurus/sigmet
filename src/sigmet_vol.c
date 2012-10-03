@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.165 $ $Date: 2012/09/26 23:21:44 $
+   .	$Revision: 1.166 $ $Date: 2012/10/03 20:08:54 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -311,7 +311,7 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 }
 
 /*
-   Map pointers in vol_p to shared memory.
+   Map pointers in vol_p to shared memory. Return 1/0 on success/failure.
  */
 
 int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
