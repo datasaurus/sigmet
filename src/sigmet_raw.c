@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.93 $ $Date: 2012/10/03 16:04:36 $
+   .	$Revision: 1.94 $ $Date: 2012/10/03 16:27:11 $
  */
 
 #include <stdlib.h>
@@ -173,6 +173,13 @@ static int hash(const char *argv1)
 #define LEN 255
 
 /*
+   Names of environment variables
+ */
+
+#define SHMEM_ID_S "SIGMET_VOL_SHMEM"
+#define SEM_ID_S "SIGMET_VOL_SEM"
+
+/*
    main function. See sigmet_raw (1)
  */
 
@@ -295,7 +302,7 @@ static int load_cb(int argc, char *argv[])
     }
     Sigmet_Vol_Init(vol_p);
     vol_p->shm = 1;
-    if ( snprintf(shmid_s, LEN, "SIGMET_VOL_SHMEM=%d", shmid) > LEN ) {
+    if ( snprintf(shmid_s, LEN, SHMEM_ID_S "=%d", shmid) > LEN ) {
 	fprintf(stderr, "%s %s: could not create environment variable for "
 		"volume shared memory identifier.\n", argv0, argv1);
 	status = SIGMET_BAD_ARG;
@@ -342,7 +349,7 @@ static int load_cb(int argc, char *argv[])
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
-    if ( snprintf(sem_id_s, LEN, "SIGMET_VOL_SEM=%d", sem_id) > LEN ) {
+    if ( snprintf(sem_id_s, LEN, SEM_ID_S "=%d", sem_id) > LEN ) {
 	fprintf(stderr, "%s %s: could not create environment variable for "
 		"volume semaphore identifier.\n", argv0, argv1);
 	status = SIGMET_BAD_ARG;
