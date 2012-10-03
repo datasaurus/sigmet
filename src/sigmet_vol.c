@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.166 $ $Date: 2012/10/03 20:08:54 $
+   .	$Revision: 1.167 $ $Date: 2012/10/03 20:11:54 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -396,11 +396,13 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 	return 0;
     }
     if ( vol_p->sweep_hdr && shmdt(vol_p->sweep_hdr) == -1 ) {
-	fprintf(stderr, "Could not detach shared memory for sweep headers.\n");
+	fprintf(stderr, "Could not detach shared memory for "
+		"sweep headers.\n%s\n", strerror(errno));
     }
     vol_p->sweep_hdr = NULL;
     if ( vol_p->ray_hdr && shmdt(vol_p->ray_hdr) == -1 ) {
-	fprintf(stderr, "Could not detach shared memory for ray headers.\n");
+	fprintf(stderr, "Could not detach shared memory for 
+		ray headers.\n%s\n", strerror(errno));
     }
     vol_p->ray_hdr = NULL;
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_MAX_TYPES; dat_p++) {
