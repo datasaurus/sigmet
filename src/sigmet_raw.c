@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.91 $ $Date: 2012/10/03 15:24:12 $
+   .	$Revision: 1.92 $ $Date: 2012/10/03 16:01:49 $
  */
 
 #include <stdlib.h>
@@ -66,34 +66,34 @@ static void handler(int signum);
    Callbacks for the subcommands.
  */
 
-typedef int (SigmetRaw_Callback)(int , char **);
-SigmetRaw_Callback version_cb;
-SigmetRaw_Callback pid_cb;
-SigmetRaw_Callback load_cb;
-SigmetRaw_Callback data_types_cb;
-SigmetRaw_Callback volume_headers_cb;
-SigmetRaw_Callback vol_hdr_cb;
-SigmetRaw_Callback near_sweep_cb;
-SigmetRaw_Callback sweep_headers_cb;
-SigmetRaw_Callback ray_headers_cb;
-SigmetRaw_Callback new_field_cb;
-SigmetRaw_Callback del_field_cb;
-SigmetRaw_Callback size_cb;
-SigmetRaw_Callback set_field_cb;
-SigmetRaw_Callback add_cb;
-SigmetRaw_Callback sub_cb;
-SigmetRaw_Callback mul_cb;
-SigmetRaw_Callback div_cb;
-SigmetRaw_Callback log10_cb;
-SigmetRaw_Callback incr_time_cb;
-SigmetRaw_Callback data_cb;
-SigmetRaw_Callback bdata_cb;
-SigmetRaw_Callback bin_outline_cb;
-SigmetRaw_Callback radar_lon_cb;
-SigmetRaw_Callback radar_lat_cb;
-SigmetRaw_Callback shift_az_cb;
-SigmetRaw_Callback outlines_cb;
-SigmetRaw_Callback dorade_cb;
+typedef int (callback)(int , char **);
+static callback version_cb;
+static callback pid_cb;
+static callback load_cb;
+static callback data_types_cb;
+static callback volume_headers_cb;
+static callback vol_hdr_cb;
+static callback near_sweep_cb;
+static callback sweep_headers_cb;
+static callback ray_headers_cb;
+static callback new_field_cb;
+static callback del_field_cb;
+static callback size_cb;
+static callback set_field_cb;
+static callback add_cb;
+static callback sub_cb;
+static callback mul_cb;
+static callback div_cb;
+static callback log10_cb;
+static callback incr_time_cb;
+static callback data_cb;
+static callback bdata_cb;
+static callback bin_outline_cb;
+static callback radar_lon_cb;
+static callback radar_lat_cb;
+static callback shift_az_cb;
+static callback outlines_cb;
+static callback dorade_cb;
 
 /*
    Subcommand names and associated callbacks. The hash function defined
@@ -130,7 +130,7 @@ static char *cmd1v[N_HASH_CMD] = {
     "", "", "div", "", "", "add",
     "sub", "", "", "", "", "", ""
 };
-static SigmetRaw_Callback *cb1v[N_HASH_CMD] = {
+static callback *cb1v[N_HASH_CMD] = {
     NULL, log10_cb, size_cb, NULL, radar_lon_cb, NULL,
     NULL, bdata_cb, NULL, NULL, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL, NULL,
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
 
 #define LEN 255
 
-int version_cb(int argc, char *argv[])
+static int version_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -225,7 +225,7 @@ int version_cb(int argc, char *argv[])
     return EXIT_SUCCESS;
 }
 
-int pid_cb(int argc, char *argv[])
+static int pid_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -238,7 +238,7 @@ int pid_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int load_cb(int argc, char *argv[])
+static int load_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -390,7 +390,7 @@ error:
     return status;
 }
 
-int data_types_cb(int argc, char *argv[])
+static int data_types_cb(int argc, char *argv[])
 {
     struct Sigmet_Vol *vol_p;
     int y;
@@ -404,7 +404,7 @@ int data_types_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int volume_headers_cb(int argc, char *argv[])
+static int volume_headers_cb(int argc, char *argv[])
 {
     struct Sigmet_Vol *vol_p;
     char *argv0 = argv[0];
@@ -418,7 +418,7 @@ int volume_headers_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int vol_hdr_cb(int argc, char *argv[])
+static int vol_hdr_cb(int argc, char *argv[])
 {
     struct Sigmet_Vol *vol_p;
     char *argv0 = argv[0];
@@ -494,7 +494,7 @@ int vol_hdr_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int near_sweep_cb(int argc, char *argv[])
+static int near_sweep_cb(int argc, char *argv[])
 {
     struct Sigmet_Vol *vol_p;
     char *argv0 = argv[0];
@@ -535,7 +535,7 @@ int near_sweep_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int sweep_headers_cb(int argc, char *argv[])
+static int sweep_headers_cb(int argc, char *argv[])
 {
     struct Sigmet_Vol *vol_p;
     char *argv0 = argv[0];
@@ -566,7 +566,7 @@ int sweep_headers_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int ray_headers_cb(int argc, char *argv[])
+static int ray_headers_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -606,7 +606,7 @@ int ray_headers_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int new_field_cb(int argc, char *argv[])
+static int new_field_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -695,7 +695,7 @@ int new_field_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int del_field_cb(int argc, char *argv[])
+static int del_field_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -720,7 +720,7 @@ int del_field_cb(int argc, char *argv[])
    Print volume memory usage.
  */
 
-int size_cb(int argc, char *argv[])
+static int size_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -738,7 +738,7 @@ int size_cb(int argc, char *argv[])
    Set value for a field.
  */
 
-int set_field_cb(int argc, char *argv[])
+static int set_field_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -785,7 +785,7 @@ int set_field_cb(int argc, char *argv[])
    Add a scalar or another field to a field.
  */
 
-int add_cb(int argc, char *argv[])
+static int add_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -821,7 +821,7 @@ int add_cb(int argc, char *argv[])
    Subtract a scalar or another field from a field.
  */
 
-int sub_cb(int argc, char *argv[])
+static int sub_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -857,7 +857,7 @@ int sub_cb(int argc, char *argv[])
    Multiply a field by a scalar or another field
  */
 
-int mul_cb(int argc, char *argv[])
+static int mul_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -893,7 +893,7 @@ int mul_cb(int argc, char *argv[])
    Divide a field by a scalar or another field
  */
 
-int div_cb(int argc, char *argv[])
+static int div_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -929,7 +929,7 @@ int div_cb(int argc, char *argv[])
    Replace a field with it's log10.
  */
 
-int log10_cb(int argc, char *argv[])
+static int log10_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -951,7 +951,7 @@ int log10_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int incr_time_cb(int argc, char *argv[])
+static int incr_time_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -977,7 +977,7 @@ int incr_time_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int data_cb(int argc, char *argv[])
+static int data_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -1150,7 +1150,7 @@ int data_cb(int argc, char *argv[])
    Missing values will be Sigmet_NoData().
  */
 
-int bdata_cb(int argc, char *argv[])
+static int bdata_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -1220,7 +1220,7 @@ int bdata_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int bin_outline_cb(int argc, char *argv[])
+static int bin_outline_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -1282,7 +1282,7 @@ int bin_outline_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int radar_lon_cb(int argc, char *argv[])
+static int radar_lon_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -1307,7 +1307,7 @@ int radar_lon_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int radar_lat_cb(int argc, char *argv[])
+static int radar_lat_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -1332,7 +1332,7 @@ int radar_lat_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int shift_az_cb(int argc, char *argv[])
+static int shift_az_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -1385,7 +1385,7 @@ int shift_az_cb(int argc, char *argv[])
     return SIGMET_OK;
 }
 
-int outlines_cb(int argc, char *argv[])
+static int outlines_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
@@ -1491,7 +1491,7 @@ int outlines_cb(int argc, char *argv[])
     return status;
 }
 
-int dorade_cb(int argc, char *argv[])
+static int dorade_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
