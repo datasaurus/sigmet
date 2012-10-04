@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.168 $ $Date: 2012/10/03 20:21:34 $
+   .	$Revision: 1.169 $ $Date: 2012/10/03 20:22:42 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -253,6 +253,7 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
 int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 {
     struct Sigmet_Dat *dat_p;
+    int status = 1;
 
     if (!vol_p) {
 	return 0;
@@ -260,18 +261,21 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
     if ( vol_p->shm ) {
 	if ( !Sigmet_ShMemDetach(vol_p) ) {
 	    fprintf(stderr, "Could not detach volume from shared memory.\n");
+	    status = 0;
 	}
 	if ( vol_p->sweep_hdr_id != -1
 		&& shmctl(vol_p->sweep_hdr_id, IPC_RMID, NULL) == -1 ) {
 	    fprintf(stderr, "Could not remove shared memory for "
 		    "sweep headers.\n%s\nPlease use ipcrm command for id %d\n",
 		    strerror(errno), vol_p->sweep_hdr_id);
+	    status = 0;
 	}
 	if ( vol_p->ray_hdr_id != -1
 		&& shmctl(vol_p->ray_hdr_id, IPC_RMID, NULL) == -1 ) {
 	    fprintf(stderr, "Could not remove shared memory for "
 		    "ray headers.\n%s\nPlease use ipcrm command for id %d\n",
 		    strerror(errno), vol_p->ray_hdr_id);
+	    status = 0;
 	}
 	for (dat_p = vol_p->dat;
 		dat_p < vol_p->dat + SIGMET_MAX_TYPES;
@@ -282,6 +286,7 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 			"%s array.\n%s\nPlease use ipcrm command for id %d\n",
 			dat_p->abbrv, strerror(errno),
 			dat_p->vals_id);
+		status = 0;
 	    }
 	}
     } else {
@@ -307,7 +312,7 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 	}
     }
     Sigmet_Vol_Init(vol_p);
-    return 1;
+    return status;
 }
 
 /*
@@ -316,11 +321,14 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 
 int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 {
-    int y;
+    int y, s, r;			/* Type, sweep, ray */
+    int num_sweeps, num_rays, num_bins;
+    int n;
 
     if ( !vol_p || !vol_p->shm) {
 	return 0;
     }
+
     vol_p->sweep_hdr = shmat(vol_p->sweep_hdr_id, NULL, 0);
     if ( vol_p->sweep_hdr == (void *)-1) {
 	fprintf(stderr, "Could not attach to sweep headers "
@@ -328,6 +336,11 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 	vol_p->sweep_hdr = NULL;
 	return 0;
     }
+
+    num_sweeps = vol_p->ih.tc.tni.num_sweeps;
+    num_rays = vol_p->ih.ic.num_rays;
+    num_bins = vol_p->ih.tc.tri.num_bins_out;
+
     vol_p->ray_hdr = shmat(vol_p->ray_hdr_id, NULL, 0);
     if ( vol_p->ray_hdr == (void *)-1) {
 	fprintf(stderr, "Could not attach to ray headers "
@@ -335,6 +348,11 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 	vol_p->ray_hdr = NULL;
 	return 0;
     }
+    vol_p->ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(vol_p->ray_hdr + num_sweeps);
+    for (n = 1; n < num_sweeps; n++) {
+	vol_p->ray_hdr[n] = vol_p->ray_hdr[n - 1] + num_rays;
+    }
+
     for (y = 0; y < vol_p->num_types; y++) {
 	struct Sigmet_Dat *dat_p = vol_p->dat + y;
 	enum Sigmet_DataTypeN sig_type = vol_p->types_fl[y];
@@ -348,8 +366,20 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 			    dat_p->abbrv, strerror(errno));
 		    vol_p->ray_hdr = NULL;
 		    return 0;
+		} else {
+		    U1BYT ***dat;
+
+		    dat = dat_p->vals.u1;
+		    dat[0] = (U1BYT **)(dat + num_sweeps);
+		    dat[0][0] = (U1BYT *)(dat[0] + num_sweeps * num_rays);
+		    for (s = 1; s <= num_sweeps; s++) {
+			dat[s] = dat[s - 1] + num_rays;
+		    }
+		    for (r = 1; r <= num_sweeps * num_rays; r++) {
+			dat[0][r] = dat[0][r - 1] + num_bins;
+		    }
+		    dat_p->stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
 		}
-		dat_p->stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
 		break;
 	    case SIGMET_U2:
 		dat_p->vals.u2 = shmat(dat_p->vals_id, NULL, 0);
@@ -359,8 +389,20 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 			    dat_p->abbrv, strerror(errno));
 		    vol_p->ray_hdr = NULL;
 		    return 0;
+		} else {
+		    U2BYT ***dat;
+
+		    dat = dat_p->vals.u2;
+		    dat[0] = (U2BYT **)(dat + num_sweeps);
+		    dat[0][0] = (U2BYT *)(dat[0] + num_sweeps * num_rays);
+		    for (s = 1; s <= num_sweeps; s++) {
+			dat[s] = dat[s - 1] + num_rays;
+		    }
+		    for (r = 1; r <= num_sweeps * num_rays; r++) {
+			dat[0][r] = dat[0][r - 1] + num_bins;
+		    }
+		    dat_p->stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
 		}
-		dat_p->stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
 		break;
 	    case SIGMET_FLT:
 		dat_p->vals.f = shmat(dat_p->vals_id, NULL, 0);
@@ -370,8 +412,25 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 			    dat_p->abbrv, strerror(errno));
 		    vol_p->ray_hdr = NULL;
 		    return 0;
+		} else {
+		    float ***dat, *d;
+
+		    dat = dat_p->vals.f;
+		    dat[0] = (float **)(dat + num_sweeps);
+		    dat[0][0] = (float *)(dat[0] + num_sweeps * num_rays);
+		    for (s = 1; s <= num_sweeps; s++) {
+			dat[s] = dat[s - 1] + num_rays;
+		    }
+		    for (r = 1; r <= num_sweeps * num_rays; r++) {
+			dat[0][r] = dat[0][r - 1] + num_bins;
+		    }
+		    for (d = dat[0][0];
+			    d < dat[0][0] + num_sweeps * num_rays * num_bins;
+			    d++) {
+			*d = Sigmet_NoData();
+		    }
+		    dat_p->stor_to_comp = Sigmet_DblDbl;
 		}
-		dat_p->stor_to_comp = Sigmet_DblDbl;
 		break;
 	    case SIGMET_DBL:
 	    case SIGMET_MT:
@@ -391,6 +450,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 {
     struct Sigmet_Dat *dat_p;
+    int status = 1;
 
     if ( !vol_p || !vol_p->shm ) {
 	return 0;
@@ -398,11 +458,13 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
     if ( vol_p->sweep_hdr && shmdt(vol_p->sweep_hdr) == -1 ) {
 	fprintf(stderr, "Could not detach shared memory for "
 		"sweep headers.\n%s\n", strerror(errno));
+	status = 0;
     }
     vol_p->sweep_hdr = NULL;
     if ( vol_p->ray_hdr && shmdt(vol_p->ray_hdr) == -1 ) {
 	fprintf(stderr, "Could not detach shared memory for "
 		"ray headers.\n%s\n", strerror(errno));
+	status = 0;
     }
     vol_p->ray_hdr = NULL;
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_MAX_TYPES; dat_p++) {
@@ -412,28 +474,34 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "Could not detach shared memory "
 			    "for %s.\n%s\n",
 			    dat_p->abbrv, strerror(errno));
+		    status = 0;
 		}
+		dat_p->vals.u1 = NULL;
 		break;
 	    case SIGMET_U2:
 		if ( dat_p->vals.u2 && shmdt(dat_p->vals.u2) == -1 ) {
 		    fprintf(stderr, "Could not detach shared memory "
 			    "for %s.\n%s\n",
 			    dat_p->abbrv, strerror(errno));
+		    status = 0;
 		}
+		dat_p->vals.u2 = NULL;
 		break;
 	    case SIGMET_FLT:
 		if ( dat_p->vals.f && shmdt(dat_p->vals.f) == -1 ) {
 		    fprintf(stderr, "Could not detach shared memory "
 			    "for %s.\n%s\n",
 			    dat_p->abbrv, strerror(errno));
+		    status = 0;
 		}
+		dat_p->vals.f = NULL;
 		break;
 	    case SIGMET_DBL:
 	    case SIGMET_MT:
 		break;
 	}
     }
-    return 1;
+    return status;
 }
 
 /*
@@ -4485,8 +4553,15 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i, int *id_p)
 	    return NULL;
 	}
     }
-    ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(ray_hdr + jj);
-    for (n = 1; n <= j; n++) {
+
+    /*
+       Set up pointers within the array. This only works with local
+       memory. If the memory is shared, the process will have to
+       set up the pointers again when it attaches.
+     */
+
+    ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(ray_hdr + j);
+    for (n = 1; n < j; n++) {
 	ray_hdr[n] = ray_hdr[n - 1] + i;
     }
     return ray_hdr;
@@ -4546,6 +4621,13 @@ static U1BYT ***malloc3_u1(long kmax, long jmax, long imax, int *id_p)
 	    return NULL;
 	}
     }
+
+    /*
+       Set up pointers within the array. This only works with local
+       memory. If the memory is shared, the process will have to
+       set up the pointers again when it attaches.
+     */
+
     dat[0] = (U1BYT **)(dat + kk);
     dat[0][0] = (U1BYT *)(dat[0] + kk * jj);
     for (k = 1; k <= kmax; k++) {
@@ -4611,6 +4693,13 @@ static U2BYT ***malloc3_u2(long kmax, long jmax, long imax, int *id_p)
 	    return NULL;
 	}
     }
+
+    /*
+       Set up pointers within the array. This only works with local
+       memory. If the memory is shared, the process will have to
+       set up the pointers again when it attaches.
+     */
+
     dat[0] = (U2BYT **)(dat + kk);
     dat[0][0] = (U2BYT *)(dat[0] + kk * jj);
     for (k = 1; k <= kmax; k++) {
@@ -4676,6 +4765,13 @@ static float ***malloc3_flt(long kmax, long jmax, long imax, int *id_p)
 	    return NULL;
 	}
     }
+
+    /*
+       Set up pointers within the array. This only works with local
+       memory. If the memory is shared, the process will have to
+       set up the pointers again when it attaches.
+     */
+
     dat[0] = (float **)(dat + kk);
     dat[0][0] = (float *)(dat[0] + kk * jj);
     for (k = 1; k <= kmax; k++) {
