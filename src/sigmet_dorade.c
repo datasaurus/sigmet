@@ -30,14 +30,13 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.51 $ $Date: 2012/09/19 22:09:47 $
+   .	$Revision: 1.52 $ $Date: 2012/09/21 19:56:58 $
  */
 
 #include <string.h>
 #include <math.h>
 #include "sigmet.h"
 #include "alloc.h"
-#include "err_msg.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "dorade_lib.h"
@@ -88,7 +87,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     num_parms = num_rays = num_cells = -1;
 
     if ( s > vol_p->ih.ic.num_sweeps ) {
-	Err_Append("Sweep index out of range. ");
+	fprintf(stderr, "Sweep index out of range.\n");
 	status = SIGMET_RNG_ERR;
 	goto error;
     }
@@ -99,7 +98,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     if ( snprintf(swp_p->comm.comment, 500, "Sigmet volume sweep %d, task %s", 
 		s, vol_p->ph.pc.task_name) >= 500 ) {
-	Err_Append("Could not set COMM block. String too big.");
+	fprintf(stderr, "Could not set COMM block. String too big.\n");
 	status = SIGMET_RNG_ERR;
 	goto error;
     }
@@ -126,7 +125,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     swp_p->vold.maximum_bytes = 65500;
     if ( !Tm_JulToCal(vol_p->ray_hdr[s][0].time,
 		&year, &mon, &day, &hr, &min, &sec) ) {
-	Err_Append("Could not set sweep time. ");
+	fprintf(stderr, "Could not set sweep time.\n");
 	status = SIGMET_BAD_TIME;
 	goto error;
     }
@@ -216,7 +215,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
      */
 
     if ( !(sensor_p->parm = CALLOC(num_parms, sizeof(struct Dorade_PARM))) ) {
-	Err_Append("Could not allocate array of parameter descriptors. ");
+	fprintf(stderr, "Could not allocate array of parameter descriptors.\n");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
@@ -266,7 +265,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
      */
 
     if ( !parm_p ) {
-	Err_Append("Volume has no parameters. ");
+	fprintf(stderr, "Volume has no parameters.\n");
 	status = SIGMET_BAD_VOL;
 	goto error;
     }
@@ -314,7 +313,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
      */
 
     if ( !(swp_p->ray_hdr = CALLOC(num_rays, sizeof(struct Dorade_Ray_Hdr))) ) {
-	Err_Append("Could not allocate space for ray headers. ");
+	fprintf(stderr, "Could not allocate space for ray headers.\n");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
@@ -348,7 +347,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	ryib_p->sweep_num = s;
 	if ( !Tm_JulToCal(vol_p->ray_hdr[s][r].time,
 		    &year, &mon, &day, &hr, &min, &sec) ) {
-	    Err_Append("Could not get ray time. ");
+	    fprintf(stderr, "Could not get ray time.\n");
 	    status = SIGMET_BAD_VOL;
 	    goto error;
 	}
@@ -377,7 +376,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	asib_p->altitude_agl = 0.001 * vol_p->ih.ic.radar_ht;
     }
     if ( num_rays_d == 0 ) {
-	Err_Append("Sweep has no good rays. ");
+	fprintf(stderr, "Sweep has no good rays.\n");
 	status = SIGMET_BAD_VOL;
 	goto error;
     }
@@ -388,7 +387,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
      */
 
     if ( !Dorade_Sweep_AllocDat(swp_p, num_parms, num_rays_d, num_cells) ) {
-	Err_Append("Could not allocate data array. ");
+	fprintf(stderr, "Could not allocate data array.\n");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
@@ -396,7 +395,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     num_bins = num_cells;
     ray_p = NULL;
     if ( !(ray_p = MALLOC(num_bins * sizeof(float)))) {
-	Err_Append("Could not allocate ray data buffer. ");
+	fprintf(stderr, "Could not allocate ray data buffer.\n");
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
@@ -412,8 +411,8 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 		status = Sigmet_Vol_GetRayDat(vol_p, p, s, r,
 			&ray_p, &num_bins);
 		if ( (status != SIGMET_OK) ) {
-		    Err_Append("Could not retrieve ray data "
-			    "from Sigmet volume");
+		    fprintf(stderr, "Could not retrieve ray data "
+			    "from Sigmet volume\n");
 		    goto error;
 		}
 		for (c = 0; c < num_cells; c++) {

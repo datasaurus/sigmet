@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.98 $ $Date: 2012/10/05 21:38:55 $
+   .	$Revision: 1.99 $ $Date: 2012/10/05 21:47:32 $
  */
 
 #include <stdlib.h>
@@ -50,7 +50,6 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 #include "alloc.h"
-#include "err_msg.h"
 #include "tm_calc_lib.h"
 #include "geog_lib.h"
 #include "sigmet.h"
@@ -1816,7 +1815,7 @@ static int outlines_cb(int argc, char *argv[])
 	    break;
 	case FILE_SCAN:
 	case MAN_SCAN:
-	    Err_Append("Can only print outlines for RHI and PPI. ");
+	    fprintf(stderr, "Can only print outlines for RHI and PPI.\n");
 	    status = SIGMET_BAD_ARG;
 	    break;
     }
