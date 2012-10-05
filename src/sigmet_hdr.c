@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.8 $ $Date: 2012/09/13 22:07:12 $
+   .	$Revision: 1.9 $ $Date: 2012/09/19 15:07:43 $
  */
 
 #include <limits.h>
@@ -42,7 +42,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include "alloc.h"
-#include "err_msg.h"
 #include "geog_lib.h"
 #include "sigmet.h"
 
@@ -66,6 +65,7 @@ int main(int argc, char *argv[])
     FILE *in;
     int abbrv = 0;		/* If true, give abbreviated output */
     struct Sigmet_Vol vol;
+    enum SigmetStatus s;
 
     if ( !handle_signals() ) {
 	fprintf(stderr, "%s (%d): could not set up signal management.",
@@ -106,11 +106,39 @@ int main(int argc, char *argv[])
     }
     if ( !in ) {
 	fprintf(stderr, "%s: could not open %s for input\n%s\n",
-		argv0, vol_fl_nm, Err_Get());
+		argv0, vol_fl_nm, strerror(errno));
 	exit(EXIT_FAILURE);
     }
-    if ( Sigmet_Vol_ReadHdr(in, &vol) != SIGMET_OK ) {
-	fprintf(stderr, "%s: read failed\n%s\n", argv0, Err_Get());
+    if ( (s = Sigmet_Vol_ReadHdr(in, &vol)) != SIGMET_OK ) {
+	fprintf(stderr, "%s: read failed\n", argv0);
+	switch (s) {
+	    case SIGMET_OK:
+		break;
+	    case SIGMET_IO_FAIL:
+		fprintf(stderr, "Input/output failure.\n");
+		break;
+	    case SIGMET_BAD_FILE:
+		fprintf(stderr, "Bad file.\n");
+		break;
+	    case SIGMET_BAD_VOL:
+		fprintf(stderr, "Bad volume.\n");
+		break;
+	    case SIGMET_ALLOC_FAIL:
+		fprintf(stderr, "Allocation failure.\n");
+		break;
+	    case SIGMET_BAD_ARG:
+		fprintf(stderr, "Bad argument.\n");
+		break;
+	    case SIGMET_RNG_ERR:
+		fprintf(stderr, "Value out of range.\n");
+		break;
+	    case SIGMET_BAD_TIME:
+		fprintf(stderr, "Bad time.\n");
+		break;
+	    case SIGMET_HELPER_FAIL:
+		fprintf(stderr, "Helper application failed.\n");
+		break;
+	}
 	exit(EXIT_FAILURE);
     }
     if ( abbrv ) {
