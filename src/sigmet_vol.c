@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.169 $ $Date: 2012/10/03 20:22:42 $
+   .	$Revision: 1.170 $ $Date: 2012/10/04 17:28:08 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2492,7 +2492,7 @@ int Sigmet_Vol_IncrTm(struct Sigmet_Vol *vol_p, double dt)
 	}
     }
     vol_p->mod = 1;
-    return 1;
+    return SIGMET_OK;
 }
 
 /*
