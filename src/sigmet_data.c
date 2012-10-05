@@ -31,14 +31,13 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.36 $ $Date: 2012/02/02 16:56:55 $
+   .	$Revision: 1.37 $ $Date: 2012/09/19 20:56:00 $
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <assert.h>
-#include "err_msg.h"
 #include "sigmet.h"
 
 /*
