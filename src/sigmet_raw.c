@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.97 $ $Date: 2012/10/05 20:10:09 $
+   .	$Revision: 1.98 $ $Date: 2012/10/05 21:38:55 $
  */
 
 #include <stdlib.h>
@@ -63,7 +63,7 @@ static struct Sigmet_Vol *vol_attach(int *);
 static void vol_detach(struct Sigmet_Vol *, int);
 static int handle_signals(void);
 static void handler(int signum);
-static char *sigmet_err(int);
+static char *sigmet_err(enum SigmetStatus);
 
 /*
    Callbacks for the subcommands.
@@ -1907,9 +1907,12 @@ error:
     return 0;
 }
 
-static char *sigmet_err(int i)
+static char *sigmet_err(enum SigmetStatus s)
 {
-    switch (i) {
+    switch (s) {
+	case SIGMET_OK:
+	    return "Success.";
+	    break;
 	case SIGMET_IO_FAIL:
 	    return "Input/output failure.";
 	    break;
