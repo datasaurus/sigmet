@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.95 $ $Date: 2012/10/03 16:41:55 $
+   .	$Revision: 1.96 $ $Date: 2012/10/05 19:43:37 $
  */
 
 #include <stdlib.h>
@@ -70,7 +70,6 @@ static void handler(int signum);
 
 typedef int (callback)(int , char **);
 static callback version_cb;
-static callback pid_cb;
 static callback load_cb;
 static callback data_types_cb;
 static callback volume_headers_cb;
@@ -107,54 +106,38 @@ static callback dorade_cb;
    Programming, Reading, Massachusetts. 1999
  */
 
-#define N_HASH_CMD 133
+#define N_HASH_CMD 126
 static char *cmd1v[N_HASH_CMD] = {
-    "", "log10", "size", "", "radar_lon", "",
-    "", "bdata", "", "", "", "",
-    "", "", "", "", "", "",
-    "", "", "", "", "del_field", "",
-    "", "", "", "", "", "",
-    "", "", "", "volume_headers", "bin_outline", "",
-    "set_field", "", "", "", "", "",
-    "", "", "near_sweep", "", "", "version",
-    "", "", "", "", "", "",
-    "", "", "", "", "", "",
-    "", "", "", "", "", "pid",
-    "outlines", "", "", "ray_headers", "", "",
-    "", "incr_time", "data_types", "", "", "",
-    "load", "", "", "", "", "",
-    "", "", "", "", "dorade", "mul",
-    "", "", "", "", "", "",
-    "", "shift_az", "", "", "", "",
-    "sweep_headers", "", "", "", "", "",
-    "radar_lat", "new_field", "", "", "", "",
-    "", "", "", "", "vol_hdr", "data",
-    "", "", "div", "", "", "add",
-    "sub", "", "", "", "", "", ""
+    "", "", "", "outlines", "radar_lon", "", "", "", "",
+    "near_sweep", "", "", "", "", "", "", "", "", "",
+    "volume_headers", "shift_az", "", "", "", "", "", "",
+    "add", "", "", "", "", "", "", "", "", "", "",
+    "", "sweep_headers", "", "", "", "set_field", "", "",
+    "", "", "bin_outline", "", "load", "", "", "dorade", "",
+    "", "", "", "", "div", "", "", "vol_hdr", "",
+    "del_field", "", "incr_time", "", "", "", "", "", "",
+    "", "", "", "", "", "", "", "radar_lat", "", "",
+    "", "sub", "", "", "", "", "", "", "", "", "",
+    "", "new_field", "", "ray_headers", "data", "", "", "",
+    "data_types", "", "", "", "", "size", "", "", "version",
+    "", "bdata", "log10", "", "", "", "", "", "", "",
+    "", "", "", "mul", ""
 };
 static callback *cb1v[N_HASH_CMD] = {
-    NULL, log10_cb, size_cb, NULL, radar_lon_cb, NULL,
-    NULL, bdata_cb, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, del_field_cb, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, volume_headers_cb, bin_outline_cb, NULL,
-    set_field_cb, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, near_sweep_cb, NULL, NULL, version_cb,
-    NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, pid_cb,
-    outlines_cb, NULL, NULL, ray_headers_cb, NULL, NULL,
-    NULL, incr_time_cb, data_types_cb, NULL, NULL, NULL,
-    load_cb, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, dorade_cb, mul_cb,
-    NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, shift_az_cb, NULL, NULL, NULL, NULL,
-    sweep_headers_cb, NULL, NULL, NULL, NULL, NULL,
-    radar_lat_cb, new_field_cb, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, vol_hdr_cb, data_cb,
-    NULL, NULL, div_cb, NULL, NULL, add_cb,
-    sub_cb, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, NULL, NULL, outlines_cb, radar_lon_cb, NULL, NULL, NULL, NULL,
+    near_sweep_cb, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    volume_headers_cb, shift_az_cb, NULL, NULL, NULL, NULL, NULL, NULL,
+    add_cb, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, sweep_headers_cb, NULL, NULL, NULL, set_field_cb, NULL, NULL,
+    NULL, NULL, bin_outline_cb, NULL, load_cb, NULL, NULL, dorade_cb, NULL,
+    NULL, NULL, NULL, NULL, div_cb, NULL, NULL, vol_hdr_cb, NULL,
+    del_field_cb, NULL, incr_time_cb, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, radar_lat_cb, NULL, NULL,
+    NULL, sub_cb, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, new_field_cb, NULL, ray_headers_cb, data_cb, NULL, NULL, NULL,
+    data_types_cb, NULL, NULL, NULL, NULL, size_cb, NULL, NULL, version_cb,
+    NULL, bdata_cb, log10_cb, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, mul_cb, NULL
 };
 #define HASH_X 31
 static int hash(const char *);
@@ -232,19 +215,6 @@ static int version_cb(int argc, char *argv[])
     printf("%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
 	    "All rights reserved.\n", argv[0], SIGMET_VERSION);
     return EXIT_SUCCESS;
-}
-
-static int pid_cb(int argc, char *argv[])
-{
-    char *argv0 = argv[0];
-    char *argv1 = argv[1];
-
-    if ( argc != 2 ) {
-	fprintf(stderr, "Usage: %s %s\n", argv0, argv1);
-	return SIGMET_BAD_ARG;
-    }
-    printf("%d\n", getpid());
-    return SIGMET_OK;
 }
 
 static int load_cb(int argc, char *argv[])
