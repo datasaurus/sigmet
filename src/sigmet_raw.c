@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.99 $ $Date: 2012/10/05 21:47:32 $
+   .	$Revision: 1.100 $ $Date: 2012/10/05 22:10:02 $
  */
 
 #include <stdlib.h>
@@ -44,6 +44,7 @@
 #include <errno.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/unistd.h>
 #include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -58,6 +59,7 @@
    Local functions
  */
 
+static FILE *vol_open(const char *, pid_t *);
 static struct Sigmet_Vol *vol_attach(int *);
 static void vol_detach(struct Sigmet_Vol *, int);
 static int handle_signals(void);
@@ -230,7 +232,8 @@ static int load_cb(int argc, char *argv[])
 					   volume */
     FILE *vol_fl;			/* Input stream associated with
 					   vol_fl_nm */
-    pid_t pid;				/* Process id for child process
+    pid_t pid;				/* Process id of read process, or
+					   process id for child process
 					   specified on command line  */
     int ch_stat;			/* Child exit status */
     int sem_id = -1;			/* Semaphore to control access to
@@ -287,18 +290,18 @@ static int load_cb(int argc, char *argv[])
        Read the volume.
      */
 
-    if ( strcmp(vol_fl_nm, "-") == 0 ) {
-	fprintf(stderr, "%s %s: reading standard input\n", argv0, argv1);
-	vol_fl = stdin;
-    } else {
-	fprintf(stderr, "%s %s: reading file %s\n", argv0, argv1, vol_fl_nm);
-	if ( !(vol_fl = fopen(vol_fl_nm, "r")) ) {
-	    fprintf(stderr, "%s %s: could not open file %s for reading.\n%s\n",
-		    argv0, argv1, vol_fl_nm, strerror(errno));
-	    goto error;
-	}
+    pid = -1;
+    if ( !(vol_fl = vol_open(vol_fl_nm, &pid)) ) {
+	fprintf(stderr, "%s %s: could not open file %s for reading.\n%s\n",
+		argv0, argv1, vol_fl_nm, strerror(errno));
+	goto error;
     }
-    if ( (status = Sigmet_Vol_Read(vol_fl, vol_p)) != SIGMET_OK ) {
+    status = Sigmet_Vol_Read(vol_fl, vol_p);
+    fclose(vol_fl);
+    if ( pid != -1 ) {
+	waitpid(pid, NULL, 0);
+    }
+    if ( status != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not read volume.\n%s\n",
 		argv0, argv1, sigmet_err(status));
 	goto error;
@@ -1938,6 +1941,111 @@ static char *sigmet_err(enum SigmetStatus s)
 	    break;
     }
     return "Unknown error";
+}
+
+/*
+   Open volume file vol_nm.  If vol_nm suffix indicates a compressed file, open
+   a pipe to a decompression process.  Return a file handle to the file or
+   decompression process, or NULL if failure. If return value is output from a
+   decompression process, put the process id at pid_p. Set *pid_p to -1 if
+   there is no decompression process (i.e. vol_nm is a plain file).
+ */
+
+static FILE *vol_open(const char *vol_nm, pid_t *pid_p)
+{
+    FILE *in = NULL;		/* Return value */
+    char *sfx;			/* Filename suffix */
+    int pfd[2] = {-1};		/* Pipe for data */
+    pid_t ch_pid = -1;		/* Child process id */
+
+    *pid_p = -1;
+    if ( strcmp(vol_nm, "-") == 0 ) {
+	return stdin;
+    }
+    sfx = strrchr(vol_nm, '.');
+    if ( sfx && sfx == vol_nm + strlen(vol_nm) - strlen(".gz")
+	    && strcmp(sfx, ".gz") == 0 ) {
+	if ( pipe(pfd) == -1 ) {
+	    fprintf(stderr, "Could not create pipe for gzip\n%s\n",
+		    strerror(errno));
+	    goto error;
+	}
+	ch_pid = fork();
+	switch (ch_pid) {
+	    case -1:
+		fprintf(stderr, "Could not spawn gzip\n");
+		goto error;
+	    case 0: /* Child process - gzip */
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
+			|| close(pfd[0]) == -1 ) {
+		    fprintf(stderr, "gzip process failed\n%s\n",
+			    strerror(errno));
+		    _exit(EXIT_FAILURE);
+		}
+		execlp("gunzip", "gunzip", "-c", vol_nm, (char *)NULL);
+		_exit(EXIT_FAILURE);
+	    default: /* This process.  Read output from gzip. */
+		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
+		    fprintf(stderr, "Could not read gzip process\n%s\n",
+			    strerror(errno));
+		    goto error;
+		} else {
+		    *pid_p = ch_pid;
+		    return in;
+		}
+	}
+    } else if ( sfx && sfx == vol_nm + strlen(vol_nm) - strlen(".bz2")
+	    && strcmp(sfx, ".bz2") == 0 ) {
+	if ( pipe(pfd) == -1 ) {
+	    fprintf(stderr, "Could not create pipe for bzip2\n%s\n",
+		    strerror(errno));
+	    goto error;
+	}
+	ch_pid = fork();
+	switch (ch_pid) {
+	    case -1:
+		fprintf(stderr, "Could not spawn bzip2\n");
+		goto error;
+	    case 0: /* Child process - bzip2 */
+		if ( dup2(pfd[1], STDOUT_FILENO) == -1 || close(pfd[1]) == -1
+			|| close(pfd[0]) == -1 ) {
+		    fprintf(stderr, "could not set up bzip2 process");
+		    _exit(EXIT_FAILURE);
+		}
+		execlp("bunzip2", "bunzip2", "-c", vol_nm, (char *)NULL);
+		_exit(EXIT_FAILURE);
+	    default: /* This process.  Read output from bzip2. */
+		if ( close(pfd[1]) == -1 || !(in = fdopen(pfd[0], "r"))) {
+		    fprintf(stderr, "Could not read bzip2 process\n%s\n",
+			    strerror(errno));
+		    goto error;
+		} else {
+		    *pid_p = ch_pid;
+		    return in;
+		}
+	}
+    } else if ( !(in = fopen(vol_nm, "r")) ) {
+	fprintf(stderr, "Could not open %s\n%s\n", vol_nm, strerror(errno));
+	return NULL;
+    }
+    return in;
+
+error:
+    if ( ch_pid != -1 ) {
+	kill(ch_pid, SIGTERM);
+	ch_pid = -1;
+    }
+    if ( in ) {
+	fclose(in);
+	pfd[0] = -1;
+    }
+    if ( pfd[0] != -1 ) {
+	close(pfd[0]);
+    }
+    if ( pfd[1] != -1 ) {
+	close(pfd[1]);
+    }
+    return NULL;
 }
 
 /*
