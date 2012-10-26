@@ -29,9 +29,10 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.9 $ $Date: 2012/09/19 15:07:43 $
+   .	$Revision: 1.10 $ $Date: 2012/10/05 22:18:00 $
  */
 
+#include "unix_defs.h"
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>

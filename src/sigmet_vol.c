@@ -32,11 +32,12 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.170 $ $Date: 2012/10/04 17:28:08 $
+   .	$Revision: 1.171 $ $Date: 2012/10/05 21:12:48 $
    .
    .	Reference: IRIS Programmers Manual
  */
 
+#include "unix_defs.h"
 #include <string.h>
 #include <ctype.h>
 #include <math.h>

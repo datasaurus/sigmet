@@ -30,9 +30,10 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.100 $ $Date: 2012/10/05 22:10:02 $
+   .	$Revision: 1.101 $ $Date: 2012/10/25 21:55:17 $
  */
 
+#include "unix_defs.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
