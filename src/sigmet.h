@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.112 $ $Date: 2012/09/26 23:18:33 $
+   .	$Revision: 1.113 $ $Date: 2012/10/05 21:47:32 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -47,8 +47,15 @@
 #include "type_nbit.h"
 #include "dorade_lib.h"
 
+#ifndef M_PI
+#define M_PI     3.141592653589793238462
+#endif
+#ifndef RAD_PER_DEG
 #define RAD_PER_DEG	0.01745329251994329576
+#endif
+#ifndef DEG_PER_RAD	
 #define DEG_PER_RAD	57.29577951308232087648
+#endif
 
 /*
    Enumerator for the data types defined in the IRIS Programmer's Manual
