@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.101 $ $Date: 2012/10/25 21:55:17 $
+   .	$Revision: 1.102 $ $Date: 2012/10/26 19:10:55 $
  */
 
 #include "unix_defs.h"
@@ -218,6 +218,12 @@ static int version_cb(int argc, char *argv[])
     return 1;
 }
 
+/*
+   Load a Sigmet raw product volume into shared memory and spawn a given
+   command. If volume is already loaded, attach to loaded volume, instead
+   of reloading it, and spawn the command.
+ */
+
 static int load_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -225,12 +231,21 @@ static int load_cb(int argc, char *argv[])
     char **arg;				/* Member of argv */
     int status;				/* Return value */
     struct Sigmet_Vol *vol_p = NULL;	/* Volume to load */
+    key_t key;				/* IPC identifier for shared memory and
+					   access semaphore */
+    char mem_key_id = 'm';		/* Key identifier for shared memory */
+    char ax_key_id = 'a';		/* Key identifier for access semaphore */
+    int flags;				/* IPC flags for shmget and semget */
     int shm_id = -1;			/* Identifier for shared memory
 					   which will store the Sigmet_Vol
 					   structure */
     char shmid_s[LEN];			/* String representation of shm_id */
     char *vol_fl_nm;			/* Name of file with Sigmet raw
 					   volume */
+    int first_parent;			/* If true, this call loaded the volume.
+					   Otherwise, volume was loaded in
+					   an earlier call and this call 
+					   attaches to it. */
     FILE *vol_fl;			/* Input stream associated with
 					   vol_fl_nm */
     pid_t pid;				/* Process id of read process, or
@@ -244,7 +259,8 @@ static int load_cb(int argc, char *argv[])
 	int val;
 	struct semid_ds *buf;
 	unsigned short *array;
-    } sem_arg;				/* Semaphore data */
+    } sem_arg;				/* Argument for semctl */
+    struct sembuf sem_op;		/* Argument for semop */
 
     /*
        Parse command line.
@@ -256,25 +272,139 @@ static int load_cb(int argc, char *argv[])
 	return 0;
     }
     vol_fl_nm = argv[2];
-    
+
+    if ( (key = ftok(vol_fl_nm, mem_key_id)) == -1 ) {
+	fprintf(stderr, "%s %s: could not get memory key for volume %s.\n%s\n",
+		argv0, argv1, vol_fl_nm, strerror(errno));
+	goto error;
+    }
+    flags = S_IRUSR | S_IWUSR | IPC_CREAT | IPC_EXCL;
+    shm_id = shmget(key, sizeof(struct Sigmet_Vol), flags);
+    if ( shm_id >= 0 ) {
+	/*
+	   shmget has returned a new shared memory identifier. 
+	   Load the volume and associated data.
+	 */
+
+	vol_p = shmat(shm_id, NULL, 0);
+	if ( vol_p == (void *)-1 ) {
+	    fprintf(stderr, "%s %s: could not attach to shared memory for "
+		    "volume.\n%s\n", argv0, argv1, strerror(errno));
+	    goto error;
+	}
+	Sigmet_Vol_Init(vol_p);
+	vol_p->shm = 1;
+	pid = -1;
+	if ( !(vol_fl = vol_open(vol_fl_nm, &pid)) ) {
+	    fprintf(stderr, "%s %s: could not open file %s for reading.\n%s\n",
+		    argv0, argv1, vol_fl_nm, strerror(errno));
+	    goto error;
+	}
+	status = Sigmet_Vol_Read(vol_fl, vol_p);
+	fclose(vol_fl);
+	if ( pid != -1 ) {
+	    waitpid(pid, NULL, 0);
+	}
+	if ( status != SIGMET_OK ) {
+	    fprintf(stderr, "%s %s: could not read volume.\n%s\n",
+		    argv0, argv1, sigmet_err(status));
+	    goto error;
+	}
+
+	/*
+	   Create a semaphore to control access to the volume. Initialize it
+	   with value 1. Callbacks should attempt to decrement the semaphore
+	   before accessing it, and restore the value when done.
+	 */
+
+	if ( (key = ftok(vol_fl_nm, ax_key_id)) == -1 ) {
+	    fprintf(stderr, "%s %s: could not get memory key for volume %s.\n"
+		    "%s\n", argv0, argv1, vol_fl_nm, strerror(errno));
+	    goto error;
+	}
+	if ( (sem_id = semget(key, 1, flags)) == -1 ) {
+	    perror("could not create new semaphore");
+	    goto error;
+	}
+	sem_arg.val = 0;
+	if ( semctl(sem_id, 0, SETVAL, sem_arg) == -1 ) {
+	    perror("could not initialize new semaphore");
+	    goto error;
+	}
+	sem_op.sem_num = 0;
+	sem_op.sem_op = 1;
+	sem_op.sem_flg = 0;
+	if ( semop(sem_id, &sem_op, 1) == -1 ) {
+	    perror("could not initialize new semaphore");
+	    goto error;
+	}
+
+	first_parent = 1;
+
+    } else if ( shm_id == -1 && errno == EEXIST ) {
+	/*
+	   shmget has returned an identifier for previously allocated shared
+	   memory. Assume the volume and associated data have been or are being
+	   loaded. Wait for the access semaphore to become valid, and to be
+	   initialized (as indicated by non-zero sem_otime). Then proceed.
+
+	   Ref. M. J. Rochkind, Advanced UNIX Programming, 2nd edition.
+	   Pearson Education. 2004.
+	 */
+
+	struct semid_ds buf;		/* Buffer to receive semaphore status */
+	int max_tries = 10;		/* Check for initialized key this many
+					   times */
+	int try;			/* Number of checks so far */
+
+	if ( (key = ftok(vol_fl_nm, ax_key_id)) == -1 ) {
+	    fprintf(stderr, "%s %s: could not get memory key for previously "
+		    "loaded volume %s.\n%s\n", argv0, argv1, vol_fl_nm,
+		    strerror(errno));
+	    goto error;
+	}
+	while ( (sem_id = semget(key, 1, S_IRUSR | S_IWUSR)) < 0 ) {
+	    if ( sem_id == -1 && errno == ENOENT ) {
+		sleep(1);
+	    } else {
+		fprintf(stderr, "%s %s: could not get access semaphore "
+			"for previously loaded volume %s.\n%s\n",
+			argv0, argv1, vol_fl_nm, strerror(errno));
+		goto error;
+	    }
+	}
+	sem_arg.buf = &buf;
+	for (buf.sem_otime = 0, try = 0;
+		buf.sem_otime == 0 && try < max_tries;
+		try++) {
+	    if ( semctl(sem_id, 0, IPC_STAT, sem_arg) == -1 ) {
+		fprintf(stderr, "%s %s: access semaphore for previously "
+			"loaded volume %s failed to initialize.\n%s\n",
+			argv0, argv1, vol_fl_nm, strerror(errno));
+		goto error;
+	    }
+	    sleep(1);
+	}
+	if ( try == max_tries ) {
+	    fprintf(stderr, "%s %s: access semaphore for previously "
+		    "loaded volume %s failed to initialize after checking %d "
+		    "times.\n", argv0, argv1, vol_fl_nm, max_tries);
+	    goto error;
+	}
+
+	first_parent = 0;
+
+    } else {
+	fprintf(stderr, "%s %s: could not allocate or identify volume in "
+		"shared memory.\n" "%s\n", argv0, argv1, strerror(errno));
+	goto error;
+    }
+
     /*
-       Allocate and initialize shared memory for volume.
+       Update environment so child command can locate and use the volume in
+       shared memory. Spawn the child command specified on the command line.
      */
 
-    shm_id = shmget(IPC_PRIVATE, sizeof(struct Sigmet_Vol), S_IRUSR | S_IWUSR);
-    if ( shm_id == -1 ) {
-	fprintf(stderr, "%s %s: could not allocate volume in shared memory.\n"
-		"%s\n", argv0, argv1, strerror(errno));
-	goto error;
-    }
-    vol_p = shmat(shm_id, NULL, 0);
-    if ( vol_p == (void *)-1 ) {
-	fprintf(stderr, "%s %s: could not attach to shared memory for "
-		"volume.\n%s\n", argv0, argv1, strerror(errno));
-	goto error;
-    }
-    Sigmet_Vol_Init(vol_p);
-    vol_p->shm = 1;
     if ( snprintf(shmid_s, LEN, SIGMET_VOL_SHMEM "=%d", shm_id) > LEN ) {
 	fprintf(stderr, "%s %s: could not create environment variable for "
 		"volume shared memory identifier.\n", argv0, argv1);
@@ -284,44 +414,6 @@ static int load_cb(int argc, char *argv[])
 	fprintf(stderr, "%s %s: could not put shared memory identifier for "
 		"volume into environment.\n%s\n",
 		argv0, argv1, strerror(errno));
-	goto error;
-    }
-
-    /*
-       Read the volume.
-     */
-
-    pid = -1;
-    if ( !(vol_fl = vol_open(vol_fl_nm, &pid)) ) {
-	fprintf(stderr, "%s %s: could not open file %s for reading.\n%s\n",
-		argv0, argv1, vol_fl_nm, strerror(errno));
-	goto error;
-    }
-    status = Sigmet_Vol_Read(vol_fl, vol_p);
-    fclose(vol_fl);
-    if ( pid != -1 ) {
-	waitpid(pid, NULL, 0);
-    }
-    if ( status != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: could not read volume.\n%s\n",
-		argv0, argv1, sigmet_err(status));
-	goto error;
-    }
-
-    /*
-       Create a semaphore to control access to the volume. Initialize it
-       with value 1. Callbacks should attempt to decrement the semaphore
-       before accessing it, and restore the value when done.
-     */
-
-    sem_id = semget(IPC_PRIVATE, 1, S_IRUSR | S_IWUSR);
-    if ( sem_id == -1 ) {
-	perror("could not create new semaphore");
-	goto error;
-    }
-    sem_arg.val = 1;
-    if ( semctl(sem_id, 0, SETVAL, sem_arg) == -1 ) {
-	perror("could not initialize new semaphore");
 	goto error;
     }
     if ( snprintf(sem_id_s, LEN, SIGMET_VOL_SEM "=%d", sem_id) > LEN ) {
@@ -335,11 +427,6 @@ static int load_cb(int argc, char *argv[])
 		argv0, argv1, strerror(errno));
 	goto error;
     }
-
-    /*
-       Spawn the command specified on command line as a child.
-     */
-
     fprintf(stderr, "%s %s: done reading. Sigmet volume in memory "
 	    "for process %d.\n", argv0, argv1, getpid());
     fprintf(stderr, "%s %s: spawning: ", argv0, argv1);
@@ -361,7 +448,7 @@ static int load_cb(int argc, char *argv[])
     }
 
     /*
-       Wait for child to exit. Free resources and return to main.
+       Wait for child to exit.
      */
 
     waitpid(pid, &ch_stat, 0);
@@ -378,28 +465,37 @@ static int load_cb(int argc, char *argv[])
 	status = 0;
     }
     fprintf(stderr, "%s: exiting.\n", argv0);
-    if ( !Sigmet_Vol_Free(vol_p) ) {
-	fprintf(stderr, "%s %s: could not free memory for volume.\n",
-		argv0, argv1);
-	status = 0;
+
+    /*
+       If this load call actually loaded the volume, unload it and free
+       resources. Otherwise, leave it alone.
+     */
+
+    if ( !first_parent ) {
+	if ( !Sigmet_Vol_Free(vol_p) ) {
+	    fprintf(stderr, "%s %s: could not free memory for volume.\n",
+		    argv0, argv1);
+	    status = 0;
+	}
+	if ( shmdt(vol_p) == -1 ) {
+	    fprintf(stderr, "%s %s: could not detach shared memory for "
+		    "volume.\n%s\n", argv0, argv1, strerror(errno));
+	    status = 0;
+	}
+	if ( shmctl(shm_id, IPC_RMID, NULL) == -1 ) {
+	    fprintf(stderr, "%s %s: could not remove shared memory for "
+		    "volume.\n%s\nPlease use ipcrm command for id %d\n",
+		    argv0, argv1, strerror(errno), shm_id);
+	    status = 0;
+	}
+	if ( semctl(sem_id, 0, IPC_RMID) == -1 ) {
+	    fprintf(stderr, "%s %s: could not remove semaphore for "
+		    "volume.\n%s\nPlease use ipcrm command for id %d\n",
+		    argv0, argv1, strerror(errno), sem_id);
+	    status = 0;
+	}
     }
-    if ( shmdt(vol_p) == -1 ) {
-	fprintf(stderr, "%s %s: could not detach shared memory for "
-		"volume.\n%s\n", argv0, argv1, strerror(errno));
-	status = 0;
-    }
-    if ( shmctl(shm_id, IPC_RMID, NULL) == -1 ) {
-	fprintf(stderr, "%s %s: could not remove shared memory for "
-		"volume.\n%s\nPlease use ipcrm command for id %d\n",
-		argv0, argv1, strerror(errno), shm_id);
-	status = 0;
-    }
-    if ( semctl(sem_id, 0, IPC_RMID) == -1 ) {
-	fprintf(stderr, "%s %s: could not remove semaphore for "
-		"volume.\n%s\nPlease use ipcrm command for id %d\n",
-		argv0, argv1, strerror(errno), sem_id);
-	status = 0;
-    }
+
     return status;
 
 error:
