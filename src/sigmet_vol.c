@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.171 $ $Date: 2012/10/05 21:12:48 $
+   .	$Revision: 1.172 $ $Date: 2012/10/26 19:10:55 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -232,9 +232,7 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
     for (n = 0; n < SIGMET_NTYPES; n++) {
 	vol_p->types_fl[n] = DB_XHDR;		/* Force error if used */
     }
-    vol_p->sweep_hdr = NULL;
     vol_p->sweep_hdr_id = -1;
-    vol_p->ray_hdr = NULL;
     vol_p->ray_hdr_id = -1;
     for (y = 0; y < SIGMET_MAX_TYPES; y++) {
 	memset(vol_p->dat[y].abbrv, 0, sizeof(vol_p->dat[y].abbrv));
@@ -247,7 +245,6 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
     }
     vol_p->truncated = 1;
     vol_p->size = sizeof(struct Sigmet_Vol);
-    vol_p->mod = 0;
     return;
 }
 
@@ -334,8 +331,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
     if ( vol_p->sweep_hdr == (void *)-1) {
 	fprintf(stderr, "Could not attach to sweep headers "
 		"in shared memory.\n%s\n", strerror(errno));
-	vol_p->sweep_hdr = NULL;
-	return 0;
+	goto error;
     }
 
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
@@ -346,8 +342,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
     if ( vol_p->ray_hdr == (void *)-1) {
 	fprintf(stderr, "Could not attach to ray headers "
 		"in shared memory.\n%s\n", strerror(errno));
-	vol_p->ray_hdr = NULL;
-	return 0;
+	goto error;
     }
     vol_p->ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(vol_p->ray_hdr + num_sweeps);
     for (n = 1; n < num_sweeps; n++) {
@@ -365,8 +360,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "Could not attach to data array for "
 			    "field %s in shared memory.\n%s\n",
 			    dat_p->abbrv, strerror(errno));
-		    vol_p->ray_hdr = NULL;
-		    return 0;
+		    goto error;
 		} else {
 		    U1BYT ***dat;
 
@@ -388,8 +382,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "Could not attach to data array for field"
 			    " %s in shared memory.\n%s\n",
 			    dat_p->abbrv, strerror(errno));
-		    vol_p->ray_hdr = NULL;
-		    return 0;
+		    goto error;
 		} else {
 		    U2BYT ***dat;
 
@@ -411,8 +404,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "Could not attach to data array for field"
 			    " %s in shared memory.\n%s\n",
 			    dat_p->abbrv, strerror(errno));
-		    vol_p->ray_hdr = NULL;
-		    return 0;
+		    goto error;
 		} else {
 		    float ***dat, *d;
 
@@ -437,11 +429,16 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 	    case SIGMET_MT:
 		fprintf(stderr, "Volume in memory is corrupt. Unknown data "
 			"type in data array for field %s.\n", dat_p->abbrv);
-		return 0;
+		goto error;
 		break;
 	}
     }
     return 1;
+
+error:
+    vol_p->sweep_hdr = NULL;
+    vol_p->ray_hdr = NULL;
+    return 0;
 }
 
 /*
