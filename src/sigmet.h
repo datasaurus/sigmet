@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.113 $ $Date: 2012/10/05 21:47:32 $
+   .	$Revision: 1.114 $ $Date: 2012/10/26 19:09:00 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -584,6 +584,7 @@ struct Sigmet_Vol {
     int shm;				/* If true, volume allocations are in
 					   shared memory. Otherwise, allocations
 					   are in process address space. */
+    int num_users;			/* Number of clients using the volume */
 };
 
 /*
