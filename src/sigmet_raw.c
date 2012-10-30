@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.102 $ $Date: 2012/10/26 19:10:55 $
+   .	$Revision: 1.103 $ $Date: 2012/10/29 22:19:58 $
  */
 
 #include "unix_defs.h"
@@ -310,6 +310,8 @@ static int load_cb(int argc, char *argv[])
 		    argv0, argv1, sigmet_err(status));
 	    goto error;
 	}
+	printf("%s %s: done reading. Sigmet volume in memory "
+		"for process %d.\n", argv0, argv1, getpid());
 
 	/*
 	   Create a semaphore to control access to the volume. Initialize it
@@ -323,12 +325,16 @@ static int load_cb(int argc, char *argv[])
 	    goto error;
 	}
 	if ( (sem_id = semget(key, 1, flags)) == -1 ) {
-	    perror("could not create new semaphore");
+	    fprintf(stderr, "%s %s: could not create access semaphore for "
+		    "volume %s.\n%s\n", argv0, argv1, vol_fl_nm,
+		    strerror(errno));
 	    goto error;
 	}
 	sem_arg.val = 0;
 	if ( semctl(sem_id, 0, SETVAL, sem_arg) == -1 ) {
-	    perror("could not initialize new semaphore");
+	    fprintf(stderr, "%s %s: could not initialize access semaphore for "
+		    "volume %s.\n%s\n", argv0, argv1, vol_fl_nm,
+		    strerror(errno));
 	    goto error;
 	}
 	sem_op.sem_num = 0;
@@ -345,8 +351,8 @@ static int load_cb(int argc, char *argv[])
 	/*
 	   shmget has returned an identifier for previously allocated shared
 	   memory. Assume the volume and associated data have been or are being
-	   loaded. Wait for the access semaphore to become valid, and to be
-	   initialized (as indicated by non-zero sem_otime). Then proceed.
+	   loaded by another daemon.  Wait for the competing daemon to finish
+	   creating and intializing the access semaphore. Then proceed.
 
 	   Ref. M. J. Rochkind, Advanced UNIX Programming, 2nd edition.
 	   Pearson Education. 2004.
@@ -357,13 +363,23 @@ static int load_cb(int argc, char *argv[])
 					   times */
 	int try;			/* Number of checks so far */
 
+	flags = S_IRUSR | S_IWUSR;
+	shm_id = shmget(key, sizeof(struct Sigmet_Vol), flags);
+	if ( shm_id == -1 ) {
+	    fprintf(stderr, "%s %s: could not attach to volume %s in shared "
+		    "memory.\n%s\n", argv0, argv1, vol_fl_nm, strerror(errno));
+	    goto error;
+	}
+	printf("%s %s: attaching to %s in shared memory.\n",
+		argv0, argv1, vol_fl_nm);
+
 	if ( (key = ftok(vol_fl_nm, ax_key_id)) == -1 ) {
 	    fprintf(stderr, "%s %s: could not get memory key for previously "
 		    "loaded volume %s.\n%s\n", argv0, argv1, vol_fl_nm,
 		    strerror(errno));
 	    goto error;
 	}
-	while ( (sem_id = semget(key, 1, S_IRUSR | S_IWUSR)) < 0 ) {
+	while ( (sem_id = semget(key, 1, flags)) < 0 ) {
 	    if ( sem_id == -1 && errno == ENOENT ) {
 		sleep(1);
 	    } else {
@@ -427,8 +443,6 @@ static int load_cb(int argc, char *argv[])
 		argv0, argv1, strerror(errno));
 	goto error;
     }
-    fprintf(stderr, "%s %s: done reading. Sigmet volume in memory "
-	    "for process %d.\n", argv0, argv1, getpid());
     fprintf(stderr, "%s %s: spawning: ", argv0, argv1);
     for (arg = argv + 3; *arg; arg++) {
 	fprintf(stderr, "%s ", *arg);
@@ -453,25 +467,29 @@ static int load_cb(int argc, char *argv[])
 
     waitpid(pid, &ch_stat, 0);
     if ( WIFEXITED(ch_stat) ) {
-	fprintf(stderr, "%s: ", argv0);
+	FILE *msg_out;			/* Where to put final message */
+
+	status = WEXITSTATUS(ch_stat);
+	msg_out = (status == EXIT_SUCCESS) ? stdout : stderr;
+	fprintf(msg_out, "%s: ", argv0);
 	for (arg = argv + 3; *arg; arg++) {
-	    fprintf(stderr, "%s ", *arg);
+	    fprintf(msg_out, "%s ", *arg);
 	}
-	fprintf(stderr, "exited with status %d\n", WEXITSTATUS(ch_stat));
-	status = (WEXITSTATUS(ch_stat) == EXIT_SUCCESS);
+	fprintf(msg_out, "exited with status %d\n", status);
+	fprintf(msg_out, "%s: exiting.\n", argv0);
     } else if ( WIFSIGNALED(ch_stat) ) {
 	fprintf(stderr, "%s: child process exited on signal %d\n",
 		argv0, WTERMSIG(ch_stat));
-	status = 0;
+	fprintf(stderr, "%s: exiting.\n", argv0);
+	status = EXIT_FAILURE;
     }
-    fprintf(stderr, "%s: exiting.\n", argv0);
 
     /*
        If this load call actually loaded the volume, unload it and free
-       resources. Otherwise, leave it alone.
+       resources.
      */
 
-    if ( !first_parent ) {
+    if ( first_parent ) {
 	if ( !Sigmet_Vol_Free(vol_p) ) {
 	    fprintf(stderr, "%s %s: could not free memory for volume.\n",
 		    argv0, argv1);
