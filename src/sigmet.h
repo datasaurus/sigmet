@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.114 $ $Date: 2012/10/26 19:09:00 $
+   .	$Revision: 1.115 $ $Date: 2012/10/30 23:05:06 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -181,7 +181,7 @@ struct Sigmet_Product_Configuration {
     int x_smooth;
     int y_smooth;
     struct Sigmet_Product_Specific_Info psi;
-    char suffixes[13];
+    char suffixes[16];
     struct Sigmet_Color_Scale_Def csd;
 };
 
