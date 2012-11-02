@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.105 $ $Date: 2012/10/30 23:04:21 $
+   .	$Revision: 1.106 $ $Date: 2012/11/01 22:38:51 $
  */
 
 #include "unix_defs.h"
@@ -338,12 +338,11 @@ static int load_cb(int argc, char *argv[])
 		"for process %d.\n", argv0, argv1, getpid());
 
 	/*
-	   Create the semaphore that controls volume access.  Allow write
-	   access, but not read access. This will tell competing load
+	   Create the semaphore that controls volume access.  Create with
+	   write access, but not read access. This will tell competing load
 	   processes to wait (see the "else if" block below). Allow read
 	   access once semaphore is fully initialized.
 	 */
-
 	if ( (ax_key = ftok(vol_fl_nm, ax_key_id)) == -1 ) {
 	    fprintf(stderr, "%s %s: could not get memory key for volume %s.\n"
 		    "%s\n", argv0, argv1, vol_fl_nm, strerror(errno));
@@ -394,6 +393,7 @@ static int load_cb(int argc, char *argv[])
 	flags = S_IRUSR | S_IWUSR;
 	while ( (ax_sem_id = semget(ax_key, 1, flags)) == -1 ) {
 	    if ( errno == ENOENT || errno == EACCES ) {
+		printf("Waiting for semaphore.\n");
 		sleep(1);
 	    } else {
 		fprintf(stderr, "%s %s: could not get access semaphore "
@@ -532,6 +532,7 @@ static int load_cb(int argc, char *argv[])
 	goto error;
     }
     if ( vol_p->num_users == 0 && ncnt == 0 ) {
+	printf("%s %s: volume no longer in use. Unloading.\n", argv0, argv1);
 	if ( semctl(ax_sem_id, 0, IPC_RMID) == -1 ) {
 	    fprintf(stderr, "%s %s: could not remove semaphore for "
 		    "volume.\n%s\nPlease use ipcrm command for id %d\n",
@@ -555,6 +556,10 @@ static int load_cb(int argc, char *argv[])
 	    status = 0;
 	}
 	return status;
+    } else {
+	printf("%s %s: volume still has %d user%s. Leaving volume loaded "
+		"in shared memory.\n", argv0, argv1, vol_p->num_users,
+		(vol_p->num_users > 1) ? "s" : "");
     }
     if ( shmdt(vol_p) == -1 ) {
 	fprintf(stderr, "%s %s: could not detach shared memory for "
