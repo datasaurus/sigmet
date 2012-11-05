@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.172 $ $Date: 2012/10/26 19:10:55 $
+   .	$Revision: 1.173 $ $Date: 2012/10/30 21:54:52 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -258,21 +258,22 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
     }
     if ( vol_p->shm ) {
 	if ( !Sigmet_ShMemDetach(vol_p) ) {
-	    fprintf(stderr, "Could not detach volume from shared memory.\n");
+	    fprintf(stderr, "%d: could not detach volume from shared "
+		    "memory.\n", getpid());
 	    status = 0;
 	}
 	if ( vol_p->sweep_hdr_id != -1
 		&& shmctl(vol_p->sweep_hdr_id, IPC_RMID, NULL) == -1 ) {
-	    fprintf(stderr, "Could not remove shared memory for "
+	    fprintf(stderr, "%d: could not remove shared memory for "
 		    "sweep headers.\n%s\nPlease use ipcrm command for id %d\n",
-		    strerror(errno), vol_p->sweep_hdr_id);
+		    getpid(), strerror(errno), vol_p->sweep_hdr_id);
 	    status = 0;
 	}
 	if ( vol_p->ray_hdr_id != -1
 		&& shmctl(vol_p->ray_hdr_id, IPC_RMID, NULL) == -1 ) {
-	    fprintf(stderr, "Could not remove shared memory for "
+	    fprintf(stderr, "%d: could not remove shared memory for "
 		    "ray headers.\n%s\nPlease use ipcrm command for id %d\n",
-		    strerror(errno), vol_p->ray_hdr_id);
+		    getpid(), strerror(errno), vol_p->ray_hdr_id);
 	    status = 0;
 	}
 	for (dat_p = vol_p->dat;
@@ -280,9 +281,9 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 		dat_p++) {
 	    if ( dat_p->vals_id != -1
 		    && shmctl(dat_p->vals_id, IPC_RMID, NULL) == -1 ) {
-		fprintf(stderr, "Could not remove shared memory for "
+		fprintf(stderr, "%d: could not remove shared memory for "
 			"%s array.\n%s\nPlease use ipcrm command for id %d\n",
-			dat_p->abbrv, strerror(errno),
+			getpid(), dat_p->abbrv, strerror(errno),
 			dat_p->vals_id);
 		status = 0;
 	    }
@@ -329,8 +330,8 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 
     vol_p->sweep_hdr = shmat(vol_p->sweep_hdr_id, NULL, 0);
     if ( vol_p->sweep_hdr == (void *)-1) {
-	fprintf(stderr, "Could not attach to sweep headers "
-		"in shared memory.\n%s\n", strerror(errno));
+	fprintf(stderr, "%d: could not attach to sweep headers "
+		"in shared memory.\n%s\n", getpid(), strerror(errno));
 	goto error;
     }
 
@@ -340,8 +341,8 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 
     vol_p->ray_hdr = shmat(vol_p->ray_hdr_id, NULL, 0);
     if ( vol_p->ray_hdr == (void *)-1) {
-	fprintf(stderr, "Could not attach to ray headers "
-		"in shared memory.\n%s\n", strerror(errno));
+	fprintf(stderr, "%d: could not attach to ray headers "
+		"in shared memory.\n%s\n", getpid(), strerror(errno));
 	goto error;
     }
     vol_p->ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(vol_p->ray_hdr + num_sweeps);
@@ -357,9 +358,9 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 	    case SIGMET_U1:
 		dat_p->vals.u1 = shmat(dat_p->vals_id, NULL, 0);
 		if ( dat_p->vals.u1 == (void *)-1) {
-		    fprintf(stderr, "Could not attach to data array for "
+		    fprintf(stderr, "%d: could not attach to data array for "
 			    "field %s in shared memory.\n%s\n",
-			    dat_p->abbrv, strerror(errno));
+			    getpid(), dat_p->abbrv, strerror(errno));
 		    goto error;
 		} else {
 		    U1BYT ***dat;
@@ -379,9 +380,9 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 	    case SIGMET_U2:
 		dat_p->vals.u2 = shmat(dat_p->vals_id, NULL, 0);
 		if ( dat_p->vals.u2 == (void *)-1) {
-		    fprintf(stderr, "Could not attach to data array for field"
-			    " %s in shared memory.\n%s\n",
-			    dat_p->abbrv, strerror(errno));
+		    fprintf(stderr, "%d: could not attach to data array for "
+			    "field %s in shared memory.\n%s\n",
+			    getpid(), dat_p->abbrv, strerror(errno));
 		    goto error;
 		} else {
 		    U2BYT ***dat;
@@ -401,9 +402,9 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 	    case SIGMET_FLT:
 		dat_p->vals.f = shmat(dat_p->vals_id, NULL, 0);
 		if ( dat_p->vals.f == (void *)-1) {
-		    fprintf(stderr, "Could not attach to data array for field"
-			    " %s in shared memory.\n%s\n",
-			    dat_p->abbrv, strerror(errno));
+		    fprintf(stderr, "%d: could not attach to data array for "
+			    "field %s in shared memory.\n%s\n",
+			    getpid(), dat_p->abbrv, strerror(errno));
 		    goto error;
 		} else {
 		    float ***dat, *d;
@@ -427,8 +428,9 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		break;
 	    case SIGMET_DBL:
 	    case SIGMET_MT:
-		fprintf(stderr, "Volume in memory is corrupt. Unknown data "
-			"type in data array for field %s.\n", dat_p->abbrv);
+		fprintf(stderr, "%d: volume in memory is corrupt. Unknown data "
+			"type in data array for field %s.\n",
+			getpid(), dat_p->abbrv);
 		goto error;
 		break;
 	}
@@ -454,14 +456,14 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 	return 0;
     }
     if ( vol_p->sweep_hdr && shmdt(vol_p->sweep_hdr) == -1 ) {
-	fprintf(stderr, "Could not detach shared memory for "
-		"sweep headers.\n%s\n", strerror(errno));
+	fprintf(stderr, "%d: could not detach shared memory for "
+		"sweep headers.\n%s\n", getpid(), strerror(errno));
 	status = 0;
     }
     vol_p->sweep_hdr = NULL;
     if ( vol_p->ray_hdr && shmdt(vol_p->ray_hdr) == -1 ) {
-	fprintf(stderr, "Could not detach shared memory for "
-		"ray headers.\n%s\n", strerror(errno));
+	fprintf(stderr, "%d: could not detach shared memory for "
+		"ray headers.\n%s\n", getpid(), strerror(errno));
 	status = 0;
     }
     vol_p->ray_hdr = NULL;
@@ -469,27 +471,27 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 	switch (dat_p->stor_fmt) {
 	    case SIGMET_U1:
 		if ( dat_p->vals.u1 && shmdt(dat_p->vals.u1) == -1 ) {
-		    fprintf(stderr, "Could not detach shared memory "
+		    fprintf(stderr, "%d: could not detach shared memory "
 			    "for %s.\n%s\n",
-			    dat_p->abbrv, strerror(errno));
+			    getpid(), dat_p->abbrv, strerror(errno));
 		    status = 0;
 		}
 		dat_p->vals.u1 = NULL;
 		break;
 	    case SIGMET_U2:
 		if ( dat_p->vals.u2 && shmdt(dat_p->vals.u2) == -1 ) {
-		    fprintf(stderr, "Could not detach shared memory "
+		    fprintf(stderr, "%d: could not detach shared memory "
 			    "for %s.\n%s\n",
-			    dat_p->abbrv, strerror(errno));
+			    getpid(), dat_p->abbrv, strerror(errno));
 		    status = 0;
 		}
 		dat_p->vals.u2 = NULL;
 		break;
 	    case SIGMET_FLT:
 		if ( dat_p->vals.f && shmdt(dat_p->vals.f) == -1 ) {
-		    fprintf(stderr, "Could not detach shared memory "
+		    fprintf(stderr, "%d: could not detach shared memory "
 			    "for %s.\n%s\n",
-			    dat_p->abbrv, strerror(errno));
+			    getpid(), dat_p->abbrv, strerror(errno));
 		    status = 0;
 		}
 		dat_p->vals.f = NULL;
@@ -607,13 +609,14 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     unsigned vol_type_mask;
 
     if ( !f ) {
-	fprintf(stderr, "Read header function called with bogus "
-		"input stream.\n");
+	fprintf(stderr, "%d: read header function called with bogus "
+		"input stream.\n", getpid());
 	status = SIGMET_BAD_ARG;
 	goto error;
     }
     if ( !vol_p ) {
-	fprintf(stderr, "Read header function called with bogus volume.\n");
+	fprintf(stderr, "%d: read header function called with bogus volume.\n",
+		getpid());
 	status = SIGMET_BAD_ARG;
 	goto error;
     }
@@ -623,7 +626,8 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
      */
 
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
-	fprintf(stderr, "Could not read record 1 of Sigmet volume.\n");
+	fprintf(stderr, "%d: could not read record 1 of Sigmet volume.\n",
+		getpid());
 	status = SIGMET_IO_FAIL;
 	goto error;
     }
@@ -636,7 +640,8 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     if (get_sint16(rec) != 27) {
 	Toggle_Swap();
 	if (get_sint16(rec) != 27) {
-	    fprintf(stderr,  "Bad magic number (should be 27).\n");
+	    fprintf(stderr,  "%d: bad magic number (should be 27).\n",
+		    getpid());
 	    status = SIGMET_BAD_FILE;
 	    goto error;
 	}
@@ -649,7 +654,8 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
      */
 
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
-	fprintf(stderr, "Could not read record 2 of Sigmet volume.\n");
+	fprintf(stderr, "%d: could not read record 2 of Sigmet volume.\n",
+		getpid());
 	status = SIGMET_IO_FAIL;
 	goto error;
     }
@@ -697,8 +703,8 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		    break;
 		case SIGMET_FLT:
 		case SIGMET_DBL:
-		    fprintf(stderr, "Volume in memory is corrupt. Unknown "
-			    "data type in data array.");
+		    fprintf(stderr, "%d: volume in memory is corrupt. Unknown "
+			    "data type in data array.", getpid());
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		    break;
@@ -995,18 +1001,22 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     U1BYT *ray_e = NULL;		/* End of allocation at ray_buf */
 
     size_t raySz;			/* Allocation size for a ray_buf */
-    U1BYT *u1;				/* Pointer to start of data in ray_buf */
-    U2BYT *u2;				/* Pointer to start of data in ray_buf */
+    U1BYT *u1;				/* Pointer to start of data in
+					   ray_buf */
+    U2BYT *u2;				/* Pointer to start of data in
+					   ray_buf */
     unsigned numWds;			/* Number of words in a run of data */
     int s, r, b;			/* Sweep, ray, bin indeces */
-    int yf, y;				/* Indeces for type in file, type in dat */
+    int yf, y;				/* Indeces for type in file, type in
+					   dat */
     int i, n;				/* Temporary values */
     int nbins;				/* vol_p->ray_hdr[s][r]num_bins */
     int tm_incr;			/* Ray time adjustment */
     int *id_p;				/* Receive shared memory identifier */
 
     if ( !f ) {
-	fprintf(stderr, "Read function called with bogus input stream.\n");
+	fprintf(stderr, "%d: read function called with bogus input stream.\n",
+		getpid());
 	status = SIGMET_BAD_ARG;
 	goto error;
     }
@@ -1022,7 +1032,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
      */
 
     if ( (status = Sigmet_Vol_ReadHdr(f, vol_p)) != SIGMET_OK ) {
-	fprintf(stderr, "Could not read volume headers.\n");
+	fprintf(stderr, "%d: could not read volume headers.\n", getpid());
 	Sigmet_Vol_Free(vol_p);
 	return status;
     }
@@ -1043,15 +1053,15 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	sz = num_sweeps * sizeof(*vol_p->sweep_hdr);
 	vol_p->sweep_hdr_id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
 	if ( vol_p->sweep_hdr_id == -1 ) {
-	    fprintf(stderr, "Could not create shared memory for "
-		    "sweep headers.\n%s\n", strerror(errno));
+	    fprintf(stderr, "%d: could not create shared memory for "
+		    "sweep headers.\n%s\n", getpid(), strerror(errno));
 	    status = SIGMET_ALLOC_FAIL;
 	    goto error;
 	}
 	vol_p->sweep_hdr = shmat(vol_p->sweep_hdr_id, NULL, 0);
 	if ( vol_p->sweep_hdr == (void *)-1 ) {
-	    fprintf(stderr, "Could not attach to shared memory for "
-		    "sweep headers.\n%s\n", strerror(errno));
+	    fprintf(stderr, "%d: could not attach to shared memory for "
+		    "sweep headers.\n%s\n", getpid(), strerror(errno));
 	    status = SIGMET_ALLOC_FAIL;
 	    goto error;
 	}
@@ -1059,7 +1069,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     } else {
 	vol_p->sweep_hdr = CALLOC(num_sweeps, sizeof(*vol_p->sweep_hdr));
 	if ( !vol_p->sweep_hdr ) {
-	    fprintf(stderr, "Could not allocate sweep header array.\n");
+	    fprintf(stderr, "%d: could not allocate sweep header array.\n",
+		    getpid());
 	    status = SIGMET_ALLOC_FAIL;
 	    goto error;
 	}
@@ -1069,7 +1080,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     id_p = vol_p->shm ? &vol_p->ray_hdr_id : NULL;
     vol_p->ray_hdr = malloc2rh(num_sweeps, num_rays, id_p);
     if ( !vol_p->ray_hdr ) {
-	fprintf(stderr, "Could not allocate ray header array.\n");
+	fprintf(stderr, "%d: could not allocate ray header array.\n", getpid());
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
@@ -1082,8 +1093,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		vol_p->dat[y].vals.u1
 		    = malloc3_u1(num_sweeps, num_rays, num_bins, id_p);
 		if ( !vol_p->dat[y].vals.u1 ) {
-		    fprintf(stderr, "Could not allocate memory for %s\n",
-			    vol_p->dat[y].abbrv);
+		    fprintf(stderr, "%d: could not allocate memory for %s\n",
+			    getpid(), vol_p->dat[y].abbrv);
 		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
 		}
@@ -1093,8 +1104,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		vol_p->dat[y].vals.u2
 		    = malloc3_u2(num_sweeps, num_rays, num_bins, id_p);
 		if ( !vol_p->dat[y].vals.u2 ) {
-		    fprintf(stderr, "Could not allocate memory for %s\n",
-			    vol_p->dat[y].abbrv);
+		    fprintf(stderr, "%d: could not allocate memory for %s\n",
+			    getpid(), vol_p->dat[y].abbrv);
 		    status = SIGMET_ALLOC_FAIL;
 		    goto error;
 		}
@@ -1103,8 +1114,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    case SIGMET_FLT:
 	    case SIGMET_DBL:
 	    case SIGMET_MT:
-		fprintf(stderr, "Volume in memory is corrupt. Unknown data "
-			"type in data array.");
+		fprintf(stderr, "%d: volume in memory is corrupt. Unknown data "
+			"type in data array.", getpid());
 		status = SIGMET_BAD_VOL;
 		goto error;
 		break;
@@ -1120,7 +1131,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	+ vol_p->num_types * 2 * num_bins;
     ray_buf = (U1BYT *)MALLOC(raySz);
     if ( !ray_buf ) {
-	fprintf(stderr, "Could not allocate input ray buffer.\n");
+	fprintf(stderr, "%d: could not allocate input ray buffer.\n", getpid());
 	status = SIGMET_ALLOC_FAIL;
 	goto error;
     }
@@ -1144,8 +1155,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	n = get_sint16(rec + 2);
 
 	if (i != rec_idx + 1) {
-	    fprintf(stderr, "Sigmet raw product file records out of "
-		    "sequence.\n");
+	    fprintf(stderr, "%d: sigmet raw product file records out of "
+		    "sequence.\n", getpid());
 	    status = SIGMET_BAD_FILE;
 	    goto error;
 	}
@@ -1169,8 +1180,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    vol_p->num_sweeps_ax = sweep_num;
 		    return SIGMET_OK;
 		} else {
-		    fprintf(stderr, "Sweep number out of order in raw product "
-			    "file.\n");
+		    fprintf(stderr, "%d: sweep number out of order in raw "
+			    "product file.\n", getpid());
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
@@ -1178,7 +1189,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    vol_p->sweep_hdr[sweep_num].ok = 1;
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
-		fprintf(stderr, "Volume has excess sweeps.\n");
+		fprintf(stderr, "%d: volume has excess sweeps.\n", getpid());
 		status = SIGMET_BAD_FILE;
 		goto error;
 	    }
@@ -1268,8 +1279,9 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 			}
 			i = get_sint16(rec);
 			if (i != rec_idx + 1) {
-			    fprintf(stderr, "Corrupt Sigmet raw product file: "
-				    "records  out of sequence.\n");
+			    fprintf(stderr, "%d: corrupt Sigmet raw product "
+				    "file: records  out of sequence.\n",
+				    getpid());
 			    status = SIGMET_BAD_FILE;
 			    goto error;
 			}
@@ -1282,8 +1294,9 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    numWds--;
 		}
 		if ( ray_p == ray_e && rec_p < rec_e ) {
-		    fprintf(stderr, "Corrupt Sigmet raw product file: record "
-			    "provided more data than could fit in a ray.\n");
+		    fprintf(stderr, "%d: corrupt Sigmet raw product file: "
+			    "record provided more data than could fit in a "
+			    "ray.\n", getpid());
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
@@ -1294,14 +1307,14 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		 */
 
 		if (s > num_sweeps) {
-		    fprintf(stderr, "Volume has more sweeps than reported in "
-			    "header.\n");
+		    fprintf(stderr, "%d: volume has more sweeps than reported "
+			    "in header.\n", getpid());
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
 		if (r > num_rays) {
-		    fprintf(stderr, "Volume has more rays than reported in "
-			    "header.\n");
+		    fprintf(stderr, "%d: volume has more rays than reported in "
+			    "header.\n", getpid());
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
@@ -1321,7 +1334,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		vol_p->ray_hdr[s][r].az1 = Sigmet_Bin2Rad(az1_i);
 		vol_p->ray_hdr[s][r].tilt1 = Sigmet_Bin2Rad(tilt1_i);
 
-		vol_p->ray_hdr[s][r].ok = !(az0_i == az1_i && tilt0_i == tilt1_i);
+		vol_p->ray_hdr[s][r].ok
+		    = !(az0_i == az1_i && tilt0_i == tilt1_i);
 
 		nbins = vol_p->ray_hdr[s][r].num_bins = get_sint16(ray_buf + 8);
 		if ( !vol_p->xhdr ) {
@@ -1337,7 +1351,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		y = yf - vol_p->xhdr;
 		if ( vol_p->types_fl[yf] == DB_XHDR ) {
 		    tm_incr = get_sint32(ray_buf + SZ_RAY_HDR);
-		    vol_p->ray_hdr[s][r].time = swpTm + tm_incr * 0.001 / 86400.0;
+		    vol_p->ray_hdr[s][r].time
+			= swpTm + tm_incr * 0.001 / 86400.0;
 		} else {
 		    U1BYT *vol_u1;
 		    U2BYT *vol_u2;
@@ -1356,7 +1371,8 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 			    }
 			    break;
 			default:
-			    fprintf(stderr, "Volume has unknown data type.\n");
+			    fprintf(stderr, "%d: volume has unknown data "
+				    "type.\n", getpid());
 			    status = SIGMET_BAD_FILE;
 			    goto error;
 			    break;
@@ -1381,8 +1397,9 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 
 		numWds = 0x7FFF & cc;
 		if ( numWds > ray_e - ray_p ) {
-		    fprintf(stderr, "Corrupt volume.\n"
-			    "Run of zeros tried to go past end of ray.\n");
+		    fprintf(stderr, "%d: corrupt volume.\n"
+			    "Run of zeros tried to go past end of ray.\n",
+			    getpid());
 		    status = SIGMET_BAD_FILE;
 		    goto error;
 		}
@@ -1430,25 +1447,28 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     int id;
 
     if ( !abbrv ) {
-	fprintf(stderr, "Attempted to add bogus data type to a volume.\n");
+	fprintf(stderr, "%d: attempted to add bogus data type to a volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add data type to a bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add data type to a bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, NULL) ) {
-	fprintf(stderr, "%s is a build in Sigmet data type. Please choose "
-		"another name.\n", abbrv);
+	fprintf(stderr, "%d: %s is a build in Sigmet data type. Please choose "
+		"another name.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( hash_get(vol_p, abbrv) ) {
-	fprintf(stderr, "Data type %s already exists in volume.\n", abbrv);
+	fprintf(stderr, "%d: data type %s already exists in volume.\n",
+		getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( vol_p->num_types + 1 > SIGMET_MAX_TYPES ) {
-	fprintf(stderr, "Adding %s to volume would exceed maximum type "
-		"count.\n", abbrv);
+	fprintf(stderr, "%d: adding %s to volume would exceed maximum type "
+		"count.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
 
@@ -1466,7 +1486,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     flt_p = malloc3_flt(num_sweeps, num_rays, num_bins,
 	    vol_p->shm ? &id : NULL);
     if ( !flt_p ) {
-	fprintf(stderr, "Could not allocate new field ");
+	fprintf(stderr, "%d: could not allocate new field ", getpid());
 	return SIGMET_ALLOC_FAIL;
     }
 
@@ -1492,15 +1512,16 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
     int num_sweeps, num_rays, num_bins;
 
     if ( !abbrv ) {
-	fprintf(stderr, "Attempted to remove a bogus field.\n");
+	fprintf(stderr, "%d: attempted to remove a bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to remove a field from a bogus volume.\n");
+	fprintf(stderr, "%d: attempted to remove a field from a "
+		"bogus volume.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !(d_p = hash_get(vol_p, abbrv)) ) {
-	fprintf(stderr, "Data type %s not in volume.\n", abbrv);
+	fprintf(stderr, "%d: data type %s not in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     FREE(d_p->vals.f);
@@ -1541,7 +1562,7 @@ int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     dat_p->stor_fmt = SIGMET_FLT;
@@ -1577,7 +1598,7 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *abbrv)
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     dat_p->stor_fmt = SIGMET_FLT;
@@ -1612,28 +1633,30 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     float v2;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add field to bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add field to bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv1 || !abbrv2 ) {
-	fprintf(stderr, "Attempted to add bogus field.\n");
+	fprintf(stderr, "%d: attempted to add bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
-	fprintf(stderr, "%s is a built in Sigmet data type.\n"
-		" No modification allowed.\n", abbrv1);
+	fprintf(stderr, "%d: %s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv1);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p1->stor_fmt != SIGMET_FLT ) {
-	fprintf(stderr, "Editable field in volume not in correct format.\n");
+	fprintf(stderr, "%d: editable field in volume not in correct format.\n",
+		getpid());
 	return SIGMET_BAD_VOL;
     }
     if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv2);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv2);
 	return SIGMET_BAD_ARG;
     }
     switch (dat_p2->stor_fmt) {
@@ -1658,7 +1681,8 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_hdr[s][r].ok ) {
-			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)  {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
 				dat_p1->vals.f[s][r][b] = v2;
@@ -1681,7 +1705,8 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_hdr[s][r].ok ) {
-			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)  {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
@@ -1706,24 +1731,26 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
     float *dp, *dp1;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add field to bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add field to bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv ) {
-	fprintf(stderr, "Attempted to add bogus field.\n");
+	fprintf(stderr, "%d: attempted to add bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	fprintf(stderr, "%s is a built in Sigmet data type.\n"
-		" No modification allowed.\n", abbrv);
+	fprintf(stderr, "%d: %s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p->stor_fmt != SIGMET_FLT ) {
-	fprintf(stderr, "Editable field in volume not in correct format.\n");
+	fprintf(stderr, "%d: editable field in volume not in correct format.\n",
+		getpid());
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -1757,24 +1784,26 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     float v1, v2;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add field to bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add field to bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv1 || !abbrv2 ) {
-	fprintf(stderr, "Attempted to add bogus field.\n");
+	fprintf(stderr, "%d: attempted to add bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
-	fprintf(stderr, "%s is a built in Sigmet data type.\n"
-		" No modification allowed.\n", abbrv1);
+	fprintf(stderr, "%d: %s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv1);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p1->stor_fmt != SIGMET_FLT ) {
-	fprintf(stderr, "Editable field in volume not in correct format.\n");
+	fprintf(stderr, "%d: editable field in volume not in correct format.\n",
+		getpid());
 	return SIGMET_BAD_VOL;
     }
     if ( *abbrv2 == '-' ) {
@@ -1782,7 +1811,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	abbrv2++;
     }
     if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv2);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv2);
 	return SIGMET_BAD_ARG;
     }
     switch (dat_p2->stor_fmt) {
@@ -1812,7 +1841,8 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_hdr[s][r].ok ) {
-			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)  {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp (v2, vol_p);
@@ -1879,24 +1909,26 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
     float *dp, *dp1;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add field to bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add field to bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv ) {
-	fprintf(stderr, "Attempted to add bogus field.\n");
+	fprintf(stderr, "%d: attempted to add bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	fprintf(stderr, "%s is a built in Sigmet data type.\n"
-		" No modification allowed.\n", abbrv);
+	fprintf(stderr, "%d: %s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p->stor_fmt != SIGMET_FLT ) {
-	fprintf(stderr, "Editable field in volume not in correct format.\n");
+	fprintf(stderr, "%d: editable field in volume not in correct format.\n",
+		getpid());
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -1930,24 +1962,26 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     float v1, v2;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add field to bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add field to bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv1 || !abbrv2 ) {
-	fprintf(stderr, "Attempted to add bogus field.\n");
+	fprintf(stderr, "%d: attempted to add bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
-	fprintf(stderr, "%s is a built in Sigmet data type.\n"
-		" No modification allowed.\n", abbrv1);
+	fprintf(stderr, "%d: %s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv1);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p1->stor_fmt != SIGMET_FLT ) {
-	fprintf(stderr, "Editable field in volume not in correct format.\n");
+	fprintf(stderr, "%d: editable field in volume not in correct format.\n",
+		getpid());
 	return SIGMET_BAD_VOL;
     }
     if ( *abbrv2 == '-' ) {
@@ -1955,7 +1989,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	abbrv2++;
     }
     if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv2);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv2);
 	return SIGMET_BAD_ARG;
     }
     switch (dat_p2->stor_fmt) {
@@ -2053,24 +2087,26 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
     float *dp, *dp1;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add field to bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add field to bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv ) {
-	fprintf(stderr, "Attempted to add bogus field.\n");
+	fprintf(stderr, "%d: attempted to add bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	fprintf(stderr, "%s is a built in Sigmet data type.\n"
-		" No modification allowed.\n", abbrv);
+	fprintf(stderr, "%d: %s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p->stor_fmt != SIGMET_FLT ) {
-	fprintf(stderr, "Editable field in volume not in correct format.\n");
+	fprintf(stderr, "%d: editable field in volume not in correct format.\n",
+		getpid());
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -2104,24 +2140,26 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     float v1, v2;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add field to bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add field to bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv1 || !abbrv2 ) {
-	fprintf(stderr, "Attempted to add bogus field.\n");
+	fprintf(stderr, "%d: attempted to add bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
-	fprintf(stderr, "%s is a built in Sigmet data type.\n"
-		" No modification allowed.\n", abbrv1);
+	fprintf(stderr, "%d: %s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv1);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p1->stor_fmt != SIGMET_FLT ) {
-	fprintf(stderr, "Editable field in volume not in correct format.\n");
+	fprintf(stderr, "%d: editable field in volume not in correct format.\n",
+		getpid());
 	return SIGMET_BAD_VOL;
     }
     if ( *abbrv2 == '-' ) {
@@ -2129,7 +2167,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	abbrv2++;
     }
     if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv2);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv2);
 	return SIGMET_BAD_ARG;
     }
     switch (dat_p2->stor_fmt) {
@@ -2201,7 +2239,8 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		if ( vol_p->sweep_hdr[s].ok ) {
 		    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 			if ( vol_p->ray_hdr[s][r].ok ) {
-			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)  {
+			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
+			    {
 				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
 			    }
 			}
@@ -2226,28 +2265,30 @@ int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *abbrv, float v)
     float *dp, *dp1;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add field to bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add field to bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv ) {
-	fprintf(stderr, "Attempted to add bogus field.\n");
+	fprintf(stderr, "%d: attempted to add bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( v == 0.0 ) {
-	fprintf(stderr, "Attempted to divide by zero.\n");
+	fprintf(stderr, "%d: attempted to divide by zero.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	fprintf(stderr, "%s is a built in Sigmet data type.\n"
-		" No modification allowed.\n", abbrv);
+	fprintf(stderr, "%d: %s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p->stor_fmt != SIGMET_FLT ) {
-	fprintf(stderr, "Editable field in volume not in correct format.\n");
+	fprintf(stderr, "%d: editable field in volume not in correct format.\n",
+		getpid());
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -2281,24 +2322,26 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
     float v1, v2;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add field to bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add field to bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv1 || !abbrv2 ) {
-	fprintf(stderr, "Attempted to add bogus field.\n");
+	fprintf(stderr, "%d: attempted to add bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv1, NULL) ) {
-	fprintf(stderr, "%s is a built in Sigmet data type.\n"
-		" No modification allowed.\n", abbrv1);
+	fprintf(stderr, "%d: %s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv1);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p1->stor_fmt != SIGMET_FLT ) {
-	fprintf(stderr, "Editable field in volume not in correct format.\n");
+	fprintf(stderr, "%d: editable field in volume not in correct format.\n",
+		getpid());
 	return SIGMET_BAD_VOL;
     }
     if ( *abbrv2 == '-' ) {
@@ -2306,7 +2349,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	abbrv2++;
     }
     if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv2);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv2);
 	return SIGMET_BAD_ARG;
     }
     switch (dat_p2->stor_fmt) {
@@ -2407,24 +2450,26 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *abbrv)
     float *dp, *dp1;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to add field to bogus volume.\n");
+	fprintf(stderr, "%d: attempted to add field to bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !abbrv ) {
-	fprintf(stderr, "Attempted to add bogus field.\n");
+	fprintf(stderr, "%d: attempted to add bogus field.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( Sigmet_DataType_GetN(abbrv, &sig_type) ) {
-	fprintf(stderr, "%s is a built in Sigmet data type.\n"
-		" No modification allowed.\n", abbrv);
+	fprintf(stderr, "%d: %s is a built in Sigmet data type.\n"
+		" No modification allowed.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     if ( dat_p->stor_fmt != SIGMET_FLT ) {
-	fprintf(stderr, "Editable field in volume not in correct format.\n");
+	fprintf(stderr, "%d: editable field in volume not in correct format.\n",
+		getpid());
 	return SIGMET_BAD_VOL;
     }
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
@@ -2457,7 +2502,8 @@ int Sigmet_Vol_IncrTm(struct Sigmet_Vol *vol_p, double dt)
     int s, num_sweeps, r, num_rays;
 
     if ( !vol_p ) {
-	fprintf(stderr, "Attempted to increment time on bogus volume.\n");
+	fprintf(stderr, "%d: attempted to increment time on bogus volume.\n",
+		getpid());
 	return SIGMET_BAD_ARG;
     }
     if (       !ymds_incr(&vol_p->ph.pc.gen_tm, dt)
@@ -2642,15 +2688,15 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
     double tilt;		/* Mean tilt */
 
     if (s >= vol_p->ih.ic.num_sweeps) {
-	fprintf(stderr, "Sweep index out of bounds.\n");
+	fprintf(stderr, "%d: sweep index out of bounds.\n", getpid());
 	return SIGMET_RNG_ERR;
     }
     if (r >= vol_p->ih.ic.num_rays) {
-	fprintf(stderr, "Ray index out of bounds.\n");
+	fprintf(stderr, "%d: ray index out of bounds.\n", getpid());
 	return SIGMET_RNG_ERR;
     }
     if (b >= vol_p->ray_hdr[s][r].num_bins) {
-	fprintf(stderr, "Bin index out of bounds.\n");
+	fprintf(stderr, "%d: bin index out of bounds.\n", getpid());
 	return SIGMET_RNG_ERR;
     }
 
@@ -2709,7 +2755,8 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 {
     int status;				/* Result of a function */
     struct Sigmet_Dat *dat_p;
-    int y, r, b;			/* Indeces: data type, sweep, ray, bin */
+    int y, r, b;			/* Indeces: data type, sweep, ray, bin
+					 */
     double lon, lat;			/* Geographic coordinates (longitude
 					   latitude) */
     int num_bins_out, n;		/* Max number of output bins */
@@ -2725,25 +2772,25 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 
     status = SIGMET_OK;
     if ( !vol_p ) {
-	fprintf(stderr, "Bogus volume.\n");
+	fprintf(stderr, "%d: bogus volume.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( vol_p->ih.tc.tni.scan_mode != PPI_S
 	    && vol_p->ih.tc.tni.scan_mode != PPI_C ) {
-	fprintf(stderr, "Volume must be PPI.\n");
+	fprintf(stderr, "%d: volume must be PPI.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     y = dat_p - vol_p->dat;
     if ( s >= vol_p->num_sweeps_ax ) {
-	fprintf(stderr, "sweep index out of range for volume.\n");
+	fprintf(stderr, "%d: sweep index out of range for volume.\n", getpid());
 	return SIGMET_RNG_ERR;
     }
     if ( !vol_p->sweep_hdr[s].ok ) {
-	fprintf(stderr, "sweep not valid in volume.\n");
+	fprintf(stderr, "%d: sweep not valid in volume.\n", getpid());
 	return SIGMET_RNG_ERR;
     }
 
@@ -2765,7 +2812,8 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
      */
 
     if ( !ray_p && !(ray_p = CALLOC(num_bins_out, sizeof(float))) ) {
-	fprintf(stderr, "Could not allocate output buffer for ray.\n");
+	fprintf(stderr, "%d: could not allocate output buffer for ray.\n",
+		getpid());
 	return SIGMET_ALLOC_FAIL;
     }
 
@@ -2780,10 +2828,12 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	if ( vol_p->ray_hdr[s][r].ok ) {
 	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p, &n);
 	    if ( status != SIGMET_OK ) {
-		fprintf(stderr, "Could not get ray data.\n");
+		fprintf(stderr, "%d: could not get ray data.\n", getpid());
 		return status;
 	    }
-	    for (r_p = ray_p; r_p < ray_p + vol_p->ray_hdr[s][r].num_bins; r_p++) {
+	    for (r_p = ray_p;
+		    r_p < ray_p + vol_p->ray_hdr[s][r].num_bins;
+		    r_p++) {
 		if ( Sigmet_IsData(*r_p) && min <= *r_p && *r_p < max ) {
 		    /*
 		       Bin value is in an interval of interest.
@@ -2825,8 +2875,9 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 				    cnr[4] * DEG_PER_RAD, cnr[5] * DEG_PER_RAD,
 				    cnr[6] * DEG_PER_RAD, cnr[7] * DEG_PER_RAD)
 				== EOF ) ) {
-			fprintf(stderr, "Could not write corner coordinates "
-				"for bin.\n%s\n", strerror(errno));
+			fprintf(stderr, "%d: could not write corner "
+				"coordinates for sweep %d, ray %d, bin %d.\n"
+				"%s\n", getpid(), s, r, b, strerror(errno));
 			return SIGMET_IO_FAIL;
 		    }
 		}
@@ -2852,7 +2903,8 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 {
     int status;				/* Result of a function */
     struct Sigmet_Dat *dat_p;
-    int y, r, b;			/* Indeces: data type, sweep, ray, bin */
+    int y, r, b;			/* Indeces: data type, sweep, ray, bin
+					 */
     int num_bins_out, n;		/* Max number of output bins */
     static float *ray_dat;		/* Buffer to receive ray data */
     double re;				/* Earth radius, meters */
@@ -2874,24 +2926,25 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 
     status = SIGMET_OK;
     if ( !vol_p ) {
-	fprintf(stderr, "Bogus volume.\n");
+	fprintf(stderr, "%d: bogus volume.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( vol_p->ih.tc.tni.scan_mode != RHI ) {
-	fprintf(stderr, "Volume must be RHI.\n");
+	fprintf(stderr, "%d: volume must be RHI.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
-	fprintf(stderr, "No field of %s in volume.\n", abbrv);
+	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
     y = dat_p - vol_p->dat;
     if ( s >= vol_p->num_sweeps_ax ) {
-	fprintf(stderr, "sweep index %d out of range for volume.\n", s);
+	fprintf(stderr, "%d: sweep index %d out of range for volume.\n",
+		getpid(), s);
 	return SIGMET_RNG_ERR;
     }
     if ( !vol_p->sweep_hdr[s].ok ) {
-	fprintf(stderr, "sweep %d not valid in volume.\n", s);
+	fprintf(stderr, "%d: sweep %d not valid in volume.\n", getpid(), s);
 	return SIGMET_RNG_ERR;
     }
 
@@ -2911,7 +2964,8 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
      */
 
     if ( !ray_dat && !(ray_dat = CALLOC(num_bins_out, sizeof(float))) ) {
-	fprintf(stderr, "Could not allocate output buffer for ray.\n");
+	fprintf(stderr, "%d: could not allocate output buffer for ray.\n",
+		getpid());
 	return SIGMET_ALLOC_FAIL;
     }
 
@@ -2926,7 +2980,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 	if ( vol_p->ray_hdr[s][r].ok ) {
 	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_dat, &n);
 	    if ( status != SIGMET_OK ) {
-		fprintf(stderr, "Could not get ray data.\n");
+		fprintf(stderr, "%d: could not get ray data.\n", getpid());
 		return status;
 	    }
 	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
@@ -2997,8 +3051,9 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *abbrv, int s,
 				    "%lf %lf\n%lf %lf\n%lf %lf\n%lf %lf\n",
 				    cnr[0], cnr[1], cnr[2], cnr[3],
 				    cnr[4], cnr[5], cnr[6], cnr[7]) == EOF ) ) {
-			fprintf(stderr, "Could not write corner coordinates "
-				"for bin.\n%s\n", strerror(errno));
+			fprintf(stderr, "%d: could not write corner "
+				"coordinates for bin.\n%s\n",
+				getpid(), strerror(errno));
 			return SIGMET_IO_FAIL;
 		    }
 		}
@@ -4517,14 +4572,15 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i, int *id_p)
      */
 
     if (j <= 0 || i <= 0) {
-	fprintf(stderr, "Array dimensions must be positive.\n");
+	fprintf(stderr, "%d: array dimensions must be positive.\n", getpid());
 	return NULL;
     }
     jj = (size_t)j;
     ii = (size_t)i;
     ji = jj * ii;
     if (ji / jj != ii) {
-	fprintf(stderr, "Dimensions too big for pointer arithmetic.\n");
+	fprintf(stderr, "%d: dimensions too big for pointer arithmetic.\n",
+		getpid());
 	return NULL;
     }
 
@@ -4533,21 +4589,21 @@ static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i, int *id_p)
     if ( id_p ) {
 	id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
 	if ( id == -1 ) {
-	    fprintf(stderr, "Could not create shared memory for "
-		    "ray headers.\n%s\n", strerror(errno));
+	    fprintf(stderr, "%d: could not create shared memory for "
+		    "ray headers.\n%s\n", getpid(), strerror(errno));
 	    return NULL;
 	}
 	if ( (ray_hdr = shmat(id, NULL, 0)) == (void *)-1 ) {
-	    fprintf(stderr, "Could not attach to shared memory for "
-		    "ray headers.\n%s\n", strerror(errno));
+	    fprintf(stderr, "%d: could not attach to shared memory for "
+		    "ray headers.\n%s\n", getpid(), strerror(errno));
 	    return NULL;
 	}
 	*id_p = id;
     } else {
 	ray_hdr = (struct Sigmet_Ray_Hdr **)MALLOC(sz);
 	if ( !ray_hdr ) {
-	    fprintf(stderr, "Could not allocate memory for ray header "
-		    "array.\n");
+	    fprintf(stderr, "%d: could not allocate memory for ray header "
+		    "array.\n", getpid());
 	    return NULL;
 	}
     }
@@ -4586,14 +4642,15 @@ static U1BYT ***malloc3_u1(long kmax, long jmax, long imax, int *id_p)
      */
 
     if ( kmax <= 0 || jmax <= 0 || imax <= 0 ) {
-	fprintf(stderr, "Array dimensions must be positive.\n");
+	fprintf(stderr, "%d: array dimensions must be positive.\n", getpid());
 	return NULL;
     }
     kk = (size_t)kmax;
     jj = (size_t)jmax;
     ii = (size_t)imax;
     if ( (kk * jj) / kk != jj || (kk * jj * ii) / (kk * jj) != ii) {
-	fprintf(stderr, "Dimensions too big for pointer arithmetic.\n");
+	fprintf(stderr, "%d: dimensions too big for pointer arithmetic.\n",
+		getpid());
 	return NULL;
     }
 
@@ -4602,20 +4659,22 @@ static U1BYT ***malloc3_u1(long kmax, long jmax, long imax, int *id_p)
     if ( id_p ) {
 	id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
 	if ( id == -1 ) {
-	    fprintf(stderr, "Could not create shared memory of %lu bytes for "
-		    "field.\n%s\n", (unsigned long)sz, strerror(errno));
+	    fprintf(stderr, "%d: could not create shared memory of %lu bytes "
+		    "for field.\n%s\n", getpid(), (unsigned long)sz,
+		    strerror(errno));
 	    return NULL;
 	}
 	if ( (dat = shmat(id, NULL, 0)) == (void *)-1 ) {
-	    fprintf(stderr, "Could not attach to shared memory for "
-		    "field.\n%s\n", strerror(errno));
+	    fprintf(stderr, "%d: could not attach to shared memory for "
+		    "field.\n%s\n", getpid(), strerror(errno));
 	    return NULL;
 	}
 	*id_p = id;
     } else {
 	dat = (U1BYT ***)MALLOC(sz);
 	if ( !dat ) {
-	    fprintf(stderr, "Could not allocate 3rd dimension.\n");
+	    fprintf(stderr, "%d: could not allocate 3rd dimension.\n",
+		    getpid());
 	    return NULL;
 	}
     }
@@ -4658,14 +4717,15 @@ static U2BYT ***malloc3_u2(long kmax, long jmax, long imax, int *id_p)
      */
 
     if ( kmax <= 0 || jmax <= 0 || imax <= 0 ) {
-	fprintf(stderr, "Array dimensions must be positive.\n");
+	fprintf(stderr, "%d: array dimensions must be positive.\n", getpid());
 	return NULL;
     }
     kk = (size_t)kmax;
     jj = (size_t)jmax;
     ii = (size_t)imax;
     if ( (kk * jj) / kk != jj || (kk * jj * ii) / (kk * jj) != ii) {
-	fprintf(stderr, "Dimensions too big for pointer arithmetic.\n");
+	fprintf(stderr, "%d: dimensions too big for pointer arithmetic.\n",
+		getpid());
 	return NULL;
     }
 
@@ -4674,20 +4734,22 @@ static U2BYT ***malloc3_u2(long kmax, long jmax, long imax, int *id_p)
     if ( id_p ) {
 	id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
 	if ( id == -1 ) {
-	    fprintf(stderr, "Could not create shared memory of %lu bytes for "
-		    "field.\n%s\n", (unsigned long)sz, strerror(errno));
+	    fprintf(stderr, "%d: could not create shared memory of %lu bytes "
+		    "for field.\n%s\n", getpid(), (unsigned long)sz,
+		    strerror(errno));
 	    return NULL;
 	}
 	if ( (dat = shmat(id, NULL, 0)) == (void *)-1 ) {
-	    fprintf(stderr, "Could not attach to shared memory for "
-		    "field.\n%s\n", strerror(errno));
+	    fprintf(stderr, "%d: could not attach to shared memory for "
+		    "field.\n%s\n", getpid(), strerror(errno));
 	    return NULL;
 	}
 	*id_p = id;
     } else {
 	dat = (U2BYT ***)MALLOC(sz);
 	if ( !dat ) {
-	    fprintf(stderr, "Could not allocate 3rd dimension.\n");
+	    fprintf(stderr, "%d: could not allocate 3rd dimension.\n",
+		    getpid());
 	    return NULL;
 	}
     }
@@ -4730,14 +4792,15 @@ static float ***malloc3_flt(long kmax, long jmax, long imax, int *id_p)
      */
 
     if ( kmax <= 0 || jmax <= 0 || imax <= 0 ) {
-	fprintf(stderr, "Array dimensions must be positive.\n");
+	fprintf(stderr, "%d: array dimensions must be positive.\n", getpid());
 	return NULL;
     }
     kk = (size_t)kmax;
     jj = (size_t)jmax;
     ii = (size_t)imax;
     if ( (kk * jj) / kk != jj || (kk * jj * ii) / (kk * jj) != ii) {
-	fprintf(stderr, "Dimensions too big for pointer arithmetic.\n");
+	fprintf(stderr, "%d: dimensions too big for pointer arithmetic.\n",
+		getpid());
 	return NULL;
     }
 
@@ -4746,20 +4809,22 @@ static float ***malloc3_flt(long kmax, long jmax, long imax, int *id_p)
     if ( id_p ) {
 	id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
 	if ( id == -1 ) {
-	    fprintf(stderr, "Could not create shared memory of %lu bytes for "
-		    "field.\n%s\n", (unsigned long)sz, strerror(errno));
+	    fprintf(stderr, "%d: could not create shared memory of %lu bytes "
+		    "for field.\n%s\n", getpid(), (unsigned long)sz,
+		    strerror(errno));
 	    return NULL;
 	}
 	if ( (dat = shmat(id, NULL, 0)) == (void *)-1 ) {
-	    fprintf(stderr, "Could not attach to shared memory for "
-		    "field.\n%s\n", strerror(errno));
+	    fprintf(stderr, "%d: could not attach to shared memory for "
+		    "field.\n%s\n", getpid(), strerror(errno));
 	    return NULL;
 	}
 	*id_p = id;
     } else {
 	dat = (float ***)MALLOC(sz);
 	if ( !dat ) {
-	    fprintf(stderr, "Could not allocate 3rd dimension.\n");
+	    fprintf(stderr, "%d: could not allocate 3rd dimension.\n",
+		    getpid());
 	    return NULL;
 	}
     }
