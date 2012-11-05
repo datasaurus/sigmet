@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.106 $ $Date: 2012/11/01 22:38:51 $
+   .	$Revision: 1.107 $ $Date: 2012/11/02 20:47:45 $
  */
 
 #include "unix_defs.h"
@@ -343,6 +343,7 @@ static int load_cb(int argc, char *argv[])
 	   processes to wait (see the "else if" block below). Allow read
 	   access once semaphore is fully initialized.
 	 */
+
 	if ( (ax_key = ftok(vol_fl_nm, ax_key_id)) == -1 ) {
 	    fprintf(stderr, "%s %s: could not get memory key for volume %s.\n"
 		    "%s\n", argv0, argv1, vol_fl_nm, strerror(errno));
@@ -625,7 +626,7 @@ static struct Sigmet_Vol *vol_attach(int *sem_id_p)
     }
     sop.sem_num = 0;
     sop.sem_op = -1;
-    sop.sem_flg = 0;
+    sop.sem_flg = SEM_UNDO;
     if ( semop(ax_sem_id, &sop, 1) == -1 ) {
 	fprintf(stderr, "Could not adjust volume semaphore %d by -1\n"
 		"%s\n", ax_sem_id, strerror(errno));
@@ -658,7 +659,9 @@ static struct Sigmet_Vol *vol_attach(int *sem_id_p)
     return vol_p;
 
 error:
+    sop.sem_num = 0;
     sop.sem_op = 1;
+    sop.sem_flg = SEM_UNDO;
     if ( semop(ax_sem_id, &sop, 1) == -1 ) {
 	fprintf(stderr, "Could not adjust volume semaphore %d by 1\n"
 		"%s\n", ax_sem_id, strerror(errno));
@@ -682,7 +685,7 @@ static void vol_detach(struct Sigmet_Vol *vol_p, int ax_sem_id)
 
     sop.sem_num = 0;
     sop.sem_op = 1;
-    sop.sem_flg = 0;
+    sop.sem_flg = SEM_UNDO;
     if ( semop(ax_sem_id, &sop, 1) == -1 ) {
 	fprintf(stderr, "Could not restore volume semaphore %d by 1\n"
 		"%s\n", ax_sem_id, strerror(errno));
