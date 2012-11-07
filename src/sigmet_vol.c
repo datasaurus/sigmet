@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.174 $ $Date: 2012/11/05 22:22:10 $
+   .	$Revision: 1.175 $ $Date: 2012/11/07 21:23:17 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -393,10 +393,10 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    dat = dat_p->vals.u2;
 		    dat[0] = (U2BYT **)(dat + num_sweeps);
 		    dat[0][0] = (U2BYT *)(dat[0] + num_sweeps * num_rays);
-		    for (s = 1; s <= num_sweeps; s++) {
+		    for (s = 1; s < num_sweeps; s++) {
 			dat[s] = dat[s - 1] + num_rays;
 		    }
-		    for (r = 1; r <= num_sweeps * num_rays; r++) {
+		    for (r = 1; r < num_sweeps * num_rays; r++) {
 			dat[0][r] = dat[0][r - 1] + num_bins;
 		    }
 		}
@@ -415,10 +415,10 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    dat = dat_p->vals.f;
 		    dat[0] = (float **)(dat + num_sweeps);
 		    dat[0][0] = (float *)(dat[0] + num_sweeps * num_rays);
-		    for (s = 1; s <= num_sweeps; s++) {
+		    for (s = 1; s < num_sweeps; s++) {
 			dat[s] = dat[s - 1] + num_rays;
 		    }
-		    for (r = 1; r <= num_sweeps * num_rays; r++) {
+		    for (r = 1; r < num_sweeps * num_rays; r++) {
 			dat[0][r] = dat[0][r - 1] + num_bins;
 		    }
 		    for (d = dat[0][0];
@@ -1483,6 +1483,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     strcpy(dat_p->descr, "");
     strcpy(dat_p->unit, "");
     dat_p->stor_fmt = SIGMET_FLT;
+    dat_p->stor_to_comp = Sigmet_DblDbl;
     dat_p->vals.f = NULL;
     dat_p->vals_id = -1;
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
@@ -1499,7 +1500,6 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     strncpy(dat_p->descr, descr, SIGMET_NAME_LEN - 1);
     strncpy(dat_p->unit, unit, SIGMET_NAME_LEN - 1);
     hash_add(vol_p, abbrv, vol_p->num_types);
-    dat_p->stor_to_comp = Sigmet_DblDbl;
     vol_p->size += num_sweeps * num_rays * num_bins * sizeof(float);
     vol_p->num_types++;
     vol_p->mod = 1;
@@ -4762,10 +4762,10 @@ static U2BYT ***malloc3_u2(long kmax, long jmax, long imax, int *id_p)
 
     dat[0] = (U2BYT **)(dat + kk);
     dat[0][0] = (U2BYT *)(dat[0] + kk * jj);
-    for (k = 1; k <= kmax; k++) {
+    for (k = 1; k < kmax; k++) {
 	dat[k] = dat[k - 1] + jmax;
     }
-    for (j = 1; j <= kmax * jmax; j++) {
+    for (j = 1; j < kmax * jmax; j++) {
 	dat[0][j] = dat[0][j - 1] + imax;
     }
     return dat;
@@ -4837,10 +4837,10 @@ static float ***malloc3_flt(long kmax, long jmax, long imax, int *id_p)
 
     dat[0] = (float **)(dat + kk);
     dat[0][0] = (float *)(dat[0] + kk * jj);
-    for (k = 1; k <= kmax; k++) {
+    for (k = 1; k < kmax; k++) {
 	dat[k] = dat[k - 1] + jmax;
     }
-    for (j = 1; j <= kmax * jmax; j++) {
+    for (j = 1; j < kmax * jmax; j++) {
 	dat[0][j] = dat[0][j - 1] + imax;
     }
     for (d = dat[0][0]; d < dat[0][0] + kk * jj * ii + 1; d++) {
