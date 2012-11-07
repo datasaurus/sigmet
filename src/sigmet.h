@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.115 $ $Date: 2012/10/30 23:05:06 $
+   .	$Revision: 1.116 $ $Date: 2012/11/01 22:37:38 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -506,14 +506,16 @@ struct Sigmet_Dat {
     enum Sigmet_StorFmt stor_fmt;	/* Storage format, determines which
 					   member of vals is in use for this
 					   data type */
-    Sigmet_StorToMxFn stor_to_comp;	/* Function to convert storage value to
-					   computation value */
+    enum Sigmet_DataTypeN sig_type;	/* Sigmet data type, if any */
+    Sigmet_StorToMxFn stor_to_comp;     /* Function to convert storage value to
+                                           computation value */
     union {
 	U1BYT ***u1;			/* 1 byte data */
 	U2BYT ***u2;			/* 2 byte data */
 	float ***f;			/* Floating point data */
     } vals;
-    int vals_id;			/* Shared memory identifiers for vals */
+    int vals_id;			/* Shared memory identifier for vals,
+					   or -1 */
 };
 
 /*
@@ -571,11 +573,16 @@ struct Sigmet_Vol {
 					   headers */
     struct {
 	char abbrv[SIGMET_NAME_LEN];	/* Data type abbreviation */
-	struct Sigmet_Dat *dat_p;	/* Member of dat for abbrv */
+	int y;				/* Index in dat of data identified as of
+					   type abbrv */
     } types_tbl[SIGMET_MAX_TYPES];	/* Map data type abbreviations
 					   to members of dat */
-    struct Sigmet_Dat
-	dat[SIGMET_MAX_TYPES];		/* Data, dimensioned [type] */
+
+    /*
+       Data array, dimensioned [type]
+     */
+
+    struct Sigmet_Dat dat[SIGMET_MAX_TYPES];
     size_t size;			/* Number of bytes of memory
 					   this structure is using */
     int mod;				/* If true, volume in memory

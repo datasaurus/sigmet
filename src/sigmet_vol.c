@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.173 $ $Date: 2012/10/30 21:54:52 $
+   .	$Revision: 1.174 $ $Date: 2012/11/05 22:22:10 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -99,7 +99,7 @@ static int get_sint32(void *);
 static unsigned get_uint32(void *);
 static int vol_good(FILE *);
 static unsigned hash(const char *);
-static void hash_add(struct Sigmet_Vol *, char *, struct Sigmet_Dat *);
+static void hash_add(struct Sigmet_Vol *, char *, int);
 static struct Sigmet_Dat *hash_get(struct Sigmet_Vol *, char *);
 
 /*
@@ -352,7 +352,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 
     for (y = 0; y < vol_p->num_types; y++) {
 	struct Sigmet_Dat *dat_p = vol_p->dat + y;
-	enum Sigmet_DataTypeN sig_type = vol_p->types_fl[y];
+	enum Sigmet_DataTypeN sig_type;
 
 	switch (vol_p->dat[y].stor_fmt) {
 	    case SIGMET_U1:
@@ -365,16 +365,17 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		} else {
 		    U1BYT ***dat;
 
+		    sig_type = dat_p->sig_type;
+		    dat_p->stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
 		    dat = dat_p->vals.u1;
 		    dat[0] = (U1BYT **)(dat + num_sweeps);
 		    dat[0][0] = (U1BYT *)(dat[0] + num_sweeps * num_rays);
-		    for (s = 1; s <= num_sweeps; s++) {
+		    for (s = 1; s < num_sweeps; s++) {
 			dat[s] = dat[s - 1] + num_rays;
 		    }
-		    for (r = 1; r <= num_sweeps * num_rays; r++) {
+		    for (r = 1; r < num_sweeps * num_rays; r++) {
 			dat[0][r] = dat[0][r - 1] + num_bins;
 		    }
-		    dat_p->stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
 		}
 		break;
 	    case SIGMET_U2:
@@ -387,6 +388,8 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		} else {
 		    U2BYT ***dat;
 
+		    sig_type = dat_p->sig_type;
+		    dat_p->stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
 		    dat = dat_p->vals.u2;
 		    dat[0] = (U2BYT **)(dat + num_sweeps);
 		    dat[0][0] = (U2BYT *)(dat[0] + num_sweeps * num_rays);
@@ -396,7 +399,6 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    for (r = 1; r <= num_sweeps * num_rays; r++) {
 			dat[0][r] = dat[0][r - 1] + num_bins;
 		    }
-		    dat_p->stor_to_comp = Sigmet_DataType_StorToComp(sig_type);
 		}
 		break;
 	    case SIGMET_FLT:
@@ -409,6 +411,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		} else {
 		    float ***dat, *d;
 
+		    dat_p->stor_to_comp = Sigmet_DblDbl;
 		    dat = dat_p->vals.f;
 		    dat[0] = (float **)(dat + num_sweeps);
 		    dat[0][0] = (float *)(dat[0] + num_sweeps * num_rays);
@@ -423,7 +426,6 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 			    d++) {
 			*d = Sigmet_NoData();
 		    }
-		    dat_p->stor_to_comp = Sigmet_DblDbl;
 		}
 		break;
 	    case SIGMET_DBL:
@@ -525,11 +527,11 @@ static unsigned hash(const char *k)
 }
 
 /*
-   Make an entry in vol_p->types_tbl for abbreviation abbrv pointing to dat_p.
+   Make an entry in vol_p->types_tbl for abbreviation abbrv pointing to 
+   element y of vol_p->dat.
  */
 
-static void hash_add(struct Sigmet_Vol *vol_p, char *abbrv,
-	struct Sigmet_Dat *dat_p)
+static void hash_add(struct Sigmet_Vol *vol_p, char *abbrv, int y)
 {
     unsigned h;
 
@@ -538,27 +540,30 @@ static void hash_add(struct Sigmet_Vol *vol_p, char *abbrv,
 	    h = (h + 1) % SIGMET_MAX_TYPES) {
     }
     strncpy(vol_p->types_tbl[h].abbrv, abbrv, SIGMET_NAME_LEN - 1);
-    vol_p->types_tbl[h].dat_p = dat_p;
+    vol_p->types_tbl[h].y = y;
 }
 
 /*
    Get an entry from vol_p->types_tbl for abbreviation abbrv.
-   Return associated dat_p or NULL.
+   Return element from vol_p->dat or NULL.
  */
 
 static struct Sigmet_Dat *hash_get(struct Sigmet_Vol *vol_p, char *abbrv)
 {
     unsigned h, h0;
+    int y;
 
     h0 = hash(abbrv);
     if ( strcmp(vol_p->types_tbl[h0].abbrv, abbrv) == 0 ) {
-	return vol_p->types_tbl[h0].dat_p;
+	y = vol_p->types_tbl[h0].y;
+	return vol_p->dat + y;
     }
     for (h = (h0 + 1) % SIGMET_MAX_TYPES;
 	    h != h0;
 	    h = (h + 1) % SIGMET_MAX_TYPES) {
 	if ( strcmp(vol_p->types_tbl[h].abbrv, abbrv) == 0 ) {
-	    return vol_p->types_tbl[h].dat_p;
+	    y = vol_p->types_tbl[h].y;
+	    return vol_p->dat + y;
 	}
     }
     return NULL;
@@ -685,9 +690,10 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		    strcpy(vol_p->dat[y].abbrv, abbrv);
 		    strcpy(vol_p->dat[y].descr, descr);
 		    strcpy(vol_p->dat[y].unit, unit);
+		    vol_p->dat[y].sig_type = sig_type;
 		    vol_p->dat[y].stor_fmt = stor_fmt;
 		    vol_p->dat[y].stor_to_comp = stor_to_comp;
-		    hash_add(vol_p, abbrv, vol_p->dat + y);
+		    hash_add(vol_p, abbrv, y);
 		    vol_p->dat[y].vals.u1 = NULL;
 		    y++;
 		    break;
@@ -695,9 +701,10 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		    strcpy(vol_p->dat[y].abbrv, abbrv);
 		    strcpy(vol_p->dat[y].descr, descr);
 		    strcpy(vol_p->dat[y].unit, unit);
+		    vol_p->dat[y].sig_type = sig_type;
 		    vol_p->dat[y].stor_fmt = stor_fmt;
 		    vol_p->dat[y].stor_to_comp = stor_to_comp;
-		    hash_add(vol_p, abbrv, vol_p->dat + y);
+		    hash_add(vol_p, abbrv, y);
 		    vol_p->dat[y].vals.u2 = NULL;
 		    y++;
 		    break;
@@ -1444,7 +1451,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     struct Sigmet_Dat *dat_p;
     float ***flt_p;
     int num_sweeps, num_rays, num_bins;
-    int id;
+    int *id_p;
 
     if ( !abbrv ) {
 	fprintf(stderr, "%d: attempted to add bogus data type to a volume.\n",
@@ -1471,7 +1478,6 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
 		"count.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
-
     dat_p = vol_p->dat + vol_p->num_types;
     strcpy(dat_p->abbrv, "");
     strcpy(dat_p->descr, "");
@@ -1482,24 +1488,18 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
-
-    flt_p = malloc3_flt(num_sweeps, num_rays, num_bins,
-	    vol_p->shm ? &id : NULL);
+    id_p = vol_p->shm ? &dat_p->vals_id : NULL;
+    flt_p = malloc3_flt(num_sweeps, num_rays, num_bins, id_p);
     if ( !flt_p ) {
 	fprintf(stderr, "%d: could not allocate new field ", getpid());
 	return SIGMET_ALLOC_FAIL;
     }
-
     dat_p->vals.f = flt_p;
     strncpy(dat_p->abbrv, abbrv, SIGMET_NAME_LEN - 1);
     strncpy(dat_p->descr, descr, SIGMET_NAME_LEN - 1);
     strncpy(dat_p->unit, unit, SIGMET_NAME_LEN - 1);
-    hash_add(vol_p, abbrv, dat_p);
+    hash_add(vol_p, abbrv, vol_p->num_types);
     dat_p->stor_to_comp = Sigmet_DblDbl;
-    if ( vol_p->shm ) {
-	dat_p->vals_id = id;
-    }
-
     vol_p->size += num_sweeps * num_rays * num_bins * sizeof(float);
     vol_p->num_types++;
     vol_p->mod = 1;
@@ -1508,8 +1508,9 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
 
 int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 {
-    struct Sigmet_Dat *d_p, *d1_p;
+    struct Sigmet_Dat *dat_p;
     int num_sweeps, num_rays, num_bins;
+    int y, y1;
 
     if ( !abbrv ) {
 	fprintf(stderr, "%d: attempted to remove a bogus field.\n", getpid());
@@ -1520,12 +1521,12 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 		"bogus volume.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
-    if ( !(d_p = hash_get(vol_p, abbrv)) ) {
+    if ( !(dat_p = hash_get(vol_p, abbrv)) ) {
 	fprintf(stderr, "%d: data type %s not in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
-    FREE(d_p->vals.f);
-    memset(d_p, 0, sizeof(struct Sigmet_Dat));
+    FREE(dat_p->vals.f);
+    memset(dat_p, 0, sizeof(struct Sigmet_Dat));
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
@@ -1535,14 +1536,13 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
        Slide the rest of the members of dat down one to fill the hole.
      */
 
-    for (d1_p = d_p + 1; d1_p < vol_p->dat + vol_p->num_types; d_p++, d1_p++) {
-	*d_p = *d1_p;
-	hash_add(vol_p, d_p->abbrv, d_p);
+    for (y = dat_p - vol_p->dat, y1 = y + 1; y1 < vol_p->num_types; y++, y1++) {
+	vol_p->dat[y] = vol_p->dat[y1];
     }
     vol_p->num_types--;
     memset(vol_p->types_tbl, 0, sizeof(vol_p->types_tbl));
-    for (d_p = vol_p->dat; d1_p < vol_p->dat + vol_p->num_types; d_p++) {
-	hash_add(vol_p, d_p->abbrv, d_p);
+    for (y = 0; y < vol_p->num_types; y++) {
+	hash_add(vol_p, vol_p->dat[y].abbrv, y);
     }
     vol_p->mod = 1;
     return SIGMET_OK;
@@ -4687,10 +4687,10 @@ static U1BYT ***malloc3_u1(long kmax, long jmax, long imax, int *id_p)
 
     dat[0] = (U1BYT **)(dat + kk);
     dat[0][0] = (U1BYT *)(dat[0] + kk * jj);
-    for (k = 1; k <= kmax; k++) {
+    for (k = 1; k < kmax; k++) {
 	dat[k] = dat[k - 1] + jmax;
     }
-    for (j = 1; j <= kmax * jmax; j++) {
+    for (j = 1; j < kmax * jmax; j++) {
 	dat[0][j] = dat[0][j - 1] + imax;
     }
     return dat;
