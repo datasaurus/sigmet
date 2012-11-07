@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.175 $ $Date: 2012/11/07 21:23:17 $
+   .	$Revision: 1.176 $ $Date: 2012/11/07 21:56:03 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -409,7 +409,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 			    getpid(), dat_p->abbrv, strerror(errno));
 		    goto error;
 		} else {
-		    float ***dat, *d;
+		    float ***dat;
 
 		    dat_p->stor_to_comp = Sigmet_DblDbl;
 		    dat = dat_p->vals.f;
@@ -420,11 +420,6 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    }
 		    for (r = 1; r < num_sweeps * num_rays; r++) {
 			dat[0][r] = dat[0][r - 1] + num_bins;
-		    }
-		    for (d = dat[0][0];
-			    d < dat[0][0] + num_sweeps * num_rays * num_bins;
-			    d++) {
-			*d = Sigmet_NoData();
 		    }
 		}
 		break;
