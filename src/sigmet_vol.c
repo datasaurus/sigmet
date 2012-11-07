@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.176 $ $Date: 2012/11/07 21:56:03 $
+   .	$Revision: 1.177 $ $Date: 2012/11/07 22:21:33 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1503,9 +1503,9 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *abbrv, char *descr,
 
 int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 {
-    struct Sigmet_Dat *dat_p;
+    struct Sigmet_Dat *dat_p, *dat1_p;
     int num_sweeps, num_rays, num_bins;
-    int y, y1;
+    int y;
 
     if ( !abbrv ) {
 	fprintf(stderr, "%d: attempted to remove a bogus field.\n", getpid());
@@ -1520,7 +1520,20 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
 	fprintf(stderr, "%d: data type %s not in volume.\n", getpid(), abbrv);
 	return SIGMET_BAD_ARG;
     }
-    FREE(dat_p->vals.f);
+    if ( vol_p->shm ) {
+	if ( shmdt(dat_p->vals.f) == -1 ) {
+	    fprintf(stderr, "%d: could not detach from shared memory for "
+		    "field %s.\n%s\n", getpid(), abbrv, strerror(errno));
+	    return SIGMET_ALLOC_FAIL;
+	}
+	if ( shmctl(dat_p->vals_id, IPC_RMID, NULL) == -1 ) {
+	    fprintf(stderr, "%d: could not remove shared memory for "
+		    "field %s.\n%s\n", getpid(), abbrv, strerror(errno));
+	    return SIGMET_ALLOC_FAIL;
+	}
+    } else {
+	FREE(dat_p->vals.f);
+    }
     memset(dat_p, 0, sizeof(struct Sigmet_Dat));
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
@@ -1531,10 +1544,19 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *abbrv)
        Slide the rest of the members of dat down one to fill the hole.
      */
 
-    for (y = dat_p - vol_p->dat, y1 = y + 1; y1 < vol_p->num_types; y++, y1++) {
-	vol_p->dat[y] = vol_p->dat[y1];
+    for (dat1_p = dat_p + 1;
+	    dat1_p < vol_p->dat + vol_p->num_types;
+	    dat_p++, dat1_p++) {
+	*dat_p = *dat1_p;
     }
     vol_p->num_types--;
+    for (dat_p = vol_p->dat + vol_p->num_types;
+	    dat_p < vol_p->dat + SIGMET_MAX_TYPES;
+	    dat_p++) {
+	memset(dat_p, 0, sizeof(struct Sigmet_Dat));
+	dat_p->stor_fmt = SIGMET_MT;
+	dat_p->vals_id = -1;
+    }
     memset(vol_p->types_tbl, 0, sizeof(vol_p->types_tbl));
     for (y = 0; y < vol_p->num_types; y++) {
 	hash_add(vol_p, vol_p->dat[y].abbrv, y);
