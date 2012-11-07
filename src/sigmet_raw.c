@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.108 $ $Date: 2012/11/05 21:00:50 $
+   .	$Revision: 1.109 $ $Date: 2012/11/07 21:20:19 $
  */
 
 #include "unix_defs.h"
@@ -473,11 +473,10 @@ static int load_cb(int argc, char *argv[])
 		argv0, argv1, getpid(), strerror(errno));
 	goto error;
     }
-    fprintf(stderr, "%s %s (%d): spawning: ", argv0, argv1, getpid());
+    printf("%s %s (%d): spawning: ", argv0, argv1, getpid());
     for (a = argv + 3; *a; a++) {
-	fprintf(stderr, "%s ", *a);
+	printf("%s ", *a);
     }
-    fprintf(stderr, "\n");
 
     ch_pid = fork();
     if ( ch_pid == -1 ) {
@@ -490,6 +489,7 @@ static int load_cb(int argc, char *argv[])
 		argv0, argv1, getpid(), strerror(errno));
 	exit(EXIT_FAILURE);
     }
+    printf(" (%d)\n", ch_pid);
 
     /*
        Wait for child to exit.
