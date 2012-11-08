@@ -25,7 +25,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.4 $ $Date: 2011/10/18 16:45:57 $
+.\" $Revision: 1.5 $ $Date: 2012/11/08 21:22:00 $
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
 .Os UNIX
@@ -37,7 +37,7 @@
 .Nm Sigmet_Vol_Read ,
 .Nm Sigmet_Vol_BadRay ,
 .Nm Sigmet_Vol_BinOutl ,
-.Nm Sigmet_Vol_Img_PPI ,
+.Nm Sigmet_Vol_PPI_Bnds ,
 .Nm Sigmet_Vol_NewField ,
 .Nm Sigmet_Vol_DelField ,
 .Nm Sigmet_Vol_Fld_SetVal ,
@@ -75,18 +75,7 @@
 .Ft int
 .Fn Sigmet_Vol_BinOutl "struct Sigmet_Vol *vol_p" "int s" "int r" "int b" "double *lonlats"
 .Ft int
-.Fo Sigmet_Vol_Img_PPI
-.Fa "struct Sigmet_Vol *vol_p"
-.Fa "char *abbrv"
-.Fa "int s"
-.Fa "char *img_app"
-.Fa "char **proj_argv"
-.Fa "unsigned w_pxl"
-.Fa "double alpha"
-.Fa "char *base_nm"
-.Fa "double edges[]"
-.Fa "char **img_fl_nm"
-.Fc
+.Fn Sigmet_Vol_PPI_Bnds "struct Sigmet_Vol *vol_p " "int s" "struct GeogProj *proj" "double *x_min_p" "double *x_max_p" "double *y_min_p" "double *y_max_p"
 .Ft int
 .Fn Sigmet_Vol_NewField "struct Sigmet_Vol *vol_p" "char *field_name"
 .Ft int
@@ -264,72 +253,20 @@ as lon1\ lat1\ lon2\ lat2\ lon3\ lat3\ lon4\ lat4, denoting the corners of the b
 .Fa lonlats
 must point to space for eight double values.
 .Pp
-.Fn Sigmet_Vol_Img_PPI
-provides drawing information to an external program for data type
-.Fa abbrv ,
-sweep
-.Fa s ,
-in the volume at
+.Fn Sigmet_Vol_PPI_Bnds
+computes sweep limits in map coordinates for sweep
+.Fa s
+of the volume at
 .Fa vol_p .
-.Fa img_app
-gives the name of the external program. If called without arguments, it should
-immediately exit with success. This behavior allows trivial testing for the
-applications existence. Otherwise, the application should read the drawing
-information for the image from its standard input and generate the image file.
-It should take one argument,
-.Fa base_nm ,
-which should suggest a base name for the image file, without a suffix. The external
-program can use it to make a name for the file, and should add a suffix if needed,
-e.g.
-.Li ".png" .
-The following information will be sent to the drawing program:
-.nf
-
-	    unsigned int	w_dpy		Image width, display units
-	    unsigned int	h_dpy		Image height, display units
-	    double		left		Map coordinate of left side
-	    double		rght		Map coordinate of right side
-	    double		top		Map coordinate of top
-	    double		btm		Map coordinate of bottom
-	    double		alpha		Alpha channel (transparency)
-	    unsigned int	n_clrs		Number of colors
-	    For n_clrs colors:
-		unsigned int	red
-		unsigned int	green
-		unsigned int	blue
-	    For each polygon in the sweep image
-		unsigned int	n_color		Color index, in [0,n_clrs)
-		unsigned int	npts		Vertex count
-		For npts vertices:
-		    double	x		Abscissa
-		    double	y		Ordinate
-
-.fi
-All numerical values will be sent as native binaries. When there is no more
-input, the drawing program must be the name of the image file it creates
-to its standard output.
-.Fa proj_argv
-specifies an external program that reads a stream of longitude-latitude
-coordinates, as native doubles, from its standard input, and prints the
-corresponding map coordinates to its standard output (e.g.
-.Nm proj Ns Li ).
-The image will be a square of
-.Fa w_pxl
-by
-.Fa w_pxl
-pixels.
-.Fa alpha
-specifies the image alpha value.  Error information will be accumulated with
-.Nm Err_Append .
-.Fa edges
-must be a four element array. It will receive the north, east, south, and
-west limits of the image area. The name of the image file, including suffix,
-is placed at
-.Fa img_fl_nm .
-Memory at
-.Fa img_fl_nm
-is dynamically allocated and must be eventually freed with a call to
-.Nm FREE .
+Projection
+.Fa proj
+defines the transformation from geographic to map coordinates. The resulting
+limits are placed at
+.Fa x_min_p ,
+.Fa x_max_p ,
+.Fa y_min_p ,
+and
+.Fa y_max_p .
 .Pp
 .Fn Sigmet_Vol_NewField
 creates a new field named
