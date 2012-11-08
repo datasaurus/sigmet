@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.178 $ $Date: 2012/11/07 23:48:55 $
+   .	$Revision: 1.181 $ $Date: 2012/11/10 16:15:03 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2766,6 +2766,83 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
     GeogStep(lon_r, lat_r, az1, r1, ll + 4, ll + 5);
     GeogStep(lon_r, lat_r, az1, r0, ll + 6, ll + 7);
 
+    return SIGMET_OK;
+}
+
+/*
+   Return limits of ppi sweep for given map projection.
+ */
+
+int Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *vol_p, int s, struct GeogProj *proj,
+	double *x_min_p, double *x_max_p, double *y_min_p, double *y_max_p)
+{
+    double x_min, x_max, y_min, y_max;	/* PPI limits */
+    double rlon, rlat;			/* Radar location */
+    double rearth;			/* Earth radius */
+    double rng_1st_bin, step_out;	/* Range to first bin, output bin step,
+					   meters */
+    int num_bins;
+    double ray_len;			/* Ray length, meters */
+    int r;				/* Ray index */
+    double az0, az1, az;		/* Ray azimuth */
+    double tilt0, tilt1, tilt;		/* Ray tilt */
+    double ray_len_g;			/* Ray length along ground */
+    double lon, lat;			/* Geographic coordinates of ray end */
+    double x, y;			/* Map coordinates of ray end */
+
+    if ( !vol_p ) {
+	fprintf(stderr, "%d: bogus volume.\n", getpid());
+	return SIGMET_BAD_ARG;
+    }
+    if ( vol_p->ih.tc.tni.scan_mode != PPI_S
+	    && vol_p->ih.tc.tni.scan_mode != PPI_C ) {
+	fprintf(stderr, "%d: volume must be PPI.\n", getpid());
+	return SIGMET_BAD_ARG;
+    }
+    if ( s >= vol_p->num_sweeps_ax ) {
+	fprintf(stderr, "%d: sweep index out of range for volume.\n", getpid());
+	return SIGMET_RNG_ERR;
+    }
+    if ( !vol_p->sweep_hdr[s].ok ) {
+	fprintf(stderr, "%d: sweep not valid in volume.\n", getpid());
+	return SIGMET_RNG_ERR;
+    }
+    rlon = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
+    rlat = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
+    rearth = GeogREarth(NULL);
+    rng_1st_bin = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
+    step_out = 0.01 * vol_p->ih.tc.tri.step_out;
+    num_bins = vol_p->ih.tc.tri.num_bins_out;
+    ray_len = rng_1st_bin + (num_bins + 0.5) * step_out;
+    x_min = y_min = DBL_MAX;
+    x_max = y_max = -DBL_MAX;
+    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	if ( vol_p->ray_hdr[s][r].ok ) {
+	    az0 = vol_p->ray_hdr[s][r].az0;
+	    az1 = GeogLonR(vol_p->ray_hdr[s][r].az1, az0);
+	    az = 0.5 * (az0 + az1);
+	    tilt0 = vol_p->ray_hdr[s][r].tilt0;
+	    tilt1 = vol_p->ray_hdr[s][r].tilt1;
+	    tilt = 0.5 * (tilt0 + tilt1);
+	    ray_len_g
+		= atan(ray_len * cos(tilt) / (rearth + ray_len * sin(tilt)));
+	    GeogStep(rlon, rlat, az, ray_len_g, &lon, &lat);
+	    if ( GeogProjLonLatToXY(lon, lat, &x, &y, proj) ) {
+		x_min = (x < x_min) ? x : x_min;
+		x_max = (x > x_max) ? x : x_max;
+		y_min = (y < y_min) ? y : y_min;
+		y_max = (y > y_max) ? y : y_max;
+	    }
+	}
+    }
+    if ( x_min == DBL_MAX || y_min == DBL_MAX
+	    || x_max == -DBL_MAX || y_max == -DBL_MAX ) {
+	return SIGMET_BAD_VOL;
+    }
+    *x_min_p = x_min;
+    *x_max_p = x_max;
+    *y_min_p = y_min;
+    *y_max_p = y_max;
     return SIGMET_OK;
 }
 

@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.117 $ $Date: 2012/11/07 21:23:17 $
+   .	$Revision: 1.119 $ $Date: 2012/11/08 23:03:39 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -46,6 +46,7 @@
 #include <sys/types.h>
 #include "type_nbit.h"
 #include "dorade_lib.h"
+#include "geog_proj.h"
 
 #ifndef M_PI
 #define M_PI     3.141592653589793238462
@@ -624,6 +625,8 @@ void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
+int Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *, int, struct GeogProj *,
+	double *, double *, double *, double *);
 int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *, char *, int, double,
 	double, int, FILE *);
 int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *, char *, int, double,
