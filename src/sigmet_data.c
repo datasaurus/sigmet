@@ -31,7 +31,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.37 $ $Date: 2012/09/19 20:56:00 $
+   .	$Revision: 1.38 $ $Date: 2012/10/05 22:19:02 $
  */
 
 #include <stdlib.h>
@@ -51,7 +51,7 @@
    Short names for Sigmet data types.  Index with enum Sigmet_DataTypeN.
  */
 
-static char *abbrv[SIGMET_NTYPES] = {
+static char *data_type_s[SIGMET_NTYPES] = {
     "DB_XHDR",		"DB_DBT",	"DB_DBZ",	"DB_VEL",
     "DB_WIDTH",		"DB_ZDR",	"DB_DBZC",	"DB_DBT2",
     "DB_DBZ2",		"DB_VEL2",	"DB_WIDTH2",	"DB_ZDR2",
@@ -217,7 +217,7 @@ unsigned long Sigmet_RadBin2(double a)
 
 char * Sigmet_DataType_Abbrv(enum Sigmet_DataTypeN y)
 {
-    return (y < SIGMET_NTYPES) ? abbrv[y] : NULL;
+    return (y < SIGMET_NTYPES) ? data_type_s[y] : NULL;
 }
 
 char * Sigmet_DataType_Descr(enum Sigmet_DataTypeN y)
@@ -243,7 +243,7 @@ static void data_type_init(void)
 	return;
     }
     for (sig_type = 0; sig_type < SIGMET_NTYPES; sig_type++) {
-	i = hash(abbrv[sig_type]);
+	i = hash(data_type_s[sig_type]);
 	assert(i < N_BUCKETS);
 	sig_data_type[i] = sig_type;
     }
@@ -270,7 +270,7 @@ int Sigmet_DataType_GetN(char *a, enum Sigmet_DataTypeN *y_p)
     i = hash(a);
     if ( i < N_BUCKETS ) {
 	y = sig_data_type[i];
-	if ( strcmp(a, abbrv[sig_data_type[i]]) == 0 ) {
+	if ( strcmp(a, data_type_s[sig_data_type[i]]) == 0 ) {
 	    if ( y_p ) {
 		*y_p = y;
 	    }

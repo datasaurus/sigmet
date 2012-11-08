@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.52 $ $Date: 2012/09/21 19:56:58 $
+   .	$Revision: 1.53 $ $Date: 2012/10/05 22:09:21 $
  */
 
 #include <string.h>
@@ -54,9 +54,9 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     float *r_p;					/* Point into ray_p */
     int num_bins = 0;				/* Allocation at ray_p */
     int num_parms, num_rays, num_cells;		/* Convenience */
-    int num_rays_d;				/* Number of rays in DORADE sweep.
-						   Will be <= number of rays in
-						   Sigmet sweep. */
+    int num_rays_d;				/* Number of rays in DORADE
+						   sweep.  Will be <= number of
+						   rays in Sigmet sweep. */
 
     /*
        This array specifies soloii equivalents for certain Sigmet data types.
@@ -221,21 +221,21 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     }
     parm_p = NULL;
     for (p = 0; p < num_parms; p++) {
-	char *abbrv;				/* Data type abbreviation,
+	char *data_type_s;			/* Data type abbreviation,
 						   e.g. "DZ" or "DB_ZDR" */
 	enum Sigmet_DataTypeN sig_type;
 
-	abbrv = vol_p->dat[p].abbrv;
-	if ( strlen(abbrv) == 0 ) {
+	data_type_s = vol_p->dat[p].data_type_s;
+	if ( strlen(data_type_s) == 0 ) {
 	    continue;
 	}
 	parm_p = sensor_p->parm + p;
 	Dorade_PARM_Init(parm_p);
-	if ( Sigmet_DataType_GetN(abbrv, &sig_type) && soloii_abbrv[sig_type] )
-	{
+	if ( Sigmet_DataType_GetN(data_type_s, &sig_type)
+		&& soloii_abbrv[sig_type] ) {
 	    strncpy(parm_p->parameter_name, soloii_abbrv[sig_type], 8);
 	} else {
-	    strncpy(parm_p->parameter_name, abbrv, 8);
+	    strncpy(parm_p->parameter_name, data_type_s, 8);
 	}
 	strncpy(parm_p->param_description, vol_p->dat[p].descr, 40);
 	strncpy(parm_p->param_units, vol_p->dat[p].unit, 8);
@@ -403,7 +403,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	*r_p = Sigmet_NoData();
     }
     for (p = 0; p < num_parms; p++) {
-	if ( strlen(vol_p->dat[p].abbrv) == 0 ) {
+	if ( strlen(vol_p->dat[p].data_type_s) == 0 ) {
 	    continue;
 	}
 	for (r = 0; r < num_rays_d; r++) {

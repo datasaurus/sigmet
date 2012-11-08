@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.10 $ $Date: 2012/10/05 22:18:00 $
+   .	$Revision: 1.12 $ $Date: 2012/11/08 21:24:49 $
  */
 
 #include "unix_defs.h"
@@ -186,9 +186,9 @@ static int print_vol_hdr(struct Sigmet_Vol *vol_p)
     }
     printf("task_name=\"%s\"\n", vol_p->ph.pc.task_name);
     printf("types=\"");
-    printf("%s", vol_p->dat[0].abbrv);
+    printf("%s", vol_p->dat[0].data_type_s);
     for (y = 1; y < vol_p->num_types; y++) {
-	printf(" %s", vol_p->dat[y].abbrv);
+	printf(" %s", vol_p->dat[y].data_type_s);
     }
     printf("\"\n");
     printf("num_sweeps=%d\n", vol_p->ih.ic.num_sweeps);

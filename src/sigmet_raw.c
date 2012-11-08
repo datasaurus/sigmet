@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.109 $ $Date: 2012/11/07 21:20:19 $
+   .	$Revision: 1.111 $ $Date: 2012/11/08 21:24:49 $
  */
 
 #include "unix_defs.h"
@@ -720,8 +720,8 @@ static int data_types_cb(int argc, char *argv[])
 	return 0;
     }
     for (y = 0; y < vol_p->num_types; y++) {
-	if ( strlen(vol_p->dat[y].abbrv) > 0 ) {
-	    printf("%s | %s | %s\n", vol_p->dat[y].abbrv,
+	if ( strlen(vol_p->dat[y].data_type_s) > 0 ) {
+	    printf("%s | %s | %s\n", vol_p->dat[y].data_type_s,
 		    vol_p->dat[y].descr, vol_p->dat[y].unit);
 	}
     }
@@ -795,9 +795,9 @@ static int vol_hdr_cb(int argc, char *argv[])
     }
     printf("task_name=\"%s\"\n", vol_p->ph.pc.task_name);
     printf("types=\"");
-    printf("%s", vol_p->dat[0].abbrv);
+    printf("%s", vol_p->dat[0].data_type_s);
     for (y = 1; y < vol_p->num_types; y++) {
-	printf(" %s", vol_p->dat[y].abbrv);
+	printf(" %s", vol_p->dat[y].data_type_s);
     }
     printf("\"\n");
     printf("num_sweeps=%d\n", vol_p->ih.ic.num_sweeps);
@@ -976,7 +976,7 @@ static int new_field_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     int a;
-    char *abbrv;			/* Data type abbreviation */
+    char *data_type_s;			/* Data type abbreviation */
     char *val_s = NULL;			/* Initial value */
     double val;
     char *descr = NULL;			/* Descriptor for new field */
@@ -993,7 +993,7 @@ static int new_field_cb(int argc, char *argv[])
 		"[-v value]\n", argv0, argv1);
 	return 0;
     }
-    abbrv = argv[2];
+    data_type_s = argv[2];
 
     /*
        Obtain optional descriptor, units, and initial value, or use defaults.
@@ -1023,10 +1023,10 @@ static int new_field_cb(int argc, char *argv[])
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    if ( (status = Sigmet_Vol_NewField(vol_p, abbrv, descr, unit))
+    if ( (status = Sigmet_Vol_NewField(vol_p, data_type_s, descr, unit))
 	    != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not add data type %s to volume\n%s\n",
-		argv0, argv1, abbrv, sigmet_err(status));
+		argv0, argv1, data_type_s, sigmet_err(status));
 	vol_detach(vol_p, ax_sem_id);
 	return 0;
     }
@@ -1037,29 +1037,29 @@ static int new_field_cb(int argc, char *argv[])
 
     if ( val_s ) {
 	if ( sscanf(val_s, "%lf", &val) == 1 ) {
-	    status = Sigmet_Vol_Fld_SetVal(vol_p, abbrv, val);
+	    status = Sigmet_Vol_Fld_SetVal(vol_p, data_type_s, val);
 	    if ( status != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not set %s to %lf in volume\n%s\n"
 			"Field is retained in volume but values are garbage.\n",
-			argv0, argv1, abbrv, val, sigmet_err(status));
+			argv0, argv1, data_type_s, val, sigmet_err(status));
 		vol_detach(vol_p, ax_sem_id);
 		return 0;
 	    }
 	} else if ( strcmp(val_s, "r_beam") == 0 ) {
-	    status = Sigmet_Vol_Fld_SetRBeam(vol_p, abbrv);
+	    status = Sigmet_Vol_Fld_SetRBeam(vol_p, data_type_s);
 	    if ( status != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not set %s to %s in volume\n%s\n"
 			"Field is retained in volume but values are garbage.\n",
-			argv0, argv1, abbrv, val_s, sigmet_err(status));
+			argv0, argv1, data_type_s, val_s, sigmet_err(status));
 		vol_detach(vol_p, ax_sem_id);
 		return 0;
 	    }
 	} else {
-	    status = Sigmet_Vol_Fld_Copy(vol_p, abbrv, val_s);
+	    status = Sigmet_Vol_Fld_Copy(vol_p, data_type_s, val_s);
 	    if ( status != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not set %s to %s in volume\n%s\n"
 			"Field is retained in volume but values are garbage.\n",
-			argv0, argv1, abbrv, val_s, sigmet_err(status));
+			argv0, argv1, data_type_s, val_s, sigmet_err(status));
 		vol_detach(vol_p, ax_sem_id);
 		return 0;
 	    }
@@ -1075,22 +1075,23 @@ static int del_field_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
-    char *abbrv;			/* Data type abbreviation */
+    char *data_type_s;			/* Data type abbreviation */
     int status;				/* Result of a function */
 
     if ( argc != 3 ) {
 	fprintf(stderr, "Usage: %s %s data_type\n", argv0, argv1);
 	return 0;
     }
-    abbrv = argv[2];
+    data_type_s = argv[2];
     if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    if ( (status = Sigmet_Vol_DelField(vol_p, abbrv)) != SIGMET_OK ) {
+    if ( (status = Sigmet_Vol_DelField(vol_p, data_type_s)) != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not remove data type %s "
-		"from volume\n%s\n", argv0, argv1, abbrv, sigmet_err(status));
+		"from volume\n%s\n", argv0, argv1, data_type_s,
+		sigmet_err(status));
 	vol_detach(vol_p, ax_sem_id);
 	return 0;
     }
@@ -1135,7 +1136,7 @@ static int set_field_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     int status;				/* Result of a function */
-    char *abbrv;			/* Data type abbreviation */
+    char *data_type_s;			/* Data type abbreviation */
     char *d_s;
     double d;
 
@@ -1143,7 +1144,7 @@ static int set_field_cb(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s %s data_type value\n", argv0, argv1);
 	return 0;
     }
-    abbrv = argv[2];
+    data_type_s = argv[2];
     d_s = argv[3];
     if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
@@ -1158,16 +1159,19 @@ static int set_field_cb(int argc, char *argv[])
      */
 
     if ( strcmp("r_beam", d_s) == 0 ) {
-	if ( (status = Sigmet_Vol_Fld_SetRBeam(vol_p, abbrv)) != SIGMET_OK ) {
+	status = Sigmet_Vol_Fld_SetRBeam(vol_p, data_type_s);
+	if ( status != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not set %s to beam range "
-		    "in volume\n%s\n", argv0, argv1, abbrv, sigmet_err(status));
+		    "in volume\n%s\n", argv0, argv1, data_type_s,
+		    sigmet_err(status));
 	    vol_detach(vol_p, ax_sem_id);
 	    return 0;
 	}
     } else if ( sscanf(d_s, "%lf", &d) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_SetVal(vol_p, abbrv, d)) != SIGMET_OK ) {
+	status = Sigmet_Vol_Fld_SetVal(vol_p, data_type_s, d);
+	if ( status != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not set %s to %lf in volume\n%s\n",
-		    argv0, argv1, abbrv, d, sigmet_err(status));
+		    argv0, argv1, data_type_s, d, sigmet_err(status));
 	    vol_detach(vol_p, ax_sem_id);
 	    return 0;
 	}
@@ -1192,16 +1196,16 @@ static int add_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     int status;				/* Result of a function */
-    char *abbrv;			/* Data type abbreviation */
+    char *data_type_s;			/* Data type abbreviation */
     char *a_s;				/* What to add */
     double a;				/* Scalar to add */
 
     if ( argc != 4 ) {
-	fprintf(stderr, "Usage: %s %s type value|field\n",
+	fprintf(stderr, "Usage: %s %s data_type value|field\n",
 		argv0, argv1);
 	return 0;
     }
-    abbrv = argv[2];
+    data_type_s = argv[2];
     a_s = argv[3];
     if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
@@ -1209,16 +1213,17 @@ static int add_cb(int argc, char *argv[])
 	return 0;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_AddVal(vol_p, abbrv, a)) != SIGMET_OK ) {
+	status = Sigmet_Vol_Fld_AddVal(vol_p, data_type_s, a);
+	if ( status != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not add %s to %lf in volume\n%s\n",
-		    argv0, argv1, abbrv, a, sigmet_err(status));
+		    argv0, argv1, data_type_s, a, sigmet_err(status));
 	    vol_detach(vol_p, ax_sem_id);
 	    return 0;
 	}
-    } else if ( (status = Sigmet_Vol_Fld_AddFld(vol_p, abbrv, a_s))
+    } else if ( (status = Sigmet_Vol_Fld_AddFld(vol_p, data_type_s, a_s))
 	    != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not add %s to %s in volume\n%s\n",
-		argv0, argv1, abbrv, a_s, sigmet_err(status));
+		argv0, argv1, data_type_s, a_s, sigmet_err(status));
 	vol_detach(vol_p, ax_sem_id);
 	return 0;
     }
@@ -1237,7 +1242,7 @@ static int sub_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     int status;				/* Result of a function */
-    char *abbrv;			/* Data type abbreviation */
+    char *data_type_s;			/* Data type abbreviation */
     char *a_s;				/* What to subtract */
     double a;				/* Scalar to subtract */
 
@@ -1246,7 +1251,7 @@ static int sub_cb(int argc, char *argv[])
 		argv0, argv1);
 	return 0;
     }
-    abbrv = argv[2];
+    data_type_s = argv[2];
     a_s = argv[3];
     if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
@@ -1254,16 +1259,18 @@ static int sub_cb(int argc, char *argv[])
 	return 0;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_SubVal(vol_p, abbrv, a)) != SIGMET_OK ) {
+	status = Sigmet_Vol_Fld_SubVal(vol_p, data_type_s, a);
+	if ( status != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not subtract %lf from %s in "
-		    "volume\n%s\n", argv0, argv1, a, abbrv, sigmet_err(status));
+		    "volume\n%s\n", argv0, argv1, a, data_type_s,
+		    sigmet_err(status));
 	    vol_detach(vol_p, ax_sem_id);
 	    return 0;
 	}
-    } else if ( (status = Sigmet_Vol_Fld_SubFld(vol_p, abbrv, a_s))
+    } else if ( (status = Sigmet_Vol_Fld_SubFld(vol_p, data_type_s, a_s))
 	    != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not subtract %s from %s in volume\n%s\n",
-		argv0, argv1, a_s, abbrv, sigmet_err(status));
+		argv0, argv1, a_s, data_type_s, sigmet_err(status));
 	vol_detach(vol_p, ax_sem_id);
 	return 0;
     }
@@ -1282,16 +1289,16 @@ static int mul_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     int status;				/* Result of a function */
-    char *abbrv;			/* Data type abbreviation */
+    char *data_type_s;			/* Data type abbreviation */
     char *a_s;				/* What to multiply by */
     double a;				/* Scalar to multiply by */
 
     if ( argc != 4 ) {
-	fprintf(stderr, "Usage: %s %s type value|field\n",
+	fprintf(stderr, "Usage: %s %s data_type value|field\n",
 		argv0, argv1);
 	return 0;
     }
-    abbrv = argv[2];
+    data_type_s = argv[2];
     a_s = argv[3];
     if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
@@ -1299,16 +1306,18 @@ static int mul_cb(int argc, char *argv[])
 	return 0;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_MulVal(vol_p, abbrv, a)) != SIGMET_OK ) {
+	status = Sigmet_Vol_Fld_MulVal(vol_p, data_type_s, a);
+	if ( status != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not multiply %s by %lf in "
-		    "volume\n%s\n", argv0, argv1, abbrv, a, sigmet_err(status));
+		    "volume\n%s\n", argv0, argv1, data_type_s, a,
+		    sigmet_err(status));
 	    vol_detach(vol_p, ax_sem_id);
 	    return 0;
 	}
-    } else if ( (status = Sigmet_Vol_Fld_MulFld(vol_p, abbrv, a_s))
+    } else if ( (status = Sigmet_Vol_Fld_MulFld(vol_p, data_type_s, a_s))
 	    != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not multiply %s by %s in volume\n%s\n",
-		argv0, argv1, abbrv, a_s, sigmet_err(status));
+		argv0, argv1, data_type_s, a_s, sigmet_err(status));
 	vol_detach(vol_p, ax_sem_id);
 	return 0;
     }
@@ -1327,7 +1336,7 @@ static int div_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     int status;				/* Result of a function */
-    char *abbrv;			/* Data type abbreviation */
+    char *data_type_s;			/* Data type abbreviation */
     char *a_s;				/* What to divide by */
     double a;				/* Scalar to divide by */
 
@@ -1336,7 +1345,7 @@ static int div_cb(int argc, char *argv[])
 		argv0, argv1);
 	return 0;
     }
-    abbrv = argv[2];
+    data_type_s = argv[2];
     a_s = argv[3];
     if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
@@ -1344,16 +1353,17 @@ static int div_cb(int argc, char *argv[])
 	return 0;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	if ( (status = Sigmet_Vol_Fld_DivVal(vol_p, abbrv, a)) != SIGMET_OK ) {
+	status = Sigmet_Vol_Fld_DivVal(vol_p, data_type_s, a);
+	if ( status != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not divide %s by %lf in volume\n%s\n",
-		    argv0, argv1, abbrv, a, sigmet_err(status));
+		    argv0, argv1, data_type_s, a, sigmet_err(status));
 	    vol_detach(vol_p, ax_sem_id);
 	    return 0;
 	}
-    } else if ( (status = Sigmet_Vol_Fld_DivFld(vol_p, abbrv, a_s))
+    } else if ( (status = Sigmet_Vol_Fld_DivFld(vol_p, data_type_s, a_s))
 	    != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not divide %s by %s in volume\n%s\n",
-		argv0, argv1, abbrv, a_s, sigmet_err(status));
+		argv0, argv1, data_type_s, a_s, sigmet_err(status));
 	vol_detach(vol_p, ax_sem_id);
 	return 0;
     }
@@ -1372,22 +1382,22 @@ static int log10_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     int status;				/* Result of a function */
-    char *abbrv;			/* Data type abbreviation */
+    char *data_type_s;			/* Data type abbreviation */
 
     if ( argc != 3 ) {
 	fprintf(stderr, "Usage: %s %s data_type\n",
 		argv0, argv1);
 	return 0;
     }
-    abbrv = argv[2];
+    data_type_s = argv[2];
     if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    if ( (status = Sigmet_Vol_Fld_Log10(vol_p, abbrv)) != SIGMET_OK ) {
+    if ( (status = Sigmet_Vol_Fld_Log10(vol_p, data_type_s)) != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not compute log10 of %s in volume\n%s\n",
-		argv0, argv1, abbrv, sigmet_err(status));
+		argv0, argv1, data_type_s, sigmet_err(status));
 	vol_detach(vol_p, ax_sem_id);
 	return 0;
     }
@@ -1438,7 +1448,7 @@ static int data_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     int s, y, r, b;
-    char *abbrv;
+    char *data_type_s;
     double d;
     int all = -1;
 
@@ -1446,16 +1456,16 @@ static int data_cb(int argc, char *argv[])
        Identify input and desired output
        Possible forms:
        sigmet_ray data			(argc = 3)
-       sigmet_ray data data_type		(argc = 4)
-       sigmet_ray data data_type s		(argc = 5)
+       sigmet_ray data data_type	(argc = 4)
+       sigmet_ray data data_type s	(argc = 5)
        sigmet_ray data data_type s r	(argc = 6)
        sigmet_ray data data_type s r b	(argc = 7)
      */
 
-    abbrv = NULL;
+    data_type_s = NULL;
     y = s = r = b = all;
     if ( argc >= 3 ) {
-	abbrv = argv[2];
+	data_type_s = argv[2];
     }
     if ( argc >= 4 && sscanf(argv[3], "%d", &s) != 1 ) {
 	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
@@ -1487,14 +1497,15 @@ static int data_cb(int argc, char *argv[])
        Validate.
      */
 
-    if ( abbrv ) {
+    if ( data_type_s ) {
 	for (y = 0;
-		y < vol_p->num_types && strcmp(vol_p->dat[y].abbrv, abbrv) != 0;
+		y < vol_p->num_types
+		&& strcmp(vol_p->dat[y].data_type_s, data_type_s) != 0;
 		y++) {
 	}
 	if ( y == vol_p->num_types ) {
 	    fprintf(stderr, "%s %s: no data type named %s\n",
-		    argv0, argv1, abbrv);
+		    argv0, argv1, data_type_s);
 	    vol_detach(vol_p, ax_sem_id);
 	    return 0;
 	}
@@ -1525,7 +1536,7 @@ static int data_cb(int argc, char *argv[])
     if ( y == all && s == all && r == all && b == all ) {
 	for (y = 0; y < vol_p->num_types; y++) {
 	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-		printf("%s. sweep %d\n", vol_p->dat[y].abbrv, s);
+		printf("%s. sweep %d\n", vol_p->dat[y].data_type_s, s);
 		for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
 		    if ( !vol_p->ray_hdr[s][r].ok ) {
 			continue;
@@ -1545,7 +1556,7 @@ static int data_cb(int argc, char *argv[])
 	}
     } else if ( s == all && r == all && b == all ) {
 	for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-	    printf("%s. sweep %d\n", vol_p->dat[y].abbrv, s);
+	    printf("%s. sweep %d\n", vol_p->dat[y].data_type_s, s);
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 		if ( !vol_p->ray_hdr[s][r].ok ) {
 		    continue;
@@ -1563,7 +1574,7 @@ static int data_cb(int argc, char *argv[])
 	    }
 	}
     } else if ( r == all && b == all ) {
-	printf("%s. sweep %d\n", vol_p->dat[y].abbrv, s);
+	printf("%s. sweep %d\n", vol_p->dat[y].data_type_s, s);
 	for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	    if ( !vol_p->ray_hdr[s][r].ok ) {
 		continue;
@@ -1581,7 +1592,7 @@ static int data_cb(int argc, char *argv[])
 	}
     } else if ( b == all ) {
 	if ( vol_p->ray_hdr[s][r].ok ) {
-	    printf("%s. sweep %d, ray %d: ", vol_p->dat[y].abbrv, s, r);
+	    printf("%s. sweep %d, ray %d: ", vol_p->dat[y].data_type_s, s, r);
 	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
 		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 		if ( Sigmet_IsData(d) ) {
@@ -1595,7 +1606,7 @@ static int data_cb(int argc, char *argv[])
     } else {
 	if ( vol_p->ray_hdr[s][r].ok ) {
 	    printf("%s. sweep %d, ray %d, bin %d: ",
-		    vol_p->dat[y].abbrv, s, r, b);
+		    vol_p->dat[y].data_type_s, s, r, b);
 	    d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
 	    if ( Sigmet_IsData(d) ) {
 		printf("%f ", d);
@@ -1623,7 +1634,7 @@ static int bdata_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     int s, y, r, b;
-    char *abbrv;
+    char *data_type_s;
     static float *ray_p;	/* Buffer to receive ray data */
     int num_bins_out;
     int status, n;
@@ -1633,7 +1644,7 @@ static int bdata_cb(int argc, char *argv[])
 		argv0, argv1);
 	return 0;
     }
-    abbrv = argv[2];
+    data_type_s = argv[2];
     if ( sscanf(argv[3], "%d", &s) != 1 ) {
 	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
 		argv0, argv1, argv[3]);
@@ -1645,12 +1656,13 @@ static int bdata_cb(int argc, char *argv[])
 	return 0;
     }
     for (y = 0;
-	    y < vol_p->num_types && strcmp(vol_p->dat[y].abbrv, abbrv) != 0;
+	    y < vol_p->num_types
+	    && strcmp(vol_p->dat[y].data_type_s, data_type_s) != 0;
 	    y++) {
     }
     if ( y == vol_p->num_types ) {
 	fprintf(stderr, "%s %s: no data type named %s\n",
-		argv0, argv1, abbrv);
+		argv0, argv1, data_type_s);
 	vol_detach(vol_p, ax_sem_id);
 	return 0;
     }
@@ -1674,7 +1686,7 @@ static int bdata_cb(int argc, char *argv[])
 	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p, &n);
 	    if ( status != SIGMET_OK ) {
 		fprintf(stderr, "Could not get ray data for data type %s, "
-			"sweep index %d, ray %d.\n%s\n", abbrv, s, r,
+			"sweep index %d, ray %d.\n%s\n", data_type_s, s, r,
 			sigmet_err(status));
 		vol_detach(vol_p, ax_sem_id);
 		return 0;
@@ -1682,7 +1694,7 @@ static int bdata_cb(int argc, char *argv[])
 	    if ( n > num_bins_out ) {
 		fprintf(stderr, "Ray %d or sweep %d, data type %s has "
 			"unexpected number of bins - %d instead of %d.\n",
-			r, s, abbrv, n, num_bins_out);
+			r, s, data_type_s, n, num_bins_out);
 		vol_detach(vol_p, ax_sem_id);
 		return 0;
 	    }
@@ -1691,7 +1703,7 @@ static int bdata_cb(int argc, char *argv[])
 		!= num_bins_out ) {
 	    fprintf(stderr, "Could not write ray data for data type %s, "
 		    "sweep index %d, ray %d.\n%s\n",
-		    abbrv, s, r, strerror(errno));
+		    data_type_s, s, r, strerror(errno));
 	    vol_detach(vol_p, ax_sem_id);
 	    return 0;
 	}
@@ -1907,7 +1919,7 @@ static int outlines_cb(int argc, char *argv[])
     int bnr;				/* If true, send raw binary output */
     int fill;				/* If true, fill space between rays */
     char *s_s;				/* Sweep index, as a string */
-    char *abbrv;			/* Data type abbreviation */
+    char *data_type_s;			/* Data type abbreviation */
     char *min_s, *max_s;		/* Bounds of data interval of interest
 					 */
     char *outlnFlNm;			/* Name of output file */
@@ -1939,7 +1951,7 @@ static int outlines_cb(int argc, char *argv[])
 		return 0;
 	}
     }
-    abbrv = argv[argc - 5];
+    data_type_s = argv[argc - 5];
     s_s = argv[argc - 4];
     min_s = argv[argc - 3];
     max_s = argv[argc - 2];
@@ -1981,22 +1993,22 @@ static int outlines_cb(int argc, char *argv[])
     }
     switch (vol_p->ih.tc.tni.scan_mode) {
 	case RHI:
-	    status = Sigmet_Vol_RHI_Outlns(vol_p, abbrv, s, min, max, bnr,
+	    status = Sigmet_Vol_RHI_Outlns(vol_p, data_type_s, s, min, max, bnr,
 		    fill, outlnFl);
 	    if ( status != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not print outlines for "
 			"data type %s, sweep %d.\n%s\n",
-			argv0, argv1, abbrv, s, sigmet_err(status));
+			argv0, argv1, data_type_s, s, sigmet_err(status));
 	    }
 	    break;
 	case PPI_S:
 	case PPI_C:
-	    status = Sigmet_Vol_PPI_Outlns(vol_p, abbrv, s, min, max, bnr,
+	    status = Sigmet_Vol_PPI_Outlns(vol_p, data_type_s, s, min, max, bnr,
 		    outlnFl);
 	    if ( status != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not print outlines for "
 			"data type %s, sweep %d.\n%s\n",
-			argv0, argv1, abbrv, s, sigmet_err(status));
+			argv0, argv1, data_type_s, s, sigmet_err(status));
 	    }
 	    break;
 	case FILE_SCAN:

@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.116 $ $Date: 2012/11/01 22:37:38 $
+   .	$Revision: 1.117 $ $Date: 2012/11/07 21:23:17 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -92,8 +92,10 @@ enum Sigmet_StorFmt {
 enum Sigmet_Multi_PRF {ONE_ONE, TWO_THREE, THREE_FOUR, FOUR_FIVE};
 
 /*
-   Volume scan modes.  Refer to task_scan_info struct in IRIS Programmer's Manual
+   Volume scan modes.  Refer to task_scan_info struct in IRIS Programmer's
+   Manual
  */
+
 enum Sigmet_ScanMode {PPI_S = 1, RHI, MAN_SCAN, PPI_C, FILE_SCAN};
 
 /*
@@ -500,7 +502,7 @@ struct Sigmet_Ray_Hdr {
 #define SIGMET_DESCR_LEN 128
 
 struct Sigmet_Dat {
-    char abbrv[SIGMET_NAME_LEN];	/* Data type abbreviation */
+    char data_type_s[SIGMET_NAME_LEN];	/* Data type abbreviation */
     char descr[SIGMET_DESCR_LEN];	/* Information about the data type */
     char unit[SIGMET_NAME_LEN];		/* Physical unit */
     enum Sigmet_StorFmt stor_fmt;	/* Storage format, determines which
@@ -571,18 +573,23 @@ struct Sigmet_Vol {
 					   dimensioned [sweep][ray] */
     int ray_hdr_id;			/* Shared memory identifier for ray
 					   headers */
-    struct {
-	char abbrv[SIGMET_NAME_LEN];	/* Data type abbreviation */
-	int y;				/* Index in dat of data identified as of
-					   type abbrv */
-    } types_tbl[SIGMET_MAX_TYPES];	/* Map data type abbreviations
-					   to members of dat */
 
     /*
-       Data array, dimensioned [type]
+       Data array. One element for each data type.
      */
 
     struct Sigmet_Dat dat[SIGMET_MAX_TYPES];
+
+    /*
+       Look up table, associates data type names with offsets in dat array
+     */
+
+    struct {
+	char data_type_s[SIGMET_NAME_LEN];/* Data type abbreviation */
+	int y;				/* Index in dat of data identified as of
+					   type data_type_s */
+    } types_tbl[SIGMET_MAX_TYPES];
+
     size_t size;			/* Number of bytes of memory
 					   this structure is using */
     int mod;				/* If true, volume in memory
