@@ -26,7 +26,7 @@
 .\"
 .\" Please address questions and feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.35 $ $Date: 2012/04/27 20:27:02 $
+.\" $Revision: 1.36 $ $Date: 2012/09/13 19:59:00 $
 .\"
 .Dd $Mdocdate$
 .Dt SIGMET_RAW 1
@@ -60,20 +60,10 @@ it will also list any additional data types known to a
 daemon associated with the socket, as described below. Output lines will have
 form:
 .Bd -literal -offset indent
-\fIDB_field\fP | \fIDescription\fP | \fIunit\fP | \fBused\fP
-\fIDB_field2\fP | \fIDescription2\fP | \fIunit\fP | \fBunused\fP
+\fIDB_field\fP | \fIDescription\fP | \fIunit\fP
+\fIDB_field2\fP | \fIDescription2\fP | \fIunit\fP
 
 .Ed
-If the last word is
-.Qo
-used
-.Qc
-there is a field for the data type in the volume.
-If the last word is
-.Qo
-unused
-.Qc
-the data type is known but not represented in the volume.
 .It Nm sigmet_raw Cm good Ar raw_file Op socket
 Returns true if standard input provides a navigable Sigmet raw product.
 The raw product may not contain any useful meta-data or data, and nothing
