@@ -2898,7 +2898,8 @@ int Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *vol_p, int s, double *x_max_p,
 	    tilt0 = vol_p->ray_hdr[s][r].tilt0;
 	    tilt1 = vol_p->ray_hdr[s][r].tilt1;
 	    tilt = 0.5 * (tilt0 + tilt1);
-	    x = atan2(ray_len * cos(tilt), rearth + ray_len * sin(tilt));
+	    x = rearth
+		* atan2(ray_len * cos(tilt), rearth + ray_len * sin(tilt));
 	    y = (sqrt(rearth * rearth + 2 * rearth * ray_len * sin(tilt)
 			    + ray_len * ray_len) - rearth);
 	    x_max = (x > x_max) ? x : x_max;
