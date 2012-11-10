@@ -93,6 +93,7 @@ static callback incr_time_cb;
 static callback data_cb;
 static callback bdata_cb;
 static callback bin_outline_cb;
+static callback sweep_bnds_cb;
 static callback radar_lon_cb;
 static callback radar_lat_cb;
 static callback shift_az_cb;
@@ -111,36 +112,40 @@ static callback dorade_cb;
 
 #define N_HASH_CMD 126
 static char *cmd1v[N_HASH_CMD] = {
-    "", "", "", "outlines", "radar_lon", "", "", "", "",
-    "near_sweep", "", "", "", "", "", "", "", "", "",
-    "volume_headers", "shift_az", "", "", "", "", "", "",
-    "add", "", "", "", "", "", "", "", "", "", "",
-    "", "sweep_headers", "", "", "", "set_field", "", "",
-    "", "", "bin_outline", "", "load", "", "", "dorade", "",
-    "", "", "", "", "div", "", "", "vol_hdr", "",
-    "del_field", "", "incr_time", "", "", "", "", "", "",
-    "", "", "", "", "", "", "", "radar_lat", "", "",
-    "", "sub", "", "", "", "", "", "", "", "", "",
-    "", "new_field", "", "ray_headers", "data", "", "", "",
-    "data_types", "", "", "", "", "size", "", "", "version",
-    "", "bdata", "log10", "", "", "", "", "", "", "",
-    "", "", "", "mul", ""
+    "", "", "", "outlines", "radar_lon", "", "", "",
+    "", "near_sweep", "", "", "", "", "", "",
+    "", "", "", "volume_headers", "shift_az", "", "", "",
+    "", "", "", "add", "", "", "", "",
+    "", "", "", "", "", "", "", "sweep_headers",
+    "", "", "", "set_field", "", "", "", "",
+    "bin_outline", "", "load", "", "", "dorade", "", "",
+    "", "", "", "div", "", "", "vol_hdr", "",
+    "del_field", "", "incr_time", "", "", "", "", "",
+    "", "", "", "", "", "", "", "",
+    "radar_lat", "", "", "", "sub", "", "", "",
+    "", "", "", "", "", "", "", "new_field",
+    "", "ray_headers", "data", "", "", "", "data_types", "",
+    "", "", "", "size", "", "", "version", "",
+    "bdata", "log10", "", "", "", "", "sweep_bnds", "",
+    "", "", "", "", "mul", "",
 };
 static callback *cb1v[N_HASH_CMD] = {
-    NULL, NULL, NULL, outlines_cb, radar_lon_cb, NULL, NULL, NULL, NULL,
-    near_sweep_cb, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    volume_headers_cb, shift_az_cb, NULL, NULL, NULL, NULL, NULL, NULL,
-    add_cb, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, sweep_headers_cb, NULL, NULL, NULL, set_field_cb, NULL, NULL,
-    NULL, NULL, bin_outline_cb, NULL, load_cb, NULL, NULL, dorade_cb, NULL,
-    NULL, NULL, NULL, NULL, div_cb, NULL, NULL, vol_hdr_cb, NULL,
-    del_field_cb, NULL, incr_time_cb, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, radar_lat_cb, NULL, NULL,
-    NULL, sub_cb, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, new_field_cb, NULL, ray_headers_cb, data_cb, NULL, NULL, NULL,
-    data_types_cb, NULL, NULL, NULL, NULL, size_cb, NULL, NULL, version_cb,
-    NULL, bdata_cb, log10_cb, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, mul_cb, NULL
+    NULL, NULL, NULL, outlines_cb, radar_lon_cb, NULL, NULL, NULL,
+    NULL, near_sweep_cb, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, volume_headers_cb, shift_az_cb, NULL, NULL, NULL,
+    NULL, NULL, NULL, add_cb, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, sweep_headers_cb,
+    NULL, NULL, NULL, set_field_cb, NULL, NULL, NULL, NULL,
+    bin_outline_cb, NULL, load_cb, NULL, NULL, dorade_cb, NULL, NULL,
+    NULL, NULL, NULL, div_cb, NULL, NULL, vol_hdr_cb, NULL,
+    del_field_cb, NULL, incr_time_cb, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    radar_lat_cb, NULL, NULL, NULL, sub_cb, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, new_field_cb,
+    NULL, ray_headers_cb, data_cb, NULL, NULL, NULL, data_types_cb, NULL,
+    NULL, NULL, NULL, size_cb, NULL, NULL, version_cb, NULL,
+    bdata_cb, log10_cb, NULL, NULL, NULL, NULL, sweep_bnds_cb, NULL,
+    NULL, NULL, NULL, NULL, mul_cb, NULL,
 };
 #define HASH_X 31
 static int hash(const char *);
@@ -166,6 +171,7 @@ static int hash(const char *argv1)
 
 #define SIGMET_VOL_SHMEM "SIGMET_VOL_SHMEM"
 #define SIGMET_VOL_SEM "SIGMET_VOL_SEM"
+#define SIGMET_GEOG_PROJ "SIGMET_GEOG_PROJ"
 
 /*
    main function. See sigmet_raw (1)
@@ -1784,6 +1790,89 @@ static int bin_outline_cb(int argc, char *argv[])
 	    corners[6] * DEG_RAD, corners[7] * DEG_RAD);
 
     return 1;
+}
+
+/*
+   Print sweep limits. If ppi, print map coordinates. Map projection can be
+   specified with SIGMET_GEOG_PROJ environment variable, otherwise projection
+   defaults to cylindrical equidistant with no distortion at radar. If rhi,
+   print distance down range and height above ground level.
+ */
+
+static int sweep_bnds_cb(int argc, char *argv[])
+{
+    char *argv0 = argv[0];
+    char *argv1 = argv[1];
+    struct Sigmet_Vol *vol_p;
+    int ax_sem_id;
+    double lon, lat;
+    char *proj_s;
+    struct GeogProj proj;
+    double x_min, x_max, y_min, y_max;
+    char *sweep_s;
+    int s;
+
+    if ( argc != 3 ) {
+	fprintf(stderr, "Usage: %s %s sweep\n", argv0, argv1);
+	return 0;
+    }
+    sweep_s = argv[2];
+    if ( sscanf(sweep_s, "%d", &s) != 1 ) {
+	fprintf(stderr, "%s %s: expected integer for sweep index, got %s.\n",
+		argv0, argv1, sweep_s);
+    }
+    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+	fprintf(stderr, "%s %s: could not attach to volume in shared "
+		"memory.\n", argv0, argv1);
+	vol_detach(vol_p, ax_sem_id);
+	return 0;
+    }
+    switch (vol_p->ih.tc.tni.scan_mode) {
+	case RHI:
+	    x_min = y_min = 0.0;
+	    if ( Sigmet_Vol_RHI_Bnds(vol_p, s, &x_max, &y_max) != SIGMET_OK ) {
+		fprintf(stderr, "%s %s: could not compute PPI boundaries.\n",
+			argv0, argv1);
+		goto error;
+	    }
+	    break;
+	case PPI_S:
+	case PPI_C:
+	    if ( (proj_s = getenv(SIGMET_GEOG_PROJ)) ) {
+		if ( !GeogProjSetFmStr(proj_s, &proj) ) {
+		    fprintf(stderr, "%s %s: could not set projection from "
+			    SIGMET_GEOG_PROJ " environment variable.\n",
+			    argv0, argv1);
+		    goto error;
+		}
+	    } else {
+		lon = GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0);
+		lat = GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.latitude), 0.0);
+		if ( !GeogProjSetCylEqDist(lon, lat, &proj) ) {
+		    fprintf(stderr, "%s %s: could not set default "
+			    "projection.\n", argv0, argv1);
+		    goto error;
+		}
+	    }
+	    if ( Sigmet_Vol_PPI_Bnds(vol_p, s, &proj,
+			&x_min, &x_max, &y_min, &y_max) != SIGMET_OK ) {
+		fprintf(stderr, "%s %s: could not compute PPI boundaries.\n",
+			argv0, argv1);
+		goto error;
+	    }
+	    break;
+	case FILE_SCAN:
+	case MAN_SCAN:
+	    break;
+    }
+    vol_detach(vol_p, ax_sem_id);
+    printf("x_min=%lf\nx_max=%lf\ny_min=%lf\ny_max=%lf\n",
+	    x_min, x_max, y_min, y_max);
+    return 1;
+
+error:
+    vol_detach(vol_p, ax_sem_id);
+    return 0;
 }
 
 static int radar_lon_cb(int argc, char *argv[])
