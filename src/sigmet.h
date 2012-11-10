@@ -627,6 +627,7 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 int Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *, int, struct GeogProj *,
 	double *, double *, double *, double *);
+int Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *, int, double *, double *);
 int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *, char *, int, double,
 	double, int, FILE *);
 int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *, char *, int, double,
