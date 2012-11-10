@@ -52,6 +52,7 @@
 #include "alloc.h"
 #include "tm_calc_lib.h"
 #include "swap.h"
+#include "strlcpy.h"
 #include "type_nbit.h"
 #include "geog_lib.h"
 #include "sigmet.h"
@@ -682,9 +683,10 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		    /* This is normally DB_XHDR. Skip. */
 		    break;
 		case SIGMET_U1:
-		    strcpy(vol_p->dat[y].data_type_s, data_type_s);
-		    strcpy(vol_p->dat[y].descr, descr);
-		    strcpy(vol_p->dat[y].unit, unit);
+		    strlcpy(vol_p->dat[y].data_type_s, data_type_s,
+			    SIGMET_NAME_LEN);
+		    strlcpy(vol_p->dat[y].descr, descr, SIGMET_DESCR_LEN);
+		    strlcpy(vol_p->dat[y].unit, unit, SIGMET_NAME_LEN);
 		    vol_p->dat[y].sig_type = sig_type;
 		    vol_p->dat[y].stor_fmt = stor_fmt;
 		    vol_p->dat[y].stor_to_comp = stor_to_comp;
@@ -693,9 +695,10 @@ int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		    y++;
 		    break;
 		case SIGMET_U2:
-		    strcpy(vol_p->dat[y].data_type_s, data_type_s);
-		    strcpy(vol_p->dat[y].descr, descr);
-		    strcpy(vol_p->dat[y].unit, unit);
+		    strlcpy(vol_p->dat[y].data_type_s, data_type_s,
+			    SIGMET_NAME_LEN);
+		    strlcpy(vol_p->dat[y].descr, descr, SIGMET_DESCR_LEN);
+		    strlcpy(vol_p->dat[y].unit, unit, SIGMET_NAME_LEN);
 		    vol_p->dat[y].sig_type = sig_type;
 		    vol_p->dat[y].stor_fmt = stor_fmt;
 		    vol_p->dat[y].stor_to_comp = stor_to_comp;
@@ -1475,9 +1478,9 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *data_type_s,
 	return SIGMET_BAD_ARG;
     }
     dat_p = vol_p->dat + vol_p->num_types;
-    strcpy(dat_p->data_type_s, "");
-    strcpy(dat_p->descr, "");
-    strcpy(dat_p->unit, "");
+    strlcpy(dat_p->data_type_s, "", SIGMET_NAME_LEN);
+    strlcpy(dat_p->descr, "", SIGMET_DESCR_LEN);
+    strlcpy(dat_p->unit, "", SIGMET_NAME_LEN);
     dat_p->stor_fmt = SIGMET_FLT;
     dat_p->stor_to_comp = Sigmet_DblDbl;
     dat_p->vals.f = NULL;
@@ -2842,6 +2845,70 @@ int Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *vol_p, int s, struct GeogProj *proj,
     *x_min_p = x_min;
     *x_max_p = x_max;
     *y_min_p = y_min;
+    *y_max_p = y_max;
+    return SIGMET_OK;
+}
+
+/*
+   Return limits of rhi sweep - distance along ground down range and height
+   above radar level.
+ */
+
+int Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *vol_p, int s, double *x_max_p,
+	double *y_max_p)
+{
+    double x_max, y_max;		/* RHI limits */
+    double rng_1st_bin, step_out;	/* Range to first bin, output bin step,
+					   meters */
+    int num_bins;
+    double ray_len;			/* Ray length, meters */
+    int r;				/* Ray index */
+    double az0, az1, az;		/* Ray azimuth */
+    double tilt0, tilt1, tilt;		/* Ray tilt */
+    double rearth;			/* Earth radius */
+    double x, y;			/* Map coordinates of ray end */
+
+    if ( !vol_p ) {
+	fprintf(stderr, "%d: bogus volume.\n", getpid());
+	return SIGMET_BAD_ARG;
+    }
+    if ( vol_p->ih.tc.tni.scan_mode != RHI ) {
+	fprintf(stderr, "%d: volume must be RHI.\n", getpid());
+	return SIGMET_BAD_ARG;
+    }
+    if ( s >= vol_p->num_sweeps_ax ) {
+	fprintf(stderr, "%d: sweep index out of range for volume.\n", getpid());
+	return SIGMET_RNG_ERR;
+    }
+    if ( !vol_p->sweep_hdr[s].ok ) {
+	fprintf(stderr, "%d: sweep not valid in volume.\n", getpid());
+	return SIGMET_RNG_ERR;
+    }
+    rearth = GeogREarth(NULL);
+    rng_1st_bin = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
+    step_out = 0.01 * vol_p->ih.tc.tri.step_out;
+    num_bins = vol_p->ih.tc.tri.num_bins_out;
+    ray_len = rng_1st_bin + (num_bins + 0.5) * step_out;
+    x_max = y_max = -DBL_MAX;
+    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	if ( vol_p->ray_hdr[s][r].ok ) {
+	    az0 = vol_p->ray_hdr[s][r].az0;
+	    az1 = GeogLonR(vol_p->ray_hdr[s][r].az1, az0);
+	    az = 0.5 * (az0 + az1);
+	    tilt0 = vol_p->ray_hdr[s][r].tilt0;
+	    tilt1 = vol_p->ray_hdr[s][r].tilt1;
+	    tilt = 0.5 * (tilt0 + tilt1);
+	    x = atan2(ray_len * cos(tilt), rearth + ray_len * sin(tilt));
+	    y = (sqrt(rearth * rearth + 2 * rearth * ray_len * sin(tilt)
+			    + ray_len * ray_len) - rearth);
+	    x_max = (x > x_max) ? x : x_max;
+	    y_max = (y > y_max) ? y : y_max;
+	}
+    }
+    if ( x_max == -DBL_MAX || y_max == -DBL_MAX ) {
+	return SIGMET_BAD_VOL;
+    }
+    *x_max_p = x_max;
     *y_max_p = y_max;
     return SIGMET_OK;
 }
