@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.119 $ $Date: 2012/11/08 23:03:39 $
+   .	$Revision: 1.120 $ $Date: 2012/11/10 16:34:29 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -648,9 +648,9 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *, char *, char *);
 int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_IncrTm(struct Sigmet_Vol *, double);
 double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
-float Sigmet_Vol_GetDat(struct Sigmet_Vol *, int, int, int, int);
+struct Sigmet_Dat *Sigmet_Vol_GetFld(struct Sigmet_Vol *, char *);
+float Sigmet_Vol_GetDatum(struct Sigmet_Vol *, int, int, int, int);
 int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *, int, int, int, float **, int *);
-int Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int,
-	struct Dorade_Sweep *);
+int Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int, struct Dorade_Sweep *);
 
 #endif

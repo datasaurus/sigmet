@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.181 $ $Date: 2012/11/10 16:15:03 $
+   .	$Revision: 1.182 $ $Date: 2012/11/10 16:34:07 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -101,7 +101,6 @@ static unsigned get_uint32(void *);
 static int vol_good(FILE *);
 static unsigned hash(const char *);
 static void hash_add(struct Sigmet_Vol *, char *, int);
-static struct Sigmet_Dat *hash_get(struct Sigmet_Vol *, char *);
 
 /*
    Default length for character strings
@@ -544,7 +543,8 @@ static void hash_add(struct Sigmet_Vol *vol_p, char *data_type_s, int y)
    Return element from vol_p->dat or NULL.
  */
 
-static struct Sigmet_Dat *hash_get(struct Sigmet_Vol *vol_p, char *data_type_s)
+struct Sigmet_Dat *Sigmet_Vol_GetFld(struct Sigmet_Vol *vol_p,
+	char *data_type_s)
 {
     unsigned h, h0;
     int y;
@@ -1467,7 +1467,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *data_type_s,
 		"another name.\n", getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( hash_get(vol_p, data_type_s) ) {
+    if ( Sigmet_Vol_GetFld(vol_p, data_type_s) ) {
 	fprintf(stderr, "%d: data type %s already exists in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
@@ -1520,7 +1520,7 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *data_type_s)
 		"bogus volume.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = hash_get(vol_p, data_type_s)) ) {
+    if ( !(dat_p = Sigmet_Vol_GetFld(vol_p, data_type_s)) ) {
 	fprintf(stderr, "%d: data type %s not in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
@@ -1583,7 +1583,7 @@ int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
     if ( !vol_p || !data_type_s ) {
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = hash_get(vol_p, data_type_s)) ) {
+    if ( !(dat_p = Sigmet_Vol_GetFld(vol_p, data_type_s)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
@@ -1620,7 +1620,7 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *data_type_s)
     if ( !vol_p || !data_type_s ) {
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = hash_get(vol_p, data_type_s)) ) {
+    if ( !(dat_p = Sigmet_Vol_GetFld(vol_p, data_type_s)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
@@ -1670,7 +1670,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		" No modification allowed.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
+    if ( !(dat_p1 = Sigmet_Vol_GetFld(vol_p, abbrv1)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
@@ -1679,7 +1679,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		getpid());
 	return SIGMET_BAD_VOL;
     }
-    if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
+    if ( !(dat_p2 = Sigmet_Vol_GetFld(vol_p, abbrv2)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv2);
 	return SIGMET_BAD_ARG;
     }
@@ -1768,7 +1768,7 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
 		" No modification allowed.\n", getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = hash_get(vol_p, data_type_s)) ) {
+    if ( !(dat_p = Sigmet_Vol_GetFld(vol_p, data_type_s)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
@@ -1822,7 +1822,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		" No modification allowed.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
+    if ( !(dat_p1 = Sigmet_Vol_GetFld(vol_p, abbrv1)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
@@ -1835,7 +1835,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	sgn = -1;
 	abbrv2++;
     }
-    if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
+    if ( !(dat_p2 = Sigmet_Vol_GetFld(vol_p, abbrv2)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv2);
 	return SIGMET_BAD_ARG;
     }
@@ -1947,7 +1947,7 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
 		" No modification allowed.\n", getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = hash_get(vol_p, data_type_s)) ) {
+    if ( !(dat_p = Sigmet_Vol_GetFld(vol_p, data_type_s)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
@@ -2001,7 +2001,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		" No modification allowed.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
+    if ( !(dat_p1 = Sigmet_Vol_GetFld(vol_p, abbrv1)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
@@ -2014,7 +2014,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	sgn = -1;
 	abbrv2++;
     }
-    if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
+    if ( !(dat_p2 = Sigmet_Vol_GetFld(vol_p, abbrv2)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv2);
 	return SIGMET_BAD_ARG;
     }
@@ -2126,7 +2126,7 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
 		" No modification allowed.\n", getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = hash_get(vol_p, data_type_s)) ) {
+    if ( !(dat_p = Sigmet_Vol_GetFld(vol_p, data_type_s)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
@@ -2180,7 +2180,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		" No modification allowed.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
+    if ( !(dat_p1 = Sigmet_Vol_GetFld(vol_p, abbrv1)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
@@ -2193,7 +2193,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	sgn = -1;
 	abbrv2++;
     }
-    if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
+    if ( !(dat_p2 = Sigmet_Vol_GetFld(vol_p, abbrv2)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv2);
 	return SIGMET_BAD_ARG;
     }
@@ -2309,7 +2309,7 @@ int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
 		" No modification allowed.\n", getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = hash_get(vol_p, data_type_s)) ) {
+    if ( !(dat_p = Sigmet_Vol_GetFld(vol_p, data_type_s)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
@@ -2363,7 +2363,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 		" No modification allowed.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p1 = hash_get(vol_p, abbrv1)) ) {
+    if ( !(dat_p1 = Sigmet_Vol_GetFld(vol_p, abbrv1)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv1);
 	return SIGMET_BAD_ARG;
     }
@@ -2376,7 +2376,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 	sgn = -1;
 	abbrv2++;
     }
-    if ( !(dat_p2 = hash_get(vol_p, abbrv2)) ) {
+    if ( !(dat_p2 = Sigmet_Vol_GetFld(vol_p, abbrv2)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n", getpid(), abbrv2);
 	return SIGMET_BAD_ARG;
     }
@@ -2491,7 +2491,7 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *data_type_s)
 		" No modification allowed.\n", getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = hash_get(vol_p, data_type_s)) ) {
+    if ( !(dat_p = Sigmet_Vol_GetFld(vol_p, data_type_s)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
@@ -2594,7 +2594,7 @@ double Sigmet_Vol_VNyquist(struct Sigmet_Vol *vol_p)
    Fetch a value from a Sigmet volume
  */
 
-float Sigmet_Vol_GetDat(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
+float Sigmet_Vol_GetDatum(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 {
     float v = Sigmet_NoData();
 
@@ -2951,7 +2951,7 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *data_type_s, int s,
 	fprintf(stderr, "%d: volume must be PPI.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = hash_get(vol_p, data_type_s)) ) {
+    if ( !(dat_p = Sigmet_Vol_GetFld(vol_p, data_type_s)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
@@ -3105,7 +3105,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *data_type_s, int s,
 	fprintf(stderr, "%d: volume must be RHI.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
-    if ( !(dat_p = hash_get(vol_p, data_type_s)) ) {
+    if ( !(dat_p = Sigmet_Vol_GetFld(vol_p, data_type_s)) ) {
 	fprintf(stderr, "%d: no field of %s in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
