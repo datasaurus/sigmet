@@ -25,7 +25,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.5 $ $Date: 2012/11/08 21:22:00 $
+.\" $Revision: 1.6 $ $Date: 2012/11/08 23:19:01 $
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
 .Os UNIX
@@ -54,7 +54,8 @@
 .Nm Sigmet_Vol_Fld_Log10 ,
 .Nm Sigmet_Vol_IncrTm ,
 .Nm Sigmet_Vol_VNyquist ,
-.Nm Sigmet_Vol_GetDat ,
+.Nm Sigmet_Vol_GetFld ,
+.Nm Sigmet_Vol_GetDatum ,
 .Nm Sigmet_Vol_GetRayDat ,
 .Nm Sigmet_Vol_ToDorade
 .Nd read and manipulate data from Sigmet raw product files
@@ -108,8 +109,10 @@
 .Fn Sigmet_Vol_IncrTm "struct Sigmet_Vol *vol_p" "double dt"
 .Ft double
 .Fn Sigmet_Vol_VNyquist "struct Sigmet_Vol *vol_p"
+.Ft struct Sigmet_Dat *
+.Fn Sigmet_Vol_GetFld "struct Sigmet_Vol *vol_p" "char *data_type_s"
 .Ft float
-.Fn Sigmet_Vol_GetDat "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "int b"
+.Fn Sigmet_Vol_GetDatum "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "int b"
 .Ft int
 .Fn Sigmet_Vol_GetRayDat "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "float **ray_p" "int *n"
 .Ft int
@@ -394,7 +397,18 @@ days to all times in the volume at
 returns the Nyquist (unambiguous) velocity for the volume at
 .Fa vol_p
 .Pp
-.Fn Sigmet_Vol_GetDat
+.Fn Sigmet_Vol_GetFld
+returns a
+.Li Sigmet_Dat
+structure with data for field identified as
+.Fa data_type_s
+of volume
+.Fa vol_p ,
+or
+.Li NULL
+if something goes wrong.
+.Pp
+.Fn Sigmet_Vol_GetDatum
 returns the bin value for type index
 .Fa y ,
 sweep index
