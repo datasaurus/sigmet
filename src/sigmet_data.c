@@ -31,7 +31,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.38 $ $Date: 2012/10/05 22:19:02 $
+   .	$Revision: 1.39 $ $Date: 2012/11/08 21:24:49 $
  */
 
 #include <stdlib.h>
@@ -290,21 +290,6 @@ Sigmet_StorToMxFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN y)
     return (y < SIGMET_NTYPES) ?  stor_to_comp[y] : NULL;
 }
 
-float Sigmet_NoData(void)
-{
-    return FLT_MAX;
-}
-
-int Sigmet_IsData(float v)
-{
-    return !(v == FLT_MAX);
-}
-
-int Sigmet_IsNoData(float v)
-{
-    return v == FLT_MAX;
-}
-
 double Sigmet_DblDbl(double v, void *meta)
 {
     return v;
@@ -312,25 +297,25 @@ double Sigmet_DblDbl(double v, void *meta)
 
 static double stor_comp_XHDR(double v, void *meta)
 {
-    return Sigmet_NoData();
+    return NAN;
 }
 
 static double stor_comp_DBT(double v, void *meta)
 {
     return (v == 0)
-	? Sigmet_NoData() : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
+	? NAN : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
 }
 
 static double stor_comp_DBZ(double v, void *meta)
 {
     return (v == 0)
-	? Sigmet_NoData() : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
+	? NAN : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
 }
 
 static double stor_comp_DBZC(double v, void *meta)
 {
     return (v == 0)
-	? Sigmet_NoData() : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
+	? NAN : (v > 255) ? 95.5 : 0.5 * (v - 64.0);
 }
 
 static double stor_comp_VEL(double v, void *meta)
@@ -338,10 +323,10 @@ static double stor_comp_VEL(double v, void *meta)
     struct Sigmet_Vol *vol_p = (struct Sigmet_Vol *)meta;
 
     if ( !vol_p ) {
-	return Sigmet_NoData();
+	return NAN;
     }
     return (v == 0 || v > 255)
-	? Sigmet_NoData() : Sigmet_Vol_VNyquist(vol_p) * (v - 128.0) / 127.0;
+	? NAN : Sigmet_Vol_VNyquist(vol_p) * (v - 128.0) / 127.0;
 }
 
 static double stor_comp_WIDTH(double v, void *meta)
@@ -351,13 +336,12 @@ static double stor_comp_WIDTH(double v, void *meta)
 
     prf = vol_p->ih.tc.tdi.prf;
     wav_len = 0.01 * 0.01 * vol_p->ih.tc.tmi.wave_len;
-    return (v == 0 || v > 255) ? Sigmet_NoData()
-	: 0.25 * wav_len * prf * v / 256.0;
+    return (v == 0 || v > 255) ? NAN : 0.25 * wav_len * prf * v / 256.0;
 }
 
 static double stor_comp_ZDR(double v, void *meta)
 {
-    return (v == 0 || v > 255) ? Sigmet_NoData() : (v - 128.0) / 16.0;
+    return (v == 0 || v > 255) ? NAN : (v - 128.0) / 16.0;
 }
 
 static double stor_comp_KDP(double v, void *meta)
@@ -366,11 +350,11 @@ static double stor_comp_KDP(double v, void *meta)
     double wav_len;
 
     if ( !vol_p ) {
-	return Sigmet_NoData();
+	return NAN;
     }
     wav_len = 0.01 * vol_p->ih.tc.tmi.wave_len;
     if (v == 0 || v > 255) {
-	return Sigmet_NoData();
+	return NAN;
     } else if (v > 128) {
 	return 0.25 * pow(600.0, (v - 129.0) / 126.0) / wav_len;
     } else if (v == 128) {
@@ -382,84 +366,82 @@ static double stor_comp_KDP(double v, void *meta)
 
 static double stor_comp_PHIDP(double v, void *meta)
 {
-    return (v == 0 || v > 255)
-	? Sigmet_NoData() : 180.0 / 254.0 * (v - 1.0);
+    return (v == 0 || v > 255) ? NAN : 180.0 / 254.0 * (v - 1.0);
 }
 
 static double stor_comp_VELC(double v, void *meta)
 {
-    return (v == 0 || v > 255)
-	? Sigmet_NoData() : 75.0 / 127.0 * (v - 128.0);
+    return (v == 0 || v > 255) ? NAN : 75.0 / 127.0 * (v - 128.0);
 }
 
 static double stor_comp_SQI(double v, void *meta)
 {
-    return (v == 0 || v > 254) ? Sigmet_NoData() : sqrt((v - 1) / 253.0);
+    return (v == 0 || v > 254) ? NAN : sqrt((v - 1) / 253.0);
 }
 
 static double stor_comp_RHOHV(double v, void *meta)
 {
-    return (v == 0 || v > 254) ? Sigmet_NoData() : sqrt((v - 1) / 253.0);
+    return (v == 0 || v > 254) ? NAN : sqrt((v - 1) / 253.0);
 }
 
 static double stor_comp_LDRH(double v, void *meta)
 {
-    return (v == 0 || v > 255) ? Sigmet_NoData() : 0.2 * (v - 1) - 45.0;
+    return (v == 0 || v > 255) ? NAN : 0.2 * (v - 1) - 45.0;
 }
 
 static double stor_comp_LDRV(double v, void *meta)
 {
-    return (v == 0 || v > 255) ? Sigmet_NoData() : 0.2 * (v - 1) - 45.0;
+    return (v == 0 || v > 255) ? NAN : 0.2 * (v - 1) - 45.0;
 }
 
 static double stor_comp_DBT2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+    return (v == 0 || v > 65535) ? NAN : 0.01 * (v - 32768.0);
 }
 
 static double stor_comp_DBZ2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+    return (v == 0 || v > 65535) ? NAN : 0.01 * (v - 32768.0);
 }
 
 static double stor_comp_VEL2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+    return (v == 0 || v > 65535) ? NAN : 0.01 * (v - 32768.0);
 }
 
 static double stor_comp_ZDR2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+    return (v == 0 || v > 65535) ? NAN : 0.01 * (v - 32768.0);
 }
 
 static double stor_comp_KDP2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+    return (v == 0 || v > 65535) ? NAN : 0.01 * (v - 32768.0);
 }
 
 static double stor_comp_DBZC2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+    return (v == 0 || v > 65535) ? NAN : 0.01 * (v - 32768.0);
 }
 
 static double stor_comp_VELC2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+    return (v == 0 || v > 65535) ? NAN : 0.01 * (v - 32768.0);
 }
 
 static double stor_comp_LDRH2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+    return (v == 0 || v > 65535) ? NAN : 0.01 * (v - 32768.0);
 }
 
 static double stor_comp_LDRV2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * (v - 32768.0);
+    return (v == 0 || v > 65535) ? NAN : 0.01 * (v - 32768.0);
 }
 
 static double stor_comp_WIDTH2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : 0.01 * v;
+    return (v == 0 || v > 65535) ? NAN : 0.01 * v;
 }
 
 static double stor_comp_RAINRATE2(double v, void *meta)
@@ -469,11 +451,11 @@ static double stor_comp_RAINRATE2(double v, void *meta)
     unsigned m;		/* 12 bit mantissa */
 
     if ( !vol_p ) {
-	return Sigmet_NoData();
+	return NAN;
     }
     if (v == 0 || v > 65535)
     {
-	return Sigmet_NoData();
+	return NAN;
     }
     e = (unsigned)(0xF000 & (unsigned)v) >> 12;
     m = 0x0FFF & (unsigned)v;
@@ -486,18 +468,17 @@ static double stor_comp_RAINRATE2(double v, void *meta)
 
 static double stor_comp_RHOHV2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : (v - 1) / 65535.0;
+    return (v == 0 || v > 65535) ? NAN : (v - 1) / 65535.0;
 }
 
 static double stor_comp_SQI2(double v, void *meta)
 {
-    return (v == 0 || v > 65535) ? Sigmet_NoData() : (v - 1) / 65535.0;
+    return (v == 0 || v > 65535) ? NAN : (v - 1) / 65535.0;
 }
 
 static double stor_comp_PHIDP2(double v, void *meta)
 {
-    return (v == 0 || v > 65535)
-	? Sigmet_NoData() : 360.0 / 65534.0 * (v - 1.0);
+    return (v == 0 || v > 65535) ? NAN : 360.0 / 65534.0 * (v - 1.0);
 }
 
 /*

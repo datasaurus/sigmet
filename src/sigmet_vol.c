@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.183 $ $Date: 2012/11/12 18:02:51 $
+   .	$Revision: 1.184 $ $Date: 2012/11/13 21:45:48 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1787,7 +1787,7 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_hdr[s][r].ok ) {
 			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
 			    {
-				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
+				dat_p1->vals.f[s][r][b] = NAN;
 			    }
 			}
 		    }
@@ -1841,9 +1841,7 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
 		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
-			if ( Sigmet_IsData(*dp) ) {
-			    *dp += v;
-			}
+			*dp += v;
 		    }
 		}
 	    }
@@ -1906,11 +1904,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u1[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->vals.f[s][r][b] = v1 + sgn * v2;
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 + sgn * v2;
 			    }
 			}
 		    }
@@ -1927,11 +1921,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp (v2, vol_p);
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->vals.f[s][r][b] = v1 + sgn * v2;
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 + sgn * v2;
 			    }
 			}
 		    }
@@ -1947,11 +1937,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.f[s][r][b];
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->vals.f[s][r][b] = v1 + sgn * v2;
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 + sgn * v2;
 			    }
 			}
 		    }
@@ -1966,7 +1952,7 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_hdr[s][r].ok ) {
 			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
 			    {
-				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
+				dat_p1->vals.f[s][r][b] = NAN;
 			    }
 			}
 		    }
@@ -2020,9 +2006,7 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
 		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
-			if ( Sigmet_IsData(*dp) ) {
-			    *dp -= v;
-			}
+			*dp -= v;
 		    }
 		}
 	    }
@@ -2085,11 +2069,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u1[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->vals.f[s][r][b] = v1 - sgn * v2;
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 - sgn * v2;
 			    }
 			}
 		    }
@@ -2106,11 +2086,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->vals.f[s][r][b] = v1 - sgn * v2;
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 - sgn * v2;
 			    }
 			}
 		    }
@@ -2126,11 +2102,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.f[s][r][b];
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->vals.f[s][r][b] = v1 - sgn * v2;
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 - sgn * v2;
 			    }
 			}
 		    }
@@ -2145,7 +2117,7 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_hdr[s][r].ok ) {
 			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
 			    {
-				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
+				dat_p1->vals.f[s][r][b] = NAN;
 			    }
 			}
 		    }
@@ -2199,9 +2171,7 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
 		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
-			if ( Sigmet_IsData(*dp) ) {
-			    *dp *= v;
-			}
+			*dp *= v;
 		    }
 		}
 	    }
@@ -2264,11 +2234,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u1[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->vals.f[s][r][b] = v1 * sgn * v2;
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 * sgn * v2;
 			    }
 			}
 		    }
@@ -2285,11 +2251,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->vals.f[s][r][b] = v1 * sgn * v2;
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 * sgn * v2;
 			    }
 			}
 		    }
@@ -2305,11 +2267,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.f[s][r][b];
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2) ) {
-				    dat_p1->vals.f[s][r][b] = v1 * sgn * v2;
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 * sgn * v2;
 			    }
 			}
 		    }
@@ -2324,7 +2282,7 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_hdr[s][r].ok ) {
 			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
 			    {
-				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
+				dat_p1->vals.f[s][r][b] = NAN;
 			    }
 			}
 		    }
@@ -2382,9 +2340,7 @@ int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
 		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
-			if ( Sigmet_IsData(*dp) ) {
-			    *dp /= v;
-			}
+			*dp /= v;
 		    }
 		}
 	    }
@@ -2447,12 +2403,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u1[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2)
-					&& v2 != 0.0 ) {
-				    dat_p1->vals.f[s][r][b] = v1 / (sgn * v2);
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 / (sgn * v2);
 			    }
 			}
 		    }
@@ -2469,12 +2420,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.u2[s][r][b];
 				v2 = dat_p2->stor_to_comp(v2, vol_p);
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2)
-					&& v2 != 0.0) {
-				    dat_p1->vals.f[s][r][b] = v1 / (sgn * v2);
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 / (sgn * v2);
 			    }
 			}
 		    }
@@ -2490,12 +2436,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			    {
 				v1 = dat_p1->vals.f[s][r][b];
 				v2 = dat_p2->vals.f[s][r][b];
-				if ( Sigmet_IsData(v1) && Sigmet_IsData(v2)
-					&& v2 != 0.0 ) {
-				    dat_p1->vals.f[s][r][b] = v1 / (sgn * v2);
-				} else {
-				    dat_p1->vals.f[s][r][b] = Sigmet_NoData();
-				}
+				dat_p1->vals.f[s][r][b] = v1 / (sgn * v2);
 			    }
 			}
 		    }
@@ -2510,7 +2451,7 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
 			if ( vol_p->ray_hdr[s][r].ok ) {
 			    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++)
 			    {
-				dat_p1->vals.f[s][r][b] = Sigmet_NoData();
+				dat_p1->vals.f[s][r][b] = NAN;
 			    }
 			}
 		    }
@@ -2564,9 +2505,7 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *data_type_s)
 		    dp = dat_p->vals.f[s][r];
 		    dp1 = dp + vol_p->ray_hdr[s][r].num_bins;
 		    for ( ; dp < dp1; dp++) {
-			if ( Sigmet_IsData(*dp) ) {
-			    *dp = (*dp > 0.0) ? log10(*dp) : Sigmet_NoData();
-			}
+			*dp = (*dp > 0.0) ? log10(*dp) : NAN;
 		    }
 		}
 	    }
@@ -2644,7 +2583,7 @@ double Sigmet_Vol_VNyquist(struct Sigmet_Vol *vol_p)
 	case FOUR_FIVE:
 	    return 3 * 0.25 * wav_len * prf;
     }
-    return Sigmet_NoData();
+    return NAN;
 }
 /*
    Fetch a value from a Sigmet volume
@@ -2652,17 +2591,17 @@ double Sigmet_Vol_VNyquist(struct Sigmet_Vol *vol_p)
 
 float Sigmet_Vol_GetDatum(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 {
-    float v = Sigmet_NoData();
+    float v = NAN;
 
     if ( !vol_p ) {
-	return Sigmet_NoData();
+	return NAN;
     }
     if ( y < 0 || y >= vol_p->num_types
 	    || s < 0 || s >= vol_p->num_sweeps_ax
 	    || r < 0 || r >= vol_p->ih.ic.num_rays
 	    || !vol_p->ray_hdr
 	    || b < 0 || b >= vol_p->ray_hdr[s][r].num_bins ) {
-	return Sigmet_NoData();
+	return NAN;
     }
     switch (vol_p->dat[y].stor_fmt) {
 	case SIGMET_U1:
@@ -2676,7 +2615,7 @@ float Sigmet_Vol_GetDatum(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 	    break;
 	case SIGMET_DBL:
 	case SIGMET_MT:
-	    return Sigmet_NoData();
+	    return NAN;
     }
     return vol_p->dat[y].stor_to_comp(v, vol_p);
 }
@@ -3040,7 +2979,7 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *data_type_s, int s,
 	    for (r_p = ray_p;
 		    r_p < ray_p + vol_p->ray_hdr[s][r].num_bins;
 		    r_p++) {
-		if ( Sigmet_IsData(*r_p) && min <= *r_p && *r_p < max ) {
+		if ( isfinite(*r_p) && min <= *r_p && *r_p < max ) {
 		    /*
 		       Bin value is in an interval of interest.
 		       Compute and print bin corners.
@@ -3191,7 +3130,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *data_type_s, int s,
 		return status;
 	    }
 	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
-		if ( Sigmet_IsData(ray_dat[b])
+		if ( isfinite(ray_dat[b])
 			&& min <= ray_dat[b] && ray_dat[b] < max ) {
 		    /*
 		       Bin value is in an interval of interest.
@@ -4979,7 +4918,7 @@ static U2BYT ***malloc3_u2(long kmax, long jmax, long imax, int *id_p)
 }
 
 /*
-   Allocate a 3 dimensional array of floats. Initialize with Sigmet_NoData().
+   Allocate a 3 dimensional array of floats. Initialize with NAN.
    Return the array. If something goes wrong, return NULL.
 
    If id_p is not NULL, use shared memory and copy shared memory identifier
@@ -5051,7 +4990,7 @@ static float ***malloc3_flt(long kmax, long jmax, long imax, int *id_p)
 	dat[0][j] = dat[0][j - 1] + imax;
     }
     for (d = dat[0][0]; d < dat[0][0] + kk * jj * ii + 1; d++) {
-	*d = Sigmet_NoData();
+	*d = NAN;
     }
     return dat;
 }

@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.120 $ $Date: 2012/11/10 16:34:29 $
+   .	$Revision: 1.121 $ $Date: 2012/11/12 18:02:51 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -462,9 +462,6 @@ typedef double (*Sigmet_StorToMxFn)(double, void *);
    They do NOT provide information about additional, user defined, types.
  */
 
-float Sigmet_NoData(void);
-int Sigmet_IsData(float);
-int Sigmet_IsNoData(float);
 double Sigmet_Bin4Rad(unsigned long);
 double Sigmet_Bin2Rad(unsigned short);
 unsigned long Sigmet_RadBin4(double);
@@ -622,6 +619,9 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *);
 int Sigmet_ShMemDetach(struct Sigmet_Vol *);
 int Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
+int Sigmet_Vol_NumSweeps(struct Sigmet_Vol *);
+int Sigmet_Vol_NumRays(struct Sigmet_Vol *);
+int Sigmet_Vol_NumBins(struct Sigmet_Vol *, int, int);
 int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
 int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
@@ -648,9 +648,9 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *, char *, char *);
 int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *, char *);
 int Sigmet_Vol_IncrTm(struct Sigmet_Vol *, double);
 double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
-struct Sigmet_Dat *Sigmet_Vol_GetFld(struct Sigmet_Vol *, char *);
+int Sigmet_Vol_GetFld(struct Sigmet_Vol *, char *, struct Sigmet_Dat **);
 float Sigmet_Vol_GetDatum(struct Sigmet_Vol *, int, int, int, int);
-int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *, int, int, int, float **, int *);
+int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *, int, int, int, float **);
 int Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int, struct Dorade_Sweep *);
 
 #endif

@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.53 $ $Date: 2012/10/05 22:09:21 $
+   .	$Revision: 1.55 $ $Date: 2012/11/13 22:51:16 $
  */
 
 #include <string.h>
@@ -400,7 +400,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	goto error;
     }
     for (r_p = ray_p ; r_p < ray_p + num_bins; r_p++) {
-	*r_p = Sigmet_NoData();
+	*r_p = NAN;
     }
     for (p = 0; p < num_parms; p++) {
 	if ( strlen(vol_p->dat[p].data_type_s) == 0 ) {
@@ -408,15 +408,14 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	}
 	for (r = 0; r < num_rays_d; r++) {
 	    if ( vol_p->ray_hdr[s][r].ok ) {
-		status = Sigmet_Vol_GetRayDat(vol_p, p, s, r,
-			&ray_p, &num_bins);
+		status = Sigmet_Vol_GetRayDat(vol_p, p, s, r, &ray_p);
 		if ( (status != SIGMET_OK) ) {
 		    fprintf(stderr, "Could not retrieve ray data "
 			    "from Sigmet volume\n");
 		    goto error;
 		}
 		for (c = 0; c < num_cells; c++) {
-		    if (Sigmet_IsData(ray_p[c])) {
+		    if (isfinite(ray_p[c])) {
 			dat_p[p][r][c] = ray_p[c];
 		    } else {
 			dat_p[p][r][c] = DORADE_BAD_F;
