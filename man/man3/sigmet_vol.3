@@ -25,7 +25,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.6 $ $Date: 2012/11/08 23:19:01 $
+.\" $Revision: 1.7 $ $Date: 2012/11/12 18:11:38 $
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
 .Os UNIX
@@ -35,6 +35,9 @@
 .Nm Sigmet_Vol_ReadHdr ,
 .Nm Sigmet_Vol_PrintHdr ,
 .Nm Sigmet_Vol_Read ,
+.Nm Sigmet_Vol_NumSweeps ,
+.Nm Sigmet_Vol_NumRays ,
+.Nm Sigmet_Vol_NumBins ,
 .Nm Sigmet_Vol_BadRay ,
 .Nm Sigmet_Vol_BinOutl ,
 .Nm Sigmet_Vol_PPI_Bnds ,
@@ -71,6 +74,12 @@
 .Fn Sigmet_Vol_PrintHdr "FILE * f" "struct Sigmet_Vol *vol_p"
 .Ft int
 .Fn Sigmet_Vol_Read "FILE *f" "struct Sigmet_Vol *vol_p"
+.Ft int
+.Fn Sigmet_Vol_NumSweeps "struct Sigmet_Vol *vol_p"
+.Ft int
+.Fn Sigmet_Vol_NumRays "struct Sigmet_Vol *vol_p"
+.Ft int
+.Fn Sigmet_Vol_NumBins "struct Sigmet_Vol *vol_p" "int s" "int r"
 .Ft int
 .Fn Sigmet_Vol_BadRay "struct Sigmet_Vol *vol_p" "int s" "int r"
 .Ft int
@@ -231,6 +240,28 @@ allocated, and re-initializes the structure at
 .Fa vol_p
 with a call to
 .Fn Sigmet_Vol_Init .
+.Pp
+.Fn Sigmet_Vol_NumSweeps
+returns the number of sweeps in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_NumRays
+returns the number of rays in the volume at
+.Fa vol_p .
+.Pp
+.Fn Sigmet_Vol_NumBins
+returns the number of bins in sweep
+.Fa s ,
+ray
+.Fa r
+of the volume at
+.Fa vol_p .
+If
+.Fa r
+is
+.Li -1 ,
+return value is the largest number of bins among all rays in sweep
+.Fa s .
 .Pp
 .Fn Sigmet_Vol_BadRay
 returns true if the ray in
@@ -460,9 +491,10 @@ to the DORADE sweep structure at
 The DORADE sweep should have been initialized with a call to
 .Fn Dorade_Sweep_Init .
 .Sh RETURN VALUES
-The Sigmet volume access functions return an integer indicates whether the
-function succeeded, or how it failed. The return values are declared in
-sigmet.h.
+Unless otherwise indicated, Sigmet volume access functions return an integer
+indicates whether the function succeeded, or how it failed. The return values
+are declared in
+.Li sigmet.h.
 They are:
 .Bl -inset -offset indent
 .It Em SIGMET_OK
@@ -489,8 +521,8 @@ A value is too large or out of range
 A time computation failed
 
 .El
-In case of error, the function appends information to the global error string which can be retrieved with a call to
-.Fn Err_Get .
+Error information is printed to
+.Li stderr .
 .Sh KEYWORDS
 radar sigmet data
 .Sh SEE ALSO
