@@ -25,7 +25,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.7 $ $Date: 2012/11/12 18:11:38 $
+.\" $Revision: 1.10 $ $Date: 2012/11/14 17:53:22 $
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
 .Os UNIX
@@ -38,7 +38,10 @@
 .Nm Sigmet_Vol_NumSweeps ,
 .Nm Sigmet_Vol_NumRays ,
 .Nm Sigmet_Vol_NumBins ,
+.Nm Sigmet_Vol_IsPPI ,
+.Nm Sigmet_Vol_IsRHI ,
 .Nm Sigmet_Vol_BadRay ,
+.Nm Sigmet_Vol_BinStart ,
 .Nm Sigmet_Vol_BinOutl ,
 .Nm Sigmet_Vol_PPI_Bnds ,
 .Nm Sigmet_Vol_NewField ,
@@ -81,7 +84,13 @@
 .Ft int
 .Fn Sigmet_Vol_NumBins "struct Sigmet_Vol *vol_p" "int s" "int r"
 .Ft int
+.Fn Sigmet_Vol_IsPPI "struct Sigmet_Vol *vol_p"
+.Ft int
+.Fn Sigmet_Vol_IsRHI "struct Sigmet_Vol *vol_p"
+.Ft int
 .Fn Sigmet_Vol_BadRay "struct Sigmet_Vol *vol_p" "int s" "int r"
+.Ft double
+.Fn Sigmet_Vol_BinStart "struct Sigmet_Vol *vol_p" "int b"
 .Ft int
 .Fn Sigmet_Vol_BinOutl "struct Sigmet_Vol *vol_p" "int s" "int r" "int b" "double *lonlats"
 .Ft int
@@ -263,6 +272,16 @@ is
 return value is the largest number of bins among all rays in sweep
 .Fa s .
 .Pp
+.Fn Sigmet_Vol_IsPPI
+returns true if
+.Fa vol_p
+points to a Plan Position Indicator (PPI) volume.
+.Pp
+.Fn Sigmet_Vol_IsRHI
+returns true if
+.Fa vol_p
+points to a Range Height Indicator (RHI) volume.
+.Pp
 .Fn Sigmet_Vol_BadRay
 returns true if the ray in
 .Fa vol_p
@@ -271,6 +290,14 @@ at index
 ,
 .Fa r
 is unusable.
+.Pp
+.Fn Sigmet_Vol_BinStart
+returns the distance in meters along the beam to bin
+.Fa b
+of the volume at
+.Fa vol_p .
+.Fa b
+can be any integer, including out of bounds values.
 .Pp
 .Fn Sigmet_Vol_BinOutl
 computes the geographic coordinates of the bin for sweep
@@ -308,7 +335,7 @@ creates a new field named
 to the volume at
 .Fa vol_p .
 All bins in the new field will be initialized to
-.Li Sigmet_NoData() .
+.Li NAN .
 .Pp
 .Fn Sigmet_Vol_DelField
 removes field
@@ -416,7 +443,7 @@ in the volume at
 .Fa vol_p
 with the common log value. Bins with values for which common log is not defined
 are set to
-.Li Sigmet_NoData() .
+.Li NAN .
 .Pp
 .Fn Sigmet_Vol_IncrTm
 adds

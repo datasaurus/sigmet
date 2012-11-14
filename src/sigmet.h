@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.121 $ $Date: 2012/11/12 18:02:51 $
+   .	$Revision: 1.124 $ $Date: 2012/12/01 15:34:34 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -622,8 +622,11 @@ void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_NumSweeps(struct Sigmet_Vol *);
 int Sigmet_Vol_NumRays(struct Sigmet_Vol *);
 int Sigmet_Vol_NumBins(struct Sigmet_Vol *, int, int);
+int Sigmet_Vol_IsPPI(struct Sigmet_Vol *);
+int Sigmet_Vol_IsRHI(struct Sigmet_Vol *);
 int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
+double Sigmet_Vol_BinStart(struct Sigmet_Vol *, int);
 int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 int Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *, int, struct GeogProj *,
 	double *, double *, double *, double *);

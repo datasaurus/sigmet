@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.184 $ $Date: 2012/11/13 21:45:48 $
+   .	$Revision: 1.192 $ $Date: 2012/12/01 17:12:45 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -803,6 +803,18 @@ int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
 	fprintf(stderr, "Sweep index %d out of range.\n", s);
     }
     return num_bins;
+}
+
+int Sigmet_Vol_IsPPI(struct Sigmet_Vol *vol_p)
+{
+    return vol_p
+	&& (vol_p->ih.tc.tni.scan_mode == PPI_S
+		|| vol_p->ih.tc.tni.scan_mode == PPI_C);
+}
+
+int Sigmet_Vol_IsRHI(struct Sigmet_Vol *vol_p)
+{
+    return vol_p && (vol_p->ih.tc.tni.scan_mode == RHI);
 }
 
 static int vol_good(FILE *f)
@@ -2673,6 +2685,16 @@ int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s, int r,
 	    return SIGMET_BAD_VOL;
     }
     return SIGMET_OK;
+}
+
+/*
+   Return distance in meters along beam to start of bin
+ */
+
+double Sigmet_Vol_BinStart(struct Sigmet_Vol *vol_p, int b)
+{
+    return
+	0.01 * (vol_p->ih.tc.tri.rng_1st_bin + b * vol_p->ih.tc.tri.step_out);
 }
 
 /*
