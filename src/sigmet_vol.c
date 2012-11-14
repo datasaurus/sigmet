@@ -1508,6 +1508,67 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 }
 
 /*
+   Fetch ray geometry for sweep s. Arrays v0 and v1 get initial and
+   final values for varying angle - az for PPI, tilt for RHI - for each
+   good ray. fx_p gets mean fixed angle - PPI tilt or RHI azimuth.
+   Returned angles are radians.  num_rays_p gets number of good rays.
+ */
+
+void Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
+	double *v0, double *v1, double *fx_p, int *num_rays_p)
+{
+    struct Sigmet_Ray_Hdr *rh_p;	/* Convenience variable */
+    double fx;				/* Mean fixed angle */
+    int num_ray_hdrs;			/* Number of rays, including bad ones */
+    int r, num_rays;			/* Actual number of rays */
+
+    if ( !vol_p->sweep_hdr[s].ok ) {
+	*fx_p = NAN;
+	*num_rays_p = 0;
+	return;
+    }
+    num_ray_hdrs = vol_p->ih.ic.num_rays;
+    switch (vol_p->ih.tc.tni.scan_mode) {
+	case RHI:
+	    for (r = num_rays = 0, fx = 0.0; r < num_ray_hdrs; r++) {
+		rh_p = &vol_p->ray_hdr[s][r];
+		if ( rh_p->ok ) {
+		    v0[r] = rh_p->tilt0;
+		    v1[r] = rh_p->tilt1;
+		    fx += rh_p->az0 + rh_p->az1;
+		    num_rays++;
+		} else {
+		    v0[r] = NAN;
+		    v1[r] = NAN;
+		}
+	    }
+	    break;
+	case PPI_S:
+	case PPI_C:
+	    for (r = num_rays = 0, fx = 0.0; r < num_ray_hdrs; r++) {
+		rh_p = &vol_p->ray_hdr[s][r];
+		if ( rh_p->ok ) {
+		    v0[r] = rh_p->az0;
+		    v1[r] = rh_p->az1;
+		    fx += rh_p->tilt0 + rh_p->tilt1;
+		    num_rays++;
+		} else {
+		    v0[r] = NAN;
+		    v1[r] = NAN;
+		}
+	    }
+	    break;
+	case FILE_SCAN:
+	case MAN_SCAN:
+	    fx = NAN;
+	    num_rays = 0;
+	    break;
+    }
+    *fx_p = fx / num_rays / 2;
+    *num_rays_p = num_rays;
+}
+
+/*
    Add a new field to a volume.  This also allocates space for data in the
    dat array.
  */
