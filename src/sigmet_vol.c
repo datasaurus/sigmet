@@ -1502,6 +1502,30 @@ error:
     return status;
 }
 
+/*
+   Get or set radar longitude, latitude. Angles in radian.
+ */
+
+double Sigmet_Vol_RadarLon(struct Sigmet_Vol *vol_p, double *lon_p)
+{
+    if ( *lon_p ) {
+	vol_p->ih.ic.longitude = Sigmet_RadBin4(GeogLonR(*lon_p, M_PI));
+	vol_p->mod = 1;
+	return *lon_p;
+    }
+    return GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0);
+}
+
+double Sigmet_Vol_RadarLat(struct Sigmet_Vol *vol_p, double *lat_p)
+{
+    if ( *lat_p ) {
+	vol_p->ih.ic.latitude = *lat_p;
+	vol_p->mod = 1;
+	return *lat_p;
+    }
+    return Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
+}
+
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 {
     return vol_p->ray_hdr[s][r].az0 == vol_p->ray_hdr[s][r].az1;

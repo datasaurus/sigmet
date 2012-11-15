@@ -35,6 +35,8 @@
 .Nm Sigmet_Vol_ReadHdr ,
 .Nm Sigmet_Vol_PrintHdr ,
 .Nm Sigmet_Vol_Read ,
+.Nm Sigmet_Vol_RadarLon ,
+.Nm Sigmet_Vol_RadarLat ,
 .Nm Sigmet_Vol_NumSweeps ,
 .Nm Sigmet_Vol_NumRays ,
 .Nm Sigmet_Vol_NumBins ,
@@ -78,6 +80,10 @@
 .Fn Sigmet_Vol_PrintHdr "FILE * f" "struct Sigmet_Vol *vol_p"
 .Ft int
 .Fn Sigmet_Vol_Read "FILE *f" "struct Sigmet_Vol *vol_p"
+.Ft double
+.Fn Sigmet_Vol_RadarLon "struct Sigmet_Vol *vol_p" "double *lon_p"
+.Ft double
+.Fn Sigmet_Vol_RadarLat "struct Sigmet_Vol *vol_p" "double *Lat_p"
 .Ft int
 .Fn Sigmet_Vol_NumSweeps "struct Sigmet_Vol *vol_p"
 .Ft int
@@ -252,6 +258,26 @@ allocated, and re-initializes the structure at
 .Fa vol_p
 with a call to
 .Fn Sigmet_Vol_Init .
+.Pp
+.Fn Sigmet_Vol_RadarLon
+and
+.Fn Sigmet_Vol_RadarLat
+get or set a radar longitude or latiutde. If
+.Fa lon_p
+is not
+.Li NULL ,
+.Fn Sigmet_Vol_RadarLon
+sets the longitude of the volume at
+.Fa vol_p
+to the value there. It returns the radar longitude, whether modified or not. If
+.Fa lat_p
+is not
+.Li NULL ,
+.Fn Sigmet_Vol_RadarLat
+sets the latitude of the volume at
+.Fa vol_p
+to the value there. It returns the radar latitude, whether modified or not.
+Longitudes and latitudes are measured in radians.
 .Pp
 .Fn Sigmet_Vol_NumSweeps
 returns the number of sweeps in the volume at
