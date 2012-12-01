@@ -1608,6 +1608,27 @@ void Sigmet_Vol_LzCpy(struct Sigmet_Vol *dest, struct Sigmet_Vol *src)
     *dest = *src;
 }
 
+int Sigmet_Vol_NearSweep(struct Sigmet_Vol *vol_p, double ang)
+{
+    int s, s1;
+    double swp_ang;			/* Sweep angle */
+    double d_ang;			/* Sweep angle minus ang */
+    double d_ang_min;			/* Smallest d_ang */
+
+    if ( !vol_p || !vol_p->sweep_hdr ) {
+	return -1;
+    }
+    for (d_ang_min = DBL_MAX, s1 = -1, s = 0; s < vol_p->num_sweeps_ax; s++) {
+	swp_ang = GeogLonR(vol_p->sweep_hdr[s].angle, ang);
+	d_ang = fabs(swp_ang - ang);
+	if ( d_ang < d_ang_min ) {
+	    d_ang_min = d_ang;
+	    s1 = s;
+	}
+    }
+    return s1;
+}
+
 /*
    Get or set radar longitude, latitude. Angles in radian.
  */
