@@ -476,6 +476,18 @@ double Sigmet_DblDbl(double, void *);
 Sigmet_StorToMxFn Sigmet_DataType_StorToComp(enum Sigmet_DataTypeN);
 
 /*
+   Sweep header
+ */
+
+struct Sigmet_Sweep_Hdr {
+    int ok;				/* Sweep status. If ok[i],
+					   i'th sweep is complete. */
+    double time;			/* Sweep start time, Julian
+					   day */
+    double angle;			/* Sweep angle, radians */
+};
+
+/*
    Ray header
  */
 
@@ -557,13 +569,7 @@ struct Sigmet_Vol {
 					   "STOP NOW" during the task,
 					   or if a volume transfer fails */
     int num_sweeps_ax;			/* Actual number of sweeps */
-    struct {
-	int ok;				/* Sweep status. If ok[i],
-					   i'th sweep is complete. */
-	double time;			/* Sweep start time, Julian
-					   day */
-	double angle;			/* Sweep angle, radians */
-    } *sweep_hdr;			/* Sweep headers, dimensioned
+    struct Sigmet_Sweep_Hdr *sweep_hdr;	/* Sweep headers, dimensioned
 					   num_sweeps_ax */
     int sweep_hdr_id;			/* Shared memory identifier for sweep
 					   headers */
@@ -604,7 +610,7 @@ struct Sigmet_Vol {
 
 enum SigmetStatus {
     SIGMET_OK, SIGMET_IO_FAIL, SIGMET_BAD_FILE, SIGMET_BAD_VOL,
-    SIGMET_ALLOC_FAIL, SIGMET_BAD_ARG, SIGMET_RNG_ERR, SIGMET_BAD_TIME,
+    SIGMET_MEM_FAIL, SIGMET_BAD_ARG, SIGMET_RNG_ERR, SIGMET_BAD_TIME,
     SIGMET_HELPER_FAIL
 };
 
@@ -629,6 +635,7 @@ int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_LzCpy(struct Sigmet_Vol *, struct Sigmet_Vol *);
 double Sigmet_Vol_RadarLon(struct Sigmet_Vol *, double *);
 double Sigmet_Vol_RadarLat(struct Sigmet_Vol *, double *);
+int Sigmet_Vol_NearSweep(struct Sigmet_Vol *, double);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
 void Sigmet_Vol_RayGeom(struct Sigmet_Vol *, int, double *, double *, double *,
 	int *);
