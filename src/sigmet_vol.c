@@ -735,13 +735,32 @@ error:
     return status;
 }
 
+void Sigmet_Vol_PrintDataTypes(FILE *out, struct Sigmet_Vol *vol_p)
+{
+    int y;
+
+    if ( !vol_p ) {
+	return;
+    }
+    for (y = 0; y < vol_p->num_types; y++) {
+	if ( strlen(vol_p->dat[y].data_type_s) > 0 ) {
+	    fprintf(out, "%s | %s | %s\n", vol_p->dat[y].data_type_s,
+		    vol_p->dat[y].descr, vol_p->dat[y].unit);
+	}
+    }
+}
+
 void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
 {
     int y;
     char elem_nm[STR_LEN];
 
+    if ( !vol_p ) {
+	return;
+    }
     if ( !vol_p->has_headers ) {
 	fprintf(out, "volume has no headers\n");
+	return;
     }
     print_product_hdr(out, "<product_hdr>.", vol_p->ph);
     print_ingest_header(out, "<ingest_header>.", vol_p->ih);
@@ -754,6 +773,82 @@ void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
 	fprintf(out, "%s" FS "%s" FS "%s\n",
 		vol_p->dat[y].data_type_s, elem_nm, vol_p->dat[y].descr);
     }
+}
+
+void Sigmet_Vol_PrintMinHdr(FILE *out, struct Sigmet_Vol *vol_p)
+{
+    int y;
+    double wavlen, prf, vel_ua;
+    enum Sigmet_Multi_PRF mp;
+    char *mp_s = "unknown";
+    double l;
+
+    if ( !vol_p ) {
+	return;
+    }
+    if ( !vol_p->has_headers ) {
+	fprintf(out, "volume has no headers\n");
+	return;
+    }
+    fprintf(out, "site_name=\"%s\"\n", vol_p->ih.ic.su_site_name);
+    l = GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0) * DEG_PER_RAD;
+    fprintf(out, "radar_lon=%.4lf\n", l);
+    l = GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.latitude), 0.0) * DEG_PER_RAD;
+    fprintf(out, "radar_lat=%.4lf\n", l);
+    switch (vol_p->ih.tc.tni.scan_mode) {
+	case PPI_S:
+	    fprintf(out, "scan_mode=\"ppi sector\"\n");
+	    break;
+	case RHI:
+	    fprintf(out, "scan_mode=rhi\n");
+	    break;
+	case MAN_SCAN:
+	    fprintf(out, "scan_mode=manual\n");
+	    break;
+	case PPI_C:
+	    fprintf(out, "scan_mode=\"ppi continuous\"\n");
+	    break;
+	case FILE_SCAN:
+	    fprintf(out, "scan_mode=file\n");
+	    break;
+    }
+    fprintf(out, "task_name=\"%s\"\n", vol_p->ph.pc.task_name);
+    fprintf(out, "types=\"");
+    fprintf(out, "%s", vol_p->dat[0].data_type_s);
+    for (y = 1; y < vol_p->num_types; y++) {
+	fprintf(out, " %s", vol_p->dat[y].data_type_s);
+    }
+    fprintf(out, "\"\n");
+    fprintf(out, "num_sweeps=%d\n", vol_p->ih.ic.num_sweeps);
+    fprintf(out, "num_rays=%d\n", vol_p->ih.ic.num_rays);
+    fprintf(out, "num_bins=%d\n", vol_p->ih.tc.tri.num_bins_out);
+    fprintf(out, "range_bin0=%d\n", vol_p->ih.tc.tri.rng_1st_bin);
+    fprintf(out, "bin_step=%d\n", vol_p->ih.tc.tri.step_out);
+    wavlen = 0.01 * 0.01 * vol_p->ih.tc.tmi.wave_len; 	/* convert -> cm > m */
+    prf = vol_p->ih.tc.tdi.prf;
+    mp = vol_p->ih.tc.tdi.m_prf_mode;
+    vel_ua = -1.0;
+    switch (mp) {
+	case ONE_ONE:
+	    mp_s = "1:1";
+	    vel_ua = 0.25 * wavlen * prf;
+	    break;
+	case TWO_THREE:
+	    mp_s = "2:3";
+	    vel_ua = 2 * 0.25 * wavlen * prf;
+	    break;
+	case THREE_FOUR:
+	    mp_s = "3:4";
+	    vel_ua = 3 * 0.25 * wavlen * prf;
+	    break;
+	case FOUR_FIVE:
+	    mp_s = "4:5";
+	    vel_ua = 3 * 0.25 * wavlen * prf;
+	    break;
+    }
+    fprintf(out, "prf=%.2lf\n", prf);
+    fprintf(out, "prf_mode=%s\n", mp_s);
+    fprintf(out, "vel_ua=%.3lf\n", vel_ua);
 }
 
 int Sigmet_Vol_NumSweeps(struct Sigmet_Vol *vol_p)

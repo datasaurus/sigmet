@@ -596,7 +596,6 @@ struct Sigmet_Vol {
     int shm;				/* If true, volume allocations are in
 					   shared memory. Otherwise, allocations
 					   are in process address space. */
-    int num_users;			/* Number of clients using the volume */
 };
 
 /*
@@ -618,14 +617,21 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *);
 int Sigmet_ShMemAttach(struct Sigmet_Vol *);
 int Sigmet_ShMemDetach(struct Sigmet_Vol *);
 int Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
+void Sigmet_Vol_PrintDataTypes(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
+void Sigmet_Vol_PrintMinHdr(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_NumSweeps(struct Sigmet_Vol *);
 int Sigmet_Vol_NumRays(struct Sigmet_Vol *);
 int Sigmet_Vol_NumBins(struct Sigmet_Vol *, int, int);
 int Sigmet_Vol_IsPPI(struct Sigmet_Vol *);
 int Sigmet_Vol_IsRHI(struct Sigmet_Vol *);
 int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
+void Sigmet_Vol_LzCpy(struct Sigmet_Vol *, struct Sigmet_Vol *);
+double Sigmet_Vol_RadarLon(struct Sigmet_Vol *, double *);
+double Sigmet_Vol_RadarLat(struct Sigmet_Vol *, double *);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
+void Sigmet_Vol_RayGeom(struct Sigmet_Vol *, int, double *, double *, double *,
+	int *);
 double Sigmet_Vol_BinStart(struct Sigmet_Vol *, int);
 int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
 int Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *, int, struct GeogProj *,
