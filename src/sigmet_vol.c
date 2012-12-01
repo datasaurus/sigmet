@@ -762,7 +762,7 @@ int Sigmet_Vol_NumSweeps(struct Sigmet_Vol *vol_p)
 	fprintf(stderr, "Attempted to get number of rays from bogus volume.\n");
 	return -1;
     }
-    return vol_p->ih.tc.tni.num_sweeps;
+    return vol_p->num_sweeps_ax;
 }
 
 int Sigmet_Vol_NumRays(struct Sigmet_Vol *vol_p)
