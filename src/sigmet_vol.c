@@ -251,30 +251,30 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
 int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 {
     struct Sigmet_Dat *dat_p;
-    int status = 1;
+    enum SigmetStatus status;
 
     if (!vol_p) {
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if ( vol_p->shm ) {
 	if ( !Sigmet_ShMemDetach(vol_p) ) {
 	    fprintf(stderr, "%d: could not detach volume from shared "
 		    "memory.\n", getpid());
-	    status = 0;
+	    status = SIGMET_MEM_FAIL;
 	}
 	if ( vol_p->sweep_hdr_id != -1
 		&& shmctl(vol_p->sweep_hdr_id, IPC_RMID, NULL) == -1 ) {
 	    fprintf(stderr, "%d: could not remove shared memory for "
 		    "sweep headers.\n%s\nPlease use ipcrm command for id %d\n",
 		    getpid(), strerror(errno), vol_p->sweep_hdr_id);
-	    status = 0;
+	    status = SIGMET_MEM_FAIL;
 	}
 	if ( vol_p->ray_hdr_id != -1
 		&& shmctl(vol_p->ray_hdr_id, IPC_RMID, NULL) == -1 ) {
 	    fprintf(stderr, "%d: could not remove shared memory for "
 		    "ray headers.\n%s\nPlease use ipcrm command for id %d\n",
 		    getpid(), strerror(errno), vol_p->ray_hdr_id);
-	    status = 0;
+	    status = SIGMET_MEM_FAIL;
 	}
 	for (dat_p = vol_p->dat;
 		dat_p < vol_p->dat + SIGMET_MAX_TYPES;
@@ -285,7 +285,7 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 			"%s array.\n%s\nPlease use ipcrm command for id %d\n",
 			getpid(), dat_p->data_type_s, strerror(errno),
 			dat_p->vals_id);
-		status = 0;
+		status = SIGMET_MEM_FAIL;
 	    }
 	}
     } else {
@@ -309,29 +309,28 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 		    break;
 	    }
 	}
+	status = SIGMET_OK;
     }
     Sigmet_Vol_Init(vol_p);
     return status;
 }
-
-/*
-   Map pointers in vol_p to shared memory. Return 1/0 on success/failure.
- */
 
 int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 {
     int y, s, r;			/* Type, sweep, ray */
     int num_sweeps, num_rays, num_bins;
     int n;
+    enum SigmetStatus status;
 
     if ( !vol_p || !vol_p->shm) {
-	return 0;
+	return SIGMET_BAD_ARG;
     }
 
     vol_p->sweep_hdr = shmat(vol_p->sweep_hdr_id, NULL, 0);
     if ( vol_p->sweep_hdr == (void *)-1) {
 	fprintf(stderr, "%d: could not attach to sweep headers "
 		"in shared memory.\n%s\n", getpid(), strerror(errno));
+	status = SIGMET_MEM_FAIL;
 	goto error;
     }
 
@@ -343,6 +342,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
     if ( vol_p->ray_hdr == (void *)-1) {
 	fprintf(stderr, "%d: could not attach to ray headers "
 		"in shared memory.\n%s\n", getpid(), strerror(errno));
+	status = SIGMET_MEM_FAIL;
 	goto error;
     }
     vol_p->ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(vol_p->ray_hdr + num_sweeps);
@@ -361,6 +361,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not attach to data array for "
 			    "field %s in shared memory.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
+		    status = SIGMET_MEM_FAIL;
 		    goto error;
 		} else {
 		    U1BYT ***dat;
@@ -384,6 +385,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not attach to data array for "
 			    "field %s in shared memory.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
+		    status = SIGMET_MEM_FAIL;
 		    goto error;
 		} else {
 		    U2BYT ***dat;
@@ -407,6 +409,7 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not attach to data array for "
 			    "field %s in shared memory.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
+		    status = SIGMET_MEM_FAIL;
 		    goto error;
 		} else {
 		    float ***dat;
@@ -428,40 +431,38 @@ int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		fprintf(stderr, "%d: volume in memory is corrupt. "
 			"Unknown data type in data array for field %s.\n",
 			getpid(), dat_p->data_type_s);
+		status = SIGMET_BAD_VOL;
 		goto error;
 		break;
 	}
     }
-    return 1;
+    return SIGMET_OK;
 
 error:
     vol_p->sweep_hdr = NULL;
     vol_p->ray_hdr = NULL;
-    return 0;
+    return status;
 }
-
-/*
-   Detach vol_p from shared memory
- */
 
 int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 {
     struct Sigmet_Dat *dat_p;
-    int status = 1;
+    enum SigmetStatus status;
 
+    status = SIGMET_OK;
     if ( !vol_p || !vol_p->shm ) {
-	return 0;
+	return SIGMET_BAD_ARG;
     }
     if ( vol_p->sweep_hdr && shmdt(vol_p->sweep_hdr) == -1 ) {
 	fprintf(stderr, "%d: could not detach shared memory for "
 		"sweep headers.\n%s\n", getpid(), strerror(errno));
-	status = 0;
+	status = SIGMET_MEM_FAIL;
     }
     vol_p->sweep_hdr = NULL;
     if ( vol_p->ray_hdr && shmdt(vol_p->ray_hdr) == -1 ) {
 	fprintf(stderr, "%d: could not detach shared memory for "
 		"ray headers.\n%s\n", getpid(), strerror(errno));
-	status = 0;
+	status = SIGMET_MEM_FAIL;
     }
     vol_p->ray_hdr = NULL;
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_MAX_TYPES; dat_p++) {
@@ -471,7 +472,7 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not detach shared memory "
 			    "for %s.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
-		    status = 0;
+		    status = SIGMET_MEM_FAIL;
 		}
 		dat_p->vals.u1 = NULL;
 		break;
@@ -480,7 +481,7 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not detach shared memory "
 			    "for %s.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
-		    status = 0;
+		    status = SIGMET_MEM_FAIL;
 		}
 		dat_p->vals.u2 = NULL;
 		break;
@@ -489,7 +490,7 @@ int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not detach shared memory "
 			    "for %s.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
-		    status = 0;
+		    status = SIGMET_MEM_FAIL;
 		}
 		dat_p->vals.f = NULL;
 		break;
@@ -855,7 +856,7 @@ int Sigmet_Vol_NumSweeps(struct Sigmet_Vol *vol_p)
 {
     if ( !vol_p ) {
 	fprintf(stderr, "Attempted to get number of rays from bogus volume.\n");
-	return -1;
+	return SIGMET_BAD_ARG;
     }
     return vol_p->num_sweeps_ax;
 }
@@ -864,7 +865,7 @@ int Sigmet_Vol_NumRays(struct Sigmet_Vol *vol_p)
 {
     if ( !vol_p ) {
 	fprintf(stderr, "Attempted to get number of rays from bogus volume.\n");
-	return -1;
+	return SIGMET_BAD_ARG;
     }
     return vol_p->ih.ic.num_rays;
 }
@@ -876,7 +877,7 @@ int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
 
     if ( !vol_p ) {
 	fprintf(stderr, "Attempted to get number of rays from bogus volume.\n");
-	return -1;
+	return SIGMET_BAD_ARG;
     }
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
@@ -1224,14 +1225,14 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	if ( vol_p->sweep_hdr_id == -1 ) {
 	    fprintf(stderr, "%d: could not create shared memory for "
 		    "sweep headers.\n%s\n", getpid(), strerror(errno));
-	    status = SIGMET_ALLOC_FAIL;
+	    status = SIGMET_MEM_FAIL;
 	    goto error;
 	}
 	vol_p->sweep_hdr = shmat(vol_p->sweep_hdr_id, NULL, 0);
 	if ( vol_p->sweep_hdr == (void *)-1 ) {
 	    fprintf(stderr, "%d: could not attach to shared memory for "
 		    "sweep headers.\n%s\n", getpid(), strerror(errno));
-	    status = SIGMET_ALLOC_FAIL;
+	    status = SIGMET_MEM_FAIL;
 	    goto error;
 	}
 	vol_p->size += num_sweeps * sizeof(*vol_p->sweep_hdr);
@@ -1240,7 +1241,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	if ( !vol_p->sweep_hdr ) {
 	    fprintf(stderr, "%d: could not allocate sweep header array.\n",
 		    getpid());
-	    status = SIGMET_ALLOC_FAIL;
+	    status = SIGMET_MEM_FAIL;
 	    goto error;
 	}
 	vol_p->size += num_sweeps * sizeof(*vol_p->sweep_hdr);
@@ -1250,7 +1251,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->ray_hdr = malloc2rh(num_sweeps, num_rays, id_p);
     if ( !vol_p->ray_hdr ) {
 	fprintf(stderr, "%d: could not allocate ray header array.\n", getpid());
-	status = SIGMET_ALLOC_FAIL;
+	status = SIGMET_MEM_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * num_rays * sizeof(struct Sigmet_Ray_Hdr);
@@ -1264,7 +1265,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		if ( !vol_p->dat[y].vals.u1 ) {
 		    fprintf(stderr, "%d: could not allocate memory for %s\n",
 			    getpid(), vol_p->dat[y].data_type_s);
-		    status = SIGMET_ALLOC_FAIL;
+		    status = SIGMET_MEM_FAIL;
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins;
@@ -1275,7 +1276,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		if ( !vol_p->dat[y].vals.u2 ) {
 		    fprintf(stderr, "%d: could not allocate memory for %s\n",
 			    getpid(), vol_p->dat[y].data_type_s);
-		    status = SIGMET_ALLOC_FAIL;
+		    status = SIGMET_MEM_FAIL;
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins * 2;
@@ -1301,7 +1302,7 @@ int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     ray_buf = (U1BYT *)MALLOC(raySz);
     if ( !ray_buf ) {
 	fprintf(stderr, "%d: could not allocate input ray buffer.\n", getpid());
-	status = SIGMET_ALLOC_FAIL;
+	status = SIGMET_MEM_FAIL;
 	goto error;
     }
     u1 = ray_buf + SZ_RAY_HDR;
@@ -1750,7 +1751,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *data_type_s,
     flt_p = malloc3_flt(num_sweeps, num_rays, num_bins, id_p);
     if ( !flt_p ) {
 	fprintf(stderr, "%d: could not allocate new field ", getpid());
-	return SIGMET_ALLOC_FAIL;
+	return SIGMET_MEM_FAIL;
     }
     dat_p->vals.f = flt_p;
     strncpy(dat_p->data_type_s, data_type_s, SIGMET_NAME_LEN - 1);
@@ -1787,12 +1788,12 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *data_type_s)
 	if ( shmdt(dat_p->vals.f) == -1 ) {
 	    fprintf(stderr, "%d: could not detach from shared memory for "
 		    "field %s.\n%s\n", getpid(), data_type_s, strerror(errno));
-	    return SIGMET_ALLOC_FAIL;
+	    return SIGMET_MEM_FAIL;
 	}
 	if ( shmctl(dat_p->vals_id, IPC_RMID, NULL) == -1 ) {
 	    fprintf(stderr, "%d: could not remove shared memory for "
 		    "field %s.\n%s\n", getpid(), data_type_s, strerror(errno));
-	    return SIGMET_ALLOC_FAIL;
+	    return SIGMET_MEM_FAIL;
 	}
     } else {
 	FREE(dat_p->vals.f);
@@ -3171,7 +3172,7 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *data_type_s, int s,
     if ( !ray_p && !(ray_p = CALLOC(num_bins_out, sizeof(float))) ) {
 	fprintf(stderr, "%d: could not allocate output buffer for ray.\n",
 		getpid());
-	return SIGMET_ALLOC_FAIL;
+	return SIGMET_MEM_FAIL;
     }
 
     /*
@@ -3324,7 +3325,7 @@ int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *data_type_s, int s,
     if ( !ray_dat && !(ray_dat = CALLOC(num_bins_out, sizeof(float))) ) {
 	fprintf(stderr, "%d: could not allocate output buffer for ray.\n",
 		getpid());
-	return SIGMET_ALLOC_FAIL;
+	return SIGMET_MEM_FAIL;
     }
 
     /*
