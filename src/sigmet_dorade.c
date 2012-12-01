@@ -216,7 +216,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     if ( !(sensor_p->parm = CALLOC(num_parms, sizeof(struct Dorade_PARM))) ) {
 	fprintf(stderr, "Could not allocate array of parameter descriptors.\n");
-	status = SIGMET_ALLOC_FAIL;
+	status = SIGMET_MEM_FAIL;
 	goto error;
     }
     parm_p = NULL;
@@ -314,7 +314,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     if ( !(swp_p->ray_hdr = CALLOC(num_rays, sizeof(struct Dorade_Ray_Hdr))) ) {
 	fprintf(stderr, "Could not allocate space for ray headers.\n");
-	status = SIGMET_ALLOC_FAIL;
+	status = SIGMET_MEM_FAIL;
 	goto error;
     }
     for (r = 0; r < num_rays; r++) {
@@ -388,7 +388,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     if ( !Dorade_Sweep_AllocDat(swp_p, num_parms, num_rays_d, num_cells) ) {
 	fprintf(stderr, "Could not allocate data array.\n");
-	status = SIGMET_ALLOC_FAIL;
+	status = SIGMET_MEM_FAIL;
 	goto error;
     }
     dat_p = swp_p->dat;
@@ -396,7 +396,7 @@ int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     ray_p = NULL;
     if ( !(ray_p = MALLOC(num_bins * sizeof(float)))) {
 	fprintf(stderr, "Could not allocate ray data buffer.\n");
-	status = SIGMET_ALLOC_FAIL;
+	status = SIGMET_MEM_FAIL;
 	goto error;
     }
     for (r_p = ray_p ; r_p < ray_p + num_bins; r_p++) {

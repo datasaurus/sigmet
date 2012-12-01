@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 	    case SIGMET_BAD_VOL:
 		fprintf(stderr, "Bad volume.\n");
 		break;
-	    case SIGMET_ALLOC_FAIL:
+	    case SIGMET_MEM_FAIL:
 		fprintf(stderr, "Allocation failure.\n");
 		break;
 	    case SIGMET_BAD_ARG:
