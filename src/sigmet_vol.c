@@ -1503,6 +1503,16 @@ error:
 }
 
 /*
+   Make a lazy copy of src at dest, i.e. copy struct values and array
+   addresses, but not contents of arrays.
+ */
+
+void Sigmet_Vol_LzCpy(struct Sigmet_Vol *dest, struct Sigmet_Vol *src)
+{
+    *dest = *src;
+}
+
+/*
    Get or set radar longitude, latitude. Angles in radian.
  */
 
@@ -1620,7 +1630,7 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *data_type_s,
 		"another name.\n", getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
     }
-    if ( Sigmet_Vol_GetFld(vol_p, data_type_s, &dat_p) == -1 ) {
+    if ( Sigmet_Vol_GetFld(vol_p, data_type_s, &dat_p) >= 0 ) {
 	fprintf(stderr, "%d: data type %s already exists in volume.\n",
 		getpid(), data_type_s);
 	return SIGMET_BAD_ARG;
