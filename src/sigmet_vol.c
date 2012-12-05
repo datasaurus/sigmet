@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.193 $ $Date: 2012/12/01 17:39:30 $
+   .	$Revision: 1.194 $ $Date: 2012/12/05 20:50:48 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -98,7 +98,7 @@ static int get_sint16(void *);
 static unsigned get_uint16(void *);
 static int get_sint32(void *);
 static unsigned get_uint32(void *);
-static int vol_good(FILE *);
+static enum SigmetStatus vol_good(FILE *);
 static unsigned hash(const char *);
 static void hash_add(struct Sigmet_Vol *, char *, int);
 
@@ -248,7 +248,7 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
     return;
 }
 
-int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
+enum SigmetStatus Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 {
     struct Sigmet_Dat *dat_p;
     enum SigmetStatus status;
@@ -315,7 +315,7 @@ int Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
     return status;
 }
 
-int Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
+enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 {
     int y, s, r;			/* Type, sweep, ray */
     int num_sweeps, num_rays, num_bins;
@@ -444,7 +444,7 @@ error:
     return status;
 }
 
-int Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
+enum SigmetStatus Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 {
     struct Sigmet_Dat *dat_p;
     enum SigmetStatus status;
@@ -551,6 +551,9 @@ int Sigmet_Vol_GetFld(struct Sigmet_Vol *vol_p, char *data_type_s,
     unsigned h, h0;
     int y;
 
+    if ( !vol_p || !data_type_s || !dat_pp ) {
+	return -1;
+    }
     h0 = hash(data_type_s);
     if ( strcmp(vol_p->types_tbl[h0].data_type_s, data_type_s) == 0 ) {
 	y = vol_p->types_tbl[h0].y;
@@ -578,7 +581,7 @@ int Sigmet_Vol_GetFld(struct Sigmet_Vol *vol_p, char *data_type_s,
    Sigmet_Vol_Init.
  */
 
-int Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
+enum SigmetStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
     int status;
@@ -859,20 +862,12 @@ int Sigmet_Vol_NumTypes(struct Sigmet_Vol *vol_p)
 
 int Sigmet_Vol_NumSweeps(struct Sigmet_Vol *vol_p)
 {
-    if ( !vol_p ) {
-	fprintf(stderr, "Attempted to get number of rays from bogus volume.\n");
-	return SIGMET_BAD_ARG;
-    }
-    return vol_p->num_sweeps_ax;
+    return vol_p ? vol_p->num_sweeps_ax : -1;
 }
 
 int Sigmet_Vol_NumRays(struct Sigmet_Vol *vol_p)
 {
-    if ( !vol_p ) {
-	fprintf(stderr, "Attempted to get number of rays from bogus volume.\n");
-	return SIGMET_BAD_ARG;
-    }
-    return vol_p->ih.ic.num_rays;
+    return vol_p ? vol_p->ih.ic.num_rays : -1;
 }
 
 int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
@@ -882,7 +877,7 @@ int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
 
     if ( !vol_p ) {
 	fprintf(stderr, "Attempted to get number of rays from bogus volume.\n");
-	return SIGMET_BAD_ARG;
+	return -1;
     }
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
@@ -1008,7 +1003,7 @@ int Sigmet_Vol_IsRHI(struct Sigmet_Vol *vol_p)
     return vol_p && (vol_p->ih.tc.tni.scan_mode == RHI);
 }
 
-static int vol_good(FILE *f)
+static enum SigmetStatus vol_good(FILE *f)
 {
     struct Sigmet_Vol vol;
     char rec[REC_LEN];			/* Input record from file */
@@ -1232,7 +1227,7 @@ static int vol_good(FILE *f)
     return SIGMET_OK;
 }
 
-int Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
+enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 {
     int status;
 
@@ -1750,7 +1745,8 @@ double Sigmet_Vol_RadarLat(struct Sigmet_Vol *vol_p, double *lat_p)
 
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 {
-    return vol_p->ray_hdr[s][r].az0 == vol_p->ray_hdr[s][r].az1;
+    return (vol_p && s < vol_p->num_sweeps_ax && r < vol_p->ih.ic.num_rays)
+	? (vol_p->ray_hdr[s][r].az0 == vol_p->ray_hdr[s][r].az1) : 1;
 }
 
 /*
@@ -1819,8 +1815,8 @@ void Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
    dat array.
  */
 
-int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *data_type_s,
-	char *descr, char *unit)
+enum SigmetStatus Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p,
+	char *data_type_s, char *descr, char *unit)
 {
     struct Sigmet_Dat *dat_p;
     float ***flt_p;
@@ -1880,7 +1876,8 @@ int Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p, char *data_type_s,
     return SIGMET_OK;
 }
 
-int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *data_type_s)
+enum SigmetStatus Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p,
+	char *data_type_s)
 {
     struct Sigmet_Dat *dat_p, *dat1_p;
     int num_sweeps, num_rays, num_bins;
@@ -1949,7 +1946,8 @@ int Sigmet_Vol_DelField(struct Sigmet_Vol *vol_p, char *data_type_s)
    Set data array to value v.
  */
 
-int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
+enum SigmetStatus Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p,
+	char *data_type_s, float v)
 {
     struct Sigmet_Dat *dat_p;
     int s, r;
@@ -1985,7 +1983,8 @@ int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
    Initialize data array to distance along beam.
  */
 
-int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *data_type_s)
+enum SigmetStatus Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p,
+	char *data_type_s)
 {
     struct Sigmet_Dat *dat_p;
     float ***f;
@@ -2023,7 +2022,8 @@ int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p, char *data_type_s)
    Replace contents of field abbrv1 with contents of field abbrv2.
  */
 
-int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
+enum SigmetStatus Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1,
+	char *abbrv2)
 {
     struct Sigmet_Dat *dat_p1, *dat_p2;
     int s, r, b;
@@ -2122,7 +2122,8 @@ int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
    Add scalar value v to a field.
  */
 
-int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
+enum SigmetStatus Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p,
+	char *data_type_s, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_Dat *dat_p;
@@ -2174,7 +2175,8 @@ int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
    Add field abbrv2 to abbrv1.
  */
 
-int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
+enum SigmetStatus Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1,
+	char *abbrv2)
 {
     struct Sigmet_Dat *dat_p1, *dat_p2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
@@ -2287,7 +2289,8 @@ int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
    Subtract scalar v from a field.
  */
 
-int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
+enum SigmetStatus Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p,
+	char *data_type_s, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_Dat *dat_p;
@@ -2339,7 +2342,8 @@ int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
    Replace field abbrv1 with abbrv1 - abbrv2.
  */
 
-int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
+enum SigmetStatus Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1,
+	char *abbrv2)
 {
     struct Sigmet_Dat *dat_p1, *dat_p2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
@@ -2452,7 +2456,8 @@ int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
    Multiply field by scalar v.
  */
 
-int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
+enum SigmetStatus Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p,
+	char *data_type_s, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_Dat *dat_p;
@@ -2504,7 +2509,8 @@ int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
    Replace field abbrv1 with abbrv1 * abbrv2.
  */
 
-int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
+enum SigmetStatus Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1,
+	char *abbrv2)
 {
     struct Sigmet_Dat *dat_p1, *dat_p2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
@@ -2617,7 +2623,8 @@ int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
    Divide field by scalar v.
  */
 
-int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
+enum SigmetStatus Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p,
+	char *data_type_s, float v)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_Dat *dat_p;
@@ -2673,7 +2680,8 @@ int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *vol_p, char *data_type_s, float v)
    Replace field abbrv1 with abbrv1 / abbrv2.
  */
 
-int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
+enum SigmetStatus Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1,
+	char *abbrv2)
 {
     struct Sigmet_Dat *dat_p1, *dat_p2;
     int sgn = 1;		/* -1 if *abbrv2 == '-' (negate the field) */
@@ -2786,7 +2794,8 @@ int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *vol_p, char *abbrv1, char *abbrv2)
    Replace field with its log10.
  */
 
-int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *data_type_s)
+enum SigmetStatus Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p,
+	char *data_type_s)
 {
     enum Sigmet_DataTypeN sig_type;
     struct Sigmet_Dat *dat_p;
@@ -2838,7 +2847,7 @@ int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *vol_p, char *data_type_s)
    Add dt DAYS to all times in vol_p.
  */
 
-int Sigmet_Vol_IncrTm(struct Sigmet_Vol *vol_p, double dt)
+enum SigmetStatus Sigmet_Vol_IncrTm(struct Sigmet_Vol *vol_p, double dt)
 {
     struct Sigmet_Task_Sched_Info tsi;
     int dt_i;
@@ -2944,8 +2953,8 @@ float Sigmet_Vol_GetDatum(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
    space for the number of bins in the ray.
  */
 
-int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s, int r,
-	float **ray_p)
+enum SigmetStatus Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s,
+	int r, float **ray_p)
 {
     int ray_num_bins;
     U1BYT *u1_p, *u1_e;
@@ -3008,8 +3017,8 @@ double Sigmet_Vol_BinStart(struct Sigmet_Vol *vol_p, int b)
    Return lon-lat's at corners of a bin
  */
 
-int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
-	double *ll)
+enum SigmetStatus Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r,
+	int b, double *ll)
 {
     double re;			/* Earth radius */
     double lon_r, lat_r;	/* Radar longitude latitude */
@@ -3078,8 +3087,9 @@ int Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r, int b,
    Return limits of ppi sweep for given map projection.
  */
 
-int Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *vol_p, int s, struct GeogProj *proj,
-	double *x_min_p, double *x_max_p, double *y_min_p, double *y_max_p)
+enum SigmetStatus Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *vol_p, int s,
+	struct GeogProj *proj, double *x_min_p, double *x_max_p,
+	double *y_min_p, double *y_max_p)
 {
     double x_min, x_max, y_min, y_max;	/* PPI limits */
     double rlon, rlat;			/* Radar location */
@@ -3156,8 +3166,8 @@ int Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *vol_p, int s, struct GeogProj *proj,
    above radar level.
  */
 
-int Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *vol_p, int s, double *x_max_p,
-	double *y_max_p)
+enum SigmetStatus Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *vol_p, int s,
+	double *x_max_p, double *y_max_p)
 {
     double x_max, y_max;		/* RHI limits */
     double rng_1st_bin, step_out;	/* Range to first bin, output bin step,
@@ -3223,8 +3233,8 @@ int Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *vol_p, int s, double *x_max_p,
    If bnr is true, send raw, double precision output.
  */
 
-int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *data_type_s, int s,
-	double min, double max, int bnr, FILE *out)
+enum SigmetStatus Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p,
+	char *data_type_s, int s, double min, double max, int bnr, FILE *out)
 {
     int status;				/* Result of a function */
     struct Sigmet_Dat *dat_p;
@@ -3372,8 +3382,9 @@ int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p, char *data_type_s, int s,
    from radar. Ordinate is height above ground level.
  */
 
-int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p, char *data_type_s, int s,
-	double min, double max, int bnr, int fill, FILE *out)
+enum SigmetStatus Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p,
+	char *data_type_s, int s, double min, double max, int bnr, int fill,
+	FILE *out)
 {
     int status;				/* Result of a function */
     struct Sigmet_Dat *dat_p;

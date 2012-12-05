@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.124 $ $Date: 2012/12/01 15:34:34 $
+   .	$Revision: 1.125 $ $Date: 2012/12/01 17:57:28 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -619,19 +619,25 @@ enum SigmetStatus {
  */
 
 void Sigmet_Vol_Init(struct Sigmet_Vol *);
-int Sigmet_Vol_Free(struct Sigmet_Vol *);
-int Sigmet_ShMemAttach(struct Sigmet_Vol *);
-int Sigmet_ShMemDetach(struct Sigmet_Vol *);
-int Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
+enum SigmetStatus Sigmet_Vol_Free(struct Sigmet_Vol *);
+enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *);
+enum SigmetStatus Sigmet_ShMemDetach(struct Sigmet_Vol *);
+enum SigmetStatus Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintDataTypes(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintMinHdr(FILE *, struct Sigmet_Vol *);
+int Sigmet_Vol_NumTypes(struct Sigmet_Vol *);
 int Sigmet_Vol_NumSweeps(struct Sigmet_Vol *);
 int Sigmet_Vol_NumRays(struct Sigmet_Vol *);
 int Sigmet_Vol_NumBins(struct Sigmet_Vol *, int, int);
+size_t Sigmet_Vol_MemSz(struct Sigmet_Vol *);
+enum SigmetStatus Sigmet_Vol_SweepHdr(struct Sigmet_Vol *, int, int *, double *,
+	double *);
+enum SigmetStatus Sigmet_Vol_RayHdr(struct Sigmet_Vol *, int, int, int *,
+	double *, int *, double *, double *, double *, double *);
 int Sigmet_Vol_IsPPI(struct Sigmet_Vol *);
 int Sigmet_Vol_IsRHI(struct Sigmet_Vol *);
-int Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
+enum SigmetStatus Sigmet_Vol_Read(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_LzCpy(struct Sigmet_Vol *, struct Sigmet_Vol *);
 double Sigmet_Vol_RadarLon(struct Sigmet_Vol *, double *);
 double Sigmet_Vol_RadarLat(struct Sigmet_Vol *, double *);
@@ -640,33 +646,38 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
 void Sigmet_Vol_RayGeom(struct Sigmet_Vol *, int, double *, double *, double *,
 	int *);
 double Sigmet_Vol_BinStart(struct Sigmet_Vol *, int);
-int Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int, double *);
-int Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *, int, struct GeogProj *,
-	double *, double *, double *, double *);
-int Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *, int, double *, double *);
-int Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *, char *, int, double,
-	double, int, FILE *);
-int Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *, char *, int, double,
-	double, int, int, FILE *);
-int Sigmet_Vol_NewField(struct Sigmet_Vol *, char *, char *, char *);
-int Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
-int Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *, char *, float);
-int Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *, char *);
-int Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *, char *, char *);
-int Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *, char *, float);
-int Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *, char *, char *);
-int Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *, char *, float);
-int Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *, char *, char *);
-int Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *, char *, float);
-int Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *, char *, char *);
-int Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *, char *, float);
-int Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *, char *, char *);
-int Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *, char *);
-int Sigmet_Vol_IncrTm(struct Sigmet_Vol *, double);
+enum SigmetStatus Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int,
+	double *);
+enum SigmetStatus Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *, int,
+	struct GeogProj *, double *, double *, double *, double *);
+enum SigmetStatus Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *, int, double *,
+	double *);
+enum SigmetStatus Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *, char *, int,
+	double, double, int, FILE *);
+enum SigmetStatus Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *, char *, int,
+	double, double, int, int, FILE *);
+enum SigmetStatus Sigmet_Vol_NewField(struct Sigmet_Vol *, char *, char *,
+	char *);
+enum SigmetStatus Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
+enum SigmetStatus Sigmet_Vol_Fld_SetVal(struct Sigmet_Vol *, char *, float);
+enum SigmetStatus Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *, char *);
+enum SigmetStatus Sigmet_Vol_Fld_Copy(struct Sigmet_Vol *, char *, char *);
+enum SigmetStatus Sigmet_Vol_Fld_AddVal(struct Sigmet_Vol *, char *, float);
+enum SigmetStatus Sigmet_Vol_Fld_AddFld(struct Sigmet_Vol *, char *, char *);
+enum SigmetStatus Sigmet_Vol_Fld_SubVal(struct Sigmet_Vol *, char *, float);
+enum SigmetStatus Sigmet_Vol_Fld_SubFld(struct Sigmet_Vol *, char *, char *);
+enum SigmetStatus Sigmet_Vol_Fld_MulVal(struct Sigmet_Vol *, char *, float);
+enum SigmetStatus Sigmet_Vol_Fld_MulFld(struct Sigmet_Vol *, char *, char *);
+enum SigmetStatus Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *, char *, float);
+enum SigmetStatus Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *, char *, char *);
+enum SigmetStatus Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *, char *);
+enum SigmetStatus Sigmet_Vol_IncrTm(struct Sigmet_Vol *, double);
 double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
 int Sigmet_Vol_GetFld(struct Sigmet_Vol *, char *, struct Sigmet_Dat **);
 float Sigmet_Vol_GetDatum(struct Sigmet_Vol *, int, int, int, int);
-int Sigmet_Vol_GetRayDat(struct Sigmet_Vol *, int, int, int, float **);
-int Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int, struct Dorade_Sweep *);
+enum SigmetStatus Sigmet_Vol_GetRayDat(struct Sigmet_Vol *, int, int, int,
+	float **);
+enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int,
+	struct Dorade_Sweep *);
 
 #endif

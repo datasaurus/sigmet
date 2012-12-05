@@ -25,21 +25,30 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.10 $ $Date: 2012/11/14 17:53:22 $
+.\" $Revision: 1.11 $ $Date: 2012/11/15 16:23:04 $
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
 .Os UNIX
 .Sh NAME
 .Nm Sigmet_Vol_Init ,
 .Nm Sigmet_Vol_Free ,
+.Nm Sigmet_ShMemAttach ,
+.Nm Sigmet_ShMemDetach ,
 .Nm Sigmet_Vol_ReadHdr ,
+.Nm Sigmet_Vol_PrintDataTypes ,
 .Nm Sigmet_Vol_PrintHdr ,
+.Nm Sigmet_Vol_PrintMinHdr ,
 .Nm Sigmet_Vol_Read ,
+.Nm Sigmet_Vol_LzCpy ,
+.Nm Sigmet_Vol_NearSweep ,
 .Nm Sigmet_Vol_RadarLon ,
 .Nm Sigmet_Vol_RadarLat ,
 .Nm Sigmet_Vol_NumSweeps ,
 .Nm Sigmet_Vol_NumRays ,
 .Nm Sigmet_Vol_NumBins ,
+.Nm Sigmet_Vol_MemSz ,
+.Nm Sigmet_Vol_SweepHdr ,
+.Nm Sigmet_Vol_RayHdr ,
 .Nm Sigmet_Vol_IsPPI ,
 .Nm Sigmet_Vol_IsRHI ,
 .Nm Sigmet_Vol_RayGeom ,
@@ -47,6 +56,7 @@
 .Nm Sigmet_Vol_BinStart ,
 .Nm Sigmet_Vol_BinOutl ,
 .Nm Sigmet_Vol_PPI_Bnds ,
+.Nm Sigmet_Vol_RHI_Bnds ,
 .Nm Sigmet_Vol_NewField ,
 .Nm Sigmet_Vol_DelField ,
 .Nm Sigmet_Vol_Fld_SetVal ,
@@ -72,24 +82,42 @@
 .Fd "#include <sigmet.h>"
 .Ft void
 .Fn Sigmet_Vol_Init "struct Sigmet_Vol *vol_p"
-.Ft void
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Free "struct Sigmet_Vol *vol_p"
-.Ft int
+.Ft enum SigmetStatus
+.Fn Sigmet_ShMemAttach "struct Sigmet_Vol *vol_p"
+.Ft enum SigmetStatus
+.Fn Sigmet_ShMemDetach "struct Sigmet_Vol *vol_p"
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_ReadHdr "FILE *f" "struct Sigmet_Vol *vol_p"
 .Ft void
+.Fn Sigmet_Vol_PrintDataTypes "FILE * f" "struct Sigmet_Vol *vol_p"
+.Ft void
 .Fn Sigmet_Vol_PrintHdr "FILE * f" "struct Sigmet_Vol *vol_p"
-.Ft int
+.Ft void
+.Fn Sigmet_Vol_PrintMinHdr "FILE * f" "struct Sigmet_Vol *vol_p"
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Read "FILE *f" "struct Sigmet_Vol *vol_p"
+.Ft void
+.Fn Sigmet_Vol_LzCpy "struct Sigmet_Vol *dest" "struct Sigmet_Vol *src"
+.Ft int
+.Fn Sigmet_Vol_NearSweep "struct Sigmet_Vol *vol_p" "double ang"
 .Ft double
 .Fn Sigmet_Vol_RadarLon "struct Sigmet_Vol *vol_p" "double *lon_p"
 .Ft double
-.Fn Sigmet_Vol_RadarLat "struct Sigmet_Vol *vol_p" "double *Lat_p"
+.Fn Sigmet_Vol_RadarLat "struct Sigmet_Vol *vol_p" "double *lat_p"
 .Ft int
 .Fn Sigmet_Vol_NumSweeps "struct Sigmet_Vol *vol_p"
 .Ft int
 .Fn Sigmet_Vol_NumRays "struct Sigmet_Vol *vol_p"
 .Ft int
 .Fn Sigmet_Vol_NumBins "struct Sigmet_Vol *vol_p" "int s" "int r"
+.Ft size_t
+.Fn Sigmet_Vol_MemSz "struct Sigmet_Vol *vol_p"
+.Ft enum SigmetStatus
+.Fn Sigmet_Vol_SweepHdr "struct Sigmet_Vol *vol_p" "int s" "int *ok_p" "double *tm_p" "double *ang_p"
+.Ft enum SigmetStatus
+.Fn Sigmet_Vol_RayHdr "struct Sigmet_Vol *vol_p" "int s" "int r" "int *ok_p" "double *tm_p" "int *num_bins_p" "double *tilt0_p" "double *tilt1_p" "double *az0_p" "double *az1_p"
 .Ft int
 .Fn Sigmet_Vol_IsPPI "struct Sigmet_Vol *vol_p"
 .Ft int
@@ -100,39 +128,41 @@
 .Fn Sigmet_Vol_BadRay "struct Sigmet_Vol *vol_p" "int s" "int r"
 .Ft double
 .Fn Sigmet_Vol_BinStart "struct Sigmet_Vol *vol_p" "int b"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_BinOutl "struct Sigmet_Vol *vol_p" "int s" "int r" "int b" "double *lonlats"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_PPI_Bnds "struct Sigmet_Vol *vol_p " "int s" "struct GeogProj *proj" "double *x_min_p" "double *x_max_p" "double *y_min_p" "double *y_max_p"
-.Ft int
+.Ft enum SigmetStatus
+.Fn Sigmet_Vol_RHI_Bnds "struct Sigmet_Vol *vol_p" "int s" "double *x_max_p" "double *y_max_p"
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_NewField "struct Sigmet_Vol *vol_p" "char *field_name"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_DelField "struct Sigmet_Vol *vol_p" "char *field_name"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_SetVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_SetRBeam "struct Sigmet_Vol *vol_p" "char *field_name"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_Copy "struct Sigmet_Vol *vol_p" "char *dest_field" "char *src_field"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_AddVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_AddFld "struct Sigmet_Vol *vol_p" "char *field_name" "char *addend_field"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_SubVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_SubFld "struct Sigmet_Vol *vol_p" "char *field_name" "char *subt_field"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_MulVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_MulFld "struct Sigmet_Vol *vol_p" "char *field_name" "char *factor_field"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_DivVal "struct Sigmet_Vol *vol_p" "char *field_name" "float v"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_DivFld "struct Sigmet_Vol *vol_p" "char *field_name" "char *divs_field"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_Fld_Log10 "struct Sigmet_Vol *vol_p" "char *field_name"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_IncrTm "struct Sigmet_Vol *vol_p" "double dt"
 .Ft double
 .Fn Sigmet_Vol_VNyquist "struct Sigmet_Vol *vol_p"
@@ -140,9 +170,9 @@
 .Fn Sigmet_Vol_GetFld "struct Sigmet_Vol *vol_p" "char *data_type_s"
 .Ft float
 .Fn Sigmet_Vol_GetDatum "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "int b"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_GetRayDat "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "float **ray_p" "int *n"
-.Ft int
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_ToDorade "struct Sigmet_Vol *vol_p" "int s" "struct Dorade_Sweep *swp_p"
 .Sh DESCRIPTION
 Data from Sigmet raw product volumes are stored in structures of type
@@ -162,6 +192,16 @@ can be safely passed to
 frees memory associated with a Sigmet volume structure at
 .Fa vol_p
 and reinitializes the structure.
+.Pp
+.Fn Sigmet_ShMemAttach
+maps pointers in
+.Fa vol_p
+to shared memory. 
+.Pp
+.Fn Sigmet_ShMemDetach
+detaches
+.Fa vol_p
+from shared memory.
 .Pp
 .Fn Sigmet_Vol_ReadHdr
 reads and stores volume headers for a Sigmet raw product file from stream
@@ -192,6 +232,17 @@ stores nothing and re-initializes the structure at
 with a call to
 .Fn Sigmet_Vol_Init .
 .Pp
+.Fn Sigmet_Vol_PrintDataTypes
+prints information about data types in
+.Fa vol_p
+to output stream
+.Fa f
+\&.  Each line of output will have form:
+.Bd -literal -offset indent
+data_type | description | unit
+
+.Ed
+.Pp
 .Fn Sigmet_Vol_PrintHdr
 prints volume headers from
 .Fa vol
@@ -199,7 +250,7 @@ to output stream
 .Fa f
 \&.  Each line of output will have form:
 .Bd -literal -offset indent
-value|hierarchy|description
+value | hierarchy | description
 
 .Ed
 where
@@ -217,6 +268,17 @@ so the line of output would look something like
 
 .Ed .
 .Pp
+.Fn Sigmet_Vol_PrintMinHdr
+prints frequently used volume headers from
+.Fa vol
+to output stream
+.Fa f
+\&.  Each line of output will have form:
+.Bd -literal -offset indent
+name=value
+
+.Ed
+.Pp
 .Fn Sigmet_Vol_Read
 reads everything from a Sigmet raw product file from stream
 .Fa f .
@@ -225,13 +287,13 @@ should be at the start of a raw product file.
 If
 .Fa vol_p
 is
-.Li NULL ,
+.Dv NULL ,
 it reads but does not store the volume file, and quietly returns a status
 indicating success or failure.
 If
 .Fa vol_p
 is not
-.Li NULL ,
+.Dv NULL ,
 it stores the data and headers at
 .Fa vol_p ,
 which should have already been initialized with a call to
@@ -259,20 +321,36 @@ allocated, and re-initializes the structure at
 with a call to
 .Fn Sigmet_Vol_Init .
 .Pp
+.Fn Sigmet_Vol_LzCpy
+does a shallow copy from
+.Fa src
+to
+.Fa dest .
+It copies pointers, but not data stored at the pointed to memory.
+.Pp
+.Fn Sigmet_Vol_NearSweep
+returns the index of the sweep in the volume at
+.Fa vol_p
+nearest angle
+.Fa ang ,
+or -1 if something goes wrong.
+.Fa ang
+must be in radians.
+.Pp
 .Fn Sigmet_Vol_RadarLon
 and
 .Fn Sigmet_Vol_RadarLat
 get or set a radar longitude or latiutde. If
 .Fa lon_p
 is not
-.Li NULL ,
+.Dv NULL ,
 .Fn Sigmet_Vol_RadarLon
 sets the longitude of the volume at
 .Fa vol_p
 to the value there. It returns the radar longitude, whether modified or not. If
 .Fa lat_p
 is not
-.Li NULL ,
+.Dv NULL ,
 .Fn Sigmet_Vol_RadarLat
 sets the latitude of the volume at
 .Fa vol_p
@@ -300,6 +378,65 @@ is
 .Li -1 ,
 return value is the largest number of bins among all rays in sweep
 .Fa s .
+.Pp
+.Fn Sigmet_Vol_MemSz
+returns the number of bytes of memory the volume at
+.Fa vol_p
+is using, or
+.Li -1
+(an impossibly huge value) if
+.Fa vol_p
+is invalid.
+.Pp
+.Fn Sigmet_Vol_SweepHdr
+fetches sweep header information for sweep
+.Fa s
+of
+.Fa vol_p .
+.Fa ok_p
+receives
+.Dv true
+if the sweep is usable, otherwise it receives
+.Dv false .
+.Fa tm_p
+receives the sweep start time, as a Julian day.
+.Fa ang_p
+receives the sweep angle, in radians.
+If the sweep is bad, values are set to
+.Dv NAN .
+.Dv NULL
+pointers are skipped.
+.Pp
+.Fn Sigmet_Vol_RayHdr
+fetches ray header information for sweep
+.Fa s ,
+ray
+.Fa r
+of
+.Fa vol_p .
+.Fa ok_p
+receives
+.Dv true
+if the sweep and ray are usable, otherwise it receives
+.Dv false .
+.Fa tm_p
+receives the ray time, as a Julian day.
+.Fa num_bins_p
+receives the number of bins in the ray, or
+.Dv -1
+if the sweep or the ray is bad.
+.Fa tilt0_p
+receives the ray start tilt, in radians.
+.Fa tilt1_p
+receives the ray end tilt, in radians.
+.Fa az0_p
+receives the ray start azimuth, in radians.
+.Fa az1_p
+receives the ray end azimuth, in radians.
+If the sweep or ray is bad, float values are set to
+.Dv NAN .
+.Dv NULL
+pointers are skipped.
 .Pp
 .Fn Sigmet_Vol_IsPPI
 returns true if
@@ -332,11 +469,11 @@ The mean fixed angle - PPI tilt or RHI azimuth - is copied to
 The actual number of rays in the sweep is copied to
 .Fa num_rays_p .
 Angles are given in radians. Angles for a bad rays are set to
-.Li NAN .
+.Dv NAN .
 If something goes wrong,
 .Fa fx_p
 is set to
-.Li NAN
+.Dv NAN
 and
 .Fa num_rays_p
 is set to
@@ -389,13 +526,25 @@ limits are placed at
 and
 .Fa y_max_p .
 .Pp
+Sigmet_Vol_RHI_Bnds
+computes sweep limits in meters for sweep
+.Fa s
+of the volume at
+.Fa vol_p
+The resulting limits are placed at
+.Fa x_min_p ,
+.Fa x_max_p ,
+.Fa y_min_p ,
+and
+.Fa y_max_p .
+.Pp
 .Fn Sigmet_Vol_NewField
 creates a new field named
 .Fa field_name
 to the volume at
 .Fa vol_p .
 All bins in the new field will be initialized to
-.Li NAN .
+.Dv NAN .
 .Pp
 .Fn Sigmet_Vol_DelField
 removes field
@@ -503,7 +652,7 @@ in the volume at
 .Fa vol_p
 with the common log value. Bins with values for which common log is not defined
 are set to
-.Li NAN .
+.Dv NAN .
 .Pp
 .Fn Sigmet_Vol_IncrTm
 adds
@@ -523,7 +672,7 @@ structure with data for field identified as
 of volume
 .Fa vol_p ,
 or
-.Li NULL
+.Dv NULL
 if something goes wrong.
 .Pp
 .Fn Sigmet_Vol_GetDatum
@@ -609,12 +758,13 @@ A time computation failed
 
 .El
 Error information is printed to
-.Li stderr .
+.Dv stderr .
 .Sh KEYWORDS
 radar sigmet data
 .Sh SEE ALSO
 .Xr alloc 3 ,
 .Xr Err_Get 3 ,
+.Xr tm_calc_lib 3 ,
 .Xr sigmet_raw 1
 .Rs
 .%B IRIS Programmer's Manual
