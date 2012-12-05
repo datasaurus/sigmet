@@ -25,7 +25,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.11 $ $Date: 2012/11/15 16:23:04 $
+.\" $Revision: 1.12 $ $Date: 2012/12/05 21:13:44 $
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
 .Os UNIX
@@ -35,7 +35,7 @@
 .Nm Sigmet_ShMemAttach ,
 .Nm Sigmet_ShMemDetach ,
 .Nm Sigmet_Vol_ReadHdr ,
-.Nm Sigmet_Vol_PrintDataTypes ,
+.Nm Sigmet_Vol_DataTypeHdrs ,
 .Nm Sigmet_Vol_PrintHdr ,
 .Nm Sigmet_Vol_PrintMinHdr ,
 .Nm Sigmet_Vol_Read ,
@@ -43,6 +43,8 @@
 .Nm Sigmet_Vol_NearSweep ,
 .Nm Sigmet_Vol_RadarLon ,
 .Nm Sigmet_Vol_RadarLat ,
+.Nm Sigmet_Vol_ScanMode ,
+.Nm Sigmet_Vol_NumTypes ,
 .Nm Sigmet_Vol_NumSweeps ,
 .Nm Sigmet_Vol_NumRays ,
 .Nm Sigmet_Vol_NumBins ,
@@ -90,8 +92,8 @@
 .Fn Sigmet_ShMemDetach "struct Sigmet_Vol *vol_p"
 .Ft enum SigmetStatus
 .Fn Sigmet_Vol_ReadHdr "FILE *f" "struct Sigmet_Vol *vol_p"
-.Ft void
-.Fn Sigmet_Vol_PrintDataTypes "FILE * f" "struct Sigmet_Vol *vol_p"
+.Ft enum SigmetStatus
+.Fn Sigmet_Vol_DataTypeHdrs "struct Sigmet_Vol *vol_p" "int y" "char **data_type_s_p" "char **descr_p" "char **unit_p"
 .Ft void
 .Fn Sigmet_Vol_PrintHdr "FILE * f" "struct Sigmet_Vol *vol_p"
 .Ft void
@@ -106,6 +108,10 @@
 .Fn Sigmet_Vol_RadarLon "struct Sigmet_Vol *vol_p" "double *lon_p"
 .Ft double
 .Fn Sigmet_Vol_RadarLat "struct Sigmet_Vol *vol_p" "double *lat_p"
+.Ft enum Sigmet_ScanMode
+.Fn Sigmet_Vol_ScanMode "struct Sigmet_Vol *vol_p"
+.Ft int
+.Fn Sigmet_Vol_NumTypes "struct Sigmet_Vol *vol_p"
 .Ft int
 .Fn Sigmet_Vol_NumSweeps "struct Sigmet_Vol *vol_p"
 .Ft int
@@ -232,16 +238,19 @@ stores nothing and re-initializes the structure at
 with a call to
 .Fn Sigmet_Vol_Init .
 .Pp
-.Fn Sigmet_Vol_PrintDataTypes
-prints information about data types in
-.Fa vol_p
-to output stream
-.Fa f
-\&.  Each line of output will have form:
-.Bd -literal -offset indent
-data_type | description | unit
-
-.Ed
+.Fn Sigmet_Vol_DataTypeHdrs
+retrieves information about data type with index
+.Fa y
+in the volume at
+.Fa vol_p .
+The data type name is placed at
+.Fa data_type_s_p .
+The data type description is placed at
+.Fa descr_p .
+The data type unit is placed at
+.Fa unit_p .
+.Dv NULL
+arguments are skipped. Returned pointers should not be modified by the caller.
 .Pp
 .Fn Sigmet_Vol_PrintHdr
 prints volume headers from
@@ -356,6 +365,21 @@ sets the latitude of the volume at
 .Fa vol_p
 to the value there. It returns the radar latitude, whether modified or not.
 Longitudes and latitudes are measured in radians.
+.Pp
+.Fn Sigmet_Vol_ScanMode 
+returns the scan mode for the volume at
+.Fa vol_p ,
+one of
+.Dv PPI_S ,
+.Dv RHI ,
+.Dv MAN_SCAN ,
+.Dv PPI_C ,
+or
+.Dv FILE_SCAN .
+.Pp
+.Fn Sigmet_Vol_NumTypes
+returns the number of data types in the volume at
+.Fa vol_p .
 .Pp
 .Fn Sigmet_Vol_NumSweeps
 returns the number of sweeps in the volume at
@@ -733,29 +757,28 @@ are declared in
 .Li sigmet.h.
 They are:
 .Bl -inset -offset indent
-.It Em SIGMET_OK
+.It Dv SIGMET_OK
 Success
-.It Em SIGMET_NOT_INIT
+.It Dv SIGMET_NOT_INIT
 A resource or interface is not initialized
-.It Em SIGMET_IO_FAIL
+.It Dv SIGMET_IO_FAIL
 Failed communication with file or process
-.It Em SIGMET_HELPER_FAIL
+.It Dv SIGMET_HELPER_FAIL
 Helper process failed
-.It Em SIGMET_BAD_FILE
+.It Dv SIGMET_BAD_FILE
 An input file is not in expected format
-.It Em SIGMET_BAD_VOL
+.It Dv SIGMET_BAD_VOL
 Corrupt volume in memory
-.It Em SIGMET_ALLOC_FAIL
+.It Dv SIGMET_ALLOC_FAIL
 Failed to allocate memory
-.It Em SIGMET_FLUSH_FAIL
+.It Dv SIGMET_FLUSH_FAIL
 Failed to free desired amount of memory
-.It Em SIGMET_BAD_ARG
+.It Dv SIGMET_BAD_ARG
 An argument to a function could not be parsed or referred to something that does not exist
-.It Em SIGMET_RNG_ERR
+.It Dv SIGMET_RNG_ERR
 A value is too large or out of range
-.It Em SIGMET_BAD_TIME
+.It Dv SIGMET_BAD_TIME
 A time computation failed
-
 .El
 Error information is printed to
 .Dv stderr .

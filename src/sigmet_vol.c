@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.195 $ $Date: 2012/12/05 21:11:18 $
+   .	$Revision: 1.196 $ $Date: 2012/12/05 23:06:15 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -856,6 +856,11 @@ void Sigmet_Vol_PrintMinHdr(FILE *out, struct Sigmet_Vol *vol_p)
     fprintf(out, "prf=%.2lf\n", prf);
     fprintf(out, "prf_mode=%s\n", mp_s);
     fprintf(out, "vel_ua=%.3lf\n", vel_ua);
+}
+
+enum Sigmet_ScanMode Sigmet_Vol_ScanMode(struct Sigmet_Vol *vol_p)
+{
+    return vol_p ? vol_p->ih.tc.tni.scan_mode : MAN_SCAN;
 }
 
 int Sigmet_Vol_NumTypes(struct Sigmet_Vol *vol_p)
