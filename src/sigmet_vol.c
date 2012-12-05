@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.194 $ $Date: 2012/12/05 20:50:48 $
+   .	$Revision: 1.195 $ $Date: 2012/12/05 21:11:18 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -739,19 +739,22 @@ error:
     return status;
 }
 
-void Sigmet_Vol_PrintDataTypes(FILE *out, struct Sigmet_Vol *vol_p)
+enum SigmetStatus Sigmet_Vol_DataTypeHdrs(struct Sigmet_Vol *vol_p, int y,
+	char **data_type_s_p, char **descr_p, char **unit_p)
 {
-    int y;
-
-    if ( !vol_p ) {
-	return;
+    if ( !vol_p || y < 0 || y >= vol_p->num_types ) {
+	return SIGMET_BAD_ARG;
     }
-    for (y = 0; y < vol_p->num_types; y++) {
-	if ( strlen(vol_p->dat[y].data_type_s) > 0 ) {
-	    fprintf(out, "%s | %s | %s\n", vol_p->dat[y].data_type_s,
-		    vol_p->dat[y].descr, vol_p->dat[y].unit);
-	}
+    if ( data_type_s_p ) {
+	*data_type_s_p = vol_p->dat[y].data_type_s;
     }
+    if ( descr_p ) {
+	*descr_p = vol_p->dat[y].descr;
+    }
+    if ( unit_p ) {
+	*unit_p = vol_p->dat[y].unit;
+    }
+    return SIGMET_OK;
 }
 
 void Sigmet_Vol_PrintHdr(FILE *out, struct Sigmet_Vol *vol_p)
@@ -912,7 +915,7 @@ enum SigmetStatus Sigmet_Vol_SweepHdr(struct Sigmet_Vol *vol_p, int s,
     if ( !vol_p ) {
 	return SIGMET_BAD_VOL;
     }
-    if ( s > vol_p->num_sweeps_ax ) {
+    if ( s >= vol_p->num_sweeps_ax ) {
 	return SIGMET_RNG_ERR;
     }
     if ( vol_p->sweep_hdr[s].ok ) {
@@ -940,7 +943,7 @@ enum SigmetStatus Sigmet_Vol_RayHdr(struct Sigmet_Vol *vol_p, int s, int r,
     if ( !vol_p ) {
 	return SIGMET_BAD_VOL;
     }
-    if ( s > vol_p->num_sweeps_ax || r > vol_p->ih.ic.num_rays ) {
+    if ( s >= vol_p->num_sweeps_ax || r >= vol_p->ih.ic.num_rays ) {
 	return SIGMET_RNG_ERR;
     }
     if ( vol_p->sweep_hdr[s].ok && vol_p->ray_hdr[s][r].ok ) {

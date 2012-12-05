@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.125 $ $Date: 2012/12/01 17:57:28 $
+   .	$Revision: 1.126 $ $Date: 2012/12/05 21:11:18 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -623,7 +623,8 @@ enum SigmetStatus Sigmet_Vol_Free(struct Sigmet_Vol *);
 enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *);
 enum SigmetStatus Sigmet_ShMemDetach(struct Sigmet_Vol *);
 enum SigmetStatus Sigmet_Vol_ReadHdr(FILE *, struct Sigmet_Vol *);
-void Sigmet_Vol_PrintDataTypes(FILE *, struct Sigmet_Vol *);
+enum SigmetStatus Sigmet_Vol_DataTypeHdrs(struct Sigmet_Vol *, int, char **,
+	char **, char **);
 void Sigmet_Vol_PrintHdr(FILE *, struct Sigmet_Vol *);
 void Sigmet_Vol_PrintMinHdr(FILE *, struct Sigmet_Vol *);
 int Sigmet_Vol_NumTypes(struct Sigmet_Vol *);
