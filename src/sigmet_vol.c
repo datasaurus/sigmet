@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.192 $ $Date: 2012/12/01 17:12:45 $
+   .	$Revision: 1.193 $ $Date: 2012/12/01 17:39:30 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -852,6 +852,11 @@ void Sigmet_Vol_PrintMinHdr(FILE *out, struct Sigmet_Vol *vol_p)
     fprintf(out, "vel_ua=%.3lf\n", vel_ua);
 }
 
+int Sigmet_Vol_NumTypes(struct Sigmet_Vol *vol_p)
+{
+    return vol_p ? vol_p->num_types : -1;
+}
+
 int Sigmet_Vol_NumSweeps(struct Sigmet_Vol *vol_p)
 {
     if ( !vol_p ) {
@@ -899,6 +904,96 @@ int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
 	fprintf(stderr, "Sweep index %d out of range.\n", s);
     }
     return num_bins;
+}
+
+size_t Sigmet_Vol_MemSz(struct Sigmet_Vol *vol_p)
+{
+    return vol_p ? vol_p->size : (size_t)-1;
+}
+
+enum SigmetStatus Sigmet_Vol_SweepHdr(struct Sigmet_Vol *vol_p, int s,
+	int *ok_p, double *tm_p, double *ang_p)
+{
+    if ( !vol_p ) {
+	return SIGMET_BAD_VOL;
+    }
+    if ( s > vol_p->num_sweeps_ax ) {
+	return SIGMET_RNG_ERR;
+    }
+    if ( vol_p->sweep_hdr[s].ok ) {
+	if ( tm_p ) {
+	    *tm_p = vol_p->sweep_hdr[s].time;
+	}
+	if ( ang_p ) {
+	    *ang_p = vol_p->sweep_hdr[s].angle;
+	}
+    } else {
+	if ( tm_p ) {
+	    *tm_p = NAN;
+	}
+	if ( ang_p ) {
+	    *ang_p = NAN;
+	}
+    }
+    return SIGMET_OK;
+}
+
+enum SigmetStatus Sigmet_Vol_RayHdr(struct Sigmet_Vol *vol_p, int s, int r,
+	int *ok_p, double *tm_p, int *num_bins_p, double *tilt0_p,
+	double *tilt1_p, double *az0_p, double *az1_p)
+{
+    if ( !vol_p ) {
+	return SIGMET_BAD_VOL;
+    }
+    if ( s > vol_p->num_sweeps_ax || r > vol_p->ih.ic.num_rays ) {
+	return SIGMET_RNG_ERR;
+    }
+    if ( vol_p->sweep_hdr[s].ok && vol_p->ray_hdr[s][r].ok ) {
+	if ( ok_p ) {
+	    *ok_p = 1;
+	}
+	if ( tm_p ) {
+	    *tm_p = vol_p->ray_hdr[s][r].time;
+	}
+	if ( num_bins_p ) {
+	    *num_bins_p = vol_p->ray_hdr[s][r].num_bins;
+	}
+	if ( tilt0_p ) {
+	    *tilt0_p = vol_p->ray_hdr[s][r].tilt0;
+	}
+	if ( tilt1_p ) {
+	    *tilt1_p = vol_p->ray_hdr[s][r].tilt1;
+	}
+	if ( az0_p ) {
+	    *az0_p = vol_p->ray_hdr[s][r].az0;
+	}
+	if ( az1_p ) {
+	    *az1_p = vol_p->ray_hdr[s][r].az1;
+	}
+    } else {
+	if ( ok_p ) {
+	    *ok_p = 0;
+	}
+	if ( tm_p ) {
+	    *tm_p = NAN;
+	}
+	if ( num_bins_p ) {
+	    *num_bins_p = -1;
+	}
+	if ( tilt0_p ) {
+	    *tilt0_p = NAN;
+	}
+	if ( tilt1_p ) {
+	    *tilt1_p = NAN;
+	}
+	if ( az0_p ) {
+	    *az0_p = NAN;
+	}
+	if ( az1_p ) {
+	    *az1_p = NAN;
+	}
+    }
+    return SIGMET_OK;
 }
 
 int Sigmet_Vol_IsPPI(struct Sigmet_Vol *vol_p)
