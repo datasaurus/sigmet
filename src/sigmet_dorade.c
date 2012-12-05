@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.55 $ $Date: 2012/11/13 22:51:16 $
+   .	$Revision: 1.56 $ $Date: 2012/12/01 16:52:55 $
  */
 
 #include <string.h>
@@ -41,7 +41,7 @@
 #include "geog_lib.h"
 #include "dorade_lib.h"
 
-int Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
+enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	struct Dorade_Sweep *swp_p)
 {
     int status;					/* Return value for this call */
