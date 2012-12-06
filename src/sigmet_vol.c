@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.196 $ $Date: 2012/12/05 23:06:15 $
+   .	$Revision: 1.197 $ $Date: 2012/12/05 23:28:03 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -206,6 +206,9 @@ static int ymds_incr(struct Sigmet_YMDS_Time *tm_p, double dt)
     int yr, mon, day, hr, min, sec;
     double isec, fsec;
 
+    if ( !tm_p ) {
+	return 0;
+    }
     sec = tm_p->sec + tm_p->msec * 0.001;
     t = Tm_CalToJul(tm_p->year, tm_p->month, tm_p->day, 0, 0, sec);
     if ( !Tm_JulToCal(t + dt, &yr, &mon, &day, &hr, &min, &sec) ) {
@@ -1733,6 +1736,9 @@ int Sigmet_Vol_NearSweep(struct Sigmet_Vol *vol_p, double ang)
 
 double Sigmet_Vol_RadarLon(struct Sigmet_Vol *vol_p, double *lon_p)
 {
+    if ( !vol_p ) {
+	return NAN;
+    }
     if ( *lon_p ) {
 	vol_p->ih.ic.longitude = Sigmet_RadBin4(GeogLonR(*lon_p, M_PI));
 	vol_p->mod = 1;
@@ -1743,6 +1749,9 @@ double Sigmet_Vol_RadarLon(struct Sigmet_Vol *vol_p, double *lon_p)
 
 double Sigmet_Vol_RadarLat(struct Sigmet_Vol *vol_p, double *lat_p)
 {
+    if ( !vol_p ) {
+	return NAN;
+    }
     if ( *lat_p ) {
 	vol_p->ih.ic.latitude = *lat_p;
 	vol_p->mod = 1;
@@ -1772,7 +1781,7 @@ void Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
     int num_ray_hdrs;			/* Number of rays, including bad ones */
     int r, num_rays;			/* Actual number of rays */
 
-    if ( !vol_p->sweep_hdr[s].ok ) {
+    if ( !vol_p || s >= vol_p->num_sweeps_ax || !vol_p->sweep_hdr[s].ok ) {
 	*fx_p = NAN;
 	*num_rays_p = 0;
 	return;
@@ -1874,9 +1883,13 @@ enum SigmetStatus Sigmet_Vol_NewField(struct Sigmet_Vol *vol_p,
 	return SIGMET_MEM_FAIL;
     }
     dat_p->vals.f = flt_p;
-    strncpy(dat_p->data_type_s, data_type_s, SIGMET_NAME_LEN - 1);
-    strncpy(dat_p->descr, descr, SIGMET_NAME_LEN - 1);
-    strncpy(dat_p->unit, unit, SIGMET_NAME_LEN - 1);
+    strlcpy(dat_p->data_type_s, data_type_s, SIGMET_NAME_LEN);
+    if ( descr ) {
+	strncpy(dat_p->descr, descr, SIGMET_NAME_LEN);
+    }
+    if ( unit ) {
+	strncpy(dat_p->unit, unit, SIGMET_NAME_LEN);
+    }
     hash_add(vol_p, data_type_s, vol_p->num_types);
     vol_p->size += num_sweeps * num_rays * num_bins * sizeof(float);
     vol_p->num_types++;
@@ -2929,10 +2942,8 @@ float Sigmet_Vol_GetDatum(struct Sigmet_Vol *vol_p, int y, int s, int r, int b)
 {
     float v = NAN;
 
-    if ( !vol_p ) {
-	return NAN;
-    }
-    if ( y < 0 || y >= vol_p->num_types
+    if ( !vol_p
+	    || y < 0 || y >= vol_p->num_types
 	    || s < 0 || s >= vol_p->num_sweeps_ax
 	    || r < 0 || r >= vol_p->ih.ic.num_rays
 	    || !vol_p->ray_hdr
@@ -2970,13 +2981,19 @@ enum SigmetStatus Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s,
     float *f_p, *f_e;
     float *r_p;
 
-    if ( !vol_p || y < 0 || y >= vol_p->num_types
-	    || s < 0 || s >= vol_p->num_sweeps_ax
-	    || r < 0 || r >= vol_p->ih.ic.num_rays ) {
+    if ( !vol_p ) {
 	return SIGMET_BAD_ARG;
     }
     if ( !vol_p->ray_hdr ) {
 	return SIGMET_BAD_VOL;
+    }
+    if ( s < 0 || s >= vol_p->ih.ic.num_sweeps ) {
+	fprintf(stderr, "%d: sweep index out of bounds.\n", getpid());
+	return SIGMET_RNG_ERR;
+    }
+    if ( r < 0 || r >= vol_p->ih.ic.num_rays ) {
+	fprintf(stderr, "%d: ray index out of bounds.\n", getpid());
+	return SIGMET_RNG_ERR;
     }
     ray_num_bins = vol_p->ray_hdr[s][r].num_bins;
     switch (vol_p->dat[y].stor_fmt) {
@@ -3017,8 +3034,9 @@ enum SigmetStatus Sigmet_Vol_GetRayDat(struct Sigmet_Vol *vol_p, int y, int s,
 
 double Sigmet_Vol_BinStart(struct Sigmet_Vol *vol_p, int b)
 {
-    return
-	0.01 * (vol_p->ih.tc.tri.rng_1st_bin + b * vol_p->ih.tc.tri.step_out);
+    return vol_p ?
+	0.01 * (vol_p->ih.tc.tri.rng_1st_bin + b * vol_p->ih.tc.tri.step_out)
+	: NAN;
 }
 
 /*
@@ -3035,15 +3053,18 @@ enum SigmetStatus Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r,
     double r0, r1;		/* Range to start and end of bin */
     double tilt;		/* Mean tilt */
 
-    if (s >= vol_p->ih.ic.num_sweeps) {
+    if ( !vol_p ) {
+	return SIGMET_BAD_ARG;
+    }
+    if ( s < 0 || s >= vol_p->ih.ic.num_sweeps ) {
 	fprintf(stderr, "%d: sweep index out of bounds.\n", getpid());
 	return SIGMET_RNG_ERR;
     }
-    if (r >= vol_p->ih.ic.num_rays) {
+    if ( r < 0 || r >= vol_p->ih.ic.num_rays ) {
 	fprintf(stderr, "%d: ray index out of bounds.\n", getpid());
 	return SIGMET_RNG_ERR;
     }
-    if (b >= vol_p->ray_hdr[s][r].num_bins) {
+    if ( b < 0 || b >= vol_p->ray_hdr[s][r].num_bins ) {
 	fprintf(stderr, "%d: bin index out of bounds.\n", getpid());
 	return SIGMET_RNG_ERR;
     }
