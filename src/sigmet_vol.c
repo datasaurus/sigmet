@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.197 $ $Date: 2012/12/05 23:28:03 $
+   .	$Revision: 1.198 $ $Date: 2012/12/06 19:34:53 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -2906,6 +2906,47 @@ enum SigmetStatus Sigmet_Vol_IncrTm(struct Sigmet_Vol *vol_p, double dt)
 	vol_p->sweep_hdr[s].time += dt;
 	for (r = 0; r < num_rays; r++) {
 	    vol_p->ray_hdr[s][r].time += dt;
+	}
+    }
+    vol_p->mod = 1;
+    return SIGMET_OK;
+}
+
+enum SigmetStatus Sigmet_Vol_ShiftAz(struct Sigmet_Vol *vol_p, double daz)
+{
+    unsigned long idaz;			/* Binary angle to add to each
+					   azimuth */
+    int s, r;				/* Loop indeces */
+
+    if ( !vol_p ) {
+	return SIGMET_BAD_ARG;
+    }
+    daz = GeogLonR(daz * RAD_PER_DEG, M_PI);
+    idaz = Sigmet_RadBin4(daz);
+    switch (Sigmet_Vol_ScanMode(vol_p)) {
+	case RHI:
+	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
+		vol_p->ih.tc.tni.scan_info.rhi_info.az[s] += idaz;
+	    }
+	    break;
+	case PPI_S:
+	case PPI_C:
+	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
+		vol_p->ih.tc.tni.scan_info.ppi_info.left_az += idaz;
+		vol_p->ih.tc.tni.scan_info.ppi_info.right_az += idaz;
+	    }
+	    break;
+	case FILE_SCAN:
+	    vol_p->ih.tc.tni.scan_info.file_info.az0 += idaz;
+	case MAN_SCAN:
+	    break;
+    }
+    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
+	for (r = 0; r < Sigmet_Vol_NumRays(vol_p); r++) {
+	    vol_p->ray_hdr[s][r].az0
+		= GeogLonR(vol_p->ray_hdr[s][r].az0 + daz, M_PI);
+	    vol_p->ray_hdr[s][r].az1
+		= GeogLonR(vol_p->ray_hdr[s][r].az1 + daz, M_PI);
 	}
     }
     vol_p->mod = 1;

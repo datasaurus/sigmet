@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.127 $ $Date: 2012/12/05 23:06:15 $
+   .	$Revision: 1.128 $ $Date: 2012/12/05 23:28:03 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -674,6 +674,7 @@ enum SigmetStatus Sigmet_Vol_Fld_DivVal(struct Sigmet_Vol *, char *, float);
 enum SigmetStatus Sigmet_Vol_Fld_DivFld(struct Sigmet_Vol *, char *, char *);
 enum SigmetStatus Sigmet_Vol_Fld_Log10(struct Sigmet_Vol *, char *);
 enum SigmetStatus Sigmet_Vol_IncrTm(struct Sigmet_Vol *, double);
+enum SigmetStatus Sigmet_Vol_ShiftAz(struct Sigmet_Vol *, double);
 double Sigmet_Vol_VNyquist(struct Sigmet_Vol *);
 int Sigmet_Vol_GetFld(struct Sigmet_Vol *, char *, struct Sigmet_Dat **);
 float Sigmet_Vol_GetDatum(struct Sigmet_Vol *, int, int, int, int);
