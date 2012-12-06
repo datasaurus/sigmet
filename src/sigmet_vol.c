@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.199 $ $Date: 2012/12/06 19:47:09 $
+   .	$Revision: 1.200 $ $Date: 2012/12/06 21:50:49 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -3250,7 +3250,6 @@ enum SigmetStatus Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *vol_p, int s,
     int num_bins;
     double ray_len;			/* Ray length, meters */
     int r;				/* Ray index */
-    double az0, az1, az;		/* Ray azimuth */
     double tilt0, tilt1, tilt;		/* Ray tilt */
     double rearth;			/* Earth radius */
     double x, y;			/* Map coordinates of ray end */
@@ -3279,9 +3278,6 @@ enum SigmetStatus Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *vol_p, int s,
     x_max = y_max = -DBL_MAX;
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_hdr[s][r].ok ) {
-	    az0 = vol_p->ray_hdr[s][r].az0;
-	    az1 = GeogLonR(vol_p->ray_hdr[s][r].az1, az0);
-	    az = 0.5 * (az0 + az1);
 	    tilt0 = vol_p->ray_hdr[s][r].tilt0;
 	    tilt1 = vol_p->ray_hdr[s][r].tilt1;
 	    tilt = 0.5 * (tilt0 + tilt1);
