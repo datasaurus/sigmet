@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.198 $ $Date: 2012/12/06 19:34:53 $
+   .	$Revision: 1.199 $ $Date: 2012/12/06 19:47:09 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -254,30 +254,30 @@ void Sigmet_Vol_Init(struct Sigmet_Vol *vol_p)
 enum SigmetStatus Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 {
     struct Sigmet_Dat *dat_p;
-    enum SigmetStatus status;
+    enum SigmetStatus sig_stat = SIGMET_OK;
 
     if (!vol_p) {
 	return SIGMET_BAD_ARG;
     }
     if ( vol_p->shm ) {
-	if ( !Sigmet_ShMemDetach(vol_p) ) {
+	if ( Sigmet_ShMemDetach(vol_p) != SIGMET_OK ) {
 	    fprintf(stderr, "%d: could not detach volume from shared "
 		    "memory.\n", getpid());
-	    status = SIGMET_MEM_FAIL;
+	    sig_stat = SIGMET_MEM_FAIL;
 	}
 	if ( vol_p->sweep_hdr_id != -1
 		&& shmctl(vol_p->sweep_hdr_id, IPC_RMID, NULL) == -1 ) {
 	    fprintf(stderr, "%d: could not remove shared memory for "
 		    "sweep headers.\n%s\nPlease use ipcrm command for id %d\n",
 		    getpid(), strerror(errno), vol_p->sweep_hdr_id);
-	    status = SIGMET_MEM_FAIL;
+	    sig_stat = SIGMET_MEM_FAIL;
 	}
 	if ( vol_p->ray_hdr_id != -1
 		&& shmctl(vol_p->ray_hdr_id, IPC_RMID, NULL) == -1 ) {
 	    fprintf(stderr, "%d: could not remove shared memory for "
 		    "ray headers.\n%s\nPlease use ipcrm command for id %d\n",
 		    getpid(), strerror(errno), vol_p->ray_hdr_id);
-	    status = SIGMET_MEM_FAIL;
+	    sig_stat = SIGMET_MEM_FAIL;
 	}
 	for (dat_p = vol_p->dat;
 		dat_p < vol_p->dat + SIGMET_MAX_TYPES;
@@ -288,7 +288,7 @@ enum SigmetStatus Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 			"%s array.\n%s\nPlease use ipcrm command for id %d\n",
 			getpid(), dat_p->data_type_s, strerror(errno),
 			dat_p->vals_id);
-		status = SIGMET_MEM_FAIL;
+		sig_stat = SIGMET_MEM_FAIL;
 	    }
 	}
     } else {
@@ -312,10 +312,10 @@ enum SigmetStatus Sigmet_Vol_Free(struct Sigmet_Vol *vol_p)
 		    break;
 	    }
 	}
-	status = SIGMET_OK;
+	sig_stat = SIGMET_OK;
     }
     Sigmet_Vol_Init(vol_p);
-    return status;
+    return sig_stat;
 }
 
 enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
@@ -323,7 +323,7 @@ enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
     int y, s, r;			/* Type, sweep, ray */
     int num_sweeps, num_rays, num_bins;
     int n;
-    enum SigmetStatus status;
+    enum SigmetStatus sig_stat;
 
     if ( !vol_p || !vol_p->shm) {
 	return SIGMET_BAD_ARG;
@@ -333,7 +333,7 @@ enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
     if ( vol_p->sweep_hdr == (void *)-1) {
 	fprintf(stderr, "%d: could not attach to sweep headers "
 		"in shared memory.\n%s\n", getpid(), strerror(errno));
-	status = SIGMET_MEM_FAIL;
+	sig_stat = SIGMET_MEM_FAIL;
 	goto error;
     }
 
@@ -345,7 +345,7 @@ enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
     if ( vol_p->ray_hdr == (void *)-1) {
 	fprintf(stderr, "%d: could not attach to ray headers "
 		"in shared memory.\n%s\n", getpid(), strerror(errno));
-	status = SIGMET_MEM_FAIL;
+	sig_stat = SIGMET_MEM_FAIL;
 	goto error;
     }
     vol_p->ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(vol_p->ray_hdr + num_sweeps);
@@ -364,7 +364,7 @@ enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not attach to data array for "
 			    "field %s in shared memory.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
-		    status = SIGMET_MEM_FAIL;
+		    sig_stat = SIGMET_MEM_FAIL;
 		    goto error;
 		} else {
 		    U1BYT ***dat;
@@ -388,7 +388,7 @@ enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not attach to data array for "
 			    "field %s in shared memory.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
-		    status = SIGMET_MEM_FAIL;
+		    sig_stat = SIGMET_MEM_FAIL;
 		    goto error;
 		} else {
 		    U2BYT ***dat;
@@ -412,7 +412,7 @@ enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not attach to data array for "
 			    "field %s in shared memory.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
-		    status = SIGMET_MEM_FAIL;
+		    sig_stat = SIGMET_MEM_FAIL;
 		    goto error;
 		} else {
 		    float ***dat;
@@ -434,7 +434,7 @@ enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 		fprintf(stderr, "%d: volume in memory is corrupt. "
 			"Unknown data type in data array for field %s.\n",
 			getpid(), dat_p->data_type_s);
-		status = SIGMET_BAD_VOL;
+		sig_stat = SIGMET_BAD_VOL;
 		goto error;
 		break;
 	}
@@ -444,28 +444,28 @@ enum SigmetStatus Sigmet_ShMemAttach(struct Sigmet_Vol *vol_p)
 error:
     vol_p->sweep_hdr = NULL;
     vol_p->ray_hdr = NULL;
-    return status;
+    return sig_stat;
 }
 
 enum SigmetStatus Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 {
     struct Sigmet_Dat *dat_p;
-    enum SigmetStatus status;
+    enum SigmetStatus sig_stat;
 
-    status = SIGMET_OK;
+    sig_stat = SIGMET_OK;
     if ( !vol_p || !vol_p->shm ) {
 	return SIGMET_BAD_ARG;
     }
     if ( vol_p->sweep_hdr && shmdt(vol_p->sweep_hdr) == -1 ) {
 	fprintf(stderr, "%d: could not detach shared memory for "
 		"sweep headers.\n%s\n", getpid(), strerror(errno));
-	status = SIGMET_MEM_FAIL;
+	sig_stat = SIGMET_MEM_FAIL;
     }
     vol_p->sweep_hdr = NULL;
     if ( vol_p->ray_hdr && shmdt(vol_p->ray_hdr) == -1 ) {
 	fprintf(stderr, "%d: could not detach shared memory for "
 		"ray headers.\n%s\n", getpid(), strerror(errno));
-	status = SIGMET_MEM_FAIL;
+	sig_stat = SIGMET_MEM_FAIL;
     }
     vol_p->ray_hdr = NULL;
     for (dat_p = vol_p->dat; dat_p < vol_p->dat + SIGMET_MAX_TYPES; dat_p++) {
@@ -475,7 +475,7 @@ enum SigmetStatus Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not detach shared memory "
 			    "for %s.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
-		    status = SIGMET_MEM_FAIL;
+		    sig_stat = SIGMET_MEM_FAIL;
 		}
 		dat_p->vals.u1 = NULL;
 		break;
@@ -484,7 +484,7 @@ enum SigmetStatus Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not detach shared memory "
 			    "for %s.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
-		    status = SIGMET_MEM_FAIL;
+		    sig_stat = SIGMET_MEM_FAIL;
 		}
 		dat_p->vals.u2 = NULL;
 		break;
@@ -493,7 +493,7 @@ enum SigmetStatus Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: could not detach shared memory "
 			    "for %s.\n%s\n",
 			    getpid(), dat_p->data_type_s, strerror(errno));
-		    status = SIGMET_MEM_FAIL;
+		    sig_stat = SIGMET_MEM_FAIL;
 		}
 		dat_p->vals.f = NULL;
 		break;
@@ -502,7 +502,7 @@ enum SigmetStatus Sigmet_ShMemDetach(struct Sigmet_Vol *vol_p)
 		break;
 	}
     }
-    return status;
+    return sig_stat;
 }
 
 /*
@@ -587,7 +587,7 @@ int Sigmet_Vol_GetFld(struct Sigmet_Vol *vol_p, char *data_type_s,
 enum SigmetStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 {
     char rec[REC_LEN];			/* Input record from file */
-    int status;
+    int sig_stat;
 
     /*
        yf will increment as bits are found in the volume type mask.
@@ -626,13 +626,13 @@ enum SigmetStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     if ( !f ) {
 	fprintf(stderr, "%d: read header function called with bogus "
 		"input stream.\n", getpid());
-	status = SIGMET_BAD_ARG;
+	sig_stat = SIGMET_BAD_ARG;
 	goto error;
     }
     if ( !vol_p ) {
 	fprintf(stderr, "%d: read header function called with bogus volume.\n",
 		getpid());
-	status = SIGMET_BAD_ARG;
+	sig_stat = SIGMET_BAD_ARG;
 	goto error;
     }
 
@@ -643,7 +643,7 @@ enum SigmetStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 	fprintf(stderr, "%d: could not read record 1 of Sigmet volume.\n",
 		getpid());
-	status = SIGMET_IO_FAIL;
+	sig_stat = SIGMET_IO_FAIL;
 	goto error;
     }
 
@@ -657,7 +657,7 @@ enum SigmetStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 	if (get_sint16(rec) != 27) {
 	    fprintf(stderr,  "%d: bad magic number (should be 27).\n",
 		    getpid());
-	    status = SIGMET_BAD_FILE;
+	    sig_stat = SIGMET_BAD_FILE;
 	    goto error;
 	}
     }
@@ -671,7 +671,7 @@ enum SigmetStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
     if (fread(rec, 1, REC_LEN, f) != REC_LEN) {
 	fprintf(stderr, "%d: could not read record 2 of Sigmet volume.\n",
 		getpid());
-	status = SIGMET_IO_FAIL;
+	sig_stat = SIGMET_IO_FAIL;
 	goto error;
     }
     vol_p->ih = get_ingest_header(rec);
@@ -724,7 +724,7 @@ enum SigmetStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 		case SIGMET_DBL:
 		    fprintf(stderr, "%d: volume in memory is corrupt. Unknown "
 			    "data type in data array.", getpid());
-		    status = SIGMET_BAD_FILE;
+		    sig_stat = SIGMET_BAD_FILE;
 		    goto error;
 		    break;
 	    }
@@ -739,7 +739,7 @@ enum SigmetStatus Sigmet_Vol_ReadHdr(FILE *f, struct Sigmet_Vol *vol_p)
 
 error:
     Sigmet_Vol_Free(vol_p);
-    return status;
+    return sig_stat;
 }
 
 enum SigmetStatus Sigmet_Vol_DataTypeHdrs(struct Sigmet_Vol *vol_p, int y,
@@ -927,6 +927,9 @@ enum SigmetStatus Sigmet_Vol_SweepHdr(struct Sigmet_Vol *vol_p, int s,
 	return SIGMET_RNG_ERR;
     }
     if ( vol_p->sweep_hdr[s].ok ) {
+	if ( ok_p ) {
+	    *ok_p = 1;
+	}
 	if ( tm_p ) {
 	    *tm_p = vol_p->sweep_hdr[s].time;
 	}
@@ -934,6 +937,9 @@ enum SigmetStatus Sigmet_Vol_SweepHdr(struct Sigmet_Vol *vol_p, int s,
 	    *ang_p = vol_p->sweep_hdr[s].angle;
 	}
     } else {
+	if ( ok_p ) {
+	    *ok_p = 0;
+	}
 	if ( tm_p ) {
 	    *tm_p = NAN;
 	}
@@ -1240,7 +1246,7 @@ static enum SigmetStatus vol_good(FILE *f)
 
 enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 {
-    int status;
+    int sig_stat;
 
     U1BYT rec[REC_LEN];			/* Input record from file */
     U1BYT *rec_p;			/* Pointer into rec */
@@ -1288,7 +1294,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     if ( !f ) {
 	fprintf(stderr, "%d: read function called with bogus input stream.\n",
 		getpid());
-	status = SIGMET_BAD_ARG;
+	sig_stat = SIGMET_BAD_ARG;
 	goto error;
     }
     if ( !vol_p ) {
@@ -1302,10 +1308,10 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
        Read headers. As a side effect, this initializes vol_p.
      */
 
-    if ( (status = Sigmet_Vol_ReadHdr(f, vol_p)) != SIGMET_OK ) {
+    if ( (sig_stat = Sigmet_Vol_ReadHdr(f, vol_p)) != SIGMET_OK ) {
 	fprintf(stderr, "%d: could not read volume headers.\n", getpid());
 	Sigmet_Vol_Free(vol_p);
-	return status;
+	return sig_stat;
     }
 
     /*
@@ -1326,14 +1332,14 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	if ( vol_p->sweep_hdr_id == -1 ) {
 	    fprintf(stderr, "%d: could not create shared memory for "
 		    "sweep headers.\n%s\n", getpid(), strerror(errno));
-	    status = SIGMET_MEM_FAIL;
+	    sig_stat = SIGMET_MEM_FAIL;
 	    goto error;
 	}
 	vol_p->sweep_hdr = shmat(vol_p->sweep_hdr_id, NULL, 0);
 	if ( vol_p->sweep_hdr == (void *)-1 ) {
 	    fprintf(stderr, "%d: could not attach to shared memory for "
 		    "sweep headers.\n%s\n", getpid(), strerror(errno));
-	    status = SIGMET_MEM_FAIL;
+	    sig_stat = SIGMET_MEM_FAIL;
 	    goto error;
 	}
 	vol_p->size += num_sweeps * sizeof(*vol_p->sweep_hdr);
@@ -1342,7 +1348,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	if ( !vol_p->sweep_hdr ) {
 	    fprintf(stderr, "%d: could not allocate sweep header array.\n",
 		    getpid());
-	    status = SIGMET_MEM_FAIL;
+	    sig_stat = SIGMET_MEM_FAIL;
 	    goto error;
 	}
 	vol_p->size += num_sweeps * sizeof(*vol_p->sweep_hdr);
@@ -1352,7 +1358,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     vol_p->ray_hdr = malloc2rh(num_sweeps, num_rays, id_p);
     if ( !vol_p->ray_hdr ) {
 	fprintf(stderr, "%d: could not allocate ray header array.\n", getpid());
-	status = SIGMET_MEM_FAIL;
+	sig_stat = SIGMET_MEM_FAIL;
 	goto error;
     }
     vol_p->size += num_sweeps * num_rays * sizeof(struct Sigmet_Ray_Hdr);
@@ -1366,7 +1372,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		if ( !vol_p->dat[y].vals.u1 ) {
 		    fprintf(stderr, "%d: could not allocate memory for %s\n",
 			    getpid(), vol_p->dat[y].data_type_s);
-		    status = SIGMET_MEM_FAIL;
+		    sig_stat = SIGMET_MEM_FAIL;
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins;
@@ -1377,7 +1383,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		if ( !vol_p->dat[y].vals.u2 ) {
 		    fprintf(stderr, "%d: could not allocate memory for %s\n",
 			    getpid(), vol_p->dat[y].data_type_s);
-		    status = SIGMET_MEM_FAIL;
+		    sig_stat = SIGMET_MEM_FAIL;
 		    goto error;
 		}
 		vol_p->size += num_sweeps * num_rays * num_bins * 2;
@@ -1387,7 +1393,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    case SIGMET_MT:
 		fprintf(stderr, "%d: volume in memory is corrupt. Unknown data "
 			"type in data array.", getpid());
-		status = SIGMET_BAD_VOL;
+		sig_stat = SIGMET_BAD_VOL;
 		goto error;
 		break;
 	}
@@ -1403,7 +1409,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     ray_buf = (U1BYT *)MALLOC(raySz);
     if ( !ray_buf ) {
 	fprintf(stderr, "%d: could not allocate input ray buffer.\n", getpid());
-	status = SIGMET_MEM_FAIL;
+	sig_stat = SIGMET_MEM_FAIL;
 	goto error;
     }
     u1 = ray_buf + SZ_RAY_HDR;
@@ -1428,7 +1434,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	if (i != rec_idx + 1) {
 	    fprintf(stderr, "%d: sigmet raw product file records out of "
 		    "sequence.\n", getpid());
-	    status = SIGMET_BAD_FILE;
+	    sig_stat = SIGMET_BAD_FILE;
 	    goto error;
 	}
 	rec_idx = i;
@@ -1453,7 +1459,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		} else {
 		    fprintf(stderr, "%d: sweep number out of order in raw "
 			    "product file.\n", getpid());
-		    status = SIGMET_BAD_FILE;
+		    sig_stat = SIGMET_BAD_FILE;
 		    goto error;
 		}
 	    }
@@ -1461,7 +1467,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    sweep_num = n;
 	    if (sweep_num > num_sweeps) {
 		fprintf(stderr, "%d: volume has excess sweeps.\n", getpid());
-		status = SIGMET_BAD_FILE;
+		sig_stat = SIGMET_BAD_FILE;
 		goto error;
 	    }
 	    s = sweep_num - 1;
@@ -1553,7 +1559,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 			    fprintf(stderr, "%d: corrupt Sigmet raw product "
 				    "file: records  out of sequence.\n",
 				    getpid());
-			    status = SIGMET_BAD_FILE;
+			    sig_stat = SIGMET_BAD_FILE;
 			    goto error;
 			}
 			rec_idx = i;
@@ -1568,7 +1574,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: corrupt Sigmet raw product file: "
 			    "record provided more data than could fit in a "
 			    "ray.\n", getpid());
-		    status = SIGMET_BAD_FILE;
+		    sig_stat = SIGMET_BAD_FILE;
 		    goto error;
 		}
 
@@ -1580,13 +1586,13 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		if (s > num_sweeps) {
 		    fprintf(stderr, "%d: volume has more sweeps than reported "
 			    "in header.\n", getpid());
-		    status = SIGMET_BAD_FILE;
+		    sig_stat = SIGMET_BAD_FILE;
 		    goto error;
 		}
 		if (r > num_rays) {
 		    fprintf(stderr, "%d: volume has more rays than reported in "
 			    "header.\n", getpid());
-		    status = SIGMET_BAD_FILE;
+		    sig_stat = SIGMET_BAD_FILE;
 		    goto error;
 		}
 
@@ -1644,7 +1650,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 			default:
 			    fprintf(stderr, "%d: volume has unknown data "
 				    "type.\n", getpid());
-			    status = SIGMET_BAD_FILE;
+			    sig_stat = SIGMET_BAD_FILE;
 			    goto error;
 			    break;
 		    }
@@ -1671,7 +1677,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    fprintf(stderr, "%d: corrupt volume.\n"
 			    "Run of zeros tried to go past end of ray.\n",
 			    getpid());
-		    status = SIGMET_BAD_FILE;
+		    sig_stat = SIGMET_BAD_FILE;
 		    goto error;
 		}
 		ray_p += numWds * 2;
@@ -1686,7 +1692,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     }
     vol_p->truncated = (r + 1 < num_rays || s + 1 < num_sweeps) ? 1 : 0;
     if ( vol_p->truncated && feof(f) ) {
-	status = SIGMET_BAD_FILE;
+	sig_stat = SIGMET_BAD_FILE;
     }
     FREE(ray_buf);
     vol_p->num_sweeps_ax = s;
@@ -1696,7 +1702,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 error:
     FREE(ray_buf);
     Sigmet_Vol_Free(vol_p);
-    return status;
+    return sig_stat;
 }
 
 /*
@@ -2921,8 +2927,7 @@ enum SigmetStatus Sigmet_Vol_ShiftAz(struct Sigmet_Vol *vol_p, double daz)
     if ( !vol_p ) {
 	return SIGMET_BAD_ARG;
     }
-    daz = GeogLonR(daz * RAD_PER_DEG, M_PI);
-    idaz = Sigmet_RadBin4(daz);
+    idaz = Sigmet_RadBin4(GeogLonR(daz, M_PI));
     switch (Sigmet_Vol_ScanMode(vol_p)) {
 	case RHI:
 	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
@@ -3306,7 +3311,7 @@ enum SigmetStatus Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *vol_p, int s,
 enum SigmetStatus Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p,
 	char *data_type_s, int s, double min, double max, int bnr, FILE *out)
 {
-    int status;				/* Result of a function */
+    int sig_stat;			/* Result of a function */
     struct Sigmet_Dat *dat_p;
     int y, r, b;			/* Indeces: data type, sweep, ray, bin
 					 */
@@ -3323,7 +3328,7 @@ enum SigmetStatus Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p,
     double az0, az1;			/* Start and end azimuth, radians */
     double tilt;			/* Tilt angle, radians */
 
-    status = SIGMET_OK;
+    sig_stat = SIGMET_OK;
     if ( !vol_p ) {
 	fprintf(stderr, "%d: bogus volume.\n", getpid());
 	return SIGMET_BAD_ARG;
@@ -3380,10 +3385,10 @@ enum SigmetStatus Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p,
 
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_hdr[s][r].ok ) {
-	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p);
-	    if ( status != SIGMET_OK ) {
+	    sig_stat = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p);
+	    if ( sig_stat != SIGMET_OK ) {
 		fprintf(stderr, "%d: could not get ray data.\n", getpid());
-		return status;
+		return sig_stat;
 	    }
 	    for (r_p = ray_p;
 		    r_p < ray_p + vol_p->ray_hdr[s][r].num_bins;
@@ -3456,7 +3461,7 @@ enum SigmetStatus Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p,
 	char *data_type_s, int s, double min, double max, int bnr, int fill,
 	FILE *out)
 {
-    int status;				/* Result of a function */
+    int sig_stat;			/* Result of a function */
     struct Sigmet_Dat *dat_p;
     int y, r, b;			/* Indeces: data type, sweep, ray, bin
 					 */
@@ -3479,7 +3484,7 @@ enum SigmetStatus Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p,
     double cnr[8];			/* Longitude latitude values for the
 					   four corners of the bin */
 
-    status = SIGMET_OK;
+    sig_stat = SIGMET_OK;
     if ( !vol_p ) {
 	fprintf(stderr, "%d: bogus volume.\n", getpid());
 	return SIGMET_BAD_ARG;
@@ -3534,10 +3539,10 @@ enum SigmetStatus Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p,
 
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_hdr[s][r].ok ) {
-	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_dat);
-	    if ( status != SIGMET_OK ) {
+	    sig_stat = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_dat);
+	    if ( sig_stat != SIGMET_OK ) {
 		fprintf(stderr, "%d: could not get ray data.\n", getpid());
-		return status;
+		return sig_stat;
 	    }
 	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
 		if ( isfinite(ray_dat[b])
