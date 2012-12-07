@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.201 $ $Date: 2012/12/06 22:57:32 $
+   .	$Revision: 1.202 $ $Date: 2012/12/07 22:51:35 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -892,7 +892,7 @@ int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
     }
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
-    if ( s > 0 && s < num_sweeps ) {
+    if ( s >= 0 && s < num_sweeps ) {
 	rh_p = vol_p->ray_hdr[s];
 	if ( r == -1 ) {
 	    for (num_bins = -1; rh_p < vol_p->ray_hdr[s] + num_rays; rh_p++) {
@@ -900,7 +900,7 @@ int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
 		    num_bins = rh_p[r].num_bins;
 		}
 	    }
-	} else if ( r > 0 && r < vol_p->ih.ic.num_rays ) {
+	} else if ( r >= 0 && r < vol_p->ih.ic.num_rays ) {
 	    num_bins = rh_p[r].num_bins;
 	} else {
 	    fprintf(stderr, "Ray index %d out of range.\n", r);
@@ -908,6 +908,7 @@ int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
 	}
     } else {
 	fprintf(stderr, "Sweep index %d out of range.\n", s);
+	return -1;
     }
     return num_bins;
 }
@@ -3136,15 +3137,14 @@ enum SigmetStatus Sigmet_Vol_PPI_BinOutl(struct Sigmet_Vol *vol_p,
     re = GeogREarth(NULL);
     lon_r = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
     lat_r = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
-    GeogStep(lon_r, lat_r, az0, r0_g, cnr, cnr + 1);
+    GeogStep(lon_r, lat_r, az0, r0_g, &lon, &lat);
     lonlat_to_xy(lon, lat, cnr + 0, cnr + 1);
-    GeogStep(lon_r, lat_r, az0, r1_g, cnr + 2, cnr + 3);
+    GeogStep(lon_r, lat_r, az0, r1_g, &lon, &lat);
     lonlat_to_xy(lon, lat, cnr + 2, cnr + 3);
-    GeogStep(lon_r, lat_r, az1, r1_g, cnr + 4, cnr + 5);
+    GeogStep(lon_r, lat_r, az1, r1_g, &lon, &lat);
     lonlat_to_xy(lon, lat, cnr + 4, cnr + 5);
-    GeogStep(lon_r, lat_r, az1, r0_g, cnr + 6, cnr + 7);
+    GeogStep(lon_r, lat_r, az1, r0_g, &lon, &lat);
     lonlat_to_xy(lon, lat, cnr + 6, cnr + 7);
-
     return SIGMET_OK;
 }
 
