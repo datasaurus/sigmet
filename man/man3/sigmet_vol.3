@@ -25,7 +25,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.13 $ $Date: 2012/12/05 23:28:03 $
+.\" $Revision: 1.16 $ $Date: 2012/12/11 19:50:34 $
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
 .Os UNIX
@@ -57,7 +57,9 @@
 .Nm Sigmet_Vol_BadRay ,
 .Nm Sigmet_Vol_BinStart ,
 .Nm Sigmet_Vol_BinOutl ,
+.Nm Sigmet_Vol_PPI_BinOutl ,
 .Nm Sigmet_Vol_PPI_Bnds ,
+.Nm Sigmet_Vol_RHI_BinOutl ,
 .Nm Sigmet_Vol_RHI_Bnds ,
 .Nm Sigmet_Vol_NewField ,
 .Nm Sigmet_Vol_DelField ,
@@ -138,7 +140,11 @@
 .Ft enum SigmetStatus
 .Fn Sigmet_Vol_BinOutl "struct Sigmet_Vol *vol_p" "int s" "int r" "int b" "double *lonlats"
 .Ft enum SigmetStatus
+.Fn Sigmet_Vol_PPI_BinOutl" "struct Sigmet_Vol *vol_p" "int s" "int r" "int b" "int (*lonlat_to_xy)(double, double, double *, double *)" "double *cnr"
+.Ft enum SigmetStatus
 .Fn Sigmet_Vol_PPI_Bnds "struct Sigmet_Vol *vol_p " "int s" "struct GeogProj *proj" "double *x_min_p" "double *x_max_p" "double *y_min_p" "double *y_max_p"
+.Ft enum SigmetStatus
+.Fn Sigmet_Vol_RHI_BinOutl" "struct Sigmet_Vol *vol_p" "int s" "int r" "int b" "double *cnr"
 .Ft enum SigmetStatus
 .Fn Sigmet_Vol_RHI_Bnds "struct Sigmet_Vol *vol_p" "int s" "double *x_max_p" "double *y_max_p"
 .Ft enum SigmetStatus
@@ -485,7 +491,8 @@ and
 .Fa v1
 must point to storage for
 .Li num_rays
-double values.
+.Vt double
+values.
 The start of the varying angle - azimuth for PPI, tilt for RHI - for each good ray
 is copied to
 .Fa v0 .
@@ -536,7 +543,27 @@ in the Sigmet volume at
 .Fa lonlats
 as lon1\ lat1\ lon2\ lat2\ lon3\ lat3\ lon4\ lat4, denoting the corners of the bin.  Array
 .Fa lonlats
-must point to space for eight double values.
+must point to space for eight
+.Vt double
+values.
+.Pp
+.Fn Sigmet_Vol_PPI_BinOutl
+computes map coordinates of the bin for sweep
+.Fa s
+, ray
+.Fa r
+, bin
+.Fa b
+in the Sigmet volume at
+.Fa vol_p .
+.Fa lonlat_to_xy
+computes map coordinates for longitude and latitude given as its first two
+arguments. The abscissa and ordinate are placed at the third and fourth
+arguments, respectively. The map coordinates of the bin corners are placed at
+.Fa cnr ,
+which must point to storage for eight
+.Vt double
+values.
 .Pp
 .Fn Sigmet_Vol_PPI_Bnds
 computes sweep limits in map coordinates for sweep
@@ -553,7 +580,22 @@ limits are placed at
 and
 .Fa y_max_p .
 .Pp
-Sigmet_Vol_RHI_Bnds
+.Fn Sigmet_Vol_RHI_BinOutl
+computes distance-height coordinates in meters of the bin for sweep
+.Fa s
+, ray
+.Fa r
+, bin
+.Fa b
+in the Sigmet volume at
+.Fa vol_p .
+The corner coordinates of the bin are placed at
+.Fa cnr ,
+which must point to storage for eight
+.Vt double
+values.
+.Pp
+.Fn Sigmet_Vol_RHI_Bnds
 computes sweep limits in meters for sweep
 .Fa s
 of the volume at

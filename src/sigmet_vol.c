@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.200 $ $Date: 2012/12/06 21:50:49 $
+   .	$Revision: 1.201 $ $Date: 2012/12/06 22:57:32 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1745,7 +1745,7 @@ double Sigmet_Vol_RadarLon(struct Sigmet_Vol *vol_p, double *lon_p)
     if ( !vol_p ) {
 	return NAN;
     }
-    if ( *lon_p ) {
+    if ( lon_p ) {
 	vol_p->ih.ic.longitude = Sigmet_RadBin4(GeogLonR(*lon_p, M_PI));
 	vol_p->mod = 1;
 	return *lon_p;
@@ -1758,7 +1758,7 @@ double Sigmet_Vol_RadarLat(struct Sigmet_Vol *vol_p, double *lat_p)
     if ( !vol_p ) {
 	return NAN;
     }
-    if ( *lat_p ) {
+    if ( lat_p ) {
 	vol_p->ih.ic.latitude = *lat_p;
 	vol_p->mod = 1;
 	return *lat_p;
@@ -3085,21 +3085,26 @@ double Sigmet_Vol_BinStart(struct Sigmet_Vol *vol_p, int b)
 	: NAN;
 }
 
-/*
-   Return lon-lat's at corners of a bin
- */
-
-enum SigmetStatus Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r,
-	int b, double *ll)
+enum SigmetStatus Sigmet_Vol_PPI_BinOutl(struct Sigmet_Vol *vol_p,
+	int s, int r, int b,
+	int (*lonlat_to_xy)(double, double, double *, double *),
+	double *cnr)
 {
-    double re;			/* Earth radius */
-    double lon_r, lat_r;	/* Radar longitude latitude */
-    double az0, az1;		/* Azimuth limits of bin */
-    double r00, dr;		/* Range to first bin, bin length, in meters */
-    double r0, r1;		/* Range to start and end of bin */
-    double tilt;		/* Mean tilt */
+    double re;				/* Earth radius */
+    double lon_r, lat_r;		/* Radar longitude latitude */
+    double az0, az1;			/* Azimuth limits of bin */
+    double r00, dr;			/* Range to first bin, bin length, m */
+    double r0, r1;			/* Beam distance to bin start, end */
+    double r0_g, r1_g;			/* Ground distance to bin start, end */
+    double tilt;			/* Mean tilt */
+    double lon, lat;			/* Corner coordinates */
 
     if ( !vol_p ) {
+	return SIGMET_BAD_ARG;
+    }
+    if ( vol_p->ih.tc.tni.scan_mode != PPI_S
+	    && vol_p->ih.tc.tni.scan_mode != PPI_C ) {
+	fprintf(stderr, "%d: volume must be PPI.\n", getpid());
 	return SIGMET_BAD_ARG;
     }
     if ( s < 0 || s >= vol_p->ih.ic.num_sweeps ) {
@@ -3114,46 +3119,31 @@ enum SigmetStatus Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r,
 	fprintf(stderr, "%d: bin index out of bounds.\n", getpid());
 	return SIGMET_RNG_ERR;
     }
-
-    re = GeogREarth(NULL);
-    lon_r = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
-    lat_r = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
-    r00 = vol_p->ih.tc.tri.rng_1st_bin;
-    dr = vol_p->ih.tc.tri.step_out;
-
-    /*
-       Convert Sigmet centimeters to meters.
-     */
-
-    r0 = 0.01 * (r00 + b * dr);
-    r1 = 0.01 * (r00 + (b + 1) * dr);
-
     az0 = vol_p->ray_hdr[s][r].az0;
     az1 = vol_p->ray_hdr[s][r].az1;
-
-    /*
-       Make sure polygon is right handed.
-     */
-
-    if (GeogLonR(az1, az0) > az0) {
+    if ( GeogLonR(az1, az0) > az0 ) {
 	double t = az1;
 	az1 = az0;
 	az0 = t;
     }
-
     tilt = 0.5 * (vol_p->ray_hdr[s][r].tilt0 + vol_p->ray_hdr[s][r].tilt1);
-
-    /*
-       Distance along ground to point under the bin
-     */
-
-    r0 = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
-    r1 = atan(r1 * cos(tilt) / (re + r1 * sin(tilt)));
-
-    GeogStep(lon_r, lat_r, az0, r0, ll, ll + 1);
-    GeogStep(lon_r, lat_r, az0, r1, ll + 2, ll + 3);
-    GeogStep(lon_r, lat_r, az1, r1, ll + 4, ll + 5);
-    GeogStep(lon_r, lat_r, az1, r0, ll + 6, ll + 7);
+    r00 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;	/* 0.01 converts cm -> m */
+    dr = 0.01 * vol_p->ih.tc.tri.step_out;
+    r0 = r00 + b * dr;
+    r1 = r0 + dr;
+    r0_g = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
+    r1_g = atan(r1 * cos(tilt) / (re + r1 * sin(tilt)));
+    re = GeogREarth(NULL);
+    lon_r = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
+    lat_r = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
+    GeogStep(lon_r, lat_r, az0, r0_g, cnr, cnr + 1);
+    lonlat_to_xy(lon, lat, cnr + 0, cnr + 1);
+    GeogStep(lon_r, lat_r, az0, r1_g, cnr + 2, cnr + 3);
+    lonlat_to_xy(lon, lat, cnr + 2, cnr + 3);
+    GeogStep(lon_r, lat_r, az1, r1_g, cnr + 4, cnr + 5);
+    lonlat_to_xy(lon, lat, cnr + 4, cnr + 5);
+    GeogStep(lon_r, lat_r, az1, r0_g, cnr + 6, cnr + 7);
+    lonlat_to_xy(lon, lat, cnr + 6, cnr + 7);
 
     return SIGMET_OK;
 }
@@ -3163,8 +3153,8 @@ enum SigmetStatus Sigmet_Vol_BinOutl(struct Sigmet_Vol *vol_p, int s, int r,
  */
 
 enum SigmetStatus Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *vol_p, int s,
-	struct GeogProj *proj, double *x_min_p, double *x_max_p,
-	double *y_min_p, double *y_max_p)
+	int (*lonlat_to_xy)(double, double, double *, double *),
+	double *x_min_p, double *x_max_p, double *y_min_p, double *y_max_p)
 {
     double x_min, x_max, y_min, y_max;	/* PPI limits */
     double rlon, rlat;			/* Radar location */
@@ -3217,7 +3207,7 @@ enum SigmetStatus Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *vol_p, int s,
 	    ray_len_g
 		= atan(ray_len * cos(tilt) / (rearth + ray_len * sin(tilt)));
 	    GeogStep(rlon, rlat, az, ray_len_g, &lon, &lat);
-	    if ( GeogProjLonLatToXY(lon, lat, &x, &y, proj) ) {
+	    if ( lonlat_to_xy(lon, lat, &x, &y) ) {
 		x_min = (x < x_min) ? x : x_min;
 		x_max = (x > x_max) ? x : x_max;
 		y_min = (y < y_min) ? y : y_min;
@@ -3233,6 +3223,58 @@ enum SigmetStatus Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *vol_p, int s,
     *x_max_p = x_max;
     *y_min_p = y_min;
     *y_max_p = y_max;
+    return SIGMET_OK;
+}
+
+enum SigmetStatus Sigmet_Vol_RHI_BinOutl(struct Sigmet_Vol *vol_p,
+	int s, int r, int b, double *cnr)
+{
+    double re;				/* Earth radius, meters */
+    double r00;				/* Range to first bin, meters */
+    double dr;				/* Bin size, meters */
+    double r0, r1;			/* Beam distance to bin start, stop */
+    double tilt0, tilt1;		/* Start, end of current tilt */
+    double abs, ord;			/* Abscissa, ordinate of a point */
+
+    if ( !vol_p ) {
+	return SIGMET_BAD_ARG;
+    }
+    if ( vol_p->ih.tc.tni.scan_mode != RHI ) {
+	fprintf(stderr, "%d: volume must be RHI.\n", getpid());
+	return SIGMET_BAD_ARG;
+    }
+    if ( s < 0 || s >= vol_p->ih.ic.num_sweeps ) {
+	fprintf(stderr, "%d: sweep index out of bounds.\n", getpid());
+	return SIGMET_RNG_ERR;
+    }
+    if ( r < 0 || r >= vol_p->ih.ic.num_rays ) {
+	fprintf(stderr, "%d: ray index out of bounds.\n", getpid());
+	return SIGMET_RNG_ERR;
+    }
+    if ( b < 0 || b >= vol_p->ray_hdr[s][r].num_bins ) {
+	fprintf(stderr, "%d: bin index out of bounds.\n", getpid());
+	return SIGMET_RNG_ERR;
+    }
+    tilt0 = vol_p->ray_hdr[s][r].tilt0;
+    tilt1 = vol_p->ray_hdr[s][r].tilt1;
+    if ( tilt1 < tilt0 ) {
+	double t = tilt1;
+	tilt1 = tilt0;
+	tilt0 = t;
+    }
+    r00 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;	/* 0.01 converts cm -> m */
+    dr = 0.01 * vol_p->ih.tc.tri.step_out;
+    r0 = r00 + b * dr;
+    r1 = r0 + dr;
+    re = GeogREarth(NULL) * FOUR_THIRD;
+    cnr[1] = ord = GeogBeamHt(r0, tilt0, re);
+    cnr[0] = abs = re * asin(r0 * cos(tilt0) / (re + ord));
+    cnr[3] = ord = GeogBeamHt(r1, tilt0, re);
+    cnr[2] = abs = re * asin(r1 * cos(tilt0) / (re + ord));
+    cnr[5] = ord = GeogBeamHt(r1, tilt1, re);
+    cnr[4] = abs = re * asin(r1 * cos(tilt1) / (re + ord));
+    cnr[7] = ord = GeogBeamHt(r0, tilt1, re);
+    cnr[6] = abs = re * asin(r0 * cos(tilt1) / (re + ord));
     return SIGMET_OK;
 }
 
@@ -3294,330 +3336,6 @@ enum SigmetStatus Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *vol_p, int s,
     }
     *x_max_p = x_max;
     *y_max_p = y_max;
-    return SIGMET_OK;
-}
-
-/*
-   For volume vol_p, data type identified by string data_type_s, sweep s
-   print to stream out the longitude latitude coordinates of bins with data
-   value d such that min <= d < max. If bnr is false, print formatted output.
-   If bnr is true, send raw, double precision output.
- */
-
-enum SigmetStatus Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *vol_p,
-	char *data_type_s, int s, double min, double max, int bnr, FILE *out)
-{
-    int sig_stat;			/* Result of a function */
-    struct Sigmet_Dat *dat_p;
-    int y, r, b;			/* Indeces: data type, sweep, ray, bin
-					 */
-    double lon, lat;			/* Geographic coordinates (longitude
-					   latitude) */
-    int num_bins_out;			/* Max number of output bins */
-    static float *ray_p;		/* Buffer to receive ray data */
-    float *r_p;				/* Point into ray_p */
-    double re;				/* Earth radius, meters */
-    double rng_1st_bin;			/* Range to first bin, meters */
-    double step_out;			/* Bin size, meters */
-    double r0, r1;			/* Distance to start and stop of a bin,
-					   meters */
-    double az0, az1;			/* Start and end azimuth, radians */
-    double tilt;			/* Tilt angle, radians */
-
-    sig_stat = SIGMET_OK;
-    if ( !vol_p ) {
-	fprintf(stderr, "%d: bogus volume.\n", getpid());
-	return SIGMET_BAD_ARG;
-    }
-    if ( vol_p->ih.tc.tni.scan_mode != PPI_S
-	    && vol_p->ih.tc.tni.scan_mode != PPI_C ) {
-	fprintf(stderr, "%d: volume must be PPI.\n", getpid());
-	return SIGMET_BAD_ARG;
-    }
-    if ( Sigmet_Vol_GetFld(vol_p, data_type_s, &dat_p) == -1 ) {
-	fprintf(stderr, "%d: no field of %s in volume.\n",
-		getpid(), data_type_s);
-	return SIGMET_BAD_ARG;
-    }
-    y = dat_p - vol_p->dat;
-    if ( s >= vol_p->num_sweeps_ax ) {
-	fprintf(stderr, "%d: sweep index out of range for volume.\n", getpid());
-	return SIGMET_RNG_ERR;
-    }
-    if ( !vol_p->sweep_hdr[s].ok ) {
-	fprintf(stderr, "%d: sweep not valid in volume.\n", getpid());
-	return SIGMET_RNG_ERR;
-    }
-
-    num_bins_out = vol_p->ih.tc.tri.num_bins_out;
-    lon = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
-    lat = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
-    
-    /*
-       Convert Sigmet centimeters to meters.
-     */
-
-    rng_1st_bin = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
-    step_out = 0.01 * vol_p->ih.tc.tri.step_out;
-    re = GeogREarth(NULL);
-
-    /*
-       If this is the first call of this function, initialize the allocation
-       at ray_p.
-     */
-
-    if ( !ray_p && !(ray_p = CALLOC(num_bins_out, sizeof(float))) ) {
-	fprintf(stderr, "%d: could not allocate output buffer for ray.\n",
-		getpid());
-	return SIGMET_MEM_FAIL;
-    }
-
-    /*
-       Loop through bins for each ray for sweep s.
-       Determine which interval from bnds each bin value is in.
-       If the bin value is in an interval to display, save its color
-       and the coordinates of its outline.
-     */
-
-    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-	if ( vol_p->ray_hdr[s][r].ok ) {
-	    sig_stat = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p);
-	    if ( sig_stat != SIGMET_OK ) {
-		fprintf(stderr, "%d: could not get ray data.\n", getpid());
-		return sig_stat;
-	    }
-	    for (r_p = ray_p;
-		    r_p < ray_p + vol_p->ray_hdr[s][r].num_bins;
-		    r_p++) {
-		if ( isfinite(*r_p) && min <= *r_p && *r_p < max ) {
-		    /*
-		       Bin value is in an interval of interest.
-		       Compute and print bin corners.
-		     */
-
-		    double cnr[8];	/* Longitude latitude values for the
-					   four corners of the bin */
-
-		    b = r_p - ray_p;
-		    r0 = rng_1st_bin + b * step_out;
-		    r1 = r0 + step_out;
-		    az0 = vol_p->ray_hdr[s][r].az0;
-		    az1 = vol_p->ray_hdr[s][r].az1;
-
-		    /*
-		       Make sure polygon is right handed.
-		     */
-
-		    if (GeogLonR(az1, az0) > az0) {
-			double t = az1;
-			az1 = az0;
-			az0 = t;
-		    }
-
-		    tilt = 0.5 * (vol_p->ray_hdr[s][r].tilt0
-			    + vol_p->ray_hdr[s][r].tilt1);
-		    r0 = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
-		    r1 = atan(r1 * cos(tilt) / (re + r1 * sin(tilt)));
-		    GeogStep(lon, lat, az0, r0, cnr, cnr + 1);
-		    GeogStep(lon, lat, az0, r1, cnr + 2, cnr + 3);
-		    GeogStep(lon, lat, az1, r1, cnr + 4, cnr + 5);
-		    GeogStep(lon, lat, az1, r0, cnr + 6, cnr + 7);
-		    if ( ( bnr && fwrite(cnr, sizeof(double), 8, out) != 8 )
-			    || ( !bnr && fprintf(out,
-				    "%lf %lf\n%lf %lf\n%lf %lf\n%lf %lf\n",
-				    cnr[0] * DEG_PER_RAD, cnr[1] * DEG_PER_RAD,
-				    cnr[2] * DEG_PER_RAD, cnr[3] * DEG_PER_RAD,
-				    cnr[4] * DEG_PER_RAD, cnr[5] * DEG_PER_RAD,
-				    cnr[6] * DEG_PER_RAD, cnr[7] * DEG_PER_RAD)
-				== EOF ) ) {
-			fprintf(stderr, "%d: could not write corner "
-				"coordinates for sweep %d, ray %d, bin %d.\n"
-				"%s\n", getpid(), s, r, b, strerror(errno));
-			return SIGMET_IO_FAIL;
-		    }
-		}
-	    }
-	}
-    }
-
-    return SIGMET_OK;
-}
-
-/*
-   For volume vol_p, data type identified by string data_type_s, sweep s
-   print to stream out the coordinates of bins with data value d such that
-   min <= d < max. If bnr is false, print formatted output. If bnr is true,
-   send raw, double precision output. If fill is true, draw beam outline half
-   way to previous and next rays, so there are no gaps.
-   For RHI, abscissa coordinate is distance along ground
-   from radar. Ordinate is height above ground level.
- */
-
-enum SigmetStatus Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *vol_p,
-	char *data_type_s, int s, double min, double max, int bnr, int fill,
-	FILE *out)
-{
-    int sig_stat;			/* Result of a function */
-    struct Sigmet_Dat *dat_p;
-    int y, r, b;			/* Indeces: data type, sweep, ray, bin
-					 */
-    int num_bins_out, n;		/* Max number of output bins */
-    static float *ray_dat;		/* Buffer to receive ray data */
-    double re;				/* Earth radius, meters */
-    double rng_1st_bin;			/* Range to first bin, meters */
-    double step_out;			/* Bin size, meters */
-    double r0, r1;			/* Distance to start and stop of a bin,
-					   meters */
-    double tilt0, tilt1, tilt;		/* Start, end, and middle of current
-					   tilt */
-    double tilt0_prev, tilt1_prev,
-	   tilt_prev;			/* Start, end, and middle of previous
-					   tilt */
-    double tilt0_next, tilt1_next,
-	   tilt_next;			/* Start, end, and middle of next
-					   tilt */
-    double abs, ord;			/* Abscissa, ordinate of a point */
-    double cnr[8];			/* Longitude latitude values for the
-					   four corners of the bin */
-
-    sig_stat = SIGMET_OK;
-    if ( !vol_p ) {
-	fprintf(stderr, "%d: bogus volume.\n", getpid());
-	return SIGMET_BAD_ARG;
-    }
-    if ( vol_p->ih.tc.tni.scan_mode != RHI ) {
-	fprintf(stderr, "%d: volume must be RHI.\n", getpid());
-	return SIGMET_BAD_ARG;
-    }
-    if ( Sigmet_Vol_GetFld(vol_p, data_type_s, &dat_p) == -1 ) {
-	fprintf(stderr, "%d: no field of %s in volume.\n",
-		getpid(), data_type_s);
-	return SIGMET_BAD_ARG;
-    }
-    y = dat_p - vol_p->dat;
-    if ( s >= vol_p->num_sweeps_ax ) {
-	fprintf(stderr, "%d: sweep index %d out of range for volume.\n",
-		getpid(), s);
-	return SIGMET_RNG_ERR;
-    }
-    if ( !vol_p->sweep_hdr[s].ok ) {
-	fprintf(stderr, "%d: sweep %d not valid in volume.\n", getpid(), s);
-	return SIGMET_RNG_ERR;
-    }
-
-    n = num_bins_out = vol_p->ih.tc.tri.num_bins_out;
-    re = GeogREarth(NULL) * FOUR_THIRD;
-    
-    /*
-       Convert Sigmet centimeters to meters.
-     */
-
-    rng_1st_bin = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;
-    step_out = 0.01 * vol_p->ih.tc.tri.step_out;
-
-    /*
-       If this is the first call of this function, initialize the allocation
-       at ray_dat.
-     */
-
-    if ( !ray_dat && !(ray_dat = CALLOC(num_bins_out, sizeof(float))) ) {
-	fprintf(stderr, "%d: could not allocate output buffer for ray.\n",
-		getpid());
-	return SIGMET_MEM_FAIL;
-    }
-
-    /*
-       Loop through bins for each ray for sweep s.
-       Determine which interval from bnds each bin value is in.
-       If the bin value is in an interval to display, save its color
-       and the coordinates of its outline.
-     */
-
-    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-	if ( vol_p->ray_hdr[s][r].ok ) {
-	    sig_stat = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_dat);
-	    if ( sig_stat != SIGMET_OK ) {
-		fprintf(stderr, "%d: could not get ray data.\n", getpid());
-		return sig_stat;
-	    }
-	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
-		if ( isfinite(ray_dat[b])
-			&& min <= ray_dat[b] && ray_dat[b] < max ) {
-		    /*
-		       Bin value is in an interval of interest.
-		       Compute and print bin corners.
-		     */
-
-		    r0 = rng_1st_bin + b * step_out;
-		    r1 = r0 + step_out;
-
-		    if ( fill ) {
-			tilt0 = vol_p->ray_hdr[s][r].tilt0;
-			tilt1 = vol_p->ray_hdr[s][r].tilt1;
-			tilt = 0.5 * (tilt0 + tilt1);
-			if ( r == 0 ) {
-			    tilt0 = vol_p->ray_hdr[s][r].tilt0;
-			} else {
-			    tilt0_prev = vol_p->ray_hdr[s][r - 1].tilt0;
-			    tilt1_prev = vol_p->ray_hdr[s][r - 1].tilt1;
-			    tilt_prev = 0.5 * (tilt0_prev + tilt1_prev);
-			    tilt0 = 0.5 * (tilt + tilt_prev);
-			}
-			if ( r == vol_p->ih.ic.num_rays - 1 ) {
-			    tilt1 = vol_p->ray_hdr[s][r].tilt1;
-			} else {
-			    tilt0_next = vol_p->ray_hdr[s][r + 1].tilt0;
-			    tilt1_next = vol_p->ray_hdr[s][r + 1].tilt1;
-			    tilt_next = 0.5 * (tilt0_next + tilt1_next);
-			    tilt1 = 0.5 * (tilt + tilt_next);
-			}
-		    } else {
-			tilt0 = vol_p->ray_hdr[s][r].tilt0;
-			tilt1 = vol_p->ray_hdr[s][r].tilt1;
-		    }
-
-		    /*
-		       Make sure polygon is right handed.
-		     */
-
-		    if ( tilt1 < tilt0 ) {
-			double t = tilt1;
-			tilt1 = tilt0;
-			tilt0 = t;
-		    }
-
-		    ord = GeogBeamHt(r0, tilt0, re);
-		    abs = re * asin(r0 * cos(tilt0) / (re + ord));
-		    cnr[0] = abs;
-		    cnr[1] = ord;
-		    ord = GeogBeamHt(r1, tilt0, re);
-		    abs = re * asin(r1 * cos(tilt0) / (re + ord));
-		    cnr[2] = abs;
-		    cnr[3] = ord;
-		    ord = GeogBeamHt(r1, tilt1, re);
-		    abs = re * asin(r1 * cos(tilt1) / (re + ord));
-		    cnr[4] = abs;
-		    cnr[5] = ord;
-		    ord = GeogBeamHt(r0, tilt1, re);
-		    abs = re * asin(r0 * cos(tilt1) / (re + ord));
-		    cnr[6] = abs;
-		    cnr[7] = ord;
-
-		    if ( ( bnr && fwrite(cnr, sizeof(double), 8, out) != 8 )
-			    || ( !bnr && fprintf(out,
-				    "%lf %lf\n%lf %lf\n%lf %lf\n%lf %lf\n",
-				    cnr[0], cnr[1], cnr[2], cnr[3],
-				    cnr[4], cnr[5], cnr[6], cnr[7]) == EOF ) ) {
-			fprintf(stderr, "%d: could not write corner "
-				"coordinates for bin.\n%s\n",
-				getpid(), strerror(errno));
-			return SIGMET_IO_FAIL;
-		    }
-		}
-	    }
-	}
-    }
-
     return SIGMET_OK;
 }
 

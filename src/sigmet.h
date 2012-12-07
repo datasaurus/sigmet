@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.128 $ $Date: 2012/12/05 23:28:03 $
+   .	$Revision: 1.129 $ $Date: 2012/12/06 19:47:09 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -648,16 +648,15 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
 void Sigmet_Vol_RayGeom(struct Sigmet_Vol *, int, double *, double *, double *,
 	int *);
 double Sigmet_Vol_BinStart(struct Sigmet_Vol *, int);
-enum SigmetStatus Sigmet_Vol_BinOutl(struct Sigmet_Vol *, int, int, int,
-	double *);
 enum SigmetStatus Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *, int,
-	struct GeogProj *, double *, double *, double *, double *);
+	int (*)(double, double, double *, double *),
+	double *, double *, double *, double *);
+enum SigmetStatus Sigmet_Vol_PPI_BinOutl(struct Sigmet_Vol *, int, int, int,
+	int (*)(double, double, double *, double *), double *);
 enum SigmetStatus Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *, int, double *,
 	double *);
-enum SigmetStatus Sigmet_Vol_PPI_Outlns(struct Sigmet_Vol *, char *, int,
-	double, double, int, FILE *);
-enum SigmetStatus Sigmet_Vol_RHI_Outlns(struct Sigmet_Vol *, char *, int,
-	double, double, int, int, FILE *);
+enum SigmetStatus Sigmet_Vol_RHI_BinOutl(struct Sigmet_Vol *, int, int, int,
+	double *);
 enum SigmetStatus Sigmet_Vol_NewField(struct Sigmet_Vol *, char *, char *,
 	char *);
 enum SigmetStatus Sigmet_Vol_DelField(struct Sigmet_Vol *, char *);
@@ -682,5 +681,14 @@ enum SigmetStatus Sigmet_Vol_GetRayDat(struct Sigmet_Vol *, int, int, int,
 	float **);
 enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *, int,
 	struct Dorade_Sweep *);
+
+/*
+   These functions convert between longitude-latitude coordinates and map
+   coordinates.
+ */
+
+int Sigmet_Proj_Set(char *);
+int Sigmet_Proj_XYTLonLat(double, double, double *, double *);
+int Sigmet_Proj_LonLatToXY(double, double, double *, double *);
 
 #endif
