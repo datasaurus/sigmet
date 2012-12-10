@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.111 $ $Date: 2012/11/08 21:24:49 $
+   .	$Revision: 1.112 $ $Date: 2012/11/10 16:35:02 $
  */
 
 #include "unix_defs.h"
@@ -53,16 +53,107 @@
 #include <sys/sem.h>
 #include "alloc.h"
 #include "tm_calc_lib.h"
+#include "bisearch_lib.h"
 #include "geog_lib.h"
 #include "sigmet.h"
+
+/*
+   Maximum number of characters allowed in a color name.
+   COLOR_NM_LEN_A = storage size
+   COLOR_NM_LEN_S = maximum number of non-nul characters.
+ */
+
+#define COLOR_NM_LEN_A 64
+#define COLOR_NM_LEN_S "63"
+
+/*
+   Name of transparent color
+ */
+
+#define TRANSPARENT "transparent"
+
+/*
+   Maximum number of characters in the string representation of a float value
+   FLOAT_STR_LEN_A = storage size
+   FLOAT_STR_LEN_S = maximum number of non-nul characters.
+ */
+
+#define FLOAT_STR_LEN_A 64
+#define FLOAT_STR_LEN_S "63"
+
+/*
+   Function to convert between longitude-latitude coordinates and map
+   coordinates.
+ */
+
+static int (*lonlat_to_xy)(double, double, double *, double *)
+    = Sigmet_Proj_LonLatToXY;
+
+/*
+   Default static string length
+ */
+
+#define LEN 255
+
+/*
+   Key identifier for Sigmet volume in shared memory.  ftok retrieves key to
+   shared memory given volume file name and shm_key_id.
+ */
+
+static char shm_key_id = 'm';
+
+/*
+   To prevent multiple daemons or clients from simultaneously accessing
+   a Sigmet volume in shared memory, this application uses a two state
+   semaphore.  It is initialized to 1 when the volume loads. Callbacks
+   defined below must decrement the semaphore before accessing
+   the shared memory. They must post it back to 1 when done. ftok retrieves
+   the key to this semaphore given the volume file name and ax_key_id.
+ */
+
+static char ax_key_id = 'a';
+
+/*
+   When a deamon loads or attaches to a volume in shared memory, it
+   increments a user count semaphore before spawning its child.
+   The daemon decrements the user count semaphore after the child exits.
+   If the user count goes to 0, the daemon unloads the volume. ftok retrieves
+   the key to this semaphore given the volume file name and usr_key_id.
+ */
+
+static char usr_key_id = 'u';
+
+/*
+   semop arguments used in various places
+ */
+
+static struct sembuf post_sop_struct = {
+    0, 1, SEM_UNDO
+};
+static struct sembuf *post_sop = &post_sop_struct;
+
+static struct sembuf wait_sop_struct = {
+    0, -1, SEM_UNDO
+};
+static struct sembuf *wait_sop = &wait_sop_struct;
+
+static struct sembuf use_sop_struct = {
+    0, 1, SEM_UNDO
+};
+static struct sembuf *use_sop = &use_sop_struct;
+
+static struct sembuf release_sop_struct = {
+    0, -1, SEM_UNDO
+};
+static struct sembuf *release_sop = &release_sop_struct;
 
 /*
    Local functions
  */
 
 static FILE *vol_open(const char *, pid_t *);
-static struct Sigmet_Vol *vol_attach(int *);
-static void vol_detach(struct Sigmet_Vol *, int);
+static struct Sigmet_Vol *client_attach(int *);
+static void client_detach(struct Sigmet_Vol *, int);
 static int handle_signals(void);
 static void handler(int signum);
 static char *sigmet_err(enum SigmetStatus);
@@ -99,6 +190,14 @@ static callback radar_lat_cb;
 static callback shift_az_cb;
 static callback outlines_cb;
 static callback dorade_cb;
+
+/*
+   Convenience functions
+ */
+
+static int load_new(char *, int, int *, int *, struct Sigmet_Vol *);
+static int deamon_attach(char *, int *, int *, int *);
+static int set_proj(struct Sigmet_Vol *);
 
 /*
    Subcommand names and associated callbacks. The hash function defined
@@ -158,12 +257,6 @@ static int hash(const char *argv1)
     }
     return h % N_HASH_CMD;
 }
-
-/*
-   Default static string length
- */
-
-#define LEN 255
 
 /*
    Names of environment variables
@@ -235,59 +328,37 @@ static int load_cb(int argc, char *argv[])
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     char **a;				/* Member of argv */
-    int status;				/* Return value from various functions
-					 */
+    int fn_stat = 1;			/* Return value from this function */
+    enum SigmetStatus sig_stat;		/* Result of a Sigmet function */
     char *vol_fl_nm;			/* Name of file with Sigmet raw
 					   volume */
-    FILE *vol_fl;			/* Input stream associated with
-					   vol_fl_nm */
-    pid_t lpid;				/* Process id of read process */
-    struct Sigmet_Vol *vol_p = NULL;	/* Volume to load */
+    struct Sigmet_Vol vol_sav;		/* If this is a load deamon, make a
+					   small local copy of volume. Daemon
+					   uses this to free the volume instead
+					   of the volume in shared memory, in
+					   case a buggy client has corrupted
+					   the shared memory copy. */
+    int loader = 0;			/* If true, this deamon loaded the
+					   volume */
     pid_t ch_pid;			/* Process id for child process
 					   specified on command line  */
     int ch_stat;			/* Exit status of child specified
 					   on command line */
 
     int flags;				/* IPC flags for shmget and semget */
-
-    /*
-       Volume data is stored in shared memory controlled by System V
-       IPC calls. The child process environment will contain identifiers
-       to the IPC resources needed to access the volume.
-     */
-
-    key_t mem_key;			/* IPC identifier for volume shared 
+    key_t shm_key;			/* IPC identifier for volume shared 
 					   memory */
-    char mem_key_id = 'm';		/* Key identifier for shared memory */
     int shm_id = -1;			/* Identifier for shared memory
 					   which will store the Sigmet_Vol
 					   structure */
     char shmid_s[LEN];			/* String representation of shm_id */
-
-    /*
-       This semaphore controls access to the shared memory.
-       It is initialized to 1 when the volume loads. Callbacks
-       defined below must decrement the semaphore before accessing
-       the shared memory. They must post it back to 1 when done.
-     */
-
-    key_t ax_key;			/* IPC identifier for volume access
-					   semaphore */
-    char ax_key_id = 'a';		/* Key identifier for access semaphore
-					 */
-    int ax_sem_id = -1;			/* Semaphore to control access to
-					   volume */
-    char ax_sem_id_s[LEN];		/* String representation of ax_sem_id */
-    union semun {
-	int val;
-	struct semid_ds *buf;
-	unsigned short *array;
-    } arg;				/* Argument for semctl */
-    struct semid_ds buf;		/* Buffer to receive semaphore status */
-    struct sembuf sop;			/* Argument for semop */
-    int ncnt;				/* Number of processes waiting for
-					   value of access semaphore to
-					   increase */
+    int ax_sem_id = -1;			/* Semaphore identifier, from semget,
+					   given to semctl and semop */
+    char ax_sem_id_s[LEN];		/* String representation of ax_sem_id,
+					   given to child process environment */
+    int usr_sem_id = -1;		/* Semaphore identifier, from semget,
+					   given to semctl and semop */
+    FILE *msg_out = stdout;		/* Where to put final message */
 
 
     /*
@@ -301,155 +372,41 @@ static int load_cb(int argc, char *argv[])
     }
     vol_fl_nm = argv[2];
 
-    if ( (mem_key = ftok(vol_fl_nm, mem_key_id)) == -1 ) {
+    /*
+       Get shared memory identifier for volume. If shm_id identifies new shared
+       memory. Load new volume and make local copy. If shm_id identifies shared
+       memory for previously loaded volume, attach to it.
+     */
+
+    if ( (shm_key = ftok(vol_fl_nm, shm_key_id)) == -1 ) {
 	fprintf(stderr, "%s %s (%d): could not get memory key for volume %s.\n"
 		"%s\n", argv0, argv1, getpid(), vol_fl_nm, strerror(errno));
-	goto error;
+	return 0;
     }
     flags = S_IRUSR | S_IWUSR | IPC_CREAT | IPC_EXCL;
-    shm_id = shmget(mem_key, sizeof(struct Sigmet_Vol), flags);
+    shm_id = shmget(shm_key, sizeof(struct Sigmet_Vol), flags);
     if ( shm_id >= 0 ) {
-	/*
-	   shmget has returned a new shared memory identifier. Volume
-	   has not yet been loaded. Load the volume and initialize
-	   resources.
-	 */
-
-	vol_p = shmat(shm_id, NULL, 0);
-	if ( vol_p == (void *)-1 ) {
-	    fprintf(stderr, "%s %s (%d): could not attach to shared memory for "
-		    "volume.\n%s\n", argv0, argv1, getpid(), strerror(errno));
-	    goto error;
-	}
-	Sigmet_Vol_Init(vol_p);
-	vol_p->shm = 1;
-	lpid = -1;
-	if ( !(vol_fl = vol_open(vol_fl_nm, &lpid)) ) {
-	    fprintf(stderr, "%s %s (%d): could not open file %s for reading.\n"
-		    "%s\n", argv0, argv1, getpid(), vol_fl_nm, strerror(errno));
-	    goto error;
-	}
-	status = Sigmet_Vol_Read(vol_fl, vol_p);
-	fclose(vol_fl);
-	if ( lpid != -1 ) {
-	    waitpid(lpid, NULL, 0);
-	}
-	if ( status != SIGMET_OK ) {
-	    fprintf(stderr, "%s %s (%d): could not read volume.\n%s\n",
-		    argv0, argv1, getpid(), sigmet_err(status));
-	    goto error;
-	}
-	vol_p->num_users = 1;
-	printf("%s %s: done reading. Sigmet volume in memory "
-		"for daemon process %d.\n", argv0, argv1, getpid());
-
-	/*
-	   Create the semaphore that controls volume access.  Create with
-	   write access, but not read access. This will tell competing load
-	   processes to wait (see the "else if" block below). Allow read
-	   access once semaphore is fully initialized.
-	 */
-
-	if ( (ax_key = ftok(vol_fl_nm, ax_key_id)) == -1 ) {
-	    fprintf(stderr, "%s %s (%d): could not get memory key for "
-		    "volume %s.\n%s\n", argv0, argv1, getpid(), vol_fl_nm,
-		    strerror(errno));
-	    goto error;
-	}
-	flags = S_IWUSR | IPC_CREAT | IPC_EXCL;
-	if ( (ax_sem_id = semget(ax_key, 1, flags)) == -1 ) {
-	    fprintf(stderr, "%s %s (%d): could not create access semaphore for "
-		    "volume %s.\n%s\n", argv0, argv1, getpid(), vol_fl_nm,
-		    strerror(errno));
-	    goto error;
-	}
-	arg.val = 1;
-	if ( semctl(ax_sem_id, 0, SETVAL, arg) == -1 ) {
-	    fprintf(stderr, "%s %s (%d): could not initialize access semaphore "
-		    "for volume %s.\n%s\n", argv0, argv1, getpid(), vol_fl_nm,
-		    strerror(errno));
-	    goto error;
-	}
-	buf.sem_perm.uid = getuid();
-	buf.sem_perm.gid = getgid();
-	buf.sem_perm.mode = S_IRUSR | S_IWUSR;
-	arg.buf = &buf;
-	if ( semctl(ax_sem_id, 0, IPC_SET, arg) == -1 ) {
-	    fprintf(stderr, "%s %s (%d): could not set permissions for access "
-		    "semaphore for volume %s.\n%s\n", argv0, argv1, getpid(),
-		    vol_fl_nm, strerror(errno));
-	    goto error;
-	}
-    } else if ( shm_id == -1 && errno == EEXIST ) {
-	/*
-	   shmget has returned an identifier for previously allocated shared
-	   memory. Assume the volume and associated data have been or are being
-	   loaded by another daemon.  Wait for the other daemon to finish
-	   creating and intializing the access semaphore. The other daemon
-	   indicates this by making the access semaphore readable.
-	 */
-
-	printf("%s %s (%d): attaching to %s in shared memory.\n",
+	printf("%s %s (%d): loading %s into shared memory\n",
 		argv0, argv1, getpid(), vol_fl_nm);
-
-	if ( (ax_key = ftok(vol_fl_nm, ax_key_id)) == -1 ) {
-	    fprintf(stderr, "%s %s (%d): could not get memory key for "
-		    "previously loaded volume %s.\n%s\n", argv0, argv1,
-		    getpid(), vol_fl_nm, strerror(errno));
-	    goto error;
+	if ( !load_new(vol_fl_nm, shm_id, &ax_sem_id, &usr_sem_id, &vol_sav) ) {
+	    fprintf(stderr, "%s %s (%d): failed to load volume from %s\n",
+		    argv0, argv1, getpid(), vol_fl_nm);
+	    return 0;
 	}
-	flags = S_IRUSR | S_IWUSR;
-	while ( (ax_sem_id = semget(ax_key, 1, flags)) == -1 ) {
-	    if ( errno == ENOENT || errno == EACCES ) {
-		printf("Waiting for semaphore.\n");
-		sleep(1);
-	    } else {
-		fprintf(stderr, "%s %s (%d): could not get access semaphore "
-			"for previously loaded volume %s.\n%s\n",
-			argv0, argv1, getpid(), vol_fl_nm, strerror(errno));
-		goto error;
-	    }
+	loader = 1;
+    } else if ( shm_id == -1 && errno == EEXIST ) {
+	printf("%s %s (%d): attaching to %s in shared memory\n",
+		argv0, argv1, getpid(), vol_fl_nm);
+	if ( !deamon_attach(vol_fl_nm, &shm_id, &ax_sem_id, &usr_sem_id) ) {
+	    fprintf(stderr, "%s %s (%d): failed to attach to previously loaded "
+		    "volume from %s\n", argv0, argv1, getpid(), vol_fl_nm);
+	    return 0;
 	}
-
-	/*
-	   Increment the volume user count. Stay attached to the
-	   volume's shared memory. Will detach after child exits.
-	 */
-
-	sop.sem_num = 0;
-	sop.sem_op = -1;
-	sop.sem_flg = 0;
-	if ( semop(ax_sem_id, &sop, 1) == -1 ) {
-	    fprintf(stderr, "Could not adjust volume semaphore %d by -1\n"
-		    "%s\n", ax_sem_id, strerror(errno));
-	    goto error;
-	}
-	flags = S_IRUSR | S_IWUSR;
-	shm_id = shmget(mem_key, sizeof(struct Sigmet_Vol), flags);
-	if ( shm_id == -1 ) {
-	    fprintf(stderr, "%s %s (%d): could not attach to volume %s in "
-		    "shared memory.\n%s\n", argv0, argv1, getpid(), vol_fl_nm,
-		    strerror(errno));
-	    goto error;
-	}
-	vol_p = shmat(shm_id, NULL, 0);
-	if ( vol_p == (void *)-1) {
-	    fprintf(stderr, "Could not attach to volume in shared "
-		    "memory.\n%s\n", strerror(errno));
-	    goto error;
-	}
-	vol_p->num_users++;
-	sop.sem_op = 1;
-	if ( semop(ax_sem_id, &sop, 1) == -1 ) {
-	    fprintf(stderr, "Could not restore volume semaphore %d by 1\n"
-		    "%s\n", ax_sem_id, strerror(errno));
-	}
-
     } else {
 	fprintf(stderr, "%s %s (%d): could not allocate or identify volume in "
-		"shared memory.\n" "%s\n", argv0, argv1, getpid(),
-		strerror(errno));
-	goto error;
+		"shared memory for volume file %s.\n%s\n", argv0, argv1,
+		getpid(), vol_fl_nm, strerror(errno));
+	return 0;
     }
 
     /*
@@ -503,110 +460,324 @@ static int load_cb(int argc, char *argv[])
 
     waitpid(ch_pid, &ch_stat, 0);
     if ( WIFEXITED(ch_stat) ) {
-	FILE *msg_out;			/* Where to put final message */
-
-	status = WEXITSTATUS(ch_stat);
-	msg_out = (status == EXIT_SUCCESS) ? stdout : stderr;
+	fn_stat = (WEXITSTATUS(ch_stat) == EXIT_SUCCESS);
+	msg_out = fn_stat ? stdout : stderr;
 	fprintf(msg_out, "%s: ", argv0);
 	for (a = argv + 3; *a; a++) {
 	    fprintf(msg_out, "%s ", *a);
 	}
-	fprintf(msg_out, "exited with status %d\n", status);
-	fprintf(msg_out, "%s: exiting.\n", argv0);
+	fprintf(msg_out, "exited with status %d\n", WEXITSTATUS(ch_stat));
     } else if ( WIFSIGNALED(ch_stat) ) {
 	fprintf(stderr, "%s: child process exited on signal %d\n",
 		argv0, WTERMSIG(ch_stat));
-	fprintf(stderr, "%s: exiting.\n", argv0);
-	status = EXIT_FAILURE;
+	fn_stat = 0;
     }
 
     /*
-       Decrement user count. If volume has no users, unload it.
+       Decrement user count. If this deamon loaded the volume, wait until
+       it has no users, then unload it and free resources.
+
+       Note that there is a possible race condition in this block. Another
+       daemon might try to attach to the volume while it is being deleted.
      */
 
-    sop.sem_num = 0;
-    sop.sem_op = -1;
-    sop.sem_flg = 0;
-    if ( semop(ax_sem_id, &sop, 1) == -1 ) {
-	fprintf(stderr, "Could not adjust volume semaphore %d by -1\n"
-		"%s\n", ax_sem_id, strerror(errno));
-	goto error;
+    if ( semop(usr_sem_id, release_sop, 1) == -1 ) {
+	fprintf(stderr, "Could not decrement volume user count\n%s\n",
+		strerror(errno));
+	return 0;
     }
-    vol_p->num_users--;
-    if ( (ncnt = semctl(ax_sem_id, 0, GETNCNT)) == -1 ) {
-	fprintf(stderr, "%s %s (%d): could not determine number of processes "
-		"waiting for access to semaphore %d for volume %s. Unable "
-		"to free volume semaphores and shared memory. Please "
-		"check semaphores and shared memory with ipcs and ipcrm.\n%s\n",
-		argv0, argv1, getpid(), ax_sem_id, vol_fl_nm, strerror(errno));
-	goto error;
-    }
-    if ( vol_p->num_users == 0 && ncnt == 0 ) {
+    if ( loader ) {
+	printf("%s %s (%d): daemon waiting until volume no longer in "
+		"use\n", argv0, argv1, getpid());
+	while ( semctl(usr_sem_id, 0, GETVAL) > 0 ) {
+	    sleep(1);
+	}
 	printf("%s %s (%d): volume no longer in use. Unloading.\n",
 		argv0, argv1, getpid());
 	if ( semctl(ax_sem_id, 0, IPC_RMID) == -1 ) {
-	    fprintf(stderr, "%s %s (%d): could not remove semaphore for "
-		    "volume.\n%s\nPlease use ipcrm command for id %d\n",
+	    fprintf(stderr, "%s %s (%d): could not remove access semaphore for "
+		    "volume.\n%s\nPlease remove it with\nipcrm -s %d\n",
 		    argv0, argv1, getpid(), strerror(errno), ax_sem_id);
-	    status = 0;
+	    fn_stat = 0;
 	}
-	if ( !Sigmet_Vol_Free(vol_p) ) {
-	    fprintf(stderr, "%s %s (%d): could not free memory for volume.\n",
-		    argv0, argv1, getpid());
-	    status = 0;
+	if ( semctl(usr_sem_id, 0, IPC_RMID) == -1 ) {
+	    fprintf(stderr, "%s %s (%d): could not remove user count semaphore "
+		    "for volume.\n%s\nPlease remove it with\nipcrm -s %d\n",
+		    argv0, argv1, getpid(), strerror(errno), usr_sem_id);
+	    fn_stat = 0;
 	}
-	if ( shmdt(vol_p) == -1 ) {
-	    fprintf(stderr, "%s %s (%d): could not detach shared memory for "
-		    "volume.\n%s\n", argv0, argv1, getpid(), strerror(errno));
-	    status = 0;
+	if ( (sig_stat = Sigmet_Vol_Free(&vol_sav)) != SIGMET_OK ) {
+	    fprintf(stderr, "%s %s (%d): could not free memory for volume.\n"
+		    "%s\n", argv0, argv1, getpid(), sigmet_err(sig_stat));
+	    fn_stat = 0;
 	}
 	if ( shmctl(shm_id, IPC_RMID, NULL) == -1 ) {
 	    fprintf(stderr, "%s %s (%d): could not remove shared memory for "
 		    "volume.\n%s\nPlease use ipcrm command for id %d\n",
 		    argv0, argv1, getpid(), strerror(errno), shm_id);
-	    status = 0;
+	    fn_stat = 0;
 	}
-	return status;
-    } else {
-	printf("%s %s (%d): volume still has %d user%s. Leaving volume loaded "
-		"in shared memory.\n", argv0, argv1, getpid(), vol_p->num_users,
-		(vol_p->num_users > 1) ? "s" : "");
     }
-    if ( shmdt(vol_p) == -1 ) {
-	fprintf(stderr, "%s %s (%d): could not detach shared memory for "
-		"volume.\n%s\n", argv0, argv1, getpid(), strerror(errno));
-	status = 0;
-    }
-    sop.sem_op = 1;
-    if ( semop(ax_sem_id, &sop, 1) == -1 ) {
-	fprintf(stderr, "Could not restore volume semaphore %d by 1\n"
-		"%s\n", ax_sem_id, strerror(errno));
-    }
-
-    return status;
+    printf("%s (%d): exiting.\n", argv0, getpid());
+    return fn_stat;
 
 error:
-    if ( vol_p && vol_p != (void *)-1 ) {
-	if ( !Sigmet_Vol_Free(vol_p) ) {
-	    fprintf(stderr, "%s %s (%d): could not free memory for volume.\n",
-		    argv0, argv1, getpid());
+    fprintf(stderr, "%s %s (%d): failed to load or attach to volume.\n",
+	    argv0, argv1, getpid());
+    if ( loader ) {
+	if ( Sigmet_Vol_Free(&vol_sav) != SIGMET_OK ) {
+	    fprintf(stderr, "%s %s (%d): could not free memory for "
+		    "volume.\n", argv0, argv1, getpid());
 	}
-	if ( shmdt(vol_p) == -1 ) {
-	    fprintf(stderr, "%s %s (%d): could not detach shared memory for "
-		    "volume.\n%s\n", argv0, argv1, getpid(), strerror(errno));
+	if ( shm_id != -1 && shmctl(shm_id, IPC_RMID, NULL) == -1 ) {
+	    fprintf(stderr, "%s %s (%d): could not remove shared memory for "
+		    "volume.\n%s\nPlease remove it by calling \nipcrm -m %d\n",
+		    argv0, argv1, getpid(), strerror(errno), shm_id);
 	}
-    }
-    if ( shm_id != -1 && shmctl(shm_id, IPC_RMID, NULL) == -1 ) {
-	fprintf(stderr, "%s %s (%d): could not remove shared memory for "
-		"volume.\n%s\nPlease use ipcrm command for id %d\n",
-		argv0, argv1, getpid(), strerror(errno), shm_id);
-    }
-    if ( ax_sem_id != -1 && semctl(ax_sem_id, 0, IPC_RMID) == -1 ) {
-	fprintf(stderr, "%s %s (%d): could not remove semaphore for "
-		"volume.\n%s\nPlease use ipcrm command for id %d\n",
-		argv0, argv1, getpid(), strerror(errno), ax_sem_id);
+	if ( usr_sem_id != -1 && semctl(usr_sem_id, 0, IPC_RMID) == -1 ) {
+	    fprintf(stderr, "%s %s (%d): could not remove user count semaphore "
+		    "for volume.\n%s\nPlease remove it with\nipcrm -s %d\n",
+		    argv0, argv1, getpid(), strerror(errno), usr_sem_id);
+	}
+	if ( ax_sem_id != -1 && semctl(ax_sem_id, 0, IPC_RMID) == -1 ) {
+	    fprintf(stderr, "%s %s (%d): could not remove access semaphore for "
+		    "volume.\n%s\nPlease remove it with\nipcrm -s %d\n",
+		    argv0, argv1, getpid(), strerror(errno), ax_sem_id);
+	}
     }
     return 0;
+}
+
+/*
+   Load a Sigmet raw product volume from file at path vol_fl_nm into shared
+   memory identified by shm_id. If successful, copy access semaphore identifier
+   to ax_sem_id_p, user count semaphore identifier to usr_sem_id_p, and return
+   true. Otherwise, return false.
+ */
+
+static int load_new(char *vol_fl_nm, int shm_id, int *ax_sem_id_p,
+	int *usr_sem_id_p, struct Sigmet_Vol *vol_sav_p)
+{
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
+    FILE *vol_fl;			/* Input stream associated with
+					   vol_fl_nm */
+    pid_t lpid;				/* Process id of read process */
+    struct Sigmet_Vol *vol_p = (void *)-1;
+    int flags;				/* IPC flags for shmget and semget */
+    key_t ax_key;			/* Access semaphore key */
+    int ax_sem_id = -1;			/* Access semaphore identifier */
+    union semun {
+	int val;
+	struct semid_ds *buf;
+	unsigned short *array;
+    } arg;				/* Argument for semctl */
+    struct semid_ds buf;		/* Buffer for semctl */
+    key_t usr_key;			/* User count semaphore key */
+    int usr_sem_id = -1;		/* User count semaphore identifier */
+
+    assert(shm_id >= 0 );
+    vol_p = shmat(shm_id, NULL, 0);
+    if ( vol_p == (void *)-1 ) {
+	fprintf(stderr, "could not attach to shared memory for volume.\n%s\n",
+		strerror(errno));
+	goto error;
+    }
+    Sigmet_Vol_Init(vol_p);
+    vol_p->shm = 1;
+    lpid = -1;
+    if ( !(vol_fl = vol_open(vol_fl_nm, &lpid)) ) {
+	fprintf(stderr, "Could not open file %s for reading.\n%s\n",
+		vol_fl_nm, strerror(errno));
+	goto error;
+    }
+    sig_stat = Sigmet_Vol_Read(vol_fl, vol_p);
+    fclose(vol_fl);
+    if ( lpid != -1 ) {
+	waitpid(lpid, NULL, 0);
+    }
+    if ( sig_stat != SIGMET_OK ) {
+	fprintf(stderr, "Could not read volume.\n%s\n", sigmet_err(sig_stat));
+	goto error;
+    }
+    Sigmet_Vol_Init(vol_sav_p);
+    Sigmet_Vol_LzCpy(vol_sav_p, vol_p);
+
+    /*
+       Create user count semaphore. Initialize to 1.
+     */
+
+    if ( (usr_key = ftok(vol_fl_nm, usr_key_id)) == -1 ) {
+	fprintf(stderr, "Could not get memory key for volume %s.\n%s\n",
+		vol_fl_nm, strerror(errno));
+	goto error;
+    }
+    flags = S_IRUSR | S_IWUSR | IPC_CREAT | IPC_EXCL;
+    if ( (usr_sem_id = semget(usr_key, 1, flags)) == -1 ) {
+	fprintf(stderr, "Could not create user count semaphore for volume %s.\n"
+		"%s\n", vol_fl_nm, strerror(errno));
+	goto error;
+    }
+    arg.val = 1;
+    if ( semctl(usr_sem_id, 0, SETVAL, arg) == -1 ) {
+	fprintf(stderr, "Could not initialize access semaphore for volume %s.\n"
+		"%s\n", vol_fl_nm, strerror(errno));
+	goto error;
+    }
+
+    /*
+       Create the semaphore that controls volume access.  Create with
+       write access, but not read access. This will tell competing load
+       processes to wait. Allow read access once semaphore is initialized.
+     */
+
+    if ( (ax_key = ftok(vol_fl_nm, ax_key_id)) == -1 ) {
+	fprintf(stderr, "Could not get memory key for volume %s.\n%s\n",
+		vol_fl_nm, strerror(errno));
+	goto error;
+    }
+    flags = S_IWUSR | IPC_CREAT | IPC_EXCL;
+    if ( (ax_sem_id = semget(ax_key, 1, flags)) == -1 ) {
+	fprintf(stderr, "Could not create access semaphore for volume %s.\n"
+		"%s\n", vol_fl_nm, strerror(errno));
+	goto error;
+    }
+    arg.val = 1;
+    if ( semctl(ax_sem_id, 0, SETVAL, arg) == -1 ) {
+	fprintf(stderr, "could not initialize access semaphore for volume %s.\n"
+		"%s\n", vol_fl_nm, strerror(errno));
+	goto error;
+    }
+    buf.sem_perm.uid = getuid();
+    buf.sem_perm.gid = getgid();
+    buf.sem_perm.mode = S_IRUSR | S_IWUSR;
+    arg.buf = &buf;
+    if ( semctl(ax_sem_id, 0, IPC_SET, arg) == -1 ) {
+	fprintf(stderr, "Could not set permissions for access "
+		"semaphore for volume %s.\n%s\n", vol_fl_nm, strerror(errno));
+	goto error;
+    }
+    *ax_sem_id_p = ax_sem_id;
+    *usr_sem_id_p = usr_sem_id;
+    return 1;
+
+error:
+    fprintf(stderr, "Failed to load volume.\n");
+    if ( vol_p != (void *)-1 ) {
+	if ( Sigmet_Vol_Free(vol_sav_p) != SIGMET_OK ) {
+	    fprintf(stderr, "Could not free memory for volume.\n");
+	}
+	if ( shmdt(vol_p) == -1 ) {
+	    fprintf(stderr, "Could not detach shared memory for volume.\n%s\n",
+		    strerror(errno));
+	}
+    }
+    if ( shmctl(shm_id, IPC_RMID, NULL) == -1 ) {
+	fprintf(stderr, "Could not remove shared memory for "
+		"volume.\n%s\nPlease remove it by calling \nipcrm -m %d\n",
+		strerror(errno), shm_id);
+    }
+    if ( usr_sem_id != -1 && semctl(usr_sem_id, 0, IPC_RMID) == -1 ) {
+	fprintf(stderr, "Could not remove user count semaphore "
+		"for volume.\n%s\nPlease remove it with\nipcrm -s %d\n",
+		strerror(errno), usr_sem_id);
+    }
+    if ( ax_sem_id != -1 && semctl(ax_sem_id, 0, IPC_RMID) == -1 ) {
+	fprintf(stderr, "could not remove access semaphore for "
+		"volume.\n%s\nPlease remove it with\nipcrm -s %d\n",
+		strerror(errno), ax_sem_id);
+    }
+    return 0;
+}
+
+/*
+   Attach to loaded volume, instead of reloading it.
+ */
+
+static int deamon_attach(char *vol_fl_nm, int *shm_id_p, int *ax_sem_id_p,
+	int *usr_sem_id_p)
+{
+    key_t ax_key;			/* Volume access semaphore key */
+    int ax_sem_id = -1;			/* Volume access semaphore identifier */
+    key_t shm_key;			/* Volume shared memory key */
+    int flags;				/* IPC flags for shmget and semget */
+    int shm_id;				/* Volume shared memory identifier */
+    key_t usr_key;			/* User count semaphore key */
+    int usr_sem_id = -1;		/* User count semaphore identifier */
+    int n, num_tries = 9;		/* Check on access semaphore this many
+					   times */
+
+    /*
+       Attempt to use the volume access semaphore. If it exists but is not
+       readable, then a load daemon is still loading the volume. Wait for the
+       other daemon to finish intializing the volume access semaphore.
+       The other daemon indicates this by making the access semaphore readable.
+     */
+
+    if ( (ax_key = ftok(vol_fl_nm, ax_key_id)) == -1 ) {
+	fprintf(stderr, "Could not get shared memory key for %s.\n%s\n",
+		vol_fl_nm, strerror(errno));
+	fprintf(stderr, "Failed to attach to previously loaded volume.\n");
+	return 0;
+    }
+    for (n = 0, ax_sem_id = -1; n < num_tries && ax_sem_id == -1; n++ ) {
+	ax_sem_id = semget(ax_key, 1, S_IRUSR | S_IWUSR);
+	if ( ax_sem_id == -1 ) {
+	    if ( errno == ENOENT || errno == EACCES ) {
+		printf("Waiting for load process to make volume available.\n");
+		sleep(1);
+	    } else {
+		fprintf(stderr, "Could not get access semaphore for "
+			"previously loaded volume %s.\n%s\n",
+			vol_fl_nm, strerror(errno));
+		return 0;
+	    }
+	}
+    }
+    if ( n == num_tries ) {
+	fprintf(stderr, "Gave up waiting for load process to make volume "
+		"available.\n");
+	return 0;
+    }
+
+    /*
+       Now that volume is loaded somewhere, get the shared memory identifier.
+     */
+
+    if ( (shm_key = ftok(vol_fl_nm, shm_key_id)) == -1 ) {
+	fprintf(stderr, "Could not get memory key for volume %s.\n%s\n",
+		vol_fl_nm, strerror(errno));
+	return 0;
+    }
+    flags = S_IRUSR | S_IWUSR;
+    if ( (shm_id = shmget(shm_key, sizeof(struct Sigmet_Vol), flags)) == -1) {
+	fprintf(stderr, "Could not identify volume in shared memory for %s.\n"
+		"%s\n", vol_fl_nm, strerror(errno));
+	return 0;
+    }
+
+    /*
+       Increment the volume user count.
+     */
+
+    if ( (usr_key = ftok(vol_fl_nm, usr_key_id)) == -1 ) {
+	fprintf(stderr, "Could not get memory key for volume %s.\n%s\n",
+		vol_fl_nm, strerror(errno));
+	return 0;
+    }
+    if ( (usr_sem_id = semget(usr_key, 1, S_IRUSR | S_IWUSR)) == -1 ) {
+	fprintf(stderr, "Could not find user count "
+		"semaphore for volume %s.\n%s\n", vol_fl_nm, strerror(errno));
+	return 0;
+    }
+    if ( semop(usr_sem_id, use_sop, 1) == -1 ) {
+	fprintf(stderr, "could not increment volume user count %d\n%s\n",
+		ax_sem_id, strerror(errno));
+	return 0;
+    }
+    *ax_sem_id_p = ax_sem_id;
+    *shm_id_p = shm_id;
+    *usr_sem_id_p = usr_sem_id;
+    return 1;
 }
 
 /*
@@ -615,14 +786,13 @@ error:
    wrong. Copy volume semaphore identifier to ax_sem_id_p.
  */
 
-static struct Sigmet_Vol *vol_attach(int *sem_id_p)
+static struct Sigmet_Vol *client_attach(int *sem_id_p)
 {
     struct Sigmet_Vol *vol_p = NULL;
     int ax_sem_id, shm_id;		/* IPC semaphore and shared memory
 					   identifiers */
     char *sem_id_s, *shm_id_s;		/* String representations of ax_sem_id
 					   and shm_id */
-    struct sembuf sop;			/* Semaphore operation */
 
     /*
        Decrement the semaphore
@@ -634,12 +804,9 @@ static struct Sigmet_Vol *vol_attach(int *sem_id_p)
 		SIGMET_VOL_SEM " environment variable.\n");
 	return NULL;
     }
-    sop.sem_num = 0;
-    sop.sem_op = -1;
-    sop.sem_flg = SEM_UNDO;
-    if ( semop(ax_sem_id, &sop, 1) == -1 ) {
-	fprintf(stderr, "Could not adjust volume semaphore %d by -1\n"
-		"%s\n", ax_sem_id, strerror(errno));
+    if ( semop(ax_sem_id, wait_sop, 1) == -1 ) {
+	fprintf(stderr, "Could not decrement volume access semaphore\n%s\n",
+		strerror(errno));
 	goto error;
     }
 
@@ -659,7 +826,7 @@ static struct Sigmet_Vol *vol_attach(int *sem_id_p)
 		strerror(errno));
 	goto error;
     }
-    if ( !Sigmet_ShMemAttach(vol_p) ) {
+    if ( Sigmet_ShMemAttach(vol_p) != SIGMET_OK ) {
 	fprintf(stderr, "Could not attach to volume contents "
 		"in shared memory.\n");
 	goto error;
@@ -669,15 +836,12 @@ static struct Sigmet_Vol *vol_attach(int *sem_id_p)
     return vol_p;
 
 error:
-    sop.sem_num = 0;
-    sop.sem_op = 1;
-    sop.sem_flg = SEM_UNDO;
-    if ( semop(ax_sem_id, &sop, 1) == -1 ) {
-	fprintf(stderr, "Could not adjust volume semaphore %d by 1\n"
-		"%s\n", ax_sem_id, strerror(errno));
+    if ( semop(ax_sem_id, post_sop, 1) == -1 ) {
+	fprintf(stderr, "Could not increment volume access semaphore\n%s\n",
+		strerror(errno));
     }
     if ( vol_p ) {
-	if ( !Sigmet_ShMemDetach(vol_p) ) {
+	if ( Sigmet_ShMemDetach(vol_p) != SIGMET_OK ) {
 	    fprintf(stderr, "Could not detach from volume contents "
 		    "in shared memory.\n");
 	}
@@ -689,19 +853,14 @@ error:
     return NULL;
 }
 
-static void vol_detach(struct Sigmet_Vol *vol_p, int ax_sem_id)
+static void client_detach(struct Sigmet_Vol *vol_p, int ax_sem_id)
 {
-    struct sembuf sop;
-
-    sop.sem_num = 0;
-    sop.sem_op = 1;
-    sop.sem_flg = SEM_UNDO;
-    if ( semop(ax_sem_id, &sop, 1) == -1 ) {
-	fprintf(stderr, "Could not restore volume semaphore %d by 1\n"
-		"%s\n", ax_sem_id, strerror(errno));
+    if ( semop(ax_sem_id, post_sop, 1) == -1 ) {
+	fprintf(stderr, "Could not increment volume access semaphore\n%s\n",
+		strerror(errno));
     }
     if ( vol_p ) {
-	if ( !Sigmet_ShMemDetach(vol_p) ) {
+	if ( Sigmet_ShMemDetach(vol_p) != SIGMET_OK ) {
 	    fprintf(stderr, "Could not detach from volume contents "
 		    "in shared memory.\n");
 	}
@@ -719,19 +878,18 @@ static int data_types_cb(int argc, char *argv[])
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     int y;
+    char *data_type_s, *descr, *unit;
 
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    for (y = 0; y < vol_p->num_types; y++) {
-	if ( strlen(vol_p->dat[y].data_type_s) > 0 ) {
-	    printf("%s | %s | %s\n", vol_p->dat[y].data_type_s,
-		    vol_p->dat[y].descr, vol_p->dat[y].unit);
-	}
+    for (y = 0; y < Sigmet_Vol_NumTypes(vol_p); y++) {
+	Sigmet_Vol_DataTypeHdrs(vol_p, y, &data_type_s, &descr, &unit);
+	printf("%s | %s | %s\n", data_type_s, descr, unit);
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -746,13 +904,13 @@ static int volume_headers_cb(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s %s\n", argv0, argv1);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
     Sigmet_Vol_PrintHdr(stdout, vol_p);
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -762,81 +920,18 @@ static int vol_hdr_cb(int argc, char *argv[])
     int ax_sem_id;
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    int y;
-    double wavlen, prf, vel_ua;
-    enum Sigmet_Multi_PRF mp;
-    char *mp_s = "unknown";
-    double l;
 
     if ( argc != 2 ) {
 	fprintf(stderr, "Usage: %s %s\n", argv0, argv1);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    printf("site_name=\"%s\"\n", vol_p->ih.ic.su_site_name);
-    l = GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0) * DEG_PER_RAD;
-    printf("radar_lon=%.4lf\n", l);
-    l = GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.latitude), 0.0) * DEG_PER_RAD;
-    printf("radar_lat=%.4lf\n", l);
-    switch (vol_p->ih.tc.tni.scan_mode) {
-	case PPI_S:
-	    printf("scan_mode=\"ppi sector\"\n");
-	    break;
-	case RHI:
-	    printf("scan_mode=rhi\n");
-	    break;
-	case MAN_SCAN:
-	    printf("scan_mode=manual\n");
-	    break;
-	case PPI_C:
-	    printf("scan_mode=\"ppi continuous\"\n");
-	    break;
-	case FILE_SCAN:
-	    printf("scan_mode=file\n");
-	    break;
-    }
-    printf("task_name=\"%s\"\n", vol_p->ph.pc.task_name);
-    printf("types=\"");
-    printf("%s", vol_p->dat[0].data_type_s);
-    for (y = 1; y < vol_p->num_types; y++) {
-	printf(" %s", vol_p->dat[y].data_type_s);
-    }
-    printf("\"\n");
-    printf("num_sweeps=%d\n", vol_p->ih.ic.num_sweeps);
-    printf("num_rays=%d\n", vol_p->ih.ic.num_rays);
-    printf("num_bins=%d\n", vol_p->ih.tc.tri.num_bins_out);
-    printf("range_bin0=%d\n", vol_p->ih.tc.tri.rng_1st_bin);
-    printf("bin_step=%d\n", vol_p->ih.tc.tri.step_out);
-    wavlen = 0.01 * 0.01 * vol_p->ih.tc.tmi.wave_len; 	/* convert -> cm > m */
-    prf = vol_p->ih.tc.tdi.prf;
-    mp = vol_p->ih.tc.tdi.m_prf_mode;
-    vol_detach(vol_p, ax_sem_id);
-    vel_ua = -1.0;
-    switch (mp) {
-	case ONE_ONE:
-	    mp_s = "1:1";
-	    vel_ua = 0.25 * wavlen * prf;
-	    break;
-	case TWO_THREE:
-	    mp_s = "2:3";
-	    vel_ua = 2 * 0.25 * wavlen * prf;
-	    break;
-	case THREE_FOUR:
-	    mp_s = "3:4";
-	    vel_ua = 3 * 0.25 * wavlen * prf;
-	    break;
-	case FOUR_FIVE:
-	    mp_s = "4:5";
-	    vel_ua = 3 * 0.25 * wavlen * prf;
-	    break;
-    }
-    printf("prf=%.2lf\n", prf);
-    printf("prf_mode=%s\n", mp_s);
-    printf("vel_ua=%.3lf\n", vel_ua);
+    Sigmet_Vol_PrintMinHdr(stdout, vol_p);
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -846,10 +941,9 @@ static int near_sweep_cb(int argc, char *argv[])
     int ax_sem_id;
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    char *ang_s;		/* Sweep angle, degrees */
-    double ang;			/* Angle from command line */
-    double da_min;		/* Angle difference, smallest difference */
-    int s, nrst;
+    char *ang_s;
+    double ang;
+    int s;
 
     if ( argc != 3 ) {
 	fprintf(stderr, "Usage: %s %s angle\n", argv0, argv1);
@@ -862,30 +956,19 @@ static int near_sweep_cb(int argc, char *argv[])
 	return 0;
     }
     ang *= RAD_PER_DEG;
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    if ( !vol_p->sweep_hdr ) {
-	fprintf(stderr, "%s %s: sweep headers not loaded. "
-		"Is volume truncated?.\n", argv0, argv1);
-	vol_detach(vol_p, ax_sem_id);
+    s = Sigmet_Vol_NearSweep(vol_p, ang);
+    client_detach(vol_p, ax_sem_id);
+    if ( s == -1 ) {
+	fprintf(stderr, "%s %s: could not determine sweep with "
+		"sweep angle nearest %s\n", argv0, argv1, ang_s);
 	return 0;
     }
-    nrst = -1;
-    for (da_min = DBL_MAX, s = 0; s < vol_p->num_sweeps_ax; s++) {
-	double swang, da;	/* Sweep angle, angle difference */
-
-	swang = GeogLonR(vol_p->sweep_hdr[s].angle, ang);
-	da = fabs(swang - ang);
-	if ( da < da_min ) {
-	    da_min = da;
-	    nrst = s;
-	}
-    }
-    vol_detach(vol_p, ax_sem_id);
-    printf("%d\n", nrst);
+    printf("%d\n", s);
     return 1;
 }
 
@@ -896,34 +979,39 @@ static int sweep_headers_cb(int argc, char *argv[])
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     int s;
+    enum SigmetStatus sig_stat;
+    int ok;
+    double tm, ang;
+    int yr, mon, da, hr, min, sec;
 
     if ( argc != 2 ) {
 	fprintf(stderr, "Usage: %s %s\n", argv0, argv1);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    for (s = 0; s < vol_p->ih.tc.tni.num_sweeps; s++) {
+    for (s = 0; s < Sigmet_Vol_NumSweeps(vol_p); s++) {
 	printf("sweep %2d ", s);
-	if ( !vol_p->sweep_hdr[s].ok ) {
-	    printf("bad\n");
-	} else {
-	    int yr, mon, da, hr, min, sec;
-
-	    if ( Tm_JulToCal(vol_p->sweep_hdr[s].time,
-			&yr, &mon, &da, &hr, &min, &sec) ) {
+	sig_stat = Sigmet_Vol_SweepHdr(vol_p, s, &ok, &tm, &ang);
+	if ( sig_stat != SIGMET_OK ) {
+	    fprintf(stderr, "%s %s: %s\n", argv0, argv1, sigmet_err(sig_stat));
+	}
+	if ( ok ) {
+	    if ( Tm_JulToCal(tm, &yr, &mon, &da, &hr, &min, &sec) ) {
 		printf("%04d/%02d/%02d %02d:%02d:%02d ",
 			yr, mon, da, hr, min, sec);
 	    } else {
 		printf("0000/00/00 00:00:00 ");
 	    }
-	    printf("%7.3f\n", vol_p->sweep_hdr[s].angle * DEG_PER_RAD);
+	    printf("%7.3f\n", ang * DEG_PER_RAD);
+	} else {
+	    printf("bad\n");
 	}
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -934,44 +1022,56 @@ static int ray_headers_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     int s, r;
+    int ok;
+    int num_bins;
+    double tm, tilt0, tilt1, az0, az1;
+    int yr, mon, da, hr, min, sec;
+    enum SigmetStatus sig_stat;
 
     if ( argc != 2 ) {
 	fprintf(stderr, "Usage: %s %s\n", argv0, argv1);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-	if ( vol_p->sweep_hdr[s].ok ) {
-	    for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
-		int yr, mon, da, hr, min, sec;
-
-		if ( !vol_p->ray_hdr[s][r].ok ) {
+    for (s = 0; s < Sigmet_Vol_NumSweeps(vol_p); s++) {
+	sig_stat = Sigmet_Vol_SweepHdr(vol_p, s, &ok, NULL, NULL);
+	if ( sig_stat != SIGMET_OK ) {
+	    fprintf(stderr, "%s %s: %s\n", argv0, argv1, sigmet_err(sig_stat));
+	}
+	if ( ok ) {
+	    for (r = 0; r < Sigmet_Vol_NumRays(vol_p); r++) {
+		sig_stat = Sigmet_Vol_RayHdr(vol_p, s, r, &ok, &tm, &num_bins,
+			&tilt0, &tilt1, &az0, &az1);
+		if ( sig_stat != SIGMET_OK ) {
+		    fprintf(stderr, "%s %s: %s\n",
+			    argv0, argv1, sigmet_err(sig_stat));
+		}
+		if ( !ok ) {
 		    continue;
 		}
 		printf("sweep %3d ray %4d | ", s, r);
-		if ( !Tm_JulToCal(vol_p->ray_hdr[s][r].time,
-			    &yr, &mon, &da, &hr, &min, &sec) ) {
+		if ( !Tm_JulToCal(tm, &yr, &mon, &da, &hr, &min, &sec) ) {
 		    fprintf(stderr, "%s %s: bad ray time\n",
 			    argv0, argv1);
-		    vol_detach(vol_p, ax_sem_id);
+		    client_detach(vol_p, ax_sem_id);
 		    return 0;
 		}
 		printf("%04d/%02d/%02d %02d:%02d:%02d | ",
 			yr, mon, da, hr, min, sec);
 		printf("az %7.3f %7.3f | ",
-			vol_p->ray_hdr[s][r].az0 * DEG_PER_RAD,
-			vol_p->ray_hdr[s][r].az1 * DEG_PER_RAD);
+			az0 * DEG_PER_RAD, az1 * DEG_PER_RAD);
 		printf("tilt %6.3f %6.3f\n",
-			vol_p->ray_hdr[s][r].tilt0 * DEG_PER_RAD,
-			vol_p->ray_hdr[s][r].tilt1 * DEG_PER_RAD);
+			tilt0 * DEG_PER_RAD, tilt1 * DEG_PER_RAD);
 	    }
+	} else {
+	    printf("sweep %3d empty\n", s);
 	}
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -979,7 +1079,7 @@ static int new_field_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    struct Sigmet_Vol *vol_p;
+    struct Sigmet_Vol *vol_p = NULL;
     int ax_sem_id;
     int a;
     char *data_type_s;			/* Data type abbreviation */
@@ -987,7 +1087,7 @@ static int new_field_cb(int argc, char *argv[])
     double val;
     char *descr = NULL;			/* Descriptor for new field */
     char *unit = NULL;			/* Unit for new field */
-    int status;				/* Result of a function */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
 
     /*
        Identify data type from command line. Fail if volume already has
@@ -1024,17 +1124,16 @@ static int new_field_cb(int argc, char *argv[])
     if ( !unit || strlen(unit) == 0 ) {
 	unit = "Dimensionless";
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    if ( (status = Sigmet_Vol_NewField(vol_p, data_type_s, descr, unit))
-	    != SIGMET_OK ) {
+    sig_stat = Sigmet_Vol_NewField(vol_p, data_type_s, descr, unit);
+    if ( sig_stat != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not add data type %s to volume\n%s\n",
-		argv0, argv1, data_type_s, sigmet_err(status));
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+		argv0, argv1, data_type_s, sigmet_err(sig_stat));
+	goto error;
     }
 
     /*
@@ -1043,36 +1142,39 @@ static int new_field_cb(int argc, char *argv[])
 
     if ( val_s ) {
 	if ( sscanf(val_s, "%lf", &val) == 1 ) {
-	    status = Sigmet_Vol_Fld_SetVal(vol_p, data_type_s, val);
-	    if ( status != SIGMET_OK ) {
+	    sig_stat = Sigmet_Vol_Fld_SetVal(vol_p, data_type_s, val);
+	    if ( sig_stat != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not set %s to %lf in volume\n%s\n"
 			"Field is retained in volume but values are garbage.\n",
-			argv0, argv1, data_type_s, val, sigmet_err(status));
-		vol_detach(vol_p, ax_sem_id);
-		return 0;
+			argv0, argv1, data_type_s, val, sigmet_err(sig_stat));
+		goto error;
 	    }
 	} else if ( strcmp(val_s, "r_beam") == 0 ) {
-	    status = Sigmet_Vol_Fld_SetRBeam(vol_p, data_type_s);
-	    if ( status != SIGMET_OK ) {
+	    sig_stat = Sigmet_Vol_Fld_SetRBeam(vol_p, data_type_s);
+	    if ( sig_stat != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not set %s to %s in volume\n%s\n"
 			"Field is retained in volume but values are garbage.\n",
-			argv0, argv1, data_type_s, val_s, sigmet_err(status));
-		vol_detach(vol_p, ax_sem_id);
-		return 0;
+			argv0, argv1, data_type_s, val_s, sigmet_err(sig_stat));
+		goto error;
 	    }
 	} else {
-	    status = Sigmet_Vol_Fld_Copy(vol_p, data_type_s, val_s);
-	    if ( status != SIGMET_OK ) {
+	    sig_stat = Sigmet_Vol_Fld_Copy(vol_p, data_type_s, val_s);
+	    if ( sig_stat != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not set %s to %s in volume\n%s\n"
 			"Field is retained in volume but values are garbage.\n",
-			argv0, argv1, data_type_s, val_s, sigmet_err(status));
-		vol_detach(vol_p, ax_sem_id);
-		return 0;
+			argv0, argv1, data_type_s, val_s, sigmet_err(sig_stat));
+		goto error;
 	    }
 	}
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
+
+error:
+    if ( vol_p ) {
+	client_detach(vol_p, ax_sem_id);
+    }
+    return 0;
 }
 
 static int del_field_cb(int argc, char *argv[])
@@ -1082,26 +1184,26 @@ static int del_field_cb(int argc, char *argv[])
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
     char *data_type_s;			/* Data type abbreviation */
-    int status;				/* Result of a function */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
 
     if ( argc != 3 ) {
 	fprintf(stderr, "Usage: %s %s data_type\n", argv0, argv1);
 	return 0;
     }
     data_type_s = argv[2];
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    if ( (status = Sigmet_Vol_DelField(vol_p, data_type_s)) != SIGMET_OK ) {
+    if ( (sig_stat = Sigmet_Vol_DelField(vol_p, data_type_s)) != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not remove data type %s "
 		"from volume\n%s\n", argv0, argv1, data_type_s,
-		sigmet_err(status));
-	vol_detach(vol_p, ax_sem_id);
+		sigmet_err(sig_stat));
+	client_detach(vol_p, ax_sem_id);
 	return 0;
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -1120,14 +1222,14 @@ static int size_cb(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s %s\n", argv0, argv1);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
-	vol_detach(vol_p, ax_sem_id);
+	client_detach(vol_p, ax_sem_id);
 	return 0;
     }
-    printf("%lu\n", (unsigned long)vol_p->size);
-    vol_detach(vol_p, ax_sem_id);
+    printf("%lu\n", (unsigned long)Sigmet_Vol_MemSz(vol_p));
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -1141,7 +1243,7 @@ static int set_field_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
-    int status;				/* Result of a function */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
     char *data_type_s;			/* Data type abbreviation */
     char *d_s;
     double d;
@@ -1152,7 +1254,7 @@ static int set_field_cb(int argc, char *argv[])
     }
     data_type_s = argv[2];
     d_s = argv[3];
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
@@ -1165,30 +1267,31 @@ static int set_field_cb(int argc, char *argv[])
      */
 
     if ( strcmp("r_beam", d_s) == 0 ) {
-	status = Sigmet_Vol_Fld_SetRBeam(vol_p, data_type_s);
-	if ( status != SIGMET_OK ) {
+	sig_stat = Sigmet_Vol_Fld_SetRBeam(vol_p, data_type_s);
+	if ( sig_stat != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not set %s to beam range "
 		    "in volume\n%s\n", argv0, argv1, data_type_s,
-		    sigmet_err(status));
-	    vol_detach(vol_p, ax_sem_id);
-	    return 0;
+		    sigmet_err(sig_stat));
+	    goto error;
 	}
     } else if ( sscanf(d_s, "%lf", &d) == 1 ) {
-	status = Sigmet_Vol_Fld_SetVal(vol_p, data_type_s, d);
-	if ( status != SIGMET_OK ) {
+	sig_stat = Sigmet_Vol_Fld_SetVal(vol_p, data_type_s, d);
+	if ( sig_stat != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not set %s to %lf in volume\n%s\n",
-		    argv0, argv1, data_type_s, d, sigmet_err(status));
-	    vol_detach(vol_p, ax_sem_id);
-	    return 0;
+		    argv0, argv1, data_type_s, d, sigmet_err(sig_stat));
+	    goto error;
 	}
     } else {
 	fprintf(stderr, "%s %s: field value must be a number or \"r_beam\"\n",
 		argv0, argv1);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
+
+error:
+    client_detach(vol_p, ax_sem_id);
+    return 0;
 }
 
 /*
@@ -1201,7 +1304,7 @@ static int add_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
-    int status;				/* Result of a function */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
     char *data_type_s;			/* Data type abbreviation */
     char *a_s;				/* What to add */
     double a;				/* Scalar to add */
@@ -1213,28 +1316,30 @@ static int add_cb(int argc, char *argv[])
     }
     data_type_s = argv[2];
     a_s = argv[3];
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	status = Sigmet_Vol_Fld_AddVal(vol_p, data_type_s, a);
-	if ( status != SIGMET_OK ) {
+	sig_stat = Sigmet_Vol_Fld_AddVal(vol_p, data_type_s, a);
+	if ( sig_stat != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not add %s to %lf in volume\n%s\n",
-		    argv0, argv1, data_type_s, a, sigmet_err(status));
-	    vol_detach(vol_p, ax_sem_id);
-	    return 0;
+		    argv0, argv1, data_type_s, a, sigmet_err(sig_stat));
+	    goto error;
 	}
-    } else if ( (status = Sigmet_Vol_Fld_AddFld(vol_p, data_type_s, a_s))
+    } else if ( (sig_stat = Sigmet_Vol_Fld_AddFld(vol_p, data_type_s, a_s))
 	    != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not add %s to %s in volume\n%s\n",
-		argv0, argv1, data_type_s, a_s, sigmet_err(status));
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+		argv0, argv1, data_type_s, a_s, sigmet_err(sig_stat));
+	goto error;
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
+
+error:
+    client_detach(vol_p, ax_sem_id);
+    return 0;
 }
 
 /*
@@ -1247,7 +1352,7 @@ static int sub_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
-    int status;				/* Result of a function */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
     char *data_type_s;			/* Data type abbreviation */
     char *a_s;				/* What to subtract */
     double a;				/* Scalar to subtract */
@@ -1259,29 +1364,31 @@ static int sub_cb(int argc, char *argv[])
     }
     data_type_s = argv[2];
     a_s = argv[3];
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	status = Sigmet_Vol_Fld_SubVal(vol_p, data_type_s, a);
-	if ( status != SIGMET_OK ) {
+	sig_stat = Sigmet_Vol_Fld_SubVal(vol_p, data_type_s, a);
+	if ( sig_stat != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not subtract %lf from %s in "
 		    "volume\n%s\n", argv0, argv1, a, data_type_s,
-		    sigmet_err(status));
-	    vol_detach(vol_p, ax_sem_id);
-	    return 0;
+		    sigmet_err(sig_stat));
+	    goto error;
 	}
-    } else if ( (status = Sigmet_Vol_Fld_SubFld(vol_p, data_type_s, a_s))
+    } else if ( (sig_stat = Sigmet_Vol_Fld_SubFld(vol_p, data_type_s, a_s))
 	    != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not subtract %s from %s in volume\n%s\n",
-		argv0, argv1, a_s, data_type_s, sigmet_err(status));
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+		argv0, argv1, a_s, data_type_s, sigmet_err(sig_stat));
+	goto error;
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
+
+error:
+    client_detach(vol_p, ax_sem_id);
+    return 0;
 }
 
 /*
@@ -1294,7 +1401,7 @@ static int mul_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
-    int status;				/* Result of a function */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
     char *data_type_s;			/* Data type abbreviation */
     char *a_s;				/* What to multiply by */
     double a;				/* Scalar to multiply by */
@@ -1306,29 +1413,31 @@ static int mul_cb(int argc, char *argv[])
     }
     data_type_s = argv[2];
     a_s = argv[3];
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	status = Sigmet_Vol_Fld_MulVal(vol_p, data_type_s, a);
-	if ( status != SIGMET_OK ) {
+	sig_stat = Sigmet_Vol_Fld_MulVal(vol_p, data_type_s, a);
+	if ( sig_stat != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not multiply %s by %lf in "
 		    "volume\n%s\n", argv0, argv1, data_type_s, a,
-		    sigmet_err(status));
-	    vol_detach(vol_p, ax_sem_id);
-	    return 0;
+		    sigmet_err(sig_stat));
+	    goto error;
 	}
-    } else if ( (status = Sigmet_Vol_Fld_MulFld(vol_p, data_type_s, a_s))
+    } else if ( (sig_stat = Sigmet_Vol_Fld_MulFld(vol_p, data_type_s, a_s))
 	    != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not multiply %s by %s in volume\n%s\n",
-		argv0, argv1, data_type_s, a_s, sigmet_err(status));
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+		argv0, argv1, data_type_s, a_s, sigmet_err(sig_stat));
+	goto error;
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
+
+error:
+    client_detach(vol_p, ax_sem_id);
+    return 0;
 }
 
 /*
@@ -1341,7 +1450,7 @@ static int div_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
-    int status;				/* Result of a function */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
     char *data_type_s;			/* Data type abbreviation */
     char *a_s;				/* What to divide by */
     double a;				/* Scalar to divide by */
@@ -1353,28 +1462,30 @@ static int div_cb(int argc, char *argv[])
     }
     data_type_s = argv[2];
     a_s = argv[3];
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
     if ( sscanf(a_s, "%lf", &a) == 1 ) {
-	status = Sigmet_Vol_Fld_DivVal(vol_p, data_type_s, a);
-	if ( status != SIGMET_OK ) {
+	sig_stat = Sigmet_Vol_Fld_DivVal(vol_p, data_type_s, a);
+	if ( sig_stat != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not divide %s by %lf in volume\n%s\n",
-		    argv0, argv1, data_type_s, a, sigmet_err(status));
-	    vol_detach(vol_p, ax_sem_id);
-	    return 0;
+		    argv0, argv1, data_type_s, a, sigmet_err(sig_stat));
+	    goto error;
 	}
-    } else if ( (status = Sigmet_Vol_Fld_DivFld(vol_p, data_type_s, a_s))
+    } else if ( (sig_stat = Sigmet_Vol_Fld_DivFld(vol_p, data_type_s, a_s))
 	    != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not divide %s by %s in volume\n%s\n",
-		argv0, argv1, data_type_s, a_s, sigmet_err(status));
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+		argv0, argv1, data_type_s, a_s, sigmet_err(sig_stat));
+	goto error;
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
+
+error:
+    client_detach(vol_p, ax_sem_id);
+    return 0;
 }
 
 /*
@@ -1387,7 +1498,7 @@ static int log10_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
-    int status;				/* Result of a function */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
     char *data_type_s;			/* Data type abbreviation */
 
     if ( argc != 3 ) {
@@ -1396,18 +1507,18 @@ static int log10_cb(int argc, char *argv[])
 	return 0;
     }
     data_type_s = argv[2];
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    if ( (status = Sigmet_Vol_Fld_Log10(vol_p, data_type_s)) != SIGMET_OK ) {
+    if ( (sig_stat = Sigmet_Vol_Fld_Log10(vol_p, data_type_s)) != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not compute log10 of %s in volume\n%s\n",
-		argv0, argv1, data_type_s, sigmet_err(status));
-	vol_detach(vol_p, ax_sem_id);
+		argv0, argv1, data_type_s, sigmet_err(sig_stat));
+	client_detach(vol_p, ax_sem_id);
 	return 0;
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -1416,7 +1527,7 @@ static int incr_time_cb(int argc, char *argv[])
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
-    int status;
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
     int ax_sem_id;
     char *dt_s;
     double dt;				/* Time increment, seconds */
@@ -1431,20 +1542,22 @@ static int incr_time_cb(int argc, char *argv[])
 		"%s\n", argv0, argv1, dt_s);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    if ( (status = Sigmet_Vol_IncrTm(vol_p, dt / 86400.0)) != SIGMET_OK ) {
+    if ( (sig_stat = Sigmet_Vol_IncrTm(vol_p, dt / 86400.0)) != SIGMET_OK ) {
 	fprintf(stderr, "%s %s: could not increment time in volume\n%s\n",
-		argv0, argv1, sigmet_err(status));
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+		argv0, argv1, sigmet_err(sig_stat));
+	goto error;
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
+
+error:
+    client_detach(vol_p, ax_sem_id);
+    return 0;
 }
 
 static int data_cb(int argc, char *argv[])
@@ -1452,10 +1565,10 @@ static int data_cb(int argc, char *argv[])
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
+    int num_types, num_sweeps, num_rays, num_bins;
     int ax_sem_id;
     int s, y, r, b;
     char *data_type_s;
-    double d;
     int all = -1;
 
     /*
@@ -1493,7 +1606,7 @@ static int data_cb(int argc, char *argv[])
 		argv0, argv1);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
@@ -1503,36 +1616,29 @@ static int data_cb(int argc, char *argv[])
        Validate.
      */
 
-    if ( data_type_s ) {
-	for (y = 0;
-		y < vol_p->num_types
-		&& strcmp(vol_p->dat[y].data_type_s, data_type_s) != 0;
-		y++) {
-	}
-	if ( y == vol_p->num_types ) {
-	    fprintf(stderr, "%s %s: no data type named %s\n",
-		    argv0, argv1, data_type_s);
-	    vol_detach(vol_p, ax_sem_id);
-	    return 0;
-	}
+    num_types = Sigmet_Vol_NumTypes(vol_p);
+    if ( data_type_s
+	    && (y = Sigmet_Vol_GetFld(vol_p, data_type_s, NULL)) == -1 ) {
+	fprintf(stderr, "%s %s: no data type named %s\n",
+		argv0, argv1, data_type_s);
+	goto error;
     }
-    if ( s != all && s >= vol_p->num_sweeps_ax ) {
+    num_sweeps = Sigmet_Vol_NumSweeps(vol_p);
+    if ( s != all && s >= num_sweeps ) {
 	fprintf(stderr, "%s %s: sweep index %d out of range for volume\n",
 		argv0, argv1, s);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    if ( r != all && r >= (int)vol_p->ih.ic.num_rays ) {
+    num_rays = Sigmet_Vol_NumRays(vol_p);
+    if ( r != all && r >= num_rays ) {
 	fprintf(stderr, "%s %s: ray index %d out of range for volume\n",
 		argv0, argv1, r);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    if ( b != all && b >= vol_p->ih.tc.tri.num_bins_out ) {
+    if ( b != all && b >= Sigmet_Vol_NumBins(vol_p, s, -1) ) {
 	fprintf(stderr, "%s %s: bin index %d out of range for volume\n",
 		argv0, argv1, b);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
 
     /*
@@ -1540,97 +1646,80 @@ static int data_cb(int argc, char *argv[])
      */
 
     if ( y == all && s == all && r == all && b == all ) {
-	for (y = 0; y < vol_p->num_types; y++) {
-	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-		printf("%s. sweep %d\n", vol_p->dat[y].data_type_s, s);
-		for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
-		    if ( !vol_p->ray_hdr[s][r].ok ) {
+	for (y = 0; y < num_types; y++) {
+	    for (s = 0; s < num_sweeps; s++) {
+		Sigmet_Vol_DataTypeHdrs(vol_p, y, &data_type_s, NULL, NULL);
+		printf("%s. sweep %d\n", data_type_s, s);
+		for (r = 0; r < num_rays; r++) {
+		    if ( Sigmet_Vol_BadRay(vol_p, s, r) ) {
 			continue;
 		    }
 		    printf("ray %d: ", r);
-		    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
-			d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
-			if ( Sigmet_IsData(d) ) {
-			    printf("%f ", d);
-			} else {
-			    printf("nodat ");
-			}
+		    num_bins = Sigmet_Vol_NumBins(vol_p, s, r);
+		    for (b = 0; b < num_bins; b++) {
+			printf("%f ", Sigmet_Vol_GetDatum(vol_p, y, s, r, b));
 		    }
 		    printf("\n");
 		}
 	    }
 	}
     } else if ( s == all && r == all && b == all ) {
-	for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-	    printf("%s. sweep %d\n", vol_p->dat[y].data_type_s, s);
-	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-		if ( !vol_p->ray_hdr[s][r].ok ) {
+	for (s = 0; s < num_sweeps; s++) {
+	    printf("%s. sweep %d\n", data_type_s, s);
+	    for (r = 0; r < num_rays; r++) {
+		if ( Sigmet_Vol_BadRay(vol_p, s, r) ) {
 		    continue;
 		}
 		printf("ray %d: ", r);
-		for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
-		    d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
-		    if ( Sigmet_IsData(d) ) {
-			printf("%f ", d);
-		    } else {
-			printf("nodat ");
-		    }
+		num_bins = Sigmet_Vol_NumBins(vol_p, s, r);
+		for (b = 0; b < num_bins; b++) {
+		    printf("%f ", Sigmet_Vol_GetDatum(vol_p, y, s, r, b));
 		}
 		printf("\n");
 	    }
 	}
     } else if ( r == all && b == all ) {
-	printf("%s. sweep %d\n", vol_p->dat[y].data_type_s, s);
-	for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-	    if ( !vol_p->ray_hdr[s][r].ok ) {
+	printf("%s. sweep %d\n", data_type_s, s);
+	for (r = 0; r < num_rays; r++) {
+	    if ( Sigmet_Vol_BadRay(vol_p, s, r) ) {
 		continue;
 	    }
 	    printf("ray %d: ", r);
-	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
-		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
-		if ( Sigmet_IsData(d) ) {
-		    printf("%f ", d);
-		} else {
-		    printf("nodat ");
-		}
+	    num_bins = Sigmet_Vol_NumBins(vol_p, s, r);
+	    for (b = 0; b < num_bins; b++) {
+		printf("%f ", Sigmet_Vol_GetDatum(vol_p, y, s, r, b));
 	    }
 	    printf("\n");
 	}
     } else if ( b == all ) {
-	if ( vol_p->ray_hdr[s][r].ok ) {
-	    printf("%s. sweep %d, ray %d: ", vol_p->dat[y].data_type_s, s, r);
-	    for (b = 0; b < vol_p->ray_hdr[s][r].num_bins; b++) {
-		d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
-		if ( Sigmet_IsData(d) ) {
-		    printf("%f ", d);
-		} else {
-		    printf("nodat ");
-		}
+	printf("%s. sweep %d, ray %d: ", data_type_s, s, r);
+	if ( !Sigmet_Vol_BadRay(vol_p, s, r) ) {
+	    num_bins = Sigmet_Vol_NumBins(vol_p, s, r);
+	    for (b = 0; b < num_bins; b++) {
+		printf("%f ", Sigmet_Vol_GetDatum(vol_p, y, s, r, b));
 	    }
 	    printf("\n");
 	}
     } else {
-	if ( vol_p->ray_hdr[s][r].ok ) {
-	    printf("%s. sweep %d, ray %d, bin %d: ",
-		    vol_p->dat[y].data_type_s, s, r, b);
-	    d = Sigmet_Vol_GetDat(vol_p, y, s, r, b);
-	    if ( Sigmet_IsData(d) ) {
-		printf("%f ", d);
-	    } else {
-		printf("nodat ");
-	    }
+	if ( !Sigmet_Vol_BadRay(vol_p, s, r) ) {
+	    printf("%s. sweep %d, ray %d, bin %d: ", data_type_s, s, r, b);
+	    printf("%f ", Sigmet_Vol_GetDatum(vol_p, y, s, r, b));
 	    printf("\n");
 	}
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
+
+error:
+    client_detach(vol_p, ax_sem_id);
+    return 0;
 }
 
 /*
    Print sweep data as a binary stream.
    sigmet_ray bdata data_type s
    Each output ray will have num_output_bins floats.
-   Missing values will be Sigmet_NoData().
+   Missing values will be NAN.
  */
 
 static int bdata_cb(int argc, char *argv[])
@@ -1638,12 +1727,12 @@ static int bdata_cb(int argc, char *argv[])
     char *argv0 = argv[0];
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
+    int num_types, num_sweeps, num_bins;
     int ax_sem_id;
     int s, y, r, b;
     char *data_type_s;
     static float *ray_p;	/* Buffer to receive ray data */
-    int num_bins_out;
-    int status, n;
+    enum SigmetStatus sig_stat;
 
     if ( argc != 4 ) {
 	fprintf(stderr, "Usage: %s %s data_type sweep_index\n",
@@ -1656,66 +1745,60 @@ static int bdata_cb(int argc, char *argv[])
 		argv0, argv1, argv[3]);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    for (y = 0;
-	    y < vol_p->num_types
-	    && strcmp(vol_p->dat[y].data_type_s, data_type_s) != 0;
-	    y++) {
-    }
-    if ( y == vol_p->num_types ) {
+    num_types = Sigmet_Vol_NumTypes(vol_p);
+    if ( (y = Sigmet_Vol_GetFld(vol_p, data_type_s, NULL)) == -1 ) {
 	fprintf(stderr, "%s %s: no data type named %s\n",
 		argv0, argv1, data_type_s);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    if ( s >= vol_p->num_sweeps_ax ) {
+    num_sweeps = Sigmet_Vol_NumSweeps(vol_p);
+    if ( s >= num_sweeps ) {
 	fprintf(stderr, "%s %s: sweep index %d out of range for volume\n",
 		argv0, argv1, s);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    n = num_bins_out = vol_p->ih.tc.tri.num_bins_out;
-    if ( !ray_p && !(ray_p = CALLOC(num_bins_out, sizeof(float))) ) {
+    num_bins = Sigmet_Vol_NumBins(vol_p, s, -1);
+    if ( num_bins == -1 ) {
+	fprintf(stderr, "%s %s: could not get number of bins for sweep %d\n",
+		argv0, argv1, s);
+	goto error;
+    }
+    if ( !ray_p && !(ray_p = CALLOC(num_bins, sizeof(float))) ) {
 	fprintf(stderr, "Could not allocate output buffer for ray.\n");
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-	for (b = 0; b < num_bins_out; b++) {
-	    ray_p[b] = Sigmet_NoData();
+    for (r = 0; r < Sigmet_Vol_NumRays(vol_p); r++) {
+	num_bins = Sigmet_Vol_NumBins(vol_p, s, r);
+	for (b = 0; b < num_bins; b++) {
+	    ray_p[b] = NAN;
 	}
-	if ( vol_p->ray_hdr[s][r].ok ) {
-	    status = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p, &n);
-	    if ( status != SIGMET_OK ) {
-		fprintf(stderr, "Could not get ray data for data type %s, "
-			"sweep index %d, ray %d.\n%s\n", data_type_s, s, r,
-			sigmet_err(status));
-		vol_detach(vol_p, ax_sem_id);
-		return 0;
-	    }
-	    if ( n > num_bins_out ) {
-		fprintf(stderr, "Ray %d or sweep %d, data type %s has "
-			"unexpected number of bins - %d instead of %d.\n",
-			r, s, data_type_s, n, num_bins_out);
-		vol_detach(vol_p, ax_sem_id);
-		return 0;
+	if ( !Sigmet_Vol_BadRay(vol_p, s, r) ) {
+	    sig_stat = Sigmet_Vol_GetRayDat(vol_p, y, s, r, &ray_p);
+	    if ( sig_stat != SIGMET_OK ) {
+		fprintf(stderr, "%s %s: could not get ray data "
+			"for data type %s, sweep index %d, ray %d.\n%s\n",
+			argv0, argv1, data_type_s, s, r, sigmet_err(sig_stat));
+		goto error;
 	    }
 	}
-	if ( fwrite(ray_p, sizeof(float), num_bins_out, stdout)
-		!= num_bins_out ) {
-	    fprintf(stderr, "Could not write ray data for data type %s, "
-		    "sweep index %d, ray %d.\n%s\n",
+	if ( fwrite(ray_p, sizeof(float), num_bins, stdout) != num_bins ) {
+	    fprintf(stderr, "%s %s: could not write ray data for data type %s, "
+		    "sweep index %d, ray %d.\n%s\n", argv0, argv1,
 		    data_type_s, s, r, strerror(errno));
-	    vol_detach(vol_p, ax_sem_id);
-	    return 0;
+	    goto error;
 	}
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
+    
+error:
+    client_detach(vol_p, ax_sem_id);
+    return 0;
 }
 
 static int bin_outline_cb(int argc, char *argv[])
@@ -1724,10 +1807,10 @@ static int bin_outline_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
-    int status;				/* Result of a function */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
     char *s_s, *r_s, *b_s;
     int s, r, b;
-    double corners[8];
+    double cnr[8];
 
     if ( argc != 5 ) {
 	fprintf(stderr, "Usage: %s %s sweep ray bin\n", argv0, argv1);
@@ -1736,7 +1819,6 @@ static int bin_outline_cb(int argc, char *argv[])
     s_s = argv[2];
     r_s = argv[3];
     b_s = argv[4];
-
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
 		argv0, argv1, s_s);
@@ -1752,43 +1834,88 @@ static int bin_outline_cb(int argc, char *argv[])
 		argv0, argv1, b_s);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    if ( s >= vol_p->num_sweeps_ax ) {
+    if ( s >= Sigmet_Vol_NumSweeps(vol_p) ) {
 	fprintf(stderr, "%s %s: sweep index %d out of range for volume\n",
 		argv0, argv1, s);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    if ( r >= vol_p->ih.ic.num_rays ) {
+    if ( r >= Sigmet_Vol_NumRays(vol_p) ) {
 	fprintf(stderr, "%s %s: ray index %d out of range for volume\n",
 		argv0, argv1, r);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    if ( b >= vol_p->ih.tc.tri.num_bins_out ) {
+    if ( b >= Sigmet_Vol_NumBins(vol_p, s, r) ) {
 	fprintf(stderr, "%s %s: bin index %d out of range for volume\n",
 		argv0, argv1, b);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    if ( (status = Sigmet_Vol_BinOutl(vol_p, s, r, b, corners)) != SIGMET_OK ) {
-	fprintf(stderr, "%s %s: could not compute bin outlines for bin "
-		"%d %d %d in volume\n%s\n", argv0, argv1, s, r, b,
-		sigmet_err(status));
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+    if ( Sigmet_Vol_IsPPI(vol_p) ) {
+	if ( !set_proj(vol_p) ) {
+	    fprintf(stderr, "%s %s: could not set geographic projection.\n",
+		    argv0, argv1);
+	    goto error;
+	}
+	sig_stat = Sigmet_Vol_PPI_BinOutl(vol_p, s, r, b, lonlat_to_xy, cnr);
+	if ( sig_stat != SIGMET_OK ) {
+	    fprintf(stderr, "%s %s: could not compute bin outlines for bin "
+		    "%d %d %d in volume\n%s\n", argv0, argv1, s, r, b,
+		    sigmet_err(sig_stat));
+	    goto error;
+	}
+    } else if ( Sigmet_Vol_IsRHI(vol_p) ) {
+	sig_stat = Sigmet_Vol_RHI_BinOutl(vol_p, s, r, b, cnr);
+	if ( sig_stat != SIGMET_OK ) {
+	    fprintf(stderr, "%s %s: could not compute bin outlines for bin "
+		    "%d %d %d in volume\n%s\n", argv0, argv1, s, r, b,
+		    sigmet_err(sig_stat));
+	    goto error;
+	}
+    } else {
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     printf("%f %f %f %f %f %f %f %f\n",
-	    corners[0] * DEG_RAD, corners[1] * DEG_RAD,
-	    corners[2] * DEG_RAD, corners[3] * DEG_RAD,
-	    corners[4] * DEG_RAD, corners[5] * DEG_RAD,
-	    corners[6] * DEG_RAD, corners[7] * DEG_RAD);
+	    cnr[0] * DEG_RAD, cnr[1] * DEG_RAD,
+	    cnr[2] * DEG_RAD, cnr[3] * DEG_RAD,
+	    cnr[4] * DEG_RAD, cnr[5] * DEG_RAD,
+	    cnr[6] * DEG_RAD, cnr[7] * DEG_RAD);
+    return 1;
 
+error:
+    client_detach(vol_p, ax_sem_id);
+    return 0;
+}
+
+/*
+   Set geographic projection.
+ */
+
+static int set_proj(struct Sigmet_Vol *vol_p)
+{
+    double lon, lat;			/* Radar location */
+    char *proj_s;			/* Environment projection description */
+    char dflt_proj_s[LEN];		/* Default projection description */
+
+    if ( (proj_s = getenv(SIGMET_GEOG_PROJ)) ) {
+	if ( !Sigmet_Proj_Set(proj_s) ) {
+	    fprintf(stderr, "Could not set projection from "
+		    SIGMET_GEOG_PROJ " environment variable.\n");
+	    return 0;
+	}
+    } else {
+	lon = Sigmet_Vol_RadarLon(vol_p, NULL);
+	lat = Sigmet_Vol_RadarLat(vol_p, NULL);
+	if ( snprintf(dflt_proj_s, LEN,
+		    "CylEqDist %.9g %.9g", lon, lat) > LEN
+		|| !Sigmet_Proj_Set(dflt_proj_s) ) {
+	    fprintf(stderr, "Could not set default projection.\n");
+	    return 0;
+	}
+    }
     return 1;
 }
 
@@ -1805,9 +1932,6 @@ static int sweep_bnds_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
-    double lon, lat;
-    char *proj_s;
-    struct GeogProj proj;
     double x_min, x_max, y_min, y_max;
     char *sweep_s;
     int s;
@@ -1821,57 +1945,38 @@ static int sweep_bnds_cb(int argc, char *argv[])
 	fprintf(stderr, "%s %s: expected integer for sweep index, got %s.\n",
 		argv0, argv1, sweep_s);
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
-	vol_detach(vol_p, ax_sem_id);
-	return 0;
+	goto error;
     }
-    switch (vol_p->ih.tc.tni.scan_mode) {
-	case RHI:
-	    x_min = y_min = 0.0;
-	    if ( Sigmet_Vol_RHI_Bnds(vol_p, s, &x_max, &y_max) != SIGMET_OK ) {
-		fprintf(stderr, "%s %s: could not compute PPI boundaries.\n",
-			argv0, argv1);
-		goto error;
-	    }
-	    break;
-	case PPI_S:
-	case PPI_C:
-	    if ( (proj_s = getenv(SIGMET_GEOG_PROJ)) ) {
-		if ( !GeogProjSetFmStr(proj_s, &proj) ) {
-		    fprintf(stderr, "%s %s: could not set projection from "
-			    SIGMET_GEOG_PROJ " environment variable.\n",
-			    argv0, argv1);
-		    goto error;
-		}
-	    } else {
-		lon = GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0);
-		lat = GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.latitude), 0.0);
-		if ( !GeogProjSetCylEqDist(lon, lat, &proj) ) {
-		    fprintf(stderr, "%s %s: could not set default "
-			    "projection.\n", argv0, argv1);
-		    goto error;
-		}
-	    }
-	    if ( Sigmet_Vol_PPI_Bnds(vol_p, s, &proj,
-			&x_min, &x_max, &y_min, &y_max) != SIGMET_OK ) {
-		fprintf(stderr, "%s %s: could not compute PPI boundaries.\n",
-			argv0, argv1);
-		goto error;
-	    }
-	    break;
-	case FILE_SCAN:
-	case MAN_SCAN:
-	    break;
+    if ( Sigmet_Vol_IsPPI(vol_p) ) {
+	if ( !set_proj(vol_p) ) {
+	    fprintf(stderr, "%s %s: could not set geographic projection.\n",
+		    argv0, argv1);
+	    goto error;
+	}
+	if ( Sigmet_Vol_PPI_Bnds(vol_p, s, lonlat_to_xy,
+		    &x_min, &x_max, &y_min, &y_max) != SIGMET_OK ) {
+	    fprintf(stderr, "%s %s: could not compute PPI boundaries.\n",
+		    argv0, argv1);
+	    goto error;
+	}
+    } else if ( Sigmet_Vol_IsRHI(vol_p) ) {
+	x_min = y_min = 0.0;
+	if ( Sigmet_Vol_RHI_Bnds(vol_p, s, &x_max, &y_max) != SIGMET_OK ) {
+	    fprintf(stderr, "%s %s: could not compute PPI boundaries.\n",
+		    argv0, argv1);
+	    goto error;
+	}
     }
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     printf("x_min=%lf\nx_max=%lf\ny_min=%lf\ny_max=%lf\n",
 	    x_min, x_max, y_min, y_max);
     return 1;
 
 error:
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 0;
 }
 
@@ -1894,16 +1999,15 @@ static int radar_lon_cb(int argc, char *argv[])
 		"new longitude, got %s\n", argv0, argv1, lon_s);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
-	vol_detach(vol_p, ax_sem_id);
+	client_detach(vol_p, ax_sem_id);
 	return 0;
     }
-    lon = GeogLonR(lon * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
-    vol_p->ih.ic.longitude = Sigmet_RadBin4(lon);
-    vol_p->mod = 1;
-    vol_detach(vol_p, ax_sem_id);
+    lon = GeogLonR(lon * RAD_PER_DEG, M_PI);
+    Sigmet_Vol_RadarLon(vol_p, &lon);
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -1926,15 +2030,13 @@ static int radar_lat_cb(int argc, char *argv[])
 		"new latitude, got %s\n", argv0, argv1, lat_s);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    lat = GeogLonR(lat * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
-    vol_p->ih.ic.latitude = Sigmet_RadBin4(lat);
-    vol_p->mod = 1;
-    vol_detach(vol_p, ax_sem_id);
+    Sigmet_Vol_RadarLat(vol_p, &lat);
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -1946,9 +2048,7 @@ static int shift_az_cb(int argc, char *argv[])
     int ax_sem_id;
     char *daz_s;			/* Degrees to add to each azimuth */
     double daz;				/* Radians to add to each azimuth */
-    unsigned long idaz;			/* Binary angle to add to each
-					   azimuth */
-    int s, r;				/* Loop indeces */
+    enum SigmetStatus sig_stat;
 
     if ( argc != 3 ) {
 	fprintf(stderr, "Usage: %s %s dz\n", argv0, argv1);
@@ -1960,41 +2060,19 @@ static int shift_az_cb(int argc, char *argv[])
 		"got %s\n", argv0, argv1, daz_s);
 	return 0;
     }
-    daz = GeogLonR(daz * RAD_PER_DEG, 180.0 * RAD_PER_DEG);
-    idaz = Sigmet_RadBin4(daz);
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    daz = GeogLonR(daz * RAD_PER_DEG, M_PI);
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    switch (vol_p->ih.tc.tni.scan_mode) {
-	case RHI:
-	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-		vol_p->ih.tc.tni.scan_info.rhi_info.az[s] += idaz;
-	    }
-	    break;
-	case PPI_S:
-	case PPI_C:
-	    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-		vol_p->ih.tc.tni.scan_info.ppi_info.left_az += idaz;
-		vol_p->ih.tc.tni.scan_info.ppi_info.right_az += idaz;
-	    }
-	    break;
-	case FILE_SCAN:
-	    vol_p->ih.tc.tni.scan_info.file_info.az0 += idaz;
-	case MAN_SCAN:
-	    break;
+    if ( (sig_stat = Sigmet_Vol_ShiftAz(vol_p, daz)) != SIGMET_OK ) {
+	fprintf(stderr, "%s %s: failed to shift azimuths.\n%s\n",
+		argv0, argv1, sigmet_err(sig_stat));
+	client_detach(vol_p, ax_sem_id);
+	return 0;
     }
-    for (s = 0; s < vol_p->num_sweeps_ax; s++) {
-	for (r = 0; r < (int)vol_p->ih.ic.num_rays; r++) {
-	    vol_p->ray_hdr[s][r].az0
-		= GeogLonR(vol_p->ray_hdr[s][r].az0 + daz, 180.0 * RAD_PER_DEG);
-	    vol_p->ray_hdr[s][r].az1
-		= GeogLonR(vol_p->ray_hdr[s][r].az1 + daz, 180.0 * RAD_PER_DEG);
-	}
-    }
-    vol_p->mod = 1;
-    vol_detach(vol_p, ax_sem_id);
+    client_detach(vol_p, ax_sem_id);
     return 1;
 }
 
@@ -2002,115 +2080,245 @@ static int outlines_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     char *argv1 = argv[1];
-    struct Sigmet_Vol *vol_p;
+    struct Sigmet_Vol *vol_p = NULL;
+    int num_rays, num_bins;
+    int ppi;				/* If true, volume is ppi */
     int ax_sem_id;
-    int status;				/* Return value of this function */
-    int bnr;				/* If true, send raw binary output */
     int fill;				/* If true, fill space between rays */
-    char *s_s;				/* Sweep index, as a string */
     char *data_type_s;			/* Data type abbreviation */
-    char *min_s, *max_s;		/* Bounds of data interval of interest
-					 */
-    char *outlnFlNm;			/* Name of output file */
-    FILE *outlnFl;			/* Output file */
+    char *clr_fl_nm;			/* Name of file with color specifiers
+					   and bounds */
+    FILE *clr_fl;			/* Input stream for color file */
+    int num_colors;			/* Number of colors */
+    int num_bnds;			/* Number of boundaries */
+    char *s_s;				/* Sweep index, as a string */
     int s;				/* Sweep index */
-    double min, max;			/* Bounds of data interval of interest
-					 */
-    int c;				/* Return value from getopt */
-    extern char *optarg;
-    extern int opterr, optind, optopt;	/* See getopt (3) */
+    char (*colors)[COLOR_NM_LEN_A] = NULL; /* Color names, e.g. "#rrggbb" */
+    char bnd[FLOAT_STR_LEN_A];		/* String representation of a boundary
+					   value, .e.g "1.23", or "-INF" */
+    float *bnds = NULL;			/* Bounds for each color */
+    char *format;			/* Conversion specifier */
+    float *dat = NULL, *d_p;		/* Sweep data, point into dat */
+    int d;				/* Index in dat */
+    int c;				/* Color index */
+    int y, r, b;			/* Data type, ray, bin index */
+    int *lists = NULL;			/* Linked lists of gate indeces */
+    double cnr[8];			/* Corner coordinates for a bin */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
 
-    if ( argc < 7 ) {
-	fprintf(stderr, "Usage: %s %s [-f] [-b] data_type sweep min max "
-		"out_file\n", argv0, argv1);
+    if ( argc == 5 ) {
+	fill = 0;
+	data_type_s = argv[2];
+	clr_fl_nm = argv[3];
+	s_s = argv[4];
+    } else if ( argc == 6 && strcmp(argv[2], "-f") == 0 ) {
+	data_type_s = argv[3];
+	clr_fl_nm = argv[4];
+	s_s = argv[5];
+	fill = 1;
+    } else {
+	fprintf(stderr, "Usage: %s %s [-f] data_type color_file sweep\n",
+		argv0, argv1);
 	return 0;
     }
-    for (bnr = fill = 0, opterr = 0, optind = 1;
-	    (c = getopt(argc - 1, argv + 1, "bf")) != -1; ) {
-	switch(c) {
-	    case 'b':
-		bnr = 1;
-		break;
-	    case 'f':
-		fill = 1;
-		break;
-	    case '?':
-		fprintf(stderr, "%s %s: unknown option \"-%c\"\n",
-			argv0, argv1, optopt);
-		return 0;
-	}
-    }
-    data_type_s = argv[argc - 5];
-    s_s = argv[argc - 4];
-    min_s = argv[argc - 3];
-    max_s = argv[argc - 2];
-    outlnFlNm = argv[argc - 1];
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(stderr, "%s %s: expected integer for sweep index, got %s\n",
 		argv0, argv1, s_s);
 	return 0;
     }
-    if ( strcmp(min_s, "-inf") == 0 || strcmp(min_s, "-INF") == 0 ) {
-	min = -DBL_MAX;
-    } else if ( sscanf(min_s, "%lf", &min) != 1 ) {
-	fprintf(stderr, "%s %s: expected float value or -INF for data min,"
-		" got %s\n", argv0, argv1, min_s);
-	return 0;
+
+    /*
+       Get colors from color file.
+       Format --
+       number_of_colors bound color bound color ... color bound
+
+       Number of colors must be a positive integer
+       First bound must be "-INF" or a float value
+       Last bound must be a float value or "INF"
+       All other bounds must be float values.
+       Colors are strings with up to COLOR_NM_LEN - 1 characters.
+     */
+
+    if ( !(clr_fl = fopen(clr_fl_nm, "r")) ) {
+	fprintf(stderr, "%s: could not open %s for reading.\n%s\n",
+		argv0, clr_fl_nm, strerror(errno));
+	goto error;
     }
-    if ( strcmp(max_s, "inf") == 0 || strcmp(max_s, "INF") == 0 ) {
-	max = DBL_MAX;
-    } else if ( sscanf(max_s, "%lf", &max) != 1 ) {
-	fprintf(stderr, "%s %s: expected float value or INF for data max,"
-		" got %s\n", argv0, argv1, max_s);
-	return 0;
+    if ( fscanf(clr_fl, " %d", &num_colors) != 1 ) {
+	fprintf(stderr, "%s: could not get color count from %s.\n%s\n",
+		argv0, clr_fl_nm, strerror(errno));
+	goto error;
     }
-    if ( !(min < max)) {
-	fprintf(stderr, "%s %s: minimum (%s) must be less than maximum (%s)\n",
-		argv0, argv1, min_s, max_s);
-	return 0;
+    if ( num_colors < 1) {
+	fprintf(stderr, "%s: must have more than one color.\n%s\n",
+		argv0, strerror(errno));
+	goto error;
     }
-    if ( strcmp(outlnFlNm, "-") == 0 ) {
-	outlnFl = stdout;
-    } else if ( !(outlnFl = fopen(outlnFlNm, "w")) ) {
-	fprintf(stderr, "%s %s: could not open %s for output.\n%s\n",
-		argv0, argv1, outlnFlNm, strerror(errno));
+    num_bnds = num_colors + 1;
+    if ( !(colors = CALLOC((size_t)num_colors, COLOR_NM_LEN_A)) ) {
+	fprintf(stderr, "%s %s: could not allocate %d colors.\n",
+		argv0, argv1, num_colors);
+	goto error;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(bnds = CALLOC((size_t)(num_bnds), sizeof(double))) ) {
+	fprintf(stderr, "%s %s: could not allocate %d color table bounds.\n",
+		argv0, argv1, num_bnds);
+	goto error;
+    }
+
+    /*
+       First bound and color.
+     */
+
+    format = " %" FLOAT_STR_LEN_S "s %" COLOR_NM_LEN_S "s";
+    if ( fscanf(clr_fl, format, bnd, colors) == 2 ) {
+	if ( strcmp(bnd, "-INF") == 0 ) {
+	    bnds[0] = strtof("-INFINITY", NULL);
+	} else if ( sscanf(bnd, "%f", bnds) == 1 ) {
+	    ;
+	} else {
+	    fprintf(stderr, "%s: reading first color, expected number or "
+		    "\"-INF\" for minimum value, got %s.\n", argv0, bnd);
+	    goto error;
+	}
+    } else {
+	fprintf(stderr, "%s: could not read first color and bound from %s.\n",
+		argv0, clr_fl_nm);
+	goto error;
+    }
+
+    /*
+       Second through next to last bounds and colors.
+     */
+
+    format = " %f %" COLOR_NM_LEN_S "s";
+    for (c = 1; c < num_colors; c++) {
+	if ( fscanf(clr_fl, format, bnds + c, colors + c) != 2 ) {
+	    fprintf(stderr, "%s: could not read color and bound at index %d "
+		    "from %s.\n", argv0, c, clr_fl_nm);
+	    goto error;
+	}
+    }
+
+    /*
+       Last bound.
+     */
+
+    format = " %" FLOAT_STR_LEN_S "s";
+    if ( fscanf(clr_fl, format, bnd) == 1 ) {
+	if ( sscanf(bnd, "%f", bnds + c) == 1 ) {
+	    ;
+	} else if ( strcmp(bnd, "INF") == 0 ) {
+	    bnds[c] = strtof("INFINITY", NULL);
+	} else {
+	    fprintf(stderr, "%s: reading final color, expected number or "
+		    "\"INF\" for boundary, got %s\n", argv0, bnd);
+	    goto error;
+	}
+    } else {
+	fprintf(stderr, "%s: could not read final bound from %s\n",
+		argv0, clr_fl_nm);
+	goto error;
+    }
+
+    /*
+       Get sweep data
+     */
+
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
-	return 0;
+	goto error;
     }
-    switch (vol_p->ih.tc.tni.scan_mode) {
-	case RHI:
-	    status = Sigmet_Vol_RHI_Outlns(vol_p, data_type_s, s, min, max, bnr,
-		    fill, outlnFl);
-	    if ( status != SIGMET_OK ) {
-		fprintf(stderr, "%s %s: could not print outlines for "
-			"data type %s, sweep %d.\n%s\n",
-			argv0, argv1, data_type_s, s, sigmet_err(status));
+    ppi = Sigmet_Vol_IsPPI(vol_p);
+    if ( ppi && !set_proj(vol_p) ) {
+	fprintf(stderr, "%s %s: could not set geographic projection.\n",
+		argv0, argv1);
+	goto error;
+    }
+    num_rays = Sigmet_Vol_NumRays(vol_p);
+    num_bins = Sigmet_Vol_NumBins(vol_p, s, -1);
+    if ( num_bins == -1 ) {
+	fprintf(stderr, "%s %s: could not get number of bins for sweep %d\n",
+		argv0, argv1, s);
+	goto error;
+    }
+    if ( !(dat = CALLOC(num_rays * num_bins, sizeof(float))) ) {
+	fprintf(stderr, "%s %s: could not allocate memory for data for "
+		"sweep with %d rays, %d bins.\n",
+		argv0, argv1, num_rays, num_bins);
+	goto error;
+    }
+    for (r = 0, d_p = dat; r < num_rays; r++, d_p += num_bins) {
+	for (b = 0; b < num_bins; b++) {
+	    d_p[b] = NAN;
+	}
+	if ( Sigmet_Vol_GetRayDat(vol_p, y, s, r, &d_p) ) {
+	    fprintf(stderr, "%s %s: could not get data for ray %d.\n",
+		    argv0, argv1, r);
+	    goto error;
+	}
+    }
+    lists = CALLOC((size_t)(num_bnds + num_rays * num_bins), sizeof(int));
+    if ( !lists ) {
+	fprintf(stderr, "%s: could not allocate color lists.\n", argv0);
+	goto error;
+    }
+
+    /*
+       Print outlines of gates for each color.
+       Skip TRANSPARENT color.
+     */
+
+    BiSearch_FDataToList(dat, num_rays * num_bins, bnds, num_bnds, lists);
+    for (c = 0; c < num_colors; c++) {
+	if ( strcmp(colors[c], "none") != 0 ) {
+	    printf("color %s\n", colors[c]);
+	    for (d = BiSearch_1stIndex(lists, c);
+		    d != -1;
+		    d = BiSearch_NextIndex(lists, d)) {
+		r = d / num_bins;
+		b = d % num_bins;
+		if ( ppi ) {
+		    sig_stat = Sigmet_Vol_PPI_BinOutl(vol_p, s, r, b,
+			    lonlat_to_xy, cnr);
+		    if ( sig_stat != SIGMET_OK ) {
+			fprintf(stderr, "%s %s: could not obtain outline for "
+				"sweep %d, ray %d, bin %d.\n%s\n",
+				argv0, argv1, s, r, b, sigmet_err(sig_stat));
+		    }
+		} else {
+		    sig_stat = Sigmet_Vol_RHI_BinOutl(vol_p, s, r, b, cnr);
+		    if ( sig_stat != SIGMET_OK ) {
+			fprintf(stderr, "%s %s: could not obtain outline for "
+				"sweep %d, ray %d, bin %d.\n%s\n",
+				argv0, argv1, s, r, b, sigmet_err(sig_stat));
+		    }
+		}
+		printf("poly %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f\n",
+			cnr[0], cnr[1], cnr[2], cnr[3], cnr[4],
+			cnr[5], cnr[6], cnr[7]);
 	    }
-	    break;
-	case PPI_S:
-	case PPI_C:
-	    status = Sigmet_Vol_PPI_Outlns(vol_p, data_type_s, s, min, max, bnr,
-		    outlnFl);
-	    if ( status != SIGMET_OK ) {
-		fprintf(stderr, "%s %s: could not print outlines for "
-			"data type %s, sweep %d.\n%s\n",
-			argv0, argv1, data_type_s, s, sigmet_err(status));
-	    }
-	    break;
-	case FILE_SCAN:
-	case MAN_SCAN:
-	    fprintf(stderr, "Can only print outlines for RHI and PPI.\n");
-	    status = SIGMET_BAD_ARG;
-	    break;
+	}
     }
-    vol_detach(vol_p, ax_sem_id);
-    if ( outlnFl != stdout ) {
-	fclose(outlnFl);
+
+    client_detach(vol_p, ax_sem_id);
+    vol_p = NULL;
+    FREE(colors);
+    FREE(bnds);
+    FREE(lists);
+    FREE(dat);
+    return 1;
+
+error:
+    if ( vol_p ) {
+	client_detach(vol_p, ax_sem_id);
     }
-    return status == SIGMET_OK;
+    FREE(colors);
+    FREE(bnds);
+    FREE(lists);
+    FREE(dat);
+    return 0;
 }
 
 static int dorade_cb(int argc, char *argv[])
@@ -2119,11 +2327,12 @@ static int dorade_cb(int argc, char *argv[])
     char *argv1 = argv[1];
     struct Sigmet_Vol *vol_p;
     int ax_sem_id;
+    int num_sweeps;
     int s;				/* Index of desired sweep,
 					   or -1 for all */
     char *s_s;				/* String representation of s */
     int all = -1;
-    int status;				/* Result of a function */
+    enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
     struct Dorade_Sweep swp;
 
     if ( argc == 2 ) {
@@ -2141,43 +2350,44 @@ static int dorade_cb(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s %s [s]\n", argv0, argv1);
 	return 0;
     }
-    if ( !(vol_p = vol_attach(&ax_sem_id)) ) {
+    if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
 	return 0;
     }
-    if ( s >= vol_p->num_sweeps_ax ) {
+    num_sweeps = Sigmet_Vol_NumSweeps(vol_p);
+    if ( s >= num_sweeps ) {
 	fprintf(stderr, "%s %s: sweep index %d out of range for volume\n",
 		argv0, argv1, s);
-	vol_detach(vol_p, ax_sem_id);
+	client_detach(vol_p, ax_sem_id);
 	return 0;
     }
     if ( s == all ) {
-	for (s = 0; s < vol_p->num_sweeps_ax; s++) {
+	for (s = 0; s < num_sweeps; s++) {
 	    Dorade_Sweep_Init(&swp);
-	    if ( (status = Sigmet_Vol_ToDorade(vol_p, s, &swp)) != SIGMET_OK ) {
+	    if ( (sig_stat = Sigmet_Vol_ToDorade(vol_p, s, &swp)) != SIGMET_OK ) {
 		fprintf(stderr, "%s %s: could not translate sweep %d of volume "
 			"to DORADE format\n%s\n", argv0, argv1, s,
-			sigmet_err(status));
+			sigmet_err(sig_stat));
 		goto error;
 	    }
-	    vol_detach(vol_p, ax_sem_id);
 	    if ( !Dorade_Sweep_Write(&swp) ) {
 		fprintf(stderr, "%s %s: could not write DORADE file for sweep "
-			"%d of volume\n%s\n", argv0, argv1, s,
-			sigmet_err(status));
+			"%d of volume\n", argv0, argv1, s);
 		goto error;
 	    }
 	    Dorade_Sweep_Free(&swp);
 	}
+	client_detach(vol_p, ax_sem_id);
     } else {
 	Dorade_Sweep_Init(&swp);
-	if ( (status = Sigmet_Vol_ToDorade(vol_p, s, &swp)) != SIGMET_OK ) {
+	if ( (sig_stat = Sigmet_Vol_ToDorade(vol_p, s, &swp)) != SIGMET_OK ) {
 	    fprintf(stderr, "%s %s: could not translate sweep %d of volume to "
-		    "DORADE format\n%s\n", argv0, argv1, s, sigmet_err(status));
+		    "DORADE format\n%s\n", argv0, argv1, s,
+		    sigmet_err(sig_stat));
 	    goto error;
 	}
-	vol_detach(vol_p, ax_sem_id);
+	client_detach(vol_p, ax_sem_id);
 	if ( !Dorade_Sweep_Write(&swp) ) {
 	    fprintf(stderr, "%s %s: could not write DORADE file for sweep "
 		    "%d of volume\n", argv0, argv1, s);
@@ -2208,8 +2418,8 @@ static char *sigmet_err(enum SigmetStatus s)
 	case SIGMET_BAD_VOL:
 	    return "Bad volume.";
 	    break;
-	case SIGMET_ALLOC_FAIL:
-	    return "Allocation failure.";
+	case SIGMET_MEM_FAIL:
+	    return "Memory failure.";
 	    break;
 	case SIGMET_BAD_ARG:
 	    return "Bad argument.";
