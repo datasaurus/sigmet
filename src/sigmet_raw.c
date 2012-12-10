@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.112 $ $Date: 2012/11/10 16:35:02 $
+   .	$Revision: 1.113 $ $Date: 2012/12/10 21:17:35 $
  */
 
 #include "unix_defs.h"
@@ -262,8 +262,7 @@ static int hash(const char *argv1)
    Names of environment variables
  */
 
-#define SIGMET_VOL_SHMEM "SIGMET_VOL_SHMEM"
-#define SIGMET_VOL_SEM "SIGMET_VOL_SEM"
+#define SIGMET_RAW_FILE "SIGMET_RAW_FILE"
 #define SIGMET_GEOG_PROJ "SIGMET_GEOG_PROJ"
 
 /*
@@ -351,11 +350,8 @@ static int load_cb(int argc, char *argv[])
     int shm_id = -1;			/* Identifier for shared memory
 					   which will store the Sigmet_Vol
 					   structure */
-    char shmid_s[LEN];			/* String representation of shm_id */
     int ax_sem_id = -1;			/* Semaphore identifier, from semget,
 					   given to semctl and semop */
-    char ax_sem_id_s[LEN];		/* String representation of ax_sem_id,
-					   given to child process environment */
     int usr_sem_id = -1;		/* Semaphore identifier, from semget,
 					   given to semctl and semop */
     FILE *msg_out = stdout;		/* Where to put final message */
@@ -371,6 +367,11 @@ static int load_cb(int argc, char *argv[])
 	return 0;
     }
     vol_fl_nm = argv[2];
+    if ( *vol_fl_nm != '/' ) {
+	fprintf(stderr, "%s %s: path to Sigmet raw volume must be absolute.\n",
+		argv0, argv1);
+	return 0;
+    }
 
     /*
        Get shared memory identifier for volume. If shm_id identifies new shared
@@ -414,25 +415,9 @@ static int load_cb(int argc, char *argv[])
        shared memory. Spawn the child command specified on the command line.
      */
 
-    if ( snprintf(shmid_s, LEN, SIGMET_VOL_SHMEM "=%d", shm_id) > LEN ) {
-	fprintf(stderr, "%s %s (%d): could not create environment variable for "
-		"volume shared memory identifier.\n", argv0, argv1, getpid());
-	goto error;
-    }
-    if ( putenv(shmid_s) != 0 ) {
-	fprintf(stderr, "%s %s (%d): could not put shared memory identifier "
-		"for volume into environment.\n%s\n",
-		argv0, argv1, getpid(), strerror(errno));
-	goto error;
-    }
-    if ( snprintf(ax_sem_id_s, LEN, SIGMET_VOL_SEM "=%d", ax_sem_id) > LEN ) {
-	fprintf(stderr, "%s %s (%d): could not create environment variable for "
-		"volume semaphore identifier.\n", argv0, argv1, getpid());
-	goto error;
-    }
-    if ( putenv(ax_sem_id_s) != 0 ) {
-	fprintf(stderr, "%s %s (%d): could not put semaphore identifier for "
-		"volume into environment.\n%s\n",
+    if ( setenv(SIGMET_RAW_FILE, vol_fl_nm, 1) == -1 ) {
+	fprintf(stderr, "%s %s (%d): could not set " SIGMET_RAW_FILE
+		" environment variable.\n%s\n",
 		argv0, argv1, getpid(), strerror(errno));
 	goto error;
     }
@@ -788,21 +773,50 @@ static int deamon_attach(char *vol_fl_nm, int *shm_id_p, int *ax_sem_id_p,
 
 static struct Sigmet_Vol *client_attach(int *sem_id_p)
 {
+    key_t ax_key;			/* Volume access semaphore key */
+    char *vol_fl_nm;			/* Path to file that provided the
+					   volume */
     struct Sigmet_Vol *vol_p = NULL;
-    int ax_sem_id, shm_id;		/* IPC semaphore and shared memory
-					   identifiers */
-    char *sem_id_s, *shm_id_s;		/* String representations of ax_sem_id
-					   and shm_id */
+    int ax_sem_id = -1;			/* IPC semaphore identifier */
+    int flags = S_IRUSR | S_IWUSR;	/* Flags for semget, shmget */
+    int n, num_tries = 9;		/* Check on access semaphore this many
+					   times */
+
+    if ( !(vol_fl_nm = getenv(SIGMET_RAW_FILE)) ) {
+	fprintf(stderr, SIGMET_RAW_FILE " environment variable not set.\n");
+	goto error;
+    }
 
     /*
-       Decrement the semaphore
+       Decrement the access semaphore. If the access semaphore exists but
+       is not readable, assume a load daemon is still reading the volume.
+       Wait for the semaphore to become readable.
      */
 
-    if ( !(sem_id_s = getenv(SIGMET_VOL_SEM))
-	    || sscanf(sem_id_s, "%d", &ax_sem_id) != 1 ) {
-	fprintf(stderr, "Could not identify volume semaphore from "
-		SIGMET_VOL_SEM " environment variable.\n");
-	return NULL;
+    if ( (ax_key = ftok(vol_fl_nm, ax_key_id)) == -1 ) {
+	fprintf(stderr, "Could not get shared memory key for %s.\n%s\n",
+		vol_fl_nm, strerror(errno));
+	fprintf(stderr, "Failed to attach to previously loaded volume.\n");
+	goto error;
+    }
+    for (n = 0, ax_sem_id = -1; n < num_tries && ax_sem_id == -1; n++ ) {
+	ax_sem_id = semget(ax_key, 1, flags);
+	if ( ax_sem_id == -1 ) {
+	    if ( errno == EACCES ) {
+		printf("Waiting for load process to make volume available.\n");
+		sleep(1);
+	    } else {
+		fprintf(stderr, "Could not get access semaphore for "
+			"previously loaded volume %s.\n%s\n",
+			vol_fl_nm, strerror(errno));
+		goto error;
+	    }
+	}
+    }
+    if ( n == num_tries ) {
+	fprintf(stderr, "Gave up waiting for load process to make volume "
+		"available.\n");
+	goto error;
     }
     if ( semop(ax_sem_id, wait_sop, 1) == -1 ) {
 	fprintf(stderr, "Could not decrement volume access semaphore\n%s\n",
@@ -814,16 +828,11 @@ static struct Sigmet_Vol *client_attach(int *sem_id_p)
        Locate volume in shared memory and attach to it.
      */
 
-    if ( !(shm_id_s = getenv(SIGMET_VOL_SHMEM))
-	    || sscanf(shm_id_s, "%d", &shm_id) != 1 ) {
-	fprintf(stderr, "Could not identify volume shared memory identifier "
-		"from " SIGMET_VOL_SEM " environment variable.\n");
-	goto error;
-    }
-    vol_p = shmat(shm_id, NULL, 0);
-    if ( vol_p == (void *)-1) {
-	fprintf(stderr, "Could not attach to volume in shared memory.\n%s\n",
-		strerror(errno));
+    vol_p = shmat(shmget(ftok(vol_fl_nm, shm_key_id), sizeof(struct Sigmet_Vol),
+		flags), NULL, 0);
+    if ( vol_p == (void *)-1 ) {
+	fprintf(stderr, "Could not get memory key for volume %s.\n%s\n",
+		vol_fl_nm, strerror(errno));
 	goto error;
     }
     if ( Sigmet_ShMemAttach(vol_p) != SIGMET_OK ) {
@@ -836,7 +845,7 @@ static struct Sigmet_Vol *client_attach(int *sem_id_p)
     return vol_p;
 
 error:
-    if ( semop(ax_sem_id, post_sop, 1) == -1 ) {
+    if ( ax_sem_id != -1 && semop(ax_sem_id, post_sop, 1) == -1 ) {
 	fprintf(stderr, "Could not increment volume access semaphore\n%s\n",
 		strerror(errno));
     }
