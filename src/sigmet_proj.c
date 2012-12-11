@@ -32,14 +32,14 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: $ $Date: $
+   .	$Revision: 1.1 $ $Date: 2012/12/06 23:46:08 $
  */
 
 #include <math.h>
 #include <stdio.h>
 #include "geog_lib.h"
 #include "geog_proj.h"
-#include "sigmet_proj.h"
+#include "sigmet.h"
 
 static int init;
 static struct GeogProj proj;
