@@ -31,9 +31,6 @@
 .Dt SIGMET_DATA 3
 .Os UNIX
 .Sh NAME
-.Nm Sigmet_NoData,
-.Nm Sigmet_IsData,
-.Nm Sigmet_IsNoData,
 .Nm Sigmet_Bin4Rad,
 .Nm Sigmet_Bin2Rad,
 .Nm Sigmet_RadBin4,
@@ -59,8 +56,6 @@
 .Fn Sigmet_DataType_StorFmt "enum Sigmet_DataTypeN y"
 .Ft DataType_StorToCompFn
 .Fn Sigmet_DataType_StorToComp "enum Sigmet_DataTypeN y"
-.Ft float
-.Fn Sigmet_NoData "void"
 .Ft int
 .Fn Sigmet_IsData "float v"
 .Ft int
@@ -135,22 +130,9 @@ as described in
 .Pp
 .Fn Sigmet_DataType_StorToComp
 returns a function that converts a storage value to a computational value
-(measurement).
-.Pp
-.Fn Sigmet_NoData
-returns a value indicating missing of invalid data.
-.Pp
-.Fn Sigmet_IsData
-returns true if
-.Fa v
-is not the return value from
-.Fn Sigmet_NoData .
-.Pp
-.Fn Sigmet_IsNoData
-returns true if
-.Fa v
-is the return value from
-.Fn Sigmet_NoData .
+(measurement), or
+.LI NAN
+if the computation or measurement is undefined.
 .Pp
 .Fn Sigmet_Bin4Rad
 returns the angle in radians corresponding to Sigmet four byte binary angle
