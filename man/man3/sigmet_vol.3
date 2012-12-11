@@ -181,8 +181,8 @@
 .Fn Sigmet_Vol_ShiftAz "struct Sigmet_Vol *vol_p" "double daz"
 .Ft double
 .Fn Sigmet_Vol_VNyquist "struct Sigmet_Vol *vol_p"
-.Ft struct Sigmet_Dat *
-.Fn Sigmet_Vol_GetFld "struct Sigmet_Vol *vol_p" "char *data_type_s"
+.Ft int
+.Fn Sigmet_Vol_GetFld "struct Sigmet_Vol *vol_p" "char *data_type_s" "struct Sigmet_Dat **dat_pp"
 .Ft float
 .Fn Sigmet_Vol_GetDatum "struct Sigmet_Vol *vol_p" "int y" "int s" "int r" "int b"
 .Ft enum SigmetStatus
@@ -741,15 +741,18 @@ returns the Nyquist (unambiguous) velocity for the volume at
 .Fa vol_p
 .Pp
 .Fn Sigmet_Vol_GetFld
-returns a
-.Li Sigmet_Dat
-structure with data for field identified as
+returns an index for the field identified as
 .Fa data_type_s
 of volume
 .Fa vol_p ,
 or
-.Dv NULL
-if something goes wrong.
+.Dv -1
+if the volume has no field by that name. If not
+.Dv NULL ,
+.Fa dat_pp
+receives the address of a
+.Vt Sigmet_Dat
+structure with more information about the data type.
 .Pp
 .Fn Sigmet_Vol_GetDatum
 returns the bin value for type index
