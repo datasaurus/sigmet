@@ -544,8 +544,7 @@ static void hash_add(struct Sigmet_Vol *vol_p, char *data_type_s, int y)
 
 /*
    Get an entry from vol_p->types_tbl for abbreviation data_type.
-   Return its index. If dat_pp is not NULL, place element from vol_p->dat
-   there. Return -1 if data type not in volume.
+   Return its index. Return -1 if data type not in volume.
  */
 
 int Sigmet_Vol_GetFld(struct Sigmet_Vol *vol_p, char *data_type_s,
@@ -554,7 +553,7 @@ int Sigmet_Vol_GetFld(struct Sigmet_Vol *vol_p, char *data_type_s,
     unsigned h, h0;
     int y;
 
-    if ( !vol_p || !data_type_s || !dat_pp ) {
+    if ( !vol_p || !data_type_s ) {
 	return -1;
     }
     h0 = hash(data_type_s);
