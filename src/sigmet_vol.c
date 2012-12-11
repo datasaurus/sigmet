@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.202 $ $Date: 2012/12/07 22:51:35 $
+   .	$Revision: 1.205 $ $Date: 2012/12/11 19:49:08 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -883,8 +883,7 @@ int Sigmet_Vol_NumRays(struct Sigmet_Vol *vol_p)
 
 int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
 {
-    int num_sweeps, num_rays, num_bins;
-    struct Sigmet_Ray_Hdr *rh_p;
+    int num_sweeps, num_rays;
 
     if ( !vol_p ) {
 	fprintf(stderr, "Attempted to get number of rays from bogus volume.\n");
@@ -892,25 +891,25 @@ int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
     }
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
-    if ( s >= 0 && s < num_sweeps ) {
-	rh_p = vol_p->ray_hdr[s];
-	if ( r == -1 ) {
-	    for (num_bins = -1; rh_p < vol_p->ray_hdr[s] + num_rays; rh_p++) {
-		if ( rh_p[r].num_bins > num_bins ) {
-		    num_bins = rh_p[r].num_bins;
-		}
-	    }
-	} else if ( r >= 0 && r < vol_p->ih.ic.num_rays ) {
-	    num_bins = rh_p[r].num_bins;
-	} else {
-	    fprintf(stderr, "Ray index %d out of range.\n", r);
-	    return -1;
-	}
-    } else {
+    if ( s < 0 || s >= num_sweeps ) {
 	fprintf(stderr, "Sweep index %d out of range.\n", s);
 	return -1;
     }
-    return num_bins;
+    if ( r == -1 ) {
+	int num_bins;
+
+	for (num_bins = -1, r = 0; r < + num_rays; r++) {
+	    if ( vol_p->ray_hdr[s][r].num_bins > num_bins ) {
+		num_bins = vol_p->ray_hdr[s][r].num_bins;
+	    }
+	}
+	return num_bins;
+    }
+    if ( r < 0 || r >= num_rays ) {
+	fprintf(stderr, "Ray index %d out of range.\n", r);
+	return -1;
+    }
+    return vol_p->ray_hdr[s][r].num_bins;
 }
 
 size_t Sigmet_Vol_MemSz(struct Sigmet_Vol *vol_p)
@@ -1764,7 +1763,7 @@ double Sigmet_Vol_RadarLat(struct Sigmet_Vol *vol_p, double *lat_p)
 	vol_p->mod = 1;
 	return *lat_p;
     }
-    return Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
+    return Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
 }
 
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
@@ -3132,9 +3131,9 @@ enum SigmetStatus Sigmet_Vol_PPI_BinOutl(struct Sigmet_Vol *vol_p,
     dr = 0.01 * vol_p->ih.tc.tri.step_out;
     r0 = r00 + b * dr;
     r1 = r0 + dr;
+    re = GeogREarth(NULL);
     r0_g = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
     r1_g = atan(r1 * cos(tilt) / (re + r1 * sin(tilt)));
-    re = GeogREarth(NULL);
     lon_r = Sigmet_Bin4Rad(vol_p->ih.ic.longitude);
     lat_r = Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
     GeogStep(lon_r, lat_r, az0, r0_g, &lon, &lat);
@@ -3196,6 +3195,12 @@ enum SigmetStatus Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *vol_p, int s,
     ray_len = rng_1st_bin + (num_bins + 0.5) * step_out;
     x_min = y_min = DBL_MAX;
     x_max = y_max = -DBL_MAX;
+    if ( lonlat_to_xy(rlon, rlat, &x, &y) ) {
+	x_min = (x < x_min) ? x : x_min;
+	x_max = (x > x_max) ? x : x_max;
+	y_min = (y < y_min) ? y : y_min;
+	y_max = (y > y_max) ? y : y_max;
+    }
     for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
 	if ( vol_p->ray_hdr[s][r].ok ) {
 	    az0 = vol_p->ray_hdr[s][r].az0;
