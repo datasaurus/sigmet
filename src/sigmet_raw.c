@@ -2245,10 +2245,15 @@ static int outlines_cb(int argc, char *argv[])
 		argv0, argv1);
 	goto error;
     }
+    if ( (y = Sigmet_Vol_GetFld(vol_p, data_type_s, NULL)) == -1 ) {
+	fprintf(stderr, "%s %s: volume has no data type named %s\n",
+		argv0, argv1, data_type_s);
+	goto error;
+    }
     num_rays = Sigmet_Vol_NumRays(vol_p);
     num_bins = Sigmet_Vol_NumBins(vol_p, s, -1);
-    if ( num_bins == -1 ) {
-	fprintf(stderr, "%s %s: could not get number of bins for sweep %d\n",
+    if ( num_rays == -1 || num_bins == -1 ) {
+	fprintf(stderr, "%s %s: could not get sweep geometry %d\n",
 		argv0, argv1, s);
 	goto error;
     }
