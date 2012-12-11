@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.113 $ $Date: 2012/12/10 21:17:35 $
+   .	$Revision: 1.117 $ $Date: 2012/12/13 01:28:56 $
  */
 
 #include "unix_defs.h"
@@ -2182,7 +2182,7 @@ static int outlines_cb(int argc, char *argv[])
     format = " %" FLOAT_STR_LEN_S "s %" COLOR_NM_LEN_S "s";
     if ( fscanf(clr_fl, format, bnd, colors) == 2 ) {
 	if ( strcmp(bnd, "-INF") == 0 ) {
-	    bnds[0] = strtof("-INFINITY", NULL);
+	    bnds[0] = -FLT_MAX;
 	} else if ( sscanf(bnd, "%f", bnds) == 1 ) {
 	    ;
 	} else {
@@ -2218,7 +2218,7 @@ static int outlines_cb(int argc, char *argv[])
 	if ( sscanf(bnd, "%f", bnds + c) == 1 ) {
 	    ;
 	} else if ( strcmp(bnd, "INF") == 0 ) {
-	    bnds[c] = strtof("INFINITY", NULL);
+	    bnds[c] = FLT_MAX;
 	} else {
 	    fprintf(stderr, "%s: reading final color, expected number or "
 		    "\"INF\" for boundary, got %s\n", argv0, bnd);
@@ -2304,7 +2304,7 @@ static int outlines_cb(int argc, char *argv[])
 				argv0, argv1, s, r, b, sigmet_err(sig_stat));
 		    }
 		}
-		printf("poly %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f\n",
+		printf("gate %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f\n",
 			cnr[0], cnr[1], cnr[2], cnr[3], cnr[4],
 			cnr[5], cnr[6], cnr[7]);
 	    }
