@@ -1782,9 +1782,9 @@ void Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
 	double *v0, double *v1, double *fx_p, int *num_rays_p)
 {
     struct Sigmet_Ray_Hdr *rh_p;	/* Convenience variable */
-    double fx;				/* Mean fixed angle */
+    double fx = 0.0;			/* Mean fixed angle */
     int num_ray_hdrs;			/* Number of rays, including bad ones */
-    int r, num_rays;			/* Actual number of rays */
+    int r, num_rays = 0;		/* Actual number of rays */
 
     if ( !vol_p || s >= vol_p->num_sweeps_ax || !vol_p->sweep_hdr[s].ok ) {
 	*fx_p = NAN;
@@ -1828,8 +1828,13 @@ void Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
 	    num_rays = 0;
 	    break;
     }
-    *fx_p = fx / num_rays / 2;
-    *num_rays_p = num_rays;
+    if ( num_rays == 0 ) {
+	*fx_p = NAN;
+	*num_rays_p = 0;
+    } else {
+	*fx_p = fx / num_rays / 2;
+	*num_rays_p = num_rays;
+    }
 }
 
 /*
