@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.205 $ $Date: 2012/12/11 19:49:08 $
+   .	$Revision: 1.206 $ $Date: 2012/12/11 20:48:13 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -191,7 +191,6 @@ static void print_s(FILE *, char *, char *, char *, char *);
    Allocators
  */
 
-static struct Sigmet_Ray_Hdr ** malloc2rh(long, long, int *);
 static U1BYT *** malloc3_u1(long, long, long, int *);
 static U2BYT *** malloc3_u2(long, long, long, int *);
 static float *** malloc3_flt(long, long, long, int *);
@@ -897,7 +896,7 @@ int Sigmet_Vol_NumBins(struct Sigmet_Vol *vol_p, int s, int r)
     if ( r == -1 ) {
 	int num_bins;
 
-	for (num_bins = -1, r = 0; r < + num_rays; r++) {
+	for (num_bins = -1, r = 0; r < num_rays; r++) {
 	    if ( vol_p->ray_hdr[s][r].num_bins > num_bins ) {
 		num_bins = vol_p->ray_hdr[s][r].num_bins;
 	    }
@@ -1289,6 +1288,8 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     int nbins;				/* vol_p->ray_hdr[s][r]num_bins */
     int tm_incr;			/* Ray time adjustment */
     int *id_p;				/* Receive shared memory identifier */
+    size_t sz;
+
 
     if ( !f ) {
 	fprintf(stderr, "%d: read function called with bogus input stream.\n",
@@ -1313,19 +1314,17 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	return sig_stat;
     }
 
-    /*
-       Allocate arrays in vol_p.
-     */
-
     num_types = vol_p->num_types;
     num_types_fl = num_types + vol_p->xhdr;
     num_sweeps = vol_p->ih.tc.tni.num_sweeps;
     num_rays = vol_p->ih.ic.num_rays;
     num_bins = vol_p->ih.tc.tri.num_bins_out;
 
-    if ( vol_p->shm ) {
-	size_t sz;
+    /*
+       Allocate sweep and ray header arrays in vol_p.
+     */
 
+    if ( vol_p->shm ) {
 	sz = num_sweeps * sizeof(*vol_p->sweep_hdr);
 	vol_p->sweep_hdr_id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
 	if ( vol_p->sweep_hdr_id == -1 ) {
@@ -1341,7 +1340,22 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    sig_stat = SIGMET_MEM_FAIL;
 	    goto error;
 	}
-	vol_p->size += num_sweeps * sizeof(*vol_p->sweep_hdr);
+	vol_p->size += sz;
+	sz = num_sweeps * sizeof(struct Sigmet_Ray_Hdr *)
+	    + (num_sweeps * num_rays + 1) * sizeof(struct Sigmet_Ray_Hdr);
+	vol_p->ray_hdr_id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
+	if ( vol_p->ray_hdr_id == -1 ) {
+	    fprintf(stderr, "%d: could not create shared memory for "
+		    "ray headers.\n%s\n", getpid(), strerror(errno));
+	    goto error;
+	}
+	vol_p->ray_hdr = shmat(vol_p->ray_hdr_id, NULL, 0);
+	if ( vol_p->ray_hdr == (void *)-1 ) {
+	    fprintf(stderr, "%d: could not attach to shared memory for "
+		    "ray headers.\n%s\n", getpid(), strerror(errno));
+	    goto error;
+	}
+	vol_p->size += sz;
     } else {
 	vol_p->sweep_hdr = CALLOC(num_sweeps, sizeof(*vol_p->sweep_hdr));
 	if ( !vol_p->sweep_hdr ) {
@@ -1351,16 +1365,24 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    goto error;
 	}
 	vol_p->size += num_sweeps * sizeof(*vol_p->sweep_hdr);
+	sz = num_sweeps * sizeof(struct Sigmet_Ray_Hdr *)
+	    + (num_sweeps * num_rays + 1) * sizeof(struct Sigmet_Ray_Hdr);
+	vol_p->ray_hdr = (struct Sigmet_Ray_Hdr **)MALLOC(sz);
+	if ( !vol_p->ray_hdr ) {
+	    fprintf(stderr, "%d: could not allocate memory for ray header "
+		    "array.\n", getpid());
+	    goto error;
+	}
+	vol_p->size += sz;
+    }
+    vol_p->ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(vol_p->ray_hdr + num_sweeps);
+    for (s = 1; s < num_sweeps; s++) {
+	vol_p->ray_hdr[s] = vol_p->ray_hdr[s - 1] + num_rays;
     }
 
-    id_p = vol_p->shm ? &vol_p->ray_hdr_id : NULL;
-    vol_p->ray_hdr = malloc2rh(num_sweeps, num_rays, id_p);
-    if ( !vol_p->ray_hdr ) {
-	fprintf(stderr, "%d: could not allocate ray header array.\n", getpid());
-	sig_stat = SIGMET_MEM_FAIL;
-	goto error;
-    }
-    vol_p->size += num_sweeps * num_rays * sizeof(struct Sigmet_Ray_Hdr);
+    /*
+       Allocate data arrays in vol_p.
+     */
 
     for (y = 0; y < vol_p->num_types; y++) {
 	id_p = vol_p->shm ? &vol_p->dat[y].vals_id : NULL;
@@ -4834,75 +4856,6 @@ static unsigned get_uint32(void *b) {
     U32BIT *s = (U32BIT *)(b);
     Swap_32Bit(s);
     return *s;
-}
-
-/*
-   Allocate a 2 dimensional array of ray headers.
-   If id_p is not NULL, use shared memory and copy shared memory identifier
-   to it.
- */
-
-static struct Sigmet_Ray_Hdr **malloc2rh(long j, long i, int *id_p)
-{
-    struct Sigmet_Ray_Hdr **ray_hdr = NULL;
-    int id;
-    long n;
-    size_t jj, ii;			/* Addends for pointer arithmetic */
-    size_t ji;
-    size_t sz;
-
-    /*
-       Make sure casting to size_t does not overflow anything.
-     */
-
-    if (j <= 0 || i <= 0) {
-	fprintf(stderr, "%d: array dimensions must be positive.\n", getpid());
-	return NULL;
-    }
-    jj = (size_t)j;
-    ii = (size_t)i;
-    ji = jj * ii;
-    if (ji / jj != ii) {
-	fprintf(stderr, "%d: dimensions too big for pointer arithmetic.\n",
-		getpid());
-	return NULL;
-    }
-
-    sz = jj * sizeof(struct Sigmet_Ray_Hdr *)
-	+ (jj * ii + 1) * sizeof(struct Sigmet_Ray_Hdr);
-    if ( id_p ) {
-	id = shmget(IPC_PRIVATE, sz, S_IRUSR | S_IWUSR);
-	if ( id == -1 ) {
-	    fprintf(stderr, "%d: could not create shared memory for "
-		    "ray headers.\n%s\n", getpid(), strerror(errno));
-	    return NULL;
-	}
-	if ( (ray_hdr = shmat(id, NULL, 0)) == (void *)-1 ) {
-	    fprintf(stderr, "%d: could not attach to shared memory for "
-		    "ray headers.\n%s\n", getpid(), strerror(errno));
-	    return NULL;
-	}
-	*id_p = id;
-    } else {
-	ray_hdr = (struct Sigmet_Ray_Hdr **)MALLOC(sz);
-	if ( !ray_hdr ) {
-	    fprintf(stderr, "%d: could not allocate memory for ray header "
-		    "array.\n", getpid());
-	    return NULL;
-	}
-    }
-
-    /*
-       Set up pointers within the array. This only works with local
-       memory. If the memory is shared, the process will have to
-       set up the pointers again when it attaches.
-     */
-
-    ray_hdr[0] = (struct Sigmet_Ray_Hdr *)(ray_hdr + j);
-    for (n = 1; n < j; n++) {
-	ray_hdr[n] = ray_hdr[n - 1] + i;
-    }
-    return ray_hdr;
 }
 
 /*
