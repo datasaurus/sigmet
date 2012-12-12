@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.206 $ $Date: 2012/12/11 20:48:13 $
+   .	$Revision: 1.207 $ $Date: 2012/12/12 18:16:58 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1501,7 +1501,6 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 
 	    n = get_sint16(rec + 36);
 	    if (n == 0) {
-		vol_p->ih.tc.tni.num_sweeps = sweep_num - 1;
 		break;
 	    }
 
