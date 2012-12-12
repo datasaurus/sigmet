@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.207 $ $Date: 2012/12/12 18:16:58 $
+   .	$Revision: 1.209 $ $Date: 2012/12/12 19:21:38 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1799,7 +1799,7 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
    Returned angles are radians.  num_rays_p gets number of good rays.
  */
 
-void Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
+enum SigmetStatus Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
 	double *v0, double *v1, double *fx_p, int *num_rays_p)
 {
     struct Sigmet_Ray_Hdr *rh_p;	/* Convenience variable */
@@ -1808,9 +1808,7 @@ void Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
     int r, num_rays = 0;		/* Actual number of rays */
 
     if ( !vol_p || s >= vol_p->num_sweeps_ax || !vol_p->sweep_hdr[s].ok ) {
-	*fx_p = NAN;
-	*num_rays_p = 0;
-	return;
+	return SIGMET_BAD_ARG;
     }
     num_ray_hdrs = vol_p->ih.ic.num_rays;
     switch (vol_p->ih.tc.tni.scan_mode) {
@@ -1852,10 +1850,11 @@ void Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
     if ( num_rays == 0 ) {
 	*fx_p = NAN;
 	*num_rays_p = 0;
-    } else {
-	*fx_p = fx / num_rays / 2;
-	*num_rays_p = num_rays;
+	return SIGMET_BAD_VOL;
     }
+    *fx_p = fx / num_rays / 2;
+    *num_rays_p = num_rays;
+    return SIGMET_OK;
 }
 
 /*
