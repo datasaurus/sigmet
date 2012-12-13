@@ -2108,8 +2108,9 @@ static int outlines_cb(int argc, char *argv[])
     float *bnds = NULL;			/* Bounds for each color */
     char *format;			/* Conversion specifier */
     double r00, dr;			/* Range to first bin, bin step, m. */
-    double *az0, *az1, *tilt0, *tilt1;	/* Ray start and stop angles, radians */
-    double a0, a1, tl0, tl1;
+    double *az0 = NULL, *az1;		/* Ray start, stop azimuths, radians */
+    double *tilt0, *tilt1;		/* Ray start, stop tilts, radians */
+    double a0, a1, tl0, tl1;		/* Members of az0, az1, tilt0, tilt1 */
     double r0, r1;			/* Distance along beam to start, end of 
 					   a bin */
     double r0_g, r1_g;			/* Distance along ground to point under
@@ -2374,6 +2375,7 @@ static int outlines_cb(int argc, char *argv[])
     FREE(colors);
     FREE(bnds);
     FREE(lists);
+    FREE(az0);
     FREE(dat);
     return 1;
 
@@ -2384,6 +2386,7 @@ error:
     FREE(colors);
     FREE(bnds);
     FREE(lists);
+    FREE(az0);
     FREE(dat);
     return 0;
 }
