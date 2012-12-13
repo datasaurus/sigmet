@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.129 $ $Date: 2012/12/06 19:47:09 $
+   .	$Revision: 1.130 $ $Date: 2012/12/07 22:51:35 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -38,7 +38,7 @@
 #ifndef SIGMET_H_
 #define SIGMET_H_
 
-#define SIGMET_VERSION "1.1"
+#define SIGMET_VERSION "1.2"
 
 #include "unix_defs.h"
 #include <float.h>
@@ -645,8 +645,8 @@ double Sigmet_Vol_RadarLon(struct Sigmet_Vol *, double *);
 double Sigmet_Vol_RadarLat(struct Sigmet_Vol *, double *);
 int Sigmet_Vol_NearSweep(struct Sigmet_Vol *, double);
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
-void Sigmet_Vol_RayGeom(struct Sigmet_Vol *, int, double *, double *, double *,
-	int *);
+enum SigmetStatus Sigmet_Vol_RayGeom(struct Sigmet_Vol *, int ,
+	double *, double *, double *, double *, double *, double *);
 double Sigmet_Vol_BinStart(struct Sigmet_Vol *, int);
 enum SigmetStatus Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *, int,
 	int (*)(double, double, double *, double *),
