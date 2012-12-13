@@ -131,8 +131,8 @@
 .Fn Sigmet_Vol_IsPPI "struct Sigmet_Vol *vol_p"
 .Ft int
 .Fn Sigmet_Vol_IsRHI "struct Sigmet_Vol *vol_p"
-.Ft void
-.Fn Sigmet_Vol_RayGeom "struct Sigmet_Vol *vol_p" "int s" "double *v0" "double *v1" "double *fx_p" "int *num_rays_p"
+.Ft enum SigmetStatus
+.Fn Sigmet_Vol_RayGeom "struct Sigmet_Vol *vol_p" "int s" "double *r00_p" "double *dr_p" "double *az0" "double *az1" "double *tilt0" "double *tilt1"
 .Ft int
 .Fn Sigmet_Vol_BadRay "struct Sigmet_Vol *vol_p" "int s" "int r"
 .Ft double
@@ -486,32 +486,23 @@ fetches ray geometry for sweep
 .Fa s
 of the volume at
 .Fa vol_p .
-.Fa v0
+.Fa az0 ,
+.Fa az1 ,
+.Fa tilt0 ,
 and
-.Fa v1
+.Fa tilt1
 must point to storage for
 .Li num_rays
 .Vt double
 values.
-The start of the varying angle - azimuth for PPI, tilt for RHI - for each good ray
-is copied to
-.Fa v0 .
-The end of the varying angle for each good ray is copied to
-.Fa v1 .
-The mean fixed angle - PPI tilt or RHI azimuth - is copied to
-.Fa fx_p .
-The actual number of rays in the sweep is copied to
-.Fa num_rays_p .
+They receive the start and end azimuth, and start and end tilt respectively
+of each ray in the sweep.
 Angles are given in radians. Angles for a bad rays are set to
 .Dv NAN .
-If something goes wrong,
-.Fa fx_p
-is set to
-.Dv NAN
-and
-.Fa num_rays_p
-is set to
-.Li 0 .
+.Fa r00_p
+receives distance in meters to the first bin.
+.Fa dr_p
+receives bin spacing, in meters.
 .Pp
 .Fn Sigmet_Vol_BadRay
 returns true if the ray in
