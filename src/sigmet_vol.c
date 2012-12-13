@@ -1793,67 +1793,37 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
 }
 
 /*
-   Fetch ray geometry for sweep s. Arrays v0 and v1 get initial and
-   final values for varying angle - az for PPI, tilt for RHI - for each
-   good ray. fx_p gets mean fixed angle - PPI tilt or RHI azimuth.
-   Returned angles are radians.  num_rays_p gets number of good rays.
+   Fetch ray geometry for sweep s.  r00_p and dr_p get distance to first ray
+   and bin step, in meters. Arrays az0 and az1 get initial and final azimuths,
+   tilt1 and tilt1 get initial and final tilts, in radians. They must point
+   to storage for num_rays double values.
  */
 
 enum SigmetStatus Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
-	double *v0, double *v1, double *fx_p, int *num_rays_p)
+	double *r00_p, double *dr_p, double *az0, double *az1,
+	double *tilt0, double *tilt1)
 {
-    struct Sigmet_Ray_Hdr *rh_p;	/* Convenience variable */
-    double fx = 0.0;			/* Mean fixed angle */
-    int num_ray_hdrs;			/* Number of rays, including bad ones */
-    int r, num_rays = 0;		/* Actual number of rays */
+    int r;
+    double m_per_cm = 0.01;
 
     if ( !vol_p || s >= vol_p->num_sweeps_ax || !vol_p->sweep_hdr[s].ok ) {
 	return SIGMET_BAD_ARG;
     }
-    num_ray_hdrs = vol_p->ih.ic.num_rays;
-    switch (vol_p->ih.tc.tni.scan_mode) {
-	case RHI:
-	    for (r = num_rays = 0, fx = 0.0; r < num_ray_hdrs; r++) {
-		rh_p = &vol_p->ray_hdr[s][r];
-		if ( rh_p->ok ) {
-		    v0[r] = rh_p->tilt0;
-		    v1[r] = rh_p->tilt1;
-		    fx += rh_p->az0 + rh_p->az1;
-		    num_rays++;
-		} else {
-		    v0[r] = NAN;
-		    v1[r] = NAN;
-		}
-	    }
-	    break;
-	case PPI_S:
-	case PPI_C:
-	    for (r = num_rays = 0, fx = 0.0; r < num_ray_hdrs; r++) {
-		rh_p = &vol_p->ray_hdr[s][r];
-		if ( rh_p->ok ) {
-		    v0[r] = rh_p->az0;
-		    v1[r] = rh_p->az1;
-		    fx += rh_p->tilt0 + rh_p->tilt1;
-		    num_rays++;
-		} else {
-		    v0[r] = NAN;
-		    v1[r] = NAN;
-		}
-	    }
-	    break;
-	case FILE_SCAN:
-	case MAN_SCAN:
-	    fx = NAN;
-	    num_rays = 0;
-	    break;
+    *r00_p = m_per_cm * vol_p->ih.tc.tri.rng_1st_bin;
+    *dr_p = m_per_cm * vol_p->ih.tc.tri.step_out;
+    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	if ( vol_p->ray_hdr[s][r].ok ) {
+	    az0[r] = vol_p->ray_hdr[s][r].az0;
+	    az1[r] = vol_p->ray_hdr[s][r].az1;
+	    tilt0[r] = vol_p->ray_hdr[s][r].tilt0;
+	    tilt1[r] = vol_p->ray_hdr[s][r].tilt1;
+	} else {
+	    az0[r] = NAN;
+	    az1[r] = NAN;
+	    tilt0[r] = NAN;
+	    tilt1[r] = NAN;
+	}
     }
-    if ( num_rays == 0 ) {
-	*fx_p = NAN;
-	*num_rays_p = 0;
-	return SIGMET_BAD_VOL;
-    }
-    *fx_p = fx / num_rays / 2;
-    *num_rays_p = num_rays;
     return SIGMET_OK;
 }
 
