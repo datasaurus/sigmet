@@ -2107,6 +2107,18 @@ static int outlines_cb(int argc, char *argv[])
 					   value, .e.g "1.23", or "-INF" */
     float *bnds = NULL;			/* Bounds for each color */
     char *format;			/* Conversion specifier */
+    double r00, dr;			/* Range to first bin, bin step, m. */
+    double *az0, *az1, *tilt0, *tilt1;	/* Ray start and stop angles, radians */
+    double a0, a1, tl0, tl1;
+    double r0, r1;			/* Distance along beam to start, end of 
+					   a bin */
+    double r0_g, r1_g;			/* Distance along ground to point under
+					   start, end of a bin */
+    double lon_r, lat_r;		/* Radar longitude, latitude */
+    double lon, lat;			/* PPI bin corner location */
+    double ord;				/* Ordinate */
+    double tilt;			/* Median tilt */
+    double re;				/* Earth radius, m */
     float *dat = NULL, *d_p;		/* Sweep data, point into dat */
     int d;				/* Index in dat */
     int c;				/* Color index */
@@ -2231,23 +2243,12 @@ static int outlines_cb(int argc, char *argv[])
     }
 
     /*
-       Get sweep data
+       Get sweep data and ray geometry.
      */
 
     if ( !(vol_p = client_attach(&ax_sem_id)) ) {
 	fprintf(stderr, "%s %s: could not attach to volume in shared "
 		"memory.\n", argv0, argv1);
-	goto error;
-    }
-    ppi = Sigmet_Vol_IsPPI(vol_p);
-    if ( ppi && !set_proj(vol_p) ) {
-	fprintf(stderr, "%s %s: could not set geographic projection.\n",
-		argv0, argv1);
-	goto error;
-    }
-    if ( (y = Sigmet_Vol_GetFld(vol_p, data_type_s, NULL)) == -1 ) {
-	fprintf(stderr, "%s %s: volume has no data type named %s\n",
-		argv0, argv1, data_type_s);
 	goto error;
     }
     num_rays = Sigmet_Vol_NumRays(vol_p);
@@ -2256,6 +2257,32 @@ static int outlines_cb(int argc, char *argv[])
 	fprintf(stderr, "%s %s: could not get sweep geometry %d\n",
 		argv0, argv1, s);
 	goto error;
+    }
+    ppi = Sigmet_Vol_IsPPI(vol_p);
+    if ( ppi && !set_proj(vol_p) ) {
+	fprintf(stderr, "%s %s: could not set geographic projection.\n",
+		argv0, argv1);
+	goto error;
+    }
+    lon_r = Sigmet_Vol_RadarLon(vol_p, NULL);
+    lat_r = Sigmet_Vol_RadarLat(vol_p, NULL);
+    if ( (y = Sigmet_Vol_GetFld(vol_p, data_type_s, NULL)) == -1 ) {
+	fprintf(stderr, "%s %s: volume has no data type named %s\n",
+		argv0, argv1, data_type_s);
+	goto error;
+    }
+    if ( !(az0 = CALLOC(4 * num_rays, sizeof(double))) ) {
+	fprintf(stderr, "%s %s: failed to allocate memory for ray limits "
+		"for %d rays.\n", argv0, argv1, num_rays);
+	goto error;
+    }
+    az1 = az0 + num_rays;
+    tilt0 = az1 + num_rays;
+    tilt1 = tilt0 + num_rays;
+    sig_stat = Sigmet_Vol_RayGeom(vol_p, s, &r00, &dr, az0, az1, tilt0, tilt1);
+    if ( sig_stat != SIGMET_OK ) {
+	fprintf(stderr, "%s %s: could not get ray geometry.\n%s\n",
+		argv0, argv1, sigmet_err(sig_stat));
     }
     if ( !(dat = CALLOC(num_rays * num_bins, sizeof(float))) ) {
 	fprintf(stderr, "%s %s: could not allocate memory for data for "
@@ -2273,6 +2300,7 @@ static int outlines_cb(int argc, char *argv[])
 	    goto error;
 	}
     }
+    client_detach(vol_p, ax_sem_id);
     lists = CALLOC((size_t)(num_bnds + num_rays * num_bins), sizeof(int));
     if ( !lists ) {
 	fprintf(stderr, "%s: could not allocate color lists.\n", argv0);
@@ -2293,21 +2321,47 @@ static int outlines_cb(int argc, char *argv[])
 		    d = BiSearch_NextIndex(lists, d)) {
 		r = d / num_bins;
 		b = d % num_bins;
+		r0 = r00 + b * dr;
+		r1 = r0 + dr;
 		if ( ppi ) {
-		    sig_stat = Sigmet_Vol_PPI_BinOutl(vol_p, s, r, b,
-			    lonlat_to_xy, cnr);
-		    if ( sig_stat != SIGMET_OK ) {
-			fprintf(stderr, "%s %s: could not obtain outline for "
-				"sweep %d, ray %d, bin %d.\n%s\n",
-				argv0, argv1, s, r, b, sigmet_err(sig_stat));
+		    a0 = az0[r];
+		    a1 = az1[r];
+		    tl0 = tilt0[r];
+		    tl1 = tilt1[r];
+		    if ( GeogLonR(a1, a0) > a0 ) {
+			double t = a1;
+			a1 = a0;
+			a0 = t;
 		    }
+		    tilt = 0.5 * (tl0 + tl1);
+		    re = GeogREarth(NULL);
+		    r0_g = atan(r0 * cos(tilt) / (re + r0 * sin(tilt)));
+		    r1_g = atan(r1 * cos(tilt) / (re + r1 * sin(tilt)));
+		    GeogStep(lon_r, lat_r, a0, r0_g, &lon, &lat);
+		    lonlat_to_xy(lon, lat, cnr + 0, cnr + 1);
+		    GeogStep(lon_r, lat_r, a0, r1_g, &lon, &lat);
+		    lonlat_to_xy(lon, lat, cnr + 2, cnr + 3);
+		    GeogStep(lon_r, lat_r, a1, r1_g, &lon, &lat);
+		    lonlat_to_xy(lon, lat, cnr + 4, cnr + 5);
+		    GeogStep(lon_r, lat_r, a1, r0_g, &lon, &lat);
+		    lonlat_to_xy(lon, lat, cnr + 6, cnr + 7);
 		} else {
-		    sig_stat = Sigmet_Vol_RHI_BinOutl(vol_p, s, r, b, cnr);
-		    if ( sig_stat != SIGMET_OK ) {
-			fprintf(stderr, "%s %s: could not obtain outline for "
-				"sweep %d, ray %d, bin %d.\n%s\n",
-				argv0, argv1, s, r, b, sigmet_err(sig_stat));
+		    tl0 = tilt0[r];
+		    tl1 = tilt1[r];
+		    if ( tl1 < tl0 ) {
+			double t = tl1;
+			tl1 = tl0;
+			tl0 = t;
 		    }
+		    re = GeogREarth(NULL) * 4.0 / 3.0;
+		    cnr[1] = ord = GeogBeamHt(r0, tl0, re);
+		    cnr[0] = re * asin(r0 * cos(tl0) / (re + ord));
+		    cnr[3] = ord = GeogBeamHt(r1, tl0, re);
+		    cnr[2] = re * asin(r1 * cos(tl0) / (re + ord));
+		    cnr[5] = ord = GeogBeamHt(r1, tl1, re);
+		    cnr[4] = re * asin(r1 * cos(tl1) / (re + ord));
+		    cnr[7] = ord = GeogBeamHt(r0, tl1, re);
+		    cnr[6] = re * asin(r0 * cos(tl1) / (re + ord));
 		}
 		printf("gate %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f\n",
 			cnr[0], cnr[1], cnr[2], cnr[3], cnr[4],
@@ -2316,7 +2370,6 @@ static int outlines_cb(int argc, char *argv[])
 	}
     }
 
-    client_detach(vol_p, ax_sem_id);
     vol_p = NULL;
     FREE(colors);
     FREE(bnds);
