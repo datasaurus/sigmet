@@ -62,6 +62,12 @@
 static struct Sigmet_Vol vol;
 
 /*
+   Where to send output from various commands.
+ */
+
+static FILE *out = stdout;
+
+/*
    Maximum number of characters allowed in a color name.
    COLOR_NM_LEN_A = storage size
    COLOR_NM_LEN_S = maximum number of non-nul characters.
@@ -113,6 +119,8 @@ static char *sigmet_err(enum SigmetStatus);
  */
 
 typedef int (callback)(int , char **);
+static callback open_cb;
+static callback close_cb;
 static callback exit_cb;
 static callback data_types_cb;
 static callback volume_headers_cb;
@@ -158,40 +166,39 @@ static int set_proj(void);
 
 #define N_HASH_CMD 114
 static char *cmd1v[N_HASH_CMD] = {
-    "", "", "shift_az", "", "radar_lon", "", "", "", 
-    "", "outlines", "", "", "sub", "", "", "", 
-    "", "", "", "", "", "", "del_field", "", 
-    "", "", "", "", "", "", "", "ray_headers", 
-    "radar_lat", "", "", "", "data_types", "", "", "", 
-    "", "", "", "", "", "sweep_headers", "", "", 
-    "", "", "", "", "", "", "incr_time", "set_field", 
-    "", "", "sweep_bnds", "size", "", "", "data", "near_sweep", 
-    "bdata", "div", "", "", "", "", "mul", "new_field", 
-    "bin_outline", "", "", "", "", "log10", "", "", 
-    "vol_hdr", "", "", "", "", "", "", "add", 
-    "", "", "", "", "", "", "", "", 
-    "", "", "", "", "", "", "", "", 
-    "", "", "exit", "dorade", "", "volume_headers", "", "", 
-    "", "", 
+"close", "", "shift_az", "", "radar_lon", "", "", "", 
+"", "outlines", "", "", "sub", "", "", "", 
+"", "", "", "", "", "", "del_field", "", 
+"", "", "", "", "", "", "", "ray_headers", 
+"radar_lat", "", "", "", "data_types", "", "", "", 
+"", "", "", "", "", "sweep_headers", "", "", 
+"", "", "", "", "", "", "incr_time", "set_field", 
+"", "", "sweep_bnds", "size", "", "", "data", "near_sweep", 
+"bdata", "div", "", "", "open", "", "mul", "new_field", 
+"bin_outline", "", "", "", "", "log10", "", "", 
+"vol_hdr", "", "", "", "", "", "", "add", 
+"", "", "", "", "", "", "", "", 
+"", "", "", "", "", "", "", "", 
+"", "", "exit", "dorade", "", "volume_headers", "", "", 
+"", "", 
 };
 static callback *cb1v[N_HASH_CMD] = {
-    NULL, NULL, shift_az_cb, NULL, radar_lon_cb, NULL, NULL, NULL, 
-    NULL, outlines_cb, NULL, NULL, sub_cb, NULL, NULL, NULL, 
-    NULL, NULL, NULL, NULL, NULL, NULL, del_field_cb, NULL, 
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, ray_headers_cb, 
-    radar_lat_cb, NULL, NULL, NULL, data_types_cb, NULL, NULL, NULL, 
-    NULL, NULL, NULL, NULL, NULL, sweep_headers_cb, NULL, NULL, 
-    NULL, NULL, NULL, NULL, NULL, NULL, incr_time_cb, set_field_cb, 
-    NULL, NULL, sweep_bnds_cb, size_cb, NULL, NULL, data_cb, near_sweep_cb, 
-    bdata_cb, div_cb, NULL, NULL, NULL, NULL, mul_cb, new_field_cb, 
-    bin_outline_cb, NULL, NULL, NULL, NULL, log10_cb, NULL, NULL, 
-    vol_hdr_cb, NULL, NULL, NULL, NULL, NULL, NULL, add_cb, 
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
-    NULL, NULL, exit_cb, dorade_cb, NULL, volume_headers_cb, NULL, NULL, 
-    NULL, NULL, 
+close_cb, NULL, shift_az_cb, NULL, radar_lon_cb, NULL, NULL, NULL, 
+NULL, outlines_cb, NULL, NULL, sub_cb, NULL, NULL, NULL, 
+NULL, NULL, NULL, NULL, NULL, NULL, del_field_cb, NULL, 
+NULL, NULL, NULL, NULL, NULL, NULL, NULL, ray_headers_cb, 
+radar_lat_cb, NULL, NULL, NULL, data_types_cb, NULL, NULL, NULL, 
+NULL, NULL, NULL, NULL, NULL, sweep_headers_cb, NULL, NULL, 
+NULL, NULL, NULL, NULL, NULL, NULL, incr_time_cb, set_field_cb, 
+NULL, NULL, sweep_bnds_cb, size_cb, NULL, NULL, data_cb, near_sweep_cb, 
+bdata_cb, div_cb, NULL, NULL, open_cb, NULL, mul_cb, new_field_cb, 
+bin_outline_cb, NULL, NULL, NULL, NULL, log10_cb, NULL, NULL, 
+vol_hdr_cb, NULL, NULL, NULL, NULL, NULL, NULL, add_cb, 
+NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+NULL, NULL, exit_cb, dorade_cb, NULL, volume_headers_cb, NULL, NULL, 
+NULL, NULL, 
 };
-
 #define HASH_X 31
 static int hash(const char *);
 static int hash(const char *cmd)
@@ -240,16 +247,16 @@ int main(int argc, char *argv[])
     }
     if ( argc == 2 ) {
 	if ( strcmp(argv[1], "version") == 0 ) {
-	    printf("%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
+	    fprintf(out, "%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
 		    "All rights reserved.\n", argv[0], SIGMET_VERSION);
 	    exit(EXIT_SUCCESS);
 	} else if ( strcmp(argv[1], "commands") == 0 ) {
 	    for (n = 0; n < N_HASH_CMD; n++) {
 		if ( strlen(cmd1v[n]) > 0 ) {
-		    printf(" %s", cmd1v[n]);
+		    fprintf(out, " %s", cmd1v[n]);
 		}
 	    }
-	    printf("\n");
+	    fprintf(out, "\n");
 	    exit(EXIT_SUCCESS);
 	} else {
 	    vol_fl_nm = argv[1];
@@ -355,8 +362,6 @@ int main(int argc, char *argv[])
 		if ( !cb1v[n](argc1, argv1) ) {
 		    fprintf(stderr, "%s: %s failed.\n", argv0, cmd);
 		}
-		fflush(stdout);
-		fflush(stderr);
 		break;
 	    case 0:
 		fprintf(stderr, "%s: failed to read input line.\n", argv0);
@@ -370,6 +375,40 @@ int main(int argc, char *argv[])
 	}
     }
     return EXIT_FAILURE;
+}
+
+static int open_cb(int argc, char *argv[])
+{
+    char *argv0 = argv[0];
+    char *fl_nm;
+    FILE *t;
+
+    if ( argc != 2 ) {
+	fprintf(stderr, "Usage: %s file\n", argv0);
+	return 0;
+    }
+    fl_nm = argv[1];
+    if ( !(t = fopen(fl_nm, "w")) ) {
+	fprintf(stderr, "Could not open %s for writing.\n", fl_nm);
+	return 0;
+    }
+    out = t;
+    return 1;
+}
+
+static int close_cb(int argc, char *argv[])
+{
+    char *argv0 = argv[0];
+
+    if ( argc != 1 ) {
+	fprintf(stderr, "Usage: %s\n", argv0);
+	return 0;
+    }
+    if ( out != stdout ) {
+	fclose(out);
+	out = stdout;
+    }
+    return 1;
 }
 
 static int exit_cb(int argc, char *argv[])
@@ -396,7 +435,7 @@ static int data_types_cb(int argc, char *argv[])
     }
     for (y = 0; y < Sigmet_Vol_NumTypes(&vol); y++) {
 	Sigmet_Vol_DataTypeHdrs(&vol, y, &data_type_s, &descr, &unit);
-	printf("%s | %s | %s\n", data_type_s, descr, unit);
+	fprintf(out, "%s | %s | %s\n", data_type_s, descr, unit);
     }
     return 1;
 }
@@ -409,7 +448,7 @@ static int volume_headers_cb(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s\n", argv0);
 	return 0;
     }
-    Sigmet_Vol_PrintHdr(stdout, &vol);
+    Sigmet_Vol_PrintHdr(out, &vol);
     return 1;
 }
 
@@ -421,7 +460,7 @@ static int vol_hdr_cb(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s\n", argv0);
 	return 0;
     }
-    Sigmet_Vol_PrintMinHdr(stdout, &vol);
+    Sigmet_Vol_PrintMinHdr(out, &vol);
     return 1;
 }
 
@@ -449,7 +488,7 @@ static int near_sweep_cb(int argc, char *argv[])
 		"sweep angle nearest %s\n", argv0, ang_s);
 	return 0;
     }
-    printf("%d\n", s);
+    fprintf(out, "%d\n", s);
     return 1;
 }
 
@@ -467,21 +506,21 @@ static int sweep_headers_cb(int argc, char *argv[])
 	return 0;
     }
     for (s = 0; s < Sigmet_Vol_NumSweeps(&vol); s++) {
-	printf("sweep %2d ", s);
+	fprintf(out, "sweep %2d ", s);
 	sig_stat = Sigmet_Vol_SweepHdr(&vol, s, &ok, &tm, &ang);
 	if ( sig_stat != SIGMET_OK ) {
 	    fprintf(stderr, "%s: %s\n", argv0, sigmet_err(sig_stat));
 	}
 	if ( ok ) {
 	    if ( Tm_JulToCal(tm, &yr, &mon, &da, &hr, &min, &sec) ) {
-		printf("%04d/%02d/%02d %02d:%02d:%02d ",
+		fprintf(out, "%04d/%02d/%02d %02d:%02d:%02d ",
 			yr, mon, da, hr, min, sec);
 	    } else {
-		printf("0000/00/00 00:00:00 ");
+		fprintf(out, "0000/00/00 00:00:00 ");
 	    }
-	    printf("%7.3f\n", ang * DEG_PER_RAD);
+	    fprintf(out, "%7.3f\n", ang * DEG_PER_RAD);
 	} else {
-	    printf("bad\n");
+	    fprintf(out, "bad\n");
 	}
     }
     return 1;
@@ -516,20 +555,20 @@ static int ray_headers_cb(int argc, char *argv[])
 		if ( !ok ) {
 		    continue;
 		}
-		printf("sweep %3d ray %4d | ", s, r);
+		fprintf(out, "sweep %3d ray %4d | ", s, r);
 		if ( !Tm_JulToCal(tm, &yr, &mon, &da, &hr, &min, &sec) ) {
 		    fprintf(stderr, "%s: bad ray time\n", argv0);
 		    return 0;
 		}
-		printf("%04d/%02d/%02d %02d:%02d:%02d | ",
+		fprintf(out, "%04d/%02d/%02d %02d:%02d:%02d | ",
 			yr, mon, da, hr, min, sec);
-		printf("az %7.3f %7.3f | ",
+		fprintf(out, "az %7.3f %7.3f | ",
 			az0 * DEG_PER_RAD, az1 * DEG_PER_RAD);
-		printf("tilt %6.3f %6.3f\n",
+		fprintf(out, "tilt %6.3f %6.3f\n",
 			tilt0 * DEG_PER_RAD, tilt1 * DEG_PER_RAD);
 	    }
 	} else {
-	    printf("sweep %3d empty\n", s);
+	    fprintf(out, "sweep %3d empty\n", s);
 	}
     }
     return 1;
@@ -652,7 +691,7 @@ static int size_cb(int argc, char *argv[])
 	fprintf(stderr, "Usage: %s\n", argv0);
 	return 0;
     }
-    printf("%lu\n", (unsigned long)Sigmet_Vol_MemSz(&vol));
+    fprintf(out, "%lu\n", (unsigned long)Sigmet_Vol_MemSz(&vol));
     return 1;
 }
 
@@ -971,62 +1010,62 @@ static int data_cb(int argc, char *argv[])
 	for (y = 0; y < num_types; y++) {
 	    for (s = 0; s < num_sweeps; s++) {
 		Sigmet_Vol_DataTypeHdrs(&vol, y, &data_type_s, NULL, NULL);
-		printf("%s. sweep %d\n", data_type_s, s);
+		fprintf(out, "%s. sweep %d\n", data_type_s, s);
 		for (r = 0; r < num_rays; r++) {
 		    if ( Sigmet_Vol_BadRay(&vol, s, r) ) {
 			continue;
 		    }
-		    printf("ray %d: ", r);
+		    fprintf(out, "ray %d: ", r);
 		    num_bins = Sigmet_Vol_NumBins(&vol, s, r);
 		    for (b = 0; b < num_bins; b++) {
-			printf("%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
+			fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
 		    }
-		    printf("\n");
+		    fprintf(out, "\n");
 		}
 	    }
 	}
     } else if ( s == all && r == all && b == all ) {
 	for (s = 0; s < num_sweeps; s++) {
-	    printf("%s. sweep %d\n", data_type_s, s);
+	    fprintf(out, "%s. sweep %d\n", data_type_s, s);
 	    for (r = 0; r < num_rays; r++) {
 		if ( Sigmet_Vol_BadRay(&vol, s, r) ) {
 		    continue;
 		}
-		printf("ray %d: ", r);
+		fprintf(out, "ray %d: ", r);
 		num_bins = Sigmet_Vol_NumBins(&vol, s, r);
 		for (b = 0; b < num_bins; b++) {
-		    printf("%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
+		    fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
 		}
-		printf("\n");
+		fprintf(out, "\n");
 	    }
 	}
     } else if ( r == all && b == all ) {
-	printf("%s. sweep %d\n", data_type_s, s);
+	fprintf(out, "%s. sweep %d\n", data_type_s, s);
 	for (r = 0; r < num_rays; r++) {
 	    if ( Sigmet_Vol_BadRay(&vol, s, r) ) {
 		continue;
 	    }
-	    printf("ray %d: ", r);
+	    fprintf(out, "ray %d: ", r);
 	    num_bins = Sigmet_Vol_NumBins(&vol, s, r);
 	    for (b = 0; b < num_bins; b++) {
-		printf("%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
+		fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
 	    }
-	    printf("\n");
+	    fprintf(out, "\n");
 	}
     } else if ( b == all ) {
-	printf("%s. sweep %d, ray %d: ", data_type_s, s, r);
+	fprintf(out, "%s. sweep %d, ray %d: ", data_type_s, s, r);
 	if ( !Sigmet_Vol_BadRay(&vol, s, r) ) {
 	    num_bins = Sigmet_Vol_NumBins(&vol, s, r);
 	    for (b = 0; b < num_bins; b++) {
-		printf("%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
+		fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
 	    }
-	    printf("\n");
+	    fprintf(out, "\n");
 	}
     } else {
 	if ( !Sigmet_Vol_BadRay(&vol, s, r) ) {
-	    printf("%s. sweep %d, ray %d, bin %d: ", data_type_s, s, r, b);
-	    printf("%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
-	    printf("\n");
+	    fprintf(out, "%s. sweep %d, ray %d, bin %d: ", data_type_s, s, r, b);
+	    fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
+	    fprintf(out, "\n");
 	}
     }
     return 1;
@@ -1093,7 +1132,7 @@ static int bdata_cb(int argc, char *argv[])
 		return 0;
 	    }
 	}
-	if ( fwrite(ray_p, sizeof(float), num_bins, stdout) != num_bins ) {
+	if ( fwrite(ray_p, sizeof(float), num_bins, out) != num_bins ) {
 	    fprintf(stderr, "%s: could not write ray data for data type %s, "
 		    "sweep index %d, ray %d.\n%s\n", argv0,
 		    data_type_s, s, r, strerror(errno));
@@ -1171,7 +1210,7 @@ static int bin_outline_cb(int argc, char *argv[])
 	}
     } else {
     }
-    printf("%f %f %f %f %f %f %f %f\n",
+    fprintf(out, "%f %f %f %f %f %f %f %f\n",
 	    cnr[0] * DEG_RAD, cnr[1] * DEG_RAD,
 	    cnr[2] * DEG_RAD, cnr[3] * DEG_RAD,
 	    cnr[4] * DEG_RAD, cnr[5] * DEG_RAD,
@@ -1251,7 +1290,7 @@ static int sweep_bnds_cb(int argc, char *argv[])
 	    return 0;
 	}
     }
-    printf("x_min=%lf\nx_max=%lf\ny_min=%lf\ny_max=%lf\n",
+    fprintf(out, "x_min=%lf\nx_max=%lf\ny_min=%lf\ny_max=%lf\n",
 	    x_min, x_max, y_min, y_max);
     return 1;
 }
@@ -1543,7 +1582,7 @@ static int outlines_cb(int argc, char *argv[])
     BiSearch_FDataToList(dat, num_rays * num_bins, bnds, num_bnds, lists);
     for (c = 0; c < num_colors; c++) {
 	if ( strcmp(colors[c], "none") != 0 ) {
-	    printf("color %s\n", colors[c]);
+	    fprintf(out, "color %s\n", colors[c]);
 	    for (d = BiSearch_1stIndex(lists, c);
 		    d != -1;
 		    d = BiSearch_NextIndex(lists, d)) {
@@ -1591,7 +1630,7 @@ static int outlines_cb(int argc, char *argv[])
 		    cnr[7] = ord = GeogBeamHt(r0, tl1, re);
 		    cnr[6] = re * asin(r0 * cos(tl1) / (re + ord));
 		}
-		printf("gate %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f\n",
+		fprintf(out, "gate %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f\n",
 			cnr[0], cnr[1], cnr[2], cnr[3], cnr[4],
 			cnr[5], cnr[6], cnr[7]);
 	    }
