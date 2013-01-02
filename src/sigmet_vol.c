@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.209 $ $Date: 2012/12/12 19:21:38 $
+   .	$Revision: 1.210 $ $Date: 2012/12/13 01:33:26 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1796,32 +1796,102 @@ int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
    Fetch ray geometry for sweep s.  r00_p and dr_p get distance to first ray
    and bin step, in meters. Arrays az0 and az1 get initial and final azimuths,
    tilt1 and tilt1 get initial and final tilts, in radians. They must point
-   to storage for num_rays double values.
+   to storage for num_rays double values. If fill is true, eliminate gaps
+   between adjacent rays.
  */
 
 enum SigmetStatus Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
 	double *r00_p, double *dr_p, double *az0, double *az1,
-	double *tilt0, double *tilt1)
+	double *tilt0, double *tilt1, int fill)
 {
+    struct Sigmet_Ray_Hdr *ray_hdr;
     int r;
     double m_per_cm = 0.01;
 
-    if ( !vol_p || s >= vol_p->num_sweeps_ax || !vol_p->sweep_hdr[s].ok ) {
+    if ( !vol_p ) {
 	return SIGMET_BAD_ARG;
     }
+    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	az0[r] = az1[r] = tilt0[r] = tilt1[r] = NAN;
+    }
+    if ( s >= vol_p->num_sweeps_ax || !vol_p->sweep_hdr[s].ok ) {
+	return SIGMET_BAD_ARG;
+    }
+    ray_hdr = vol_p->ray_hdr[s];
     *r00_p = m_per_cm * vol_p->ih.tc.tri.rng_1st_bin;
     *dr_p = m_per_cm * vol_p->ih.tc.tri.step_out;
-    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
-	if ( vol_p->ray_hdr[s][r].ok ) {
-	    az0[r] = vol_p->ray_hdr[s][r].az0;
-	    az1[r] = vol_p->ray_hdr[s][r].az1;
-	    tilt0[r] = vol_p->ray_hdr[s][r].tilt0;
-	    tilt1[r] = vol_p->ray_hdr[s][r].tilt1;
-	} else {
-	    az0[r] = NAN;
-	    az1[r] = NAN;
-	    tilt0[r] = NAN;
-	    tilt1[r] = NAN;
+    if ( fill ) {
+	if ( Sigmet_Vol_IsPPI(vol_p) ) {
+	    double az1_prev, az0_curr, az1_curr, az0_next;
+
+	    if ( ray_hdr[0].ok ) {
+		az0[0] = ray_hdr[0].az0;
+		az1_curr = ray_hdr[0].az1;
+		az0_next = ray_hdr[1].az0;
+		az1[0] = 0.5 * (az1_curr + GeogLonR(az0_next, az1_curr));
+		tilt0[0] = ray_hdr[0].tilt0;
+		tilt1[0] = ray_hdr[0].tilt1;
+	    }
+	    for (r = 1; r < vol_p->ih.ic.num_rays - 1; r++) {
+		if ( ray_hdr[r].ok ) {
+		    az1_prev = ray_hdr[r - 1].az1;
+		    az0_curr = ray_hdr[r].az0;
+		    az1_curr = ray_hdr[r].az1;
+		    az0_next = ray_hdr[r + 1].az0;
+		    az0[r] = 0.5 * (az0_curr + GeogLonR(az1_prev, az0_curr));
+		    az1[r] = 0.5 * (az1_curr + GeogLonR(az0_next, az1_curr));
+		    tilt0[r] = ray_hdr[r].tilt0;
+		    tilt1[r] = ray_hdr[r].tilt1;
+		}
+	    }
+	    if ( ray_hdr[r].ok ) {
+		az1_prev = ray_hdr[r - 1].az1;
+		az0_curr = ray_hdr[r].az0;
+		az0[r] = 0.5 * (az0_curr + GeogLonR(az1_prev, az0_curr));
+		az1[r] = ray_hdr[r].az1;
+		tilt0[r] = ray_hdr[r].tilt0;
+		tilt1[r] = ray_hdr[r].tilt1;
+	    }
+	} else if ( Sigmet_Vol_IsRHI(vol_p) ) {
+	    double tilt1_prev, tilt0_curr, tilt1_curr, tilt0_next;
+
+	    if ( ray_hdr[0].ok ) {
+		az0[0] = ray_hdr[0].az0;
+		az1[0] = ray_hdr[0].az1;
+		tilt0[0] = ray_hdr[0].tilt0;
+		tilt1_curr = ray_hdr[0].tilt1;
+		tilt0_next = ray_hdr[1].tilt0;
+		tilt1[0] = 0.5 * (tilt1_curr + tilt0_next);
+	    }
+	    for (r = 1; r < vol_p->ih.ic.num_rays - 1; r++) {
+		if ( ray_hdr[r].ok ) {
+		    az0[r] = ray_hdr[r].az0;
+		    az1[r] = ray_hdr[r].az1;
+		    tilt1_prev = ray_hdr[r - 1].tilt1;
+		    tilt0_curr = ray_hdr[r].tilt0;
+		    tilt1_curr = ray_hdr[r].tilt1;
+		    tilt0_next = ray_hdr[r + 1].tilt0;
+		    tilt0[r] = 0.5 * (tilt1_prev + tilt0_curr);
+		    tilt1[r] = 0.5 * (tilt1_curr + tilt0_next);
+		}
+	    }
+	    if ( ray_hdr[r].ok ) {
+		az0[r] = ray_hdr[r].az0;
+		az1[r] = ray_hdr[r].az1;
+		tilt1_prev = ray_hdr[r - 1].tilt1;
+		tilt0_curr = ray_hdr[r].tilt0;
+		tilt0[r] = 0.5 * (tilt1_prev + tilt0_curr);
+		tilt1[r] = ray_hdr[r].tilt1;
+	    }
+	}
+    } else {
+	for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	    if ( ray_hdr[r].ok ) {
+		az0[r] = ray_hdr[r].az0;
+		az1[r] = ray_hdr[r].az1;
+		tilt0[r] = ray_hdr[r].tilt0;
+		tilt1[r] = ray_hdr[r].tilt1;
+	    }
 	}
     }
     return SIGMET_OK;

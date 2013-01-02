@@ -25,7 +25,7 @@
 .\"
 .\" Please send feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.16 $ $Date: 2012/12/11 19:50:34 $
+.\" $Revision: 1.17 $ $Date: 2012/12/13 01:42:04 $
 .Dd $Mdocdate$
 .Dt SIGMET_VOL 3
 .Os UNIX
@@ -132,7 +132,7 @@
 .Ft int
 .Fn Sigmet_Vol_IsRHI "struct Sigmet_Vol *vol_p"
 .Ft enum SigmetStatus
-.Fn Sigmet_Vol_RayGeom "struct Sigmet_Vol *vol_p" "int s" "double *r00_p" "double *dr_p" "double *az0" "double *az1" "double *tilt0" "double *tilt1"
+.Fn Sigmet_Vol_RayGeom "struct Sigmet_Vol *vol_p" "int s" "double *r00_p" "double *dr_p" "double *az0" "double *az1" "double *tilt0" "double *tilt1" "int fill"
 .Ft int
 .Fn Sigmet_Vol_BadRay "struct Sigmet_Vol *vol_p" "int s" "int r"
 .Ft double
@@ -503,6 +503,9 @@ Angles are given in radians. Angles for a bad rays are set to
 receives distance in meters to the first bin.
 .Fa dr_p
 receives bin spacing, in meters.
+If
+.Fa fill
+is true, gaps between adjacent rays are filled in.
 .Pp
 .Fn Sigmet_Vol_BadRay
 returns true if the ray in
