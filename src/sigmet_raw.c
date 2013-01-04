@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.119 $ $Date: 2012/12/13 23:46:35 $
+   .	$Revision: 1.120 $ $Date: 2012/12/14 02:34:29 $
  */
 
 #include "unix_defs.h"
@@ -65,7 +65,7 @@ static struct Sigmet_Vol vol;
    Where to send output from various commands.
  */
 
-static FILE *out = stdout;
+static FILE *out;
 
 /*
    Maximum number of characters allowed in a color name.
@@ -245,6 +245,7 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "%s: could not set up signal management.", argv0);
 	exit(EXIT_FAILURE);
     }
+    out = stdout;
     if ( argc == 2 ) {
 	if ( strcmp(argv[1], "version") == 0 ) {
 	    fprintf(out, "%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
@@ -266,7 +267,7 @@ int main(int argc, char *argv[])
 	vol_fl_nm = argv[1];
 	script_nm = argv[2];
     } else {
-	fprintf(stderr, "Usage: %s sigmet_raw_file\n", argv0);
+	fprintf(stderr, "Usage: %s sigmet_raw_file [command_file]\n", argv0);
 	exit(EXIT_FAILURE);
     }
 
@@ -1290,7 +1291,7 @@ static int sweep_bnds_cb(int argc, char *argv[])
 	    return 0;
 	}
     }
-    fprintf(out, "x_min=%lf\nx_max=%lf\ny_min=%lf\ny_max=%lf\n",
+    fprintf(out, "x_min %lf\nx_max %lf\ny_min %lf\ny_max %lf\n",
 	    x_min, x_max, y_min, y_max);
     return 1;
 }
@@ -1547,7 +1548,8 @@ static int outlines_cb(int argc, char *argv[])
     az1 = az0 + num_rays;
     tilt0 = az1 + num_rays;
     tilt1 = tilt0 + num_rays;
-    sig_stat = Sigmet_Vol_RayGeom(&vol, s, &r00, &dr, az0, az1, tilt0, tilt1);
+    sig_stat = Sigmet_Vol_RayGeom(&vol, s, &r00, &dr, az0, az1, tilt0, tilt1,
+	    fill);
     if ( sig_stat != SIGMET_OK ) {
 	fprintf(stderr, "%s: could not get ray geometry.\n%s\n",
 		argv0, sigmet_err(sig_stat));
