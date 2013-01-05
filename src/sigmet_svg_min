@@ -62,7 +62,6 @@ x_min="nan"
 x_max="nan"
 y_min="nan"
 y_max="nan"
-export x_min x_max y_min y_max
 
 # Parse command line
 args=`getopt fb: $*`
@@ -112,5 +111,7 @@ fi
 {
     printf "sweep_bnds %d\n" $sweep_index
     printf "outlines %s %s %s %d\n" "$fill" $data_type $color_fl $sweep_index
-} | sigmet_raw $vol_fl | sigmet_svg.awk
+}			\
+| sigmet_raw $vol_fl	\
+| sigmet_svg.awk -v x_min=$x_min -v x_max=$x_max -v y_min=$y_min -v y_max=$y_max
 exit 0
