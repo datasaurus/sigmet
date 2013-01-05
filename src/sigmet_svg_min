@@ -1,37 +1,24 @@
 #!/bin/sh
 #
 # sigmet_svg --
-#	Send an image of a sweep to standard output.
+#	Print bin outlines as SVG polygons.
 #
 # Usage:
-#	sigmet_svg data_type sweep_index socket
+#	sigmet_svg -f -b 'x_min x_max y_min y_max' data_type colors_file
+#		sweep_index volume_file
 # where:
+#	-f		- fill gaps between adjacent rays.
+#	-b		- plot bounds. If not given, use sweep bounds.
 #	data_type	- data type (e.g. DB_DBZ, DB_ZDR).
+#	colors_file	- specify color for each data interval. Should be
+#			  formatted for sigmet_raw outlines command.
 #	sweep_index	- index of sweep in volume. First sweep is 0.
-#	socket		- socket that communicates with a sigmet_raw daemon.
+#	volume_file	- Sigmet raw product file
 #
-# Environment variables:
-#	SIGMET_RAW_PROJ		- command that reads longitude latitude
-#				  values from standard input and prints
-#				  x y values to standard output.
-#				  Must be set for ppi sweeps.
-#				  Not used for rhi sweeps.
-#	SIGMET_RAW_COLORS	- path to directory with color table
-#				  files. For each data type DB_XXX
-#				  this directory must contain a file
-#				  named DB_XXX.clrs with output from
-#				  the raster_clrs program appropriate
-#				  for the data type. Defaults to
-#				  current working directory.
-#	SIGMET_RAW_FILL		- if set, then outlines are drawn using the 
-#				  "-f" option. See sigmet_raw (1).
+# Environment variables
+#	SIGMET_RAW_IMG_SZ	- (optional) image width, pixels
 #
-# The svg code for the image goes to standard output.  Output coordinates will
-# be regular cartesian coordinates with origin determined by the output from
-# the sigmet_raw outlines command and SIGMET_RAW_PROJ, if defined.
-# Output should be wrapped in svg code that imposes suitable scaling, offsets,
-# and transformations for the projection display (recall that svg starts
-# assuming y increases downward from top of image).
+# The SVG code goes to standard output.
 #
 # Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
 # 
@@ -59,33 +46,71 @@
 #
 # Please send feedback to dev0@trekix.net
 
+# This convenience function prints the usage message.
+err_usage() {
+    printf "Usage: $0 " 1>&2
+    printf "[-b 'x_min=number,x_max=number,y_min=number,y_max=number]" 1>&2
+    printf "[-f]" 1>&2
+    printf " data_type colors_file sweep_index volume_file\n" 1>&2
+    exit 1
+}
+
+# Initialize plot bounds with bogus values. These can be set on command line.
+# For values not set on command line, plot will use sweep limits given by
+# "sigmet_raw sweep_bnds" command.
+x_min="nan"
+x_max="nan"
+y_min="nan"
+y_max="nan"
+export x_min x_max y_min y_max
+
 # Parse command line
-if [ $# -ne 3 ]
+args=`getopt fb: $*`
+if [ $? != 0 ]
 then
-    echo Usage: $0 data_type sweep_index socket 1>&2
-    exit 1
+    err_usage
 fi
-data_type=$1
-sweep_index=$2
-sock="$3"
-color_dir=${SIGMET_RAW_COLORS:-"."}
-color_fl=${color_dir}/${data_type}.clrs
-if ! test -f "$color_fl"
+set -- $args
+for i
+do
+    case "$i"
+    in
+	"-f")
+	    fill="-f"
+	    shift
+	    ;;
+	"-b")
+	    eval `echo "$2" | sed 's/,/;/g'`
+	    shift
+	    shift
+	    ;;
+	"--")
+	    shift
+	    break
+	    ;;
+    esac
+done
+if [ $# -eq 4 ]
 then
-    echo "Could not find color file $color_fl" 1>&2
-    exit 1
-fi
-proj_cmd=${SIGMET_RAW_PROJ:-"cat"}
-if test "$SIGMET_RAW_FILL"
-then
-    fill="-f"
+    data_type=$1
+    color_fl=$2
+    sweep_index=$3
+    vol_fl=$4
+else
+    err_usage
 fi
 
-# Print SVG outline elements for the sweep.
-cat $color_fl \
-| egrep '([0-9.+-]+|INF|inf) #[0-9A-Fa-f]+ ([0-9.e+-]+|INF|inf)' \
-| while read min color max
-do
-    echo sigmet_raw outlines $fill -- $data_type $sweep_index $min $max - "$sock"
-done
+# Check for color table
+if ! test -f "$color_fl"
+then
+    echo "$0: could not find color file $color_fl" 1>&2
+    exit 1
+fi
+
+# Obtain plot bounds from sweep, if necessary.
+# Then have sigmet_raw print outlines.
+{
+    printf "sweep_bnds %d\n" $sweep_index
+    printf "outlines %s %s %s %d\n" "$fill" $data_type $color_fl $sweep_index
+} | sigmet_raw $vol_fl | sigmet_svg.awk
 exit 0
