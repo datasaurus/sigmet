@@ -4,10 +4,12 @@
 #	Print bin outlines as SVG polygons.
 #
 # Usage:
-#	sigmet_svg -f -b 'x_min x_max y_min y_max' data_type colors_file
-#		sweep_index volume_file
+#	sigmet_svg [-f] [-d] [-b x_min=f,x_max=f,y_min=f,y_max=f] 
+#	    data_type colors_file sweep_index volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
+#	-d		- make a standalone svg file. Default is to make
+#			  an svg element.
 #	-b		- plot bounds. If not given, use sweep bounds.
 #	data_type	- data type (e.g. DB_DBZ, DB_ZDR).
 #	colors_file	- specify color for each data interval. Should be
@@ -46,58 +48,81 @@
 #
 # Please send feedback to dev0@trekix.net
 
-# This convenience function prints the usage message.
-err_usage() {
-    printf "Usage: $0 " 1>&2
-    printf "[-b 'x_min=number,x_max=number,y_min=number,y_max=number]" 1>&2
-    printf "[-f]" 1>&2
-    printf " data_type colors_file sweep_index volume_file\n" 1>&2
-    exit 1
+# Check for numerical value
+check_num() {
+    name="$1"
+    val="$2"
+    if ! printf '%g' $val > /dev/null 2>&1
+    then
+	printf "$0: expected number for %s, got %s\n" "$name" "$val" 1>&2
+	exit 1
+    fi
 }
 
-# Initialize plot bounds with bogus values. These can be set on command line.
-# For values not set on command line, plot will use sweep limits given by
-# "sigmet_raw sweep_bnds" command.
-x_min="nan"
-x_max="nan"
-y_min="nan"
-y_max="nan"
-
 # Parse command line
-args=`getopt fb: $*`
-if [ $? != 0 ]
-then
-    err_usage
-fi
-set -- $args
-for i
+fill=
+doc=
+x_dpy=
+y_dpy=
+w_dpy=
+x_min=
+x_max=
+y_min=
+y_max=
+while getopts :fdb:x:y:w: opt
 do
-    case "$i"
+    case "$opt"
     in
-	"-f")
+	f)
 	    fill="-f"
-	    shift
 	    ;;
-	"-b")
-	    eval `echo "$2" | sed 's/,/;/g'`
-	    shift
-	    shift
+	b)
+	    eval `echo "$OPTARG" | sed 's/,/;/g'`
 	    ;;
-	"--")
-	    shift
-	    break
+	d)
+	    doc="-d"
+	    ;;
+	x)
+	    x_dpy=$OPTARG
+	    check_num "display x coordinate" $x_dpy
+	    x_dpy="-x $x_dpy"
+	    ;;
+	y)
+	    y_dpy=$OPTARG
+	    check_num "display y coordinate" $y_dpy
+	    y_dpy="-y $y_dpy"
+	    ;;
+	w)
+	    w_dpy=$OPTARG
+	    check_num "display width" $w_dpy
+	    w_dpy="-w $w_dpy"
+	    ;;
+	\?)
+	    echo "$0: unknown option $OPTARG" 1>&2
+	    exit 1
 	    ;;
     esac
 done
-if [ $# -eq 4 ]
+if test $x_min; then check_num "x_min" $x_min; fi
+if test $x_max; then check_num "x_max" $x_max; fi
+if test $y_min; then check_num "y_min" $y_min; fi
+if test $y_max; then check_num "y_max" $y_max; fi
+shift `expr $OPTIND - 1`
+if [ $# -ne 4 ]
 then
-    data_type=$1
-    color_fl=$2
-    sweep_index=$3
-    vol_fl=$4
-else
-    err_usage
+    {
+	printf "Usage: $0"
+	printf " [-f] [-d]"
+	printf " [-b 'x_min=number,x_max=number,y_min=number,y_max=number]"
+	printf " [-x x_dpy] [-y y_dpy] [-w width_dpy]"
+	printf " data_type colors_file sweep_index volume_file\n"
+    } 1>&2
+    exit 1
 fi
+data_type="$1"
+color_fl="$2"
+sweep_index="$3"
+vol_path="$4"
 
 # Check for color table
 if ! test -f "$color_fl"
@@ -106,12 +131,44 @@ then
     exit 1
 fi
 
-# Obtain plot bounds from sweep, if necessary.
-# Then have sigmet_raw print outlines.
-{
-    printf "sweep_bnds %d\n" $sweep_index
-    printf "outlines %s %s %s %d\n" "$fill" $data_type $color_fl $sweep_index
-}			\
-| sigmet_raw $vol_fl	\
-| sigmet_svg.awk -v x_min=$x_min -v x_max=$x_max -v y_min=$y_min -v y_max=$y_max
+# Run sigmet_raw. Send commands and read output from fifos. Arrange for
+# sigmet_raw termination and clean up on any exit.
+cleanup() {
+    echo > $out &
+    cat $out > /dev/null
+    echo exit > $in
+    rm -f $in $out
+}
+trap cleanup EXIT
+trap cleanup QUIT
+trap cleanup INT
+trap cleanup KILL
+vol_fl=`basename $vol_path`
+vol=`echo $vol_fl | sed -e 's/\.gz$//' -e 's/\.bz2$//'`
+in=${vol}.$$.in
+out=${vol}.$$.out
+mkfifo $in $out
+sigmet_raw ${vol_path} $in &
+
+# This function tells the sigmet_raw daemon to run a command and send the
+# output to the out fifo.
+sig_raw () {
+    printf "open %s\n%s\nclose\n" "$out" "$*" > "$in"
+}
+
+# Assign sweep bounds to x_min, x_max, y_min, and y_max if not set from
+# command line.
+sig_raw sweep_bnds $sweep_index
+eval `cat $out | awk '{printf "if ! test $%s;then %s=%s;fi; ", $1, $1, $2}'`
+check_num "Sweep x min" $x_min
+check_num "Sweep x max" $x_max
+check_num "Sweep y min" $y_min
+check_num "Sweep y max" $y_max
+width=`echo "$x_max - $x_min" | bc -l`
+height=`echo "$y_max - $y_min" | bc -l`
+
+# Print outlines.
+sig_raw outlines $fill $data_type $color_fl $sweep_index &
+cart_svg $doc $x_dpy $y_dpy $w_dpy -- $x_min $y_min $width $height \
+	sigmet_svg.awk $out
 exit 0
