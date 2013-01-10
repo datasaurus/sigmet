@@ -1,6 +1,6 @@
 #!/usr/bin/awk -f
 #
-# Helper for sigmet_ppi_svg
+# Helper for sigmet_svg, converts 'sigmet_raw outlines' output to svg code.
 #
 # Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
 # 
@@ -28,67 +28,17 @@
 #
 # Please send feedback to dev0@trekix.net
 
-/x_min/ {
-    if ( x_min == "nan" ) {
-	x_min = $2;
-    }
-    hav_x_min = 1;
-}
-/x_max/ {
-    if ( x_max == "nan" ) {
-	x_max = $2;
-    }
-    hav_x_max = 1;
-}
-/y_min/ {
-    if ( y_min == "nan" ) {
-	y_min = $2;
-    }
-    hav_y_min = 1;
-}
-/y_max/ {
-    if ( y_max == "nan" ) {
-	y_max = $2;
-    }
-    if ( !hdr_sent && hav_x_min && hav_x_max && hav_y_min ) {
-	w = x_max - x_min;
-	h = y_max - y_min;
-	y1 = y_min + h;
-	w_px = ENVIRON["SIGMET_RAW_IMG_SZ"];
-	if ( w_px == 0 ) {
-	    w_px = 800;
-	}
-	h_px = w_px / w * h;
-	printf  "<?xml version=\"1.0\"";
-	printf  " encoding=\"ISO-8859-1\" standalone=\"no\"?>\n";
-	print  "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\"";
-	print  "    \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">";
-	print  "<svg";
-	print  "    xmlns=\"http://www.w3.org/2000/svg\"";
-	print  "    xmlns:xlink=\"http://www.w3.org/1999/xlink\"";
-	printf "    x=\"%.1f\"\n", ENVIRON["LEFT"];
-	printf "    y=\"%.1f\"\n", ENVIRON["TOP"];
-	printf "    width=\"%.1f\"", w_px;
-	printf "    height=\"%.1f\"", h_px;
-	printf "    viewBox=\"0.0 0.0 %.1f %.1f\">\n", w, h;
-	printf "<g transform=\"matrix(1 0 0 -1 %.1f %.1f)\">\n", -x_min, y1;
-	hdr_sent = 1;
-    }
+BEGIN {
+    close_poly = "";
 }
 /color/ {
-    if ( poly ) {
-	print "\"/>\n";
-    }
-    printf "<path style=\"fill: %s;\" d=\"\n", $2
-	poly = 1;
+    printf "%s<path style=\"fill: %s;\" d=\"\n", close_poly, $2;
+    close_poly = "\"/>\n";
 }
 /gate/ {
     printf "M %.1f %.1f L %.1f %.1f L %.1f %.1f L %.1f %.1f Z\n", \
 	$2, $3, $4, $5, $6, $7, $8, $9;
 }
 END {
-    if ( poly ) {
-	printf "\"/>\n";
-    }
-    printf "</g>\n</svg>\n"
+    print close_poly
 }
