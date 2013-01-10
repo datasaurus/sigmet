@@ -26,7 +26,7 @@
 .\"
 .\" Please address questions and feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.36 $ $Date: 2012/09/13 19:59:00 $
+.\" $Revision: 1.37 $ $Date: 2012/11/08 21:21:23 $
 .\"
 .Dd $Mdocdate$
 .Dt SIGMET_RAW 1
@@ -358,11 +358,8 @@ Prints data for field
 sweep index
 .Ar s ,
 to standard output as a binary stream. Output will have dimensions ray by bin.
-Values will be native floats. Missing values will be given as the value returned
-by
-.Fn Sigmet_NoData .
-See
-.Xr sigmet_data 3 .
+Values will be native floats. Missing values will
+.Dv NAN .
 .It Xo
 .Nm sigmet_raw Cm bin_outline Ar s Ar r Ar b Ar socket
 .Xc
