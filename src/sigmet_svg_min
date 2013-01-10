@@ -145,8 +145,8 @@ trap cleanup INT
 trap cleanup KILL
 vol_fl=`basename $vol_path`
 vol=`echo $vol_fl | sed -e 's/\.gz$//' -e 's/\.bz2$//'`
-in=${vol}.$$.in
-out=${vol}.$$.out
+in=.${vol}.$$.in
+out=.${vol}.$$.out
 mkfifo $in $out
 sigmet_raw ${vol_path} $in &
 
