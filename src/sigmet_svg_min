@@ -4,13 +4,23 @@
 #	Print bin outlines as SVG polygons.
 #
 # Usage:
-#	sigmet_svg [-f] [-d] [-b x_min=f,x_max=f,y_min=f,y_max=f] 
+#	sigmet_svg [-f] [-d] [-b bounds] [-x pixels] [-y pixels] [-w pixels] --
 #	    data_type colors_file sweep_index volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
 #	-d		- make a standalone svg file. Default is to make
 #			  an svg element.
-#	-b		- plot bounds. If not given, use sweep bounds.
+#	-b		- Limits of plot in plot coordinates (not display
+#			  coordinates). bounds must be a string of form
+#			  x_min=value,x_max=value,y_min=value,y_max=value
+#			  Does not have to give all values. For values not
+#			  given, default is to use sweep bounds.
+#	-x		- x attribute of svg element in display. Ignored if -d
+#			  option is present.
+#	-y		- y attribute of svg element in display. Ignored if -d
+#			  option is present.
+#	-w		- width attribute of svg element in display. Ignored
+#			  if -d option is present.
 #	data_type	- data type (e.g. DB_DBZ, DB_ZDR).
 #	colors_file	- specify color for each data interval. Should be
 #			  formatted for sigmet_raw outlines command.
@@ -160,10 +170,10 @@ sig_raw () {
 # command line.
 sig_raw sweep_bnds $sweep_index
 eval `cat $out | awk '{printf "if ! test $%s;then %s=%s;fi; ", $1, $1, $2}'`
-check_num "Sweep x min" $x_min
-check_num "Sweep x max" $x_max
-check_num "Sweep y min" $y_min
-check_num "Sweep y max" $y_max
+check_num "sweep x min" $x_min
+check_num "sweep x max" $x_max
+check_num "sweep y min" $y_min
+check_num "sweep y max" $y_max
 width=`echo "$x_max - $x_min" | bc -l`
 height=`echo "$y_max - $y_min" | bc -l`
 
