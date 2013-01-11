@@ -121,11 +121,8 @@ shift `expr $OPTIND - 1`
 if [ $# -ne 4 ]
 then
     {
-	printf "Usage: $0"
-	printf " [-f] [-d]"
-	printf " [-b 'x_min=number,x_max=number,y_min=number,y_max=number]"
-	printf " [-x x_dpy] [-y y_dpy] [-w width_dpy]"
-	printf " data_type colors_file sweep_index volume_file\n"
+	printf "Usage: $0 [-f] [-d] [-b bounds] [-x pixels] [-y pixels]"
+	printf " [-w pixels] -- data_type colors_file sweep_index volume_file\n"
     } 1>&2
     exit 1
 fi
