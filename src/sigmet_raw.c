@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.120 $ $Date: 2012/12/14 02:34:29 $
+   .	$Revision: 1.121 $ $Date: 2013/01/04 21:33:30 $
  */
 
 #include "unix_defs.h"
@@ -1333,6 +1333,7 @@ static int radar_lat_cb(int argc, char *argv[])
 		"new latitude, got %s\n", argv0, lat_s);
 	return 0;
     }
+    lat = GeogLatN(lat * RAD_PER_DEG);
     Sigmet_Vol_RadarLat(&vol, &lat);
     return 1;
 }

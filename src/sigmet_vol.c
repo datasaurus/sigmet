@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.210 $ $Date: 2012/12/13 01:33:26 $
+   .	$Revision: 1.211 $ $Date: 2013/01/02 23:06:59 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -789,7 +789,6 @@ void Sigmet_Vol_PrintMinHdr(FILE *out, struct Sigmet_Vol *vol_p)
     double wavlen, prf, vel_ua;
     enum Sigmet_Multi_PRF mp;
     char *mp_s = "unknown";
-    double l;
 
     if ( !vol_p ) {
 	return;
@@ -799,10 +798,10 @@ void Sigmet_Vol_PrintMinHdr(FILE *out, struct Sigmet_Vol *vol_p)
 	return;
     }
     fprintf(out, "site_name=\"%s\"\n", vol_p->ih.ic.su_site_name);
-    l = GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.longitude), 0.0) * DEG_PER_RAD;
-    fprintf(out, "radar_lon=%.4lf\n", l);
-    l = GeogLonR(Sigmet_Bin4Rad(vol_p->ih.ic.latitude), 0.0) * DEG_PER_RAD;
-    fprintf(out, "radar_lat=%.4lf\n", l);
+    fprintf(out, "radar_lon=%.4lf\n",
+	    Sigmet_Vol_RadarLon(vol_p, NULL) * DEG_PER_RAD);
+    fprintf(out, "radar_lat=%.4lf\n", 
+	    Sigmet_Vol_RadarLat(vol_p, NULL) * DEG_PER_RAD);
     switch (vol_p->ih.tc.tni.scan_mode) {
 	case PPI_S:
 	    fprintf(out, "scan_mode=\"ppi sector\"\n");
@@ -1779,11 +1778,11 @@ double Sigmet_Vol_RadarLat(struct Sigmet_Vol *vol_p, double *lat_p)
 	return NAN;
     }
     if ( lat_p ) {
-	vol_p->ih.ic.latitude = *lat_p;
+	vol_p->ih.ic.latitude = Sigmet_RadBin4(*lat_p);
 	vol_p->mod = 1;
 	return *lat_p;
     }
-    return Sigmet_Bin4Rad(vol_p->ih.ic.latitude);
+    return GeogLatN(Sigmet_Bin4Rad(vol_p->ih.ic.latitude));
 }
 
 int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
