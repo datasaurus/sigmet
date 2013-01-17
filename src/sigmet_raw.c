@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.124 $ $Date: 2013/01/17 19:46:56 $
+   .	$Revision: 1.125 $ $Date: 2013/01/17 19:59:02 $
  */
 
 #include "unix_defs.h"
@@ -404,6 +404,9 @@ static int open_cb(int argc, char *argv[])
     if ( !(t = fopen(fl_nm, "w")) ) {
 	fprintf(stderr, "Could not open %s for writing.\n", fl_nm);
 	return 0;
+    }
+    if ( out != stdout ) {
+	fclose(out);
     }
     out = t;
     return 1;
