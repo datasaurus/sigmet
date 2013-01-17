@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.122 $ $Date: 2013/01/15 22:38:42 $
+   .	$Revision: 1.123 $ $Date: 2013/01/17 17:33:56 $
  */
 
 #include "unix_defs.h"
@@ -119,6 +119,7 @@ static char *sigmet_err(enum SigmetStatus);
  */
 
 typedef int (callback)(int , char **);
+static callback commands_cb;
 static callback open_cb;
 static callback close_cb;
 static callback exit_cb;
@@ -166,39 +167,40 @@ static int set_proj(void);
 
 #define N_HASH_CMD 114
 static char *cmd1v[N_HASH_CMD] = {
-"close", "", "shift_az", "", "radar_lon", "", "", "", 
-"", "outlines", "", "", "sub", "", "", "", 
-"", "", "", "", "", "", "del_field", "", 
-"", "", "", "", "", "", "", "ray_headers", 
-"radar_lat", "", "", "", "data_types", "", "", "", 
-"", "", "", "", "", "sweep_headers", "", "", 
-"", "", "", "", "", "", "incr_time", "set_field", 
-"", "", "sweep_bnds", "size", "", "", "data", "near_sweep", 
-"bdata", "div", "", "", "open", "", "mul", "new_field", 
-"bin_outline", "", "", "", "", "log10", "", "", 
-"vol_hdr", "", "", "", "", "", "", "add", 
-"", "", "", "", "", "", "", "", 
-"", "", "", "", "", "", "", "", 
-"", "", "exit", "dorade", "", "volume_headers", "", "", 
-"", "", 
+    "close", "", "shift_az", "", "radar_lon", "", "", "", 
+    "", "outlines", "", "", "sub", "", "", "", 
+    "", "", "", "", "", "", "del_field", "", 
+    "", "", "", "", "", "", "", "ray_headers", 
+    "radar_lat", "", "", "", "data_types", "", "", "", 
+    "", "", "", "", "", "sweep_headers", "", "", 
+    "", "", "", "", "commands", "", "incr_time", "set_field", 
+    "", "", "sweep_bnds", "size", "", "", "data", "near_sweep", 
+    "bdata", "div", "", "", "open", "", "mul", "new_field", 
+    "bin_outline", "", "", "", "", "log10", "", "", 
+    "vol_hdr", "", "", "", "", "", "", "add", 
+    "", "", "", "", "", "", "", "", 
+    "", "", "", "", "", "", "", "", 
+    "", "", "exit", "dorade", "", "volume_headers", "", "", 
+    "", "", 
 };
 static callback *cb1v[N_HASH_CMD] = {
-close_cb, NULL, shift_az_cb, NULL, radar_lon_cb, NULL, NULL, NULL, 
-NULL, outlines_cb, NULL, NULL, sub_cb, NULL, NULL, NULL, 
-NULL, NULL, NULL, NULL, NULL, NULL, del_field_cb, NULL, 
-NULL, NULL, NULL, NULL, NULL, NULL, NULL, ray_headers_cb, 
-radar_lat_cb, NULL, NULL, NULL, data_types_cb, NULL, NULL, NULL, 
-NULL, NULL, NULL, NULL, NULL, sweep_headers_cb, NULL, NULL, 
-NULL, NULL, NULL, NULL, NULL, NULL, incr_time_cb, set_field_cb, 
-NULL, NULL, sweep_bnds_cb, size_cb, NULL, NULL, data_cb, near_sweep_cb, 
-bdata_cb, div_cb, NULL, NULL, open_cb, NULL, mul_cb, new_field_cb, 
-bin_outline_cb, NULL, NULL, NULL, NULL, log10_cb, NULL, NULL, 
-vol_hdr_cb, NULL, NULL, NULL, NULL, NULL, NULL, add_cb, 
-NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
-NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
-NULL, NULL, exit_cb, dorade_cb, NULL, volume_headers_cb, NULL, NULL, 
-NULL, NULL, 
+    close_cb, NULL, shift_az_cb, NULL, radar_lon_cb, NULL, NULL, NULL, 
+    NULL, outlines_cb, NULL, NULL, sub_cb, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, del_field_cb, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, ray_headers_cb, 
+    radar_lat_cb, NULL, NULL, NULL, data_types_cb, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, sweep_headers_cb, NULL, NULL, 
+    NULL, NULL, NULL, NULL, commands_cb, NULL, incr_time_cb, set_field_cb, 
+    NULL, NULL, sweep_bnds_cb, size_cb, NULL, NULL, data_cb, near_sweep_cb, 
+    bdata_cb, div_cb, NULL, NULL, open_cb, NULL, mul_cb, new_field_cb, 
+    bin_outline_cb, NULL, NULL, NULL, NULL, log10_cb, NULL, NULL, 
+    vol_hdr_cb, NULL, NULL, NULL, NULL, NULL, NULL, add_cb, 
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+    NULL, NULL, exit_cb, dorade_cb, NULL, volume_headers_cb, NULL, NULL, 
+    NULL, NULL, 
 };
+
 #define HASH_X 31
 static int hash(const char *);
 static int hash(const char *cmd)
@@ -212,10 +214,9 @@ static int hash(const char *cmd)
 }
 
 /*
-   Names of environment variables
+   Environment variable
  */
 
-#define SIGMET_RAW_FILE "SIGMET_RAW_FILE"
 #define SIGMET_GEOG_PROJ "SIGMET_GEOG_PROJ"
 
 /*
@@ -250,14 +251,6 @@ int main(int argc, char *argv[])
 	if ( strcmp(argv[1], "version") == 0 ) {
 	    fprintf(out, "%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
 		    "All rights reserved.\n", argv[0], SIGMET_VERSION);
-	    exit(EXIT_SUCCESS);
-	} else if ( strcmp(argv[1], "commands") == 0 ) {
-	    for (n = 0; n < N_HASH_CMD; n++) {
-		if ( strlen(cmd1v[n]) > 0 ) {
-		    fprintf(out, " %s", cmd1v[n]);
-		}
-	    }
-	    fprintf(out, "\n");
 	    exit(EXIT_SUCCESS);
 	} else {
 	    vol_fl_nm = argv[1];
@@ -376,6 +369,24 @@ int main(int argc, char *argv[])
 	}
     }
     return EXIT_FAILURE;
+}
+
+static int commands_cb(int argc, char *argv[])
+{
+    char *argv0 = argv[0];
+    int n;
+
+    if ( argc != 1 ) {
+	fprintf(stderr, "Usage: %s\n", argv0);
+	return 0;
+    }
+    for (n = 0; n < N_HASH_CMD; n++) {
+	if ( strlen(cmd1v[n]) > 0 ) {
+	    fprintf(out, " %s", cmd1v[n]);
+	}
+    }
+    fprintf(out, "\n");
+    return 1;
 }
 
 static int open_cb(int argc, char *argv[])
