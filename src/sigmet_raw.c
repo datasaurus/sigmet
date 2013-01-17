@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.123 $ $Date: 2013/01/17 17:33:56 $
+   .	$Revision: 1.124 $ $Date: 2013/01/17 19:46:56 $
  */
 
 #include "unix_defs.h"
@@ -247,15 +247,16 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
     out = stdout;
-    if ( argc == 2 ) {
-	if ( strcmp(argv[1], "version") == 0 ) {
-	    fprintf(out, "%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
-		    "All rights reserved.\n", argv[0], SIGMET_VERSION);
-	    exit(EXIT_SUCCESS);
-	} else {
-	    vol_fl_nm = argv[1];
-	    script_nm = "-";
-	}
+    if ( argc == 1 ) {
+	fprintf(out, "%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
+		"All rights reserved.\n"
+		"Usage: %s raw_product_file [command_file]\n"
+		"Refer to sigmet_raw (1) man page for more information.\n",
+		argv0, SIGMET_VERSION, argv0);
+	exit(EXIT_SUCCESS);
+    } else if ( argc == 2 ) {
+	vol_fl_nm = argv[1];
+	script_nm = "-";
     } else if ( argc == 3 ) {
 	vol_fl_nm = argv[1];
 	script_nm = argv[2];
@@ -1030,7 +1031,8 @@ static int data_cb(int argc, char *argv[])
 		    fprintf(out, "ray %d: ", r);
 		    num_bins = Sigmet_Vol_NumBins(&vol, s, r);
 		    for (b = 0; b < num_bins; b++) {
-			fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
+			fprintf(out, "%f ",
+				Sigmet_Vol_GetDatum(&vol, y, s, r, b));
 		    }
 		    fprintf(out, "\n");
 		}
@@ -1075,7 +1077,8 @@ static int data_cb(int argc, char *argv[])
 	}
     } else {
 	if ( !Sigmet_Vol_BadRay(&vol, s, r) ) {
-	    fprintf(out, "%s. sweep %d, ray %d, bin %d: ", data_type_s, s, r, b);
+	    fprintf(out, "%s. sweep %d, ray %d, bin %d: ",
+		    data_type_s, s, r, b);
 	    fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
 	    fprintf(out, "\n");
 	}
