@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.121 $ $Date: 2013/01/04 21:33:30 $
+   .	$Revision: 1.122 $ $Date: 2013/01/15 22:38:42 $
  */
 
 #include "unix_defs.h"
@@ -1302,19 +1302,23 @@ static int radar_lon_cb(int argc, char *argv[])
     char *lon_s;			/* New longitude, degrees, in argv */
     double lon;				/* New longitude, degrees */
 
-    if ( argc != 2 ) {
+    if ( argc == 1 ) {
+	printf("%lf\n", Sigmet_Vol_RadarLon(&vol, NULL) * DEG_PER_RAD);
+	return 1;
+    } else if ( argc == 2 ) {
+	lon_s = argv[1];
+	if ( sscanf(lon_s, "%lf", &lon) != 1 ) {
+	    fprintf(stderr, "%s: expected floating point value for "
+		    "new longitude, got %s\n", argv0, lon_s);
+	    return 0;
+	}
+	lon = GeogLonR(lon * RAD_PER_DEG, M_PI);
+	printf("%lf\n", Sigmet_Vol_RadarLon(&vol, &lon) * DEG_PER_RAD);
+	return 1;
+    } else {
 	fprintf(stderr, "Usage: %s new_lon\n", argv0);
 	return 0;
     }
-    lon_s = argv[1];
-    if ( sscanf(lon_s, "%lf", &lon) != 1 ) {
-	fprintf(stderr, "%s: expected floating point value for "
-		"new longitude, got %s\n", argv0, lon_s);
-	return 0;
-    }
-    lon = GeogLonR(lon * RAD_PER_DEG, M_PI);
-    Sigmet_Vol_RadarLon(&vol, &lon);
-    return 1;
 }
 
 static int radar_lat_cb(int argc, char *argv[])
@@ -1323,19 +1327,23 @@ static int radar_lat_cb(int argc, char *argv[])
     char *lat_s;			/* New latitude, degrees, in argv */
     double lat;				/* New latitude, degrees */
 
-    if ( argc != 2 ) {
+    if ( argc == 1 ) {
+	printf("%lf\n", Sigmet_Vol_RadarLat(&vol, NULL) * DEG_PER_RAD);
+	return 1;
+    } else if ( argc == 2 ) {
+	lat_s = argv[1];
+	if ( sscanf(lat_s, "%lf", &lat) != 1 ) {
+	    fprintf(stderr, "%s: expected floating point value for "
+		    "new latitude, got %s\n", argv0, lat_s);
+	    return 0;
+	}
+	lat = GeogLatN(lat * RAD_PER_DEG);
+	printf("%lf\n", Sigmet_Vol_RadarLat(&vol, &lat) * DEG_PER_RAD);
+	return 1;
+    } else {
 	fprintf(stderr, "Usage: %s new_lat\n", argv0);
 	return 0;
     }
-    lat_s = argv[1];
-    if ( sscanf(lat_s, "%lf", &lat) != 1 ) {
-	fprintf(stderr, "%s: expected floating point value for "
-		"new latitude, got %s\n", argv0, lat_s);
-	return 0;
-    }
-    lat = GeogLatN(lat * RAD_PER_DEG);
-    Sigmet_Vol_RadarLat(&vol, &lat);
-    return 1;
 }
 
 static int shift_az_cb(int argc, char *argv[])
