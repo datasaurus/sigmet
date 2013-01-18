@@ -1,16 +1,16 @@
 .\"
 .\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
-.\" 
+.\"
 .\" Redistribution and use in source and binary forms, with or without
 .\" modification, are permitted provided that the following conditions
 .\" are met:
-.\" 
+.\"
 .\"     * Redistributions of source code must retain the above copyright
 .\"     notice, this list of conditions and the following disclaimer.
 .\"     * Redistributions in binary form must reproduce the above copyright
 .\"     notice, this list of conditions and the following disclaimer in the
 .\"     documentation and/or other materials provided with the distribution.
-.\" 
+.\"
 .\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 .\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 .\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -26,7 +26,7 @@
 .\"
 .\" Please address questions and feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.37 $ $Date: 2012/11/08 21:21:23 $
+.\" $Revision: 1.38 $ $Date: 2013/01/10 21:24:52 $
 .\"
 .Dd $Mdocdate$
 .Dt SIGMET_RAW 1
@@ -36,74 +36,82 @@
 .Nd interact with data from Sigmet raw volumes
 .Sh SYNOPSIS
 .Nm sigmet_raw
-.Cm load
-.Ar raw_product_file
-.Ar socket
-.Nm sigmet_raw
-.Ar command
-.Op options
-.Ar socket
+.Op Ar raw_product_file
+.Op Ar command_file
 .Sh DESCRIPTION
-The 
+If called without arguments,
 .Nm sigmet_raw
-command reads, stores, and manipulates data from Sigmet raw product volumes.
-Its behavior is determined the the first word after
-.Nm sigmet_raw .
-The following forms are recognized:
-.Bl -ohang
-.It Nm sigmet_raw Cm data_types Op socket
-Prints a list of Sigmet data types. At a minimum, this command lists the
-Sigmet data types from the Iris Programmer's Manual. With
-.Ar socket ,
-it will also list any additional data types known to a
+prints version and usage information.
+Otherwise,
 .Nm sigmet_raw
-daemon associated with the socket, as described below. Output lines will have
-form:
+reads
+.Ar raw_product_file ,
+which must be a file that contains a Sigmet raw product volume, into memory. If
+.Ar raw_product_file
+ends with
+.Qq .gz ,
+it must be a raw product file compressed with
+.Nm gzip .
+If
+.Ar raw_product_file
+ends with
+.Qq .bz2 ,
+it must be a raw product file compressed with
+.Nm bzip2 .
+Once the volume is loaded,
+.Nm sigmet_raw
+reads commands from
+.Ar command_file
+if given, standard input otherwise. The commands are described below in COMMANDS.
+If
+.Nm sigmet_raw
+reads commands from standard input, or if
+.Ar command_file
+is a regular file, the process exits at end of file, or if it reads an
+.Cm exit
+command. If
+.Ar command_file
+is a fifo (see
+.Xr mkfifo 1 )
+then the
+.Nm sigmet_raw
+process runs until it reads an
+.Cm exit
+command. If the fifo is deleted, the
+.Nm sigmet_raw
+process will continue running until terminated with a signal.
+.Sh COMMANDS
+.Bl -tag -width open
+.It Cm commands
+Prints a list of accepted commands.
+.It Cm open Ar path
+Tells
+.Nm sigmet_raw
+to send output to
+.Ar path .
+Default is to write to standard output. If
+.Nm sigmet_raw
+is writing to a file specified in a previous call to
+.Cm open ,
+the previous file is closed.
+.It Cm close
+Closes a file opened with an earlier call to
+.Cm open ,
+if any. Subsequent output goes to standard out.
+.Cm exit
+Tells the
+.Nm sigmet_raw
+process to exit.
+.It Cm data_types
+Prints a list of Sigmet data types. This includes Sigmet data types from the
+Iris Programmer's Manual and any additional data types added to the volume.
+Output lines will have form:
 .Bd -literal -offset indent
 \fIDB_field\fP | \fIDescription\fP | \fIunit\fP
 \fIDB_field2\fP | \fIDescription2\fP | \fIunit\fP
 
 .Ed
-.It Nm sigmet_raw Cm good Ar raw_file Op socket
-Returns true if standard input provides a navigable Sigmet raw product.
-The raw product may not contain any useful meta-data or data, and nothing
-is stored. This command only checks volume integrity. If
-.Ar socket
-is given, this command reports on the integrity of the volume belonging to a
-.Nm sigmet_raw
-daemon, described below.
-.It Nm sigmet_raw Cm load Ar raw_file Ar socket
-Starts a daemon that loads a Sigmet raw product from file
-.Ar raw_file .
-The daemon then listens for information and action requests from a socket named
-.Ar socket
-in the current working directory (note the leading dot in the socket name). It
-also writes log messages to local file
-.Li .sigmet.log
-and error messages to
-.Li .sigmet.err .
-.El
-.Sh VOLUME COMMANDS
-The following commands act on a daemon launched with a call to
-.Nm sigmet_raw Cm load .
-Current working directory must contain the associated
-.Ar socket
-socket.
-.Pp
-Sweep, ray, and bin indeces start with
-.Li 0 .
-.Bl -ohang
-.It Nm sigmet_raw Cm unload Ar socket
-Terminates the daemon.  Upon exit, the daemon deletes
-.Ar socket
-although
-.Li .sigmet.log
-and
-.Li .sigmet.err
-remain.
-.It Nm sigmet_raw Cm pid Ar socket
-Prints the process identifier of daemon.
-.It Nm sigmet_raw Cm volume_headers Ar socket
+.It Cm volume_headers
 Prints volume headers.  Values are those obtained from product header and ingest
 data header of the raw file.  Ray headers and data are not printed.  Output lines
 have form:
@@ -121,13 +129,12 @@ e.g.
 This format is easy for other processes to filter and manipulate, but hard to
 read on a screen. For a more readable list, filter with something like:
 .Bd -filled
-    \fBsigmet_raw\fP \fBvolume_headers\fP \fIraw_file\fP \fB\ \\
-    | awk -F\ \&| '{printf "%s = %s\\n %s\\n\\n", $2, $1, $3}'\fP
+    awk -F\ \&| '{printf "%s = %s\\n %s\\n\\n", $2, $1, $3}'
 
 .Ed
 Be aware that the same member might reside in several structure
 hierarchies. See the IRIS Programmer's Manual for details.
-.It Nm sigmet_raw Cm vol_hdr Ar socket
+.It Cm vol_hdr
 Prints commonly used volume headers. Output will look like:
 .Bd -filled
     \fBsite_name\fP="\fIsite_name_from_setup\fP"
@@ -142,11 +149,11 @@ Prints commonly used volume headers. Output will look like:
     \fBbin_step\fP=\fIinteger_cm\fP
 
 .Ed
-.It Nm sigmet_raw Cm near_sweep Ar angle Ar socket
+.It Cm near_sweep Ar angle
 Prints the index (base zero) of the sweep with sweep angle nearest
 .Ar angle
 degrees.
-.It Nm sigmet_raw Cm sweep_headers Ar socket
+.It Cm sweep_headers
 Lists times and angle for each sweep, as reported by the sweep headers in the
 volume. For each sweep, this command prints a line of form:
 .Bd -filled
@@ -154,7 +161,7 @@ volume. For each sweep, this command prints a line of form:
 .Ed
 Unusable sweep time is printed as:
 \fI0000\fP\fB/\fP\fI00\fP\fB/\fP\fI00\fP \fI00\fP\fB:\fP\fI00\fP\fB:\fP\fI00\fP
-.It Nm sigmet_raw Cm ray_headers Ar socket
+.It Cm ray_headers
 Prints ray times and beginning and ending azimuths and tilts for all rays
 in the volume. For each ray, this command prints a line of form:
 .Bd -filled
@@ -162,13 +169,11 @@ in the volume. For each ray, this command prints a line of form:
 .Ed
 .It
 .Xo
-.Nm sigmet_raw
 .Cm new_field
 .Ar data_type
 .Op Fl v Ar value
 .Op Fl d Ar description
 .Op Fl v Ar unit
-.Ar socket
 .Xc
 Adds a field named
 .Ar data_type
@@ -180,7 +185,9 @@ Optional
 .Ar unit
 provides a unit. This is not implicitly used in any calculation. If no
 .Ar value
-is given, all bins are set to an unusable value in the new field.  If present,
+is given, all bins are set
+.Dv NAN
+in the new field.  If present,
 .Ar value
 is interpreted as follows:
 .Bl -ohang -offset indent
@@ -194,11 +201,11 @@ Values from field
 .Ar data_type ,
 which must already exist in the volume, are copied to the new field.
 .El
-.It Nm sigmet_raw Cm del_field Ar data_type Ar socket
+.It Cm del_field Ar data_type
 Removes the specified field from the volume.
-.It Nm sigmet_raw Cm size Ar socket
-Prints the amount of memory the volume is using for headers and data.
-.It Nm sigmet_raw Cm set_field Ar data_type Ar value Ar socket
+.It Cm size
+Prints the amount of memory in bytes the volume is using for headers and data.
+.It Cm set_field Ar data_type Ar value
 Assigns a value to a field.
 .Ar value
 must be one of
@@ -213,7 +220,7 @@ Values from field
 .Ar data_type2 ,
 which must already exist in the volume, are copied to the new field.
 .El
-.It Nm sigmet_raw Cm add Ar data_type Ar value Ar socket
+.It Cm add Ar data_type Ar value
 Adds a value or values to the field of
 .Ar data_type .
 The sums replace the original bin values for
@@ -236,7 +243,7 @@ value. A field of
 .Ar data_type2
 must already exist in the volume.
 .El
-.It Nm sigmet_raw Cm sub Ar data_type Ar value Ar socket
+.It Cm sub Ar data_type Ar value
 Subtracts a value or values from the field of
 .Ar data_type .
 The differences replace the original bin values for
@@ -259,7 +266,7 @@ value. A field of
 .Ar data_type2
 must already exist in the volume.
 .El
-.It Nm sigmet_raw Cm mul Ar data_type Ar value Ar socket
+.It Cm mul Ar data_type Ar value
 Multiplies the field of
 .Ar data_type
 by a value or values. The products replace the original bin values for
@@ -280,7 +287,7 @@ field. A field of
 .Ar data_type2
 must already exist in the volume.
 .El
-.It Nm sigmet_raw Cm div Ar data_type Ar value Ar socket
+.It Cm div Ar data_type Ar value
 Divides the field of
 .Ar data_type
 by a value or values. The quotients replace the original bin values for
@@ -301,32 +308,31 @@ field. A field of
 .Ar data_type2
 must already exist in the volume.
 .El
-.It Nm sigmet_raw Cm log10 Ar data_type Ar socket
+.It Cm log10 Ar data_type
 In each bin, replaces the
 .Ar data_type
 value with its common logarithm.
-.It Nm sigmet_raw Cm incr_time Ar socket
+.It Cm incr_time
 Adds
 .Ar dt
 seconds to all times in the volume, sweep, and ray headers.
-.It Nm sigmet_raw Cm data Ar socket
-Prints all bin values for the volume to standard output as text.
-.It Nm sigmet_raw Cm data Ar data_type Ar socket
+.It Cm data
+Prints all bin values for the volume as text.
+.It Cm data Ar data_type
 Prints all bin values for
 .Ar data_type
-to standard output as text.
-.It Nm sigmet_raw Cm data Ar data_type Ar s Ar socket
+as text.
+.It Cm data Ar data_type Ar s
 Prints all bin values for sweep
 .Ar s ,
 field
 .Ar data_type
-to standard output as text.
+as text.
 .It Xo
-.Nm sigmet_raw Cm data
+.Cm data
 .Ar data_type
 .Ar s
 .Ar r
-.Ar socket
 .Xc
 Prints all bin values for ray
 .Ar r ,
@@ -334,14 +340,13 @@ sweep
 .Ar s ,
 field
 .Ar data_type
-to standard output as text.
+as text.
 .It Xo
-.Nm sigmet_raw Cm data
+.Cm data
 .Ar data_type
 .Ar s
 .Ar r
 .Ar b
-.Ar socket
 .Xc
 Prints the value of bin
 .Ar b ,
@@ -351,107 +356,163 @@ sweep
 .Ar s ,
 field
 .Ar data_type
-to standard output as text.
-.It Nm sigmet_raw Cm bdata Ar data_type Ar s Ar socket
+as text.
+.It Cm bdata Ar data_type Ar s
 Prints data for field
 .Ar data_type ,
 sweep index
 .Ar s ,
-to standard output as a binary stream. Output will have dimensions ray by bin.
+as a binary stream. Output will have dimensions ray by bin.
 Values will be native floats. Missing values will
 .Dv NAN .
 .It Xo
-.Nm sigmet_raw Cm bin_outline Ar s Ar r Ar b Ar socket
+.Cm bin_outline Ar s Ar r Ar b
 .Xc
-Prints the longitudes and latitudes, in degrees, of the corners of sweep
+Prints the corner coordinates of sweep
 .Ar s ,
 ray
 .Ar r ,
 bin
 .Ar b .
 Output will be of form:
-.Bd -filled -offset indent
-\fIlat1 lon2 lat2 lon3 lat3 lon4 lat4\fP
+.Bd -offset indent
+\fIx1 y1 x2 y2 x3 y3 x4 y4\fP
 .Ed
-.It Nm sigmet_raw Cm radar_lon Ar lon Ar socket
-Sets the radar longitude to
+.Pp
+If the sweep is a PPI, x and y are map coordinates, in meters. The default map
+projection is Cylindrical Equidistant with origin and no distortion at the radar.
+This can be overridden with the
+.Ev SIGMET_GEOG_PROJ
+environment variable, which must contain a string readable to the
+.Fn GeogProjSetFmStr
+function. See
+.Xr geog_proj 3 .
+.Pp
+If the sweep is an RHI, x denotes distance along the ground in meters to the
+point under the bin, and y denotes height in meters above the ground, using
+four thirds rule.
+.It Cm sweep_bnds Ar s
+Prints sweep bounds for sweep
+.Ar s .
+Output has form:
+.Bd -offset indent
+\fBx_min\fP \fIvalue\fP \fBx_max\fP \fIvalue\fP \fBy_min\fP \fIvalue\fP \fBy_max\fP \fIvalue\fP
+.Ed
+.Pp
+If the sweep is a PPI, values are map coordinates, in meters. The default map
+projection is Cylindrical Equidistant with origin and no distortion at the
+radar. This can be overridden with the
+.Ev SIGMET_GEOG_PROJ
+environment variable, which must contain a string readable to the
+.Fn GeogProjSetFmStr
+function. See
+.Xr geog_proj 3 .
+.Pp
+If the sweep is an RHI, x_min is always 0.0. x_max denotes distance along the
+ground in meters to the point under the farthest bin. y_min is always 0.0.
+y_max denotes height in meters above the ground of the highest bin, using four
+thirds rule.
+.It Cm radar_lon Ar Op lon
+If present, sets the radar longitude to
 .Ar lon
-degrees.
-.It Nm sigmet_raw Cm radar_lat Ar lat Ar socket
-Sets the radar latitude to
+degrees. In either case, prints radar longitude in degrees.
+.It Cm radar_lat Ar Op lat
+If present, sets the radar latitude to
 .Ar lat
-degrees.
-.It Nm sigmet_raw Cm shift_az Ar socket
+degrees. In either case, prints radar latitude in degrees.
+.It Cm shift_az
 Adds
 .Ar daz
 degrees to all azimuths in the volume.
-.It Xo
-.Nm sigmet_raw
-.Cm dorade
-.Op s
-.Ar socket
-.Xc
+.It Cm dorade Op s
 Creates DORADE sweep files. If
 .Ar s
 is absent or
-.Qo
-all
-.Qc ,
+.Qq all ,
 this command will make DORADE sweep files for all sweeps in the volume.
 Otherwise, it will make one sweep file for sweep
 .Ar s .
 .It Xo
-.Nm sigmet_raw
 .Cm outlines
-.Op Fl b
 .Op Fl f
 .Ar data_type
+.Ar color_file
 .Ar s
-.Ar min
-.Ar max
-.Ar out_file
-.Ar socket
 .Xc
 Prints outlines of bins for data type
 .Ar data_type
-sweep
-.Ar s
-for which the field has values
-.Ar min
-.Li <=
-value
-.Li <
-.Ar max .
-The outlines are printed to file
-.Ar out_file .
+grouped into data intervals with associated colors specified in
+.Ar color_file
+for the sweep with base 0 index
+.Ar s .
+.Ar color_file
+must be a text file of form:
+.Bd -offset indent
+ \fInum_colors\fP
+ \fIbound\fP \fIcolor\fP
+ \fIbound\fP \fIcolor\fP
+ ...
+ \fIbound\fP \fIcolor\fP
+ \fIbound\fP
+
+.Ed
+.Ar num_colors
+must be an integer specifying the number of colors.
+The first bound must be a float value or
+.Dv -INF
+indicating no lower bound for the first interval.
+The last bound must be a float value or
+.Dv INF
+indicating no upper bound for the last interval. All other bounds must be
+float values.  Bounds must be monotonically increasing.
+Each
+.Ar color
+must be a character string. The format does not matter. The string is simply
+passed as is to output.  For each color, output will contain one line of form:
+.Bd -offset indent
+ \fBcolor\fP \fIcolor\fP
+
+.Ed
+After the color specifier, the command prints the outlines of bins whose
+value for
+.Ar data_type
+is in the interval,
+.Ar previous_bound
+.Ms <=
+.Ar bin_value
+.Ms <
+.Ar next_bound .
+The outline of each bin will be on a separate line of form:
+.Bd -offset indent
+ \fBgate\fP \fIx1\fP \fIy1\fP \fIx2\fP \fIy2\fP \fIx3\fP \fIy3\fP \fIx4\fP \fIy4\fP
+.Ed
+.Pp
+If the sweep is a PPI, values are map coordinates, in meters. The default map
+projection is Cylindrical Equidistant with origin and no distortion at the
+radar. This can be overridden with the
+.Ev SIGMET_GEOG_PROJ
+environment variable, which must contain a string readable to the
+.Fn GeogProjSetFmStr
+function. See
+.Xr geog_proj 3 .
+.Pp
+If the sweep is an RHI, x denotes distance along the ground in meters to the
+point under the bin, and y denotes height in meters above the ground, using
+four thirds rule.
+.Pp
+Bin outlines are right handed polygons.
+.Pp
 If
-.Ar out_file
-is
-.Li - ,
-they are printed to standard output of the sigmet_raw client. By default,
-output is a text stream. For a PPI sweep, each line of output contains the
-corners of one bin as
-.Bd -literal -offset indent
-lon1 lat1 lon2 lat2 lon3 lat3 lon4 lat4
-
-.Ed
-where lon denotes longitude in decimal degrees east and lat denotes latitude
-in decimal degrees north.
-For a RHI sweep, each line of output contains the corners of one bin as
-.Bd -literal -offset indent
-rng1 alt1 rng2 alt2 rng3 alt3 rng4 alt4
-
-.Ed
-where rng denotes range along the ground to the point below the corner, in
-meters, and alt denotes height above ground in meters.
-Bin outlines are right handed polygons. If
-.Fl b
-is present, output is a native binary stream instead of text, and longitudes
-and latitudes for PPI bins are given in radians. If
 .Fl f
 is present, outlines are expanded so that they touch, if necessary.
 Otherwise, the bin outline stated in the file is used, which might
 result in gaps between adjacent bins.
+.It Cm dorade Op s
+Writes DORADE sweep files for the volume in the current working directory.
+Option
+.Ar s
+specifies a sweep to write, otherwise sweep files are written for all sweeps
+in the volume.
 .El
 .Sh SEE ALSO
 .Xr sigmet_data 3 ,
