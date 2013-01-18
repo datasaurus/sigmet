@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.125 $ $Date: 2013/01/17 19:59:02 $
+   .	$Revision: 1.126 $ $Date: 2013/01/17 21:04:46 $
  */
 
 #include "unix_defs.h"
@@ -1308,7 +1308,7 @@ static int sweep_bnds_cb(int argc, char *argv[])
 	    return 0;
 	}
     }
-    fprintf(out, "x_min %lf\nx_max %lf\ny_min %lf\ny_max %lf\n",
+    fprintf(out, "x_min %lf x_max %lf y_min %lf y_max %lf\n",
 	    x_min, x_max, y_min, y_max);
     return 1;
 }
