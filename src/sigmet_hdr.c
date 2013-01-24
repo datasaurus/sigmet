@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.12 $ $Date: 2012/11/08 21:24:49 $
+   .	$Revision: 1.13 $ $Date: 2012/12/01 16:52:55 $
  */
 
 #include "unix_defs.h"
@@ -317,25 +317,34 @@ int handle_signals(void)
 void handler(int signum)
 {
     char *msg;
+    int status = EXIT_FAILURE;
 
     msg = "sigmet_hdr exiting                          \n";
     switch (signum) {
+	case SIGQUIT:
+	    msg = "sigmet_hdr exiting on termination signal    \n";
+	    status = EXIT_SUCCESS;
+	    break;
 	case SIGTERM:
 	    msg = "sigmet_hdr exiting on termination signal    \n";
+	    status = EXIT_SUCCESS;
 	    break;
 	case SIGFPE:
 	    msg = "sigmet_hdr exiting arithmetic exception     \n";
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGSYS:
 	    msg = "sigmet_hdr exiting on bad system call       \n";
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGXCPU:
 	    msg = "sigmet_hdr exiting: CPU time limit exceeded \n";
+	    status = EXIT_FAILURE;
 	    break;
 	case SIGXFSZ:
 	    msg = "sigmet_hdr exiting: file size limit exceeded\n";
+	    status = EXIT_FAILURE;
 	    break;
     }
-    (void)write(STDERR_FILENO, msg, 45);
-    _exit(EXIT_FAILURE);
+    _exit(write(STDERR_FILENO, msg, 45) == 45 ?  status : EXIT_FAILURE);
 }
