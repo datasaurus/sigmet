@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.126 $ $Date: 2013/01/17 21:04:46 $
+   .	$Revision: 1.127 $ $Date: 2013/01/18 20:22:56 $
  */
 
 #include "unix_defs.h"
@@ -1099,7 +1099,7 @@ static int data_cb(int argc, char *argv[])
 static int bdata_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
-    int num_types, num_sweeps, num_bins;
+    int num_sweeps, num_bins;
     int s, y, r, b;
     char *data_type_s;
     static float *ray_p;	/* Buffer to receive ray data */
@@ -1115,7 +1115,6 @@ static int bdata_cb(int argc, char *argv[])
 		argv0, argv[2]);
 	return 0;
     }
-    num_types = Sigmet_Vol_NumTypes(&vol);
     if ( (y = Sigmet_Vol_GetFld(&vol, data_type_s, NULL)) == -1 ) {
 	fprintf(stderr, "%s: no data type named %s\n", argv0, data_type_s);
 	return 0;
