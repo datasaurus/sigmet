@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.56 $ $Date: 2012/12/01 16:52:55 $
+   .	$Revision: 1.57 $ $Date: 2012/12/05 21:38:32 $
  */
 
 #include <string.h>
@@ -111,6 +111,8 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     sswb_p = &swp_p->sswb;
     epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0);
     sswb_p->i_start_time = round((vol_p->ray_hdr[s][0].time - epoch) * 86400);
+    sswb_p->i_stop_time = round((vol_p->ray_hdr[s][num_rays - 1].time - epoch)
+	    * 86400);
     sswb_p->compression_flag = 0;
     num_parms = sswb_p->num_parms = vol_p->num_types;
     snprintf(sswb_p->radar_name, 9, "%s", vol_p->ih.ic.su_site_name);
