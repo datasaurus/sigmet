@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.127 $ $Date: 2013/01/18 20:22:56 $
+   .	$Revision: 1.128 $ $Date: 2013/01/24 19:44:33 $
  */
 
 #include "unix_defs.h"
@@ -515,7 +515,8 @@ static int sweep_headers_cb(int argc, char *argv[])
     enum SigmetStatus sig_stat;
     int ok;
     double tm, ang;
-    int yr, mon, da, hr, min, sec;
+    int yr, mon, da, hr, min;
+    double sec;
 
     if ( argc != 1 ) {
 	fprintf(stderr, "Usage: %s\n", argv0);
@@ -529,7 +530,7 @@ static int sweep_headers_cb(int argc, char *argv[])
 	}
 	if ( ok ) {
 	    if ( Tm_JulToCal(tm, &yr, &mon, &da, &hr, &min, &sec) ) {
-		fprintf(out, "%04d/%02d/%02d %02d:%02d:%02d ",
+		fprintf(out, "%04d/%02d/%02d %02d:%02d:%06.3lf ",
 			yr, mon, da, hr, min, sec);
 	    } else {
 		fprintf(out, "0000/00/00 00:00:00 ");
@@ -549,7 +550,8 @@ static int ray_headers_cb(int argc, char *argv[])
     int ok;
     int num_bins;
     double tm, tilt0, tilt1, az0, az1;
-    int yr, mon, da, hr, min, sec;
+    int yr, mon, da, hr, min;
+    double sec;
     enum SigmetStatus sig_stat;
 
     if ( argc != 1 ) {
@@ -576,7 +578,7 @@ static int ray_headers_cb(int argc, char *argv[])
 		    fprintf(stderr, "%s: bad ray time\n", argv0);
 		    return 0;
 		}
-		fprintf(out, "%04d/%02d/%02d %02d:%02d:%02d | ",
+		fprintf(out, "%04d/%02d/%02d %02d:%02d:%06.3lf | ",
 			yr, mon, da, hr, min, sec);
 		fprintf(out, "az %7.3f %7.3f | ",
 			az0 * DEG_PER_RAD, az1 * DEG_PER_RAD);
