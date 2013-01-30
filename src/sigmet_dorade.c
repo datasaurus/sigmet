@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.57 $ $Date: 2012/12/05 21:38:32 $
+   .	$Revision: 1.58 $ $Date: 2013/01/24 23:07:23 $
  */
 
 #include <string.h>
@@ -46,7 +46,8 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 {
     int status;					/* Return value for this call */
     double epoch;				/* 1970/01/01 */
-    int year, mon, day, hr, min, sec;		/* Sweep time */
+    int year, mon, day, hr, min;
+    double sec;					/* Sweep time */
     double wave_len;				/* Wavelength from vol_p */
     double prf;					/* PRF from vol_p */
     int p, r, c;				/* Loop parameters */
@@ -83,6 +84,7 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     struct Dorade_RYIB *ryib_p;
     struct Dorade_ASIB *asib_p;
     float ***dat_p;
+    double start_time, stop_time;
 
     num_parms = num_rays = num_cells = -1;
 
@@ -109,15 +111,19 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     num_rays = vol_p->ih.ic.num_rays;
     sswb_p = &swp_p->sswb;
-    epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0);
-    sswb_p->i_start_time = round((vol_p->ray_hdr[s][0].time - epoch) * 86400);
-    sswb_p->i_stop_time = round((vol_p->ray_hdr[s][num_rays - 1].time - epoch)
-	    * 86400);
     sswb_p->compression_flag = 0;
     num_parms = sswb_p->num_parms = vol_p->num_types;
     snprintf(sswb_p->radar_name, 9, "%s", vol_p->ih.ic.su_site_name);
-    sswb_p->start_time = (vol_p->ray_hdr[s][0].time - epoch) * 86400;
-    sswb_p->stop_time = (vol_p->ray_hdr[s][num_rays - 1].time - epoch) * 86400;
+    epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0.0);
+    start_time = (vol_p->ray_hdr[s][0].time - epoch) * 86400;
+    stop_time = (vol_p->ray_hdr[s][num_rays - 1].time - epoch) * 86400;
+    if ( stop_time > start_time ) {
+	sswb_p->i_start_time = round(start_time);
+	sswb_p->i_stop_time = round(stop_time);
+    } else {
+	sswb_p->i_start_time = round(stop_time);
+	sswb_p->i_stop_time = round(start_time);
+    }
 
     /*
        Populate vold block
@@ -155,6 +161,7 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 
     radd_p = &sensor_p->radd;
     snprintf(radd_p->radar_name, 9, "%s", vol_p->ih.ic.su_site_name);
+    epoch = Tm_CalToJul(1970, 1, 1, 0, 0, 0);
     radd_p->radar_const
 	= 0.01 * vol_p->ih.tc.tci.hpol_radar_const;	/* Ignore vpol */
     radd_p->peak_power = 0.001 * vol_p->ih.tc.tmi.power;
@@ -288,7 +295,7 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
      */
 
     swib_p = &swp_p->swib;
-    strncpy(swib_p->radar_name, sswb_p->radar_name, 9);
+    snprintf(swib_p->radar_name, 9, "%s", sswb_p->radar_name);
     swib_p->sweep_num = 1;
     switch (vol_p->ih.tc.tni.scan_mode) {
 	case PPI_S:
