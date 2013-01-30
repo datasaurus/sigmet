@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.211 $ $Date: 2013/01/02 23:06:59 $
+   .	$Revision: 1.212 $ $Date: 2013/01/15 22:38:17 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -202,7 +202,8 @@ static float *** malloc3_flt(long, long, long, int *);
 static int ymds_incr(struct Sigmet_YMDS_Time *tm_p, double dt)
 {
     double t;
-    int yr, mon, day, hr, min, sec;
+    int yr, mon, day, hr, min;
+    double sec;
     double isec, fsec;
 
     if ( !tm_p ) {
@@ -1259,7 +1260,8 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
     unsigned num_rays;			/* Number of rays per sweep */
     int num_bins;			/* Number of output bins */
 
-    int year, month, day, sec;
+    int year, month, day;
+    double sec;
     unsigned msec;
     double swpTm = 0.0;
     double angle;			/* Sweep angle */
