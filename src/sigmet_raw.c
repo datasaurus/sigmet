@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.128 $ $Date: 2013/01/24 19:44:33 $
+   .	$Revision: 1.129 $ $Date: 2013/01/30 19:05:07 $
  */
 
 #include "unix_defs.h"
@@ -80,12 +80,13 @@ static FILE *out;
    Name of transparent color
  */
 
-#define TRANSPARENT "transparent"
+#define TRANSPARENT "none"
 
 /*
    Maximum number of characters in the string representation of a float value
    FLOAT_STR_LEN_A = storage size
-   FLOAT_STR_LEN_S = maximum number of non-nul characters.
+   FLOAT_STR_LEN_S = string representation of maximum number of non-nul
+   .		     characters - one less than storage size.
  */
 
 #define FLOAT_STR_LEN_A 64
@@ -109,6 +110,7 @@ static int (*lonlat_to_xy)(double, double, double *, double *)
    Local functions
  */
 
+static int set_proj(void);
 static FILE *vol_open(const char *, pid_t *);
 static int handle_signals(void);
 static void handler(int signum);
@@ -148,12 +150,6 @@ static callback radar_lat_cb;
 static callback shift_az_cb;
 static callback outlines_cb;
 static callback dorade_cb;
-
-/*
-   Convenience functions
- */
-
-static int set_proj(void);
 
 /*
    Subcommand names and associated callbacks. The hash function defined
@@ -251,7 +247,7 @@ int main(int argc, char *argv[])
 	fprintf(out, "%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
 		"All rights reserved.\n"
 		"Usage: %s raw_product_file [command_file]\n"
-		"Refer to sigmet_raw (1) man page for more information.\n",
+		"See sigmet_raw (1) for more information.\n",
 		argv0, SIGMET_VERSION, argv0);
 	exit(EXIT_SUCCESS);
     } else if ( argc == 2 ) {
@@ -371,6 +367,10 @@ int main(int argc, char *argv[])
     }
     return EXIT_FAILURE;
 }
+
+/*
+   Callbacks.
+ */
 
 static int commands_cb(int argc, char *argv[])
 {
@@ -697,10 +697,6 @@ static int del_field_cb(int argc, char *argv[])
     return 1;
 }
 
-/*
-   Print volume memory usage.
- */
-
 static int size_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -712,10 +708,6 @@ static int size_cb(int argc, char *argv[])
     fprintf(out, "%lu\n", (unsigned long)Sigmet_Vol_MemSz(&vol));
     return 1;
 }
-
-/*
-   Set value for a field.
- */
 
 static int set_field_cb(int argc, char *argv[])
 {
@@ -761,10 +753,6 @@ static int set_field_cb(int argc, char *argv[])
     return 1;
 }
 
-/*
-   Add a scalar or another field to a field.
- */
-
 static int add_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -794,10 +782,6 @@ static int add_cb(int argc, char *argv[])
     }
     return 1;
 }
-
-/*
-   Subtract a scalar or another field from a field.
- */
 
 static int sub_cb(int argc, char *argv[])
 {
@@ -830,10 +814,6 @@ static int sub_cb(int argc, char *argv[])
     return 1;
 }
 
-/*
-   Multiply a field by a scalar or another field
- */
-
 static int mul_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -865,10 +845,6 @@ static int mul_cb(int argc, char *argv[])
     return 1;
 }
 
-/*
-   Divide a field by a scalar or another field
- */
-
 static int div_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -898,10 +874,6 @@ static int div_cb(int argc, char *argv[])
     }
     return 1;
 }
-
-/*
-   Replace a field with it's log10.
- */
 
 static int log10_cb(int argc, char *argv[])
 {
@@ -1091,13 +1063,6 @@ static int data_cb(int argc, char *argv[])
     return 1;
 }
 
-/*
-   Print sweep data as a binary stream.
-   sigmet_ray bdata data_type s
-   Each output ray will have num_output_bins floats.
-   Missing values will be NAN.
- */
-
 static int bdata_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
@@ -1236,42 +1201,6 @@ static int bin_outline_cb(int argc, char *argv[])
 	    cnr[6] * DEG_RAD, cnr[7] * DEG_RAD);
     return 1;
 }
-
-/*
-   Set geographic projection.
- */
-
-static int set_proj(void)
-{
-    double lon, lat;			/* Radar location */
-    char *proj_s;			/* Environment projection description */
-    char dflt_proj_s[LEN];		/* Default projection description */
-
-    if ( (proj_s = getenv(SIGMET_GEOG_PROJ)) ) {
-	if ( !Sigmet_Proj_Set(proj_s) ) {
-	    fprintf(stderr, "Could not set projection from "
-		    SIGMET_GEOG_PROJ " environment variable.\n");
-	    return 0;
-	}
-    } else {
-	lon = Sigmet_Vol_RadarLon(&vol, NULL);
-	lat = Sigmet_Vol_RadarLat(&vol, NULL);
-	if ( snprintf(dflt_proj_s, LEN,
-		    "CylEqDist %.9g %.9g", lon, lat) > LEN
-		|| !Sigmet_Proj_Set(dflt_proj_s) ) {
-	    fprintf(stderr, "Could not set default projection.\n");
-	    return 0;
-	}
-    }
-    return 1;
-}
-
-/*
-   Print sweep limits. If ppi, print map coordinates. Map projection can be
-   specified with SIGMET_GEOG_PROJ environment variable, otherwise projection
-   defaults to cylindrical equidistant with no distortion at radar. If rhi,
-   print distance down range and height above ground level.
- */
 
 static int sweep_bnds_cb(int argc, char *argv[])
 {
@@ -1610,7 +1539,7 @@ static int outlines_cb(int argc, char *argv[])
 
     BiSearch_FDataToList(dat, num_rays * num_bins, bnds, num_bnds, lists);
     for (c = 0; c < num_colors; c++) {
-	if ( strcmp(colors[c], "none") != 0 ) {
+	if ( strcmp(colors[c], TRANSPARENT) != 0 ) {
 	    fprintf(out, "color %s\n", colors[c]);
 	    for (d = BiSearch_1stIndex(lists, c);
 		    d != -1;
@@ -1752,6 +1681,46 @@ error:
     Dorade_Sweep_Free(&swp);
     return 0;
 }
+
+/*
+   Set geographic projection from string. String can be taken from environment
+   variable. Otherwise a default is used. String should be intelligible to
+   Sigmet_Proj_Set function.
+ */
+
+static int set_proj(void)
+{
+    double lon, lat;			/* Radar location */
+    char *proj_s;			/* Environment projection description */
+    char dflt_proj_s[LEN];		/* Default projection description */
+
+    if ( (proj_s = getenv(SIGMET_GEOG_PROJ)) ) {
+	/* Set projection from environment variable */
+
+	if ( !Sigmet_Proj_Set(proj_s) ) {
+	    fprintf(stderr, "Could not set projection from "
+		    SIGMET_GEOG_PROJ " environment variable.\n");
+	    return 0;
+	}
+    } else {
+	/* Set default projection */
+
+	lon = Sigmet_Vol_RadarLon(&vol, NULL);
+	lat = Sigmet_Vol_RadarLat(&vol, NULL);
+	if ( snprintf(dflt_proj_s, LEN,
+		    "CylEqDist %.9g %.9g", lon, lat) > LEN
+		|| !Sigmet_Proj_Set(dflt_proj_s) ) {
+	    fprintf(stderr, "Could not set default projection.\n");
+	    return 0;
+	}
+    }
+    return 1;
+}
+
+/*
+   Return a character string describing a failure code returned by a Sigmet_*
+   function.
+ */
 
 static char *sigmet_err(enum SigmetStatus s)
 {
@@ -1942,7 +1911,7 @@ int handle_signals(void)
     }
 
     /*
-       Generic action for termination signals
+       Signals for which to call handler, defined below.
      */
 
     act.sa_handler = handler;
@@ -1979,7 +1948,7 @@ int handle_signals(void)
 }
 
 /*
-   For exit signals, print an error message if possible.
+   For exit signals, attempt to print an error message.
  */
 
 void handler(int signum)
