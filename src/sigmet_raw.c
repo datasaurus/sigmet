@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.129 $ $Date: 2013/01/30 19:05:07 $
+   .	$Revision: 1.130 $ $Date: 2013/02/06 22:02:59 $
  */
 
 #include "unix_defs.h"
@@ -49,6 +49,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include "alloc.h"
+#include "hash.h"
 #include "str.h"
 #include "tm_calc_lib.h"
 #include "bisearch_lib.h"
@@ -152,10 +153,11 @@ static callback outlines_cb;
 static callback dorade_cb;
 
 /*
-   Subcommand names and associated callbacks. The hash function defined
-   below returns the index from cmd1v or cb1v corresponding to string cmd.
+   Subcommand names and associated callbacks. Hash returns the index from
+   cmd1v or cb1v corresponding to string cmd.
 
-   Array should be sized for perfect hashing. Parser does not search buckets.
+   Use prhash application in this directory to create a perfect hash table.
+   Hash call in main function does not search buckets.
 
    Hashing function from Kernighan, Brian W. and Rob Pike, The Practice of
    Programming, Reading, Massachusetts. 1999
@@ -196,18 +198,6 @@ static callback *cb1v[N_HASH_CMD] = {
     NULL, NULL, exit_cb, dorade_cb, NULL, volume_headers_cb, NULL, NULL, 
     NULL, NULL, 
 };
-
-#define HASH_X 31
-static int hash(const char *);
-static int hash(const char *cmd)
-{
-    unsigned h;
-
-    for (h = 0 ; *cmd != '\0'; cmd++) {
-	h = HASH_X * h + (unsigned)*cmd;
-    }
-    return h % N_HASH_CMD;
-}
 
 /*
    Environment variable
@@ -338,7 +328,7 @@ int main(int argc, char *argv[])
 		if ( !cmd || strcmp(cmd, "#") == 0 ) {
 		    continue;
 		}
-		n = hash(cmd);
+		n = Hash(cmd, N_HASH_CMD);
 		if ( strcmp(cmd, cmd1v[n]) != 0 ) {
 		    fprintf(stderr, "%s: unknown command %s. "
 			    "Subcommand must be one of ", argv0, cmd);
