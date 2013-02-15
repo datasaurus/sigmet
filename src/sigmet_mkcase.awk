@@ -1,18 +1,15 @@
 #!/usr/bin/awk -f
 #
-# Read lines from standard input of form:
-#	SiteYYMMDDHHMMSS*
-# assumed to be file names.  For each case (day-hour) in the input,
-# generate commands to make a directory and for the case and link or move
-# the files named on standard input into it.
+# Usage:
+# find file_dir ... | sigmet_vol_tm | sort -un | dt.awk | sigmet_mkcase.awk \
+#	| while read l;do eval $l;done
+#
+# For each case (day-hour) in the input, generate commands to make a directory
+# and for the case and link or move the files named on standard input into it.
 #
 # Select whether to link or move with environment variable SIGMET_MV.
 # Output commands will be of form $SIGMET_MV file_name case_dir/
 # If not set, defaults to ln.
-#
-# Sample usage:
-# find file_dir ... | sigmet_vol_tm | sort -un | dt.awk | sigmet_mkcase.awk \
-#	| while read l;do eval $l;done
 #
 # Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
 # 
