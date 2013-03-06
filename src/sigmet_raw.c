@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.130 $ $Date: 2013/02/06 22:02:59 $
+   .	$Revision: 1.131 $ $Date: 2013/02/06 22:35:47 $
  */
 
 #include "unix_defs.h"
@@ -1325,7 +1325,7 @@ static int outlines_cb(int argc, char *argv[])
     int s;				/* Sweep index */
     char (*colors)[COLOR_NM_LEN_A] = NULL; /* Color names, e.g. "#rrggbb" */
     char bnd[FLOAT_STR_LEN_A];		/* String representation of a boundary
-					   value, .e.g "1.23", or "-INF" */
+					   value, .e.g "1.23", or "-inf" */
     float *bnds = NULL;			/* Bounds for each color */
     char *format;			/* Conversion specifier */
     double r00, dr;			/* Range to first bin, bin step, m. */
@@ -1376,8 +1376,8 @@ static int outlines_cb(int argc, char *argv[])
        number_of_colors bound color bound color ... color bound
 
        Number of colors must be a positive integer
-       First bound must be "-INF" or a float value
-       Last bound must be a float value or "INF"
+       First bound must be "-inf" or a float value
+       Last bound must be a float value or "inf"
        All other bounds must be float values.
        Colors are strings with up to COLOR_NM_LEN - 1 characters.
      */
@@ -1415,13 +1415,13 @@ static int outlines_cb(int argc, char *argv[])
 
     format = " %" FLOAT_STR_LEN_S "s %" COLOR_NM_LEN_S "s";
     if ( fscanf(clr_fl, format, bnd, colors) == 2 ) {
-	if ( strcmp(bnd, "-INF") == 0 ) {
+	if ( strcmp(bnd, "-inf") == 0 ) {
 	    bnds[0] = -FLT_MAX;
 	} else if ( sscanf(bnd, "%f", bnds) == 1 ) {
 	    ;
 	} else {
 	    fprintf(stderr, "%s: reading first color, expected number or "
-		    "\"-INF\" for minimum value, got %s.\n", argv0, bnd);
+		    "\"-inf\" for minimum value, got %s.\n", argv0, bnd);
 	    goto error;
 	}
     } else {
@@ -1451,11 +1451,11 @@ static int outlines_cb(int argc, char *argv[])
     if ( fscanf(clr_fl, format, bnd) == 1 ) {
 	if ( sscanf(bnd, "%f", bnds + c) == 1 ) {
 	    ;
-	} else if ( strcmp(bnd, "INF") == 0 ) {
+	} else if ( strcmp(bnd, "inf") == 0 ) {
 	    bnds[c] = FLT_MAX;
 	} else {
 	    fprintf(stderr, "%s: reading final color, expected number or "
-		    "\"INF\" for boundary, got %s\n", argv0, bnd);
+		    "\"inf\" for boundary, got %s\n", argv0, bnd);
 	    goto error;
 	}
     } else {
