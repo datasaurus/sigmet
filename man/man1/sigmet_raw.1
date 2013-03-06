@@ -26,7 +26,7 @@
 .\"
 .\" Please address questions and feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.38 $ $Date: 2013/01/10 21:24:52 $
+.\" $Revision: 1.39 $ $Date: 2013/01/18 23:07:19 $
 .\"
 .Dd $Mdocdate$
 .Dt SIGMET_RAW 1
@@ -215,10 +215,6 @@ All bin values are set to
 .Ar scalar .
 .It Cm r_beam
 Each bin value is set to distance in meters along the beam.
-.It Ar data_type2
-Values from field
-.Ar data_type2 ,
-which must already exist in the volume, are copied to the new field.
 .El
 .It Cm add Ar data_type Ar value
 Adds a value or values to the field of
@@ -459,15 +455,17 @@ must be a text file of form:
 .Ar num_colors
 must be an integer specifying the number of colors.
 The first bound must be a float value or
-.Dv -INF
+.Dv -inf
 indicating no lower bound for the first interval.
 The last bound must be a float value or
-.Dv INF
+.Dv inf
 indicating no upper bound for the last interval. All other bounds must be
 float values.  Bounds must be monotonically increasing.
 Each
 .Ar color
-must be a character string. The format does not matter. The string is simply
+must be a character string. If
+.Dv none
+the data interval will be skipped. Otherwise, the string is simply
 passed as is to output.  For each color, output will contain one line of form:
 .Bd -offset indent
  \fBcolor\fP \fIcolor\fP
