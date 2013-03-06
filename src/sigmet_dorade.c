@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.59 $ $Date: 2013/01/30 19:07:17 $
+   .	$Revision: 1.60 $ $Date: 2013/02/01 18:30:40 $
  */
 
 #include <string.h>
@@ -59,6 +59,12 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     int num_rays_d;				/* Number of rays in DORADE
 						   sweep.  Will be <= number of
 						   rays in Sigmet sweep. */
+    char *data_type_s;				/* Data type abbreviation,
+						   e.g. "DZ" or "DB_ZDR" */
+    enum Sigmet_DataTypeN sig_type;
+    int p_d;					/* Parameter index in DORADE
+						   sweep */
+
 
     /*
        This array specifies soloii equivalents for certain Sigmet data types.
@@ -80,12 +86,22 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     struct Dorade_RADD *radd_p;
     struct Dorade_PARM *parm_p;
     struct Dorade_CELV *celv_p;
+    struct Dorade_CFAC *cfac_p;
     struct Dorade_SWIB *swib_p;
     struct Dorade_Ray_Hdr *ray_hdr_p;
     struct Dorade_RYIB *ryib_p;
     struct Dorade_ASIB *asib_p;
-    float ***dat_p;
+    float **dat_p;
     double start_time, stop_time;
+    size_t comm_sz;
+
+    /*
+       Last parameter from volume. This becomes the "next" member of the next
+       parameter read in, created a linked list recording the order in which
+       parameters were read from the sweep file.
+     */
+
+    struct Dorade_PARM *prev_parm;
 
     num_parms = num_rays = num_cells = -1;
 
@@ -99,8 +115,10 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
        Populate comm block
      */
 
-    if ( snprintf(swp_p->comm.comment, 500, "Sigmet volume sweep %d, task %s", 
-		s, vol_p->ph.pc.task_name) >= 500 ) {
+    comm_sz = sizeof(swp_p->comm.comment);
+    if ( snprintf(swp_p->comm.comment, comm_sz - 1,
+		"Sigmet volume sweep %d, task %s", s, vol_p->ph.pc.task_name)
+	    >= comm_sz - 1 ) {
 	fprintf(stderr, "Could not set COMM block. String too big.\n");
 	status = SIGMET_RNG_ERR;
 	goto error;
@@ -224,29 +242,32 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
        Populate parm blocks
      */
 
-    if ( !(sensor_p->parm = CALLOC(num_parms, sizeof(struct Dorade_PARM))) ) {
-	fprintf(stderr, "Could not allocate array of parameter descriptors.\n");
-	status = SIGMET_MEM_FAIL;
-	goto error;
-    }
     parm_p = NULL;
     for (p = 0; p < num_parms; p++) {
-	char *data_type_s;			/* Data type abbreviation,
-						   e.g. "DZ" or "DB_ZDR" */
-	enum Sigmet_DataTypeN sig_type;
-
 	data_type_s = vol_p->dat[p].data_type_s;
+	if ( Sigmet_DataType_GetN(data_type_s, &sig_type)
+		&& soloii_abbrv[sig_type] ) {
+	    data_type_s = soloii_abbrv[sig_type];
+	}
 	if ( strlen(data_type_s) == 0 ) {
 	    continue;
 	}
-	parm_p = sensor_p->parm + p;
-	Dorade_PARM_Init(parm_p);
-	if ( Sigmet_DataType_GetN(data_type_s, &sig_type)
-		&& soloii_abbrv[sig_type] ) {
-	    strncpy(parm_p->parameter_name, soloii_abbrv[sig_type], 8);
-	} else {
-	    strncpy(parm_p->parameter_name, data_type_s, 8);
+	p_d = Dorade_Parm_NewIdx(swp_p, data_type_s);
+	if ( p_d == -1 ) {
+	    fprintf(stderr, "Could not find place for new parameter %s.\n",
+		    vol_p->dat[p].data_type_s);
+	    status = SIGMET_BAD_VOL;
+	    goto error;
 	}
+	parm_p = sensor_p->parms + p_d;
+	if ( !sensor_p->parm0 ) {
+	    sensor_p->parm0 = parm_p;
+	} else {
+	    prev_parm->next = parm_p;
+	}
+	prev_parm = parm_p;
+	Dorade_PARM_Init(parm_p);
+	strncpy(parm_p->parm_nm, data_type_s, 8);
 	strncpy(parm_p->param_description, vol_p->dat[p].descr, 40);
 	strncpy(parm_p->param_units, vol_p->dat[p].unit, 8);
 	parm_p->xmitted_freq = round(1.0e-9 * 2.9979e8 / wave_len);
@@ -283,6 +304,7 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     Dorade_CELV_Init(celv_p);
     if ( !(dist_cells = CALLOC(num_cells, sizeof(float))) ) {
 	fprintf(stderr, "Could not allocate memory for cell vector.\n");
+	status = SIGMET_MEM_FAIL;
 	goto error;
     }
     for (c = 0 ; c < num_cells; c++) {
@@ -295,8 +317,26 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     celv_p->dist_cells = dist_cells;
 
     /*
-       Sigmet volume does not have "correction factors", so skip CFAC
+       Sigmet volume does not have "correction factors".
      */
+    
+    cfac_p = &sensor_p->cfac;
+    cfac_p->azimuth_corr = 0.0;
+    cfac_p->elevation_corr = 0.0;
+    cfac_p->range_delay_corr = 0.0;
+    cfac_p->longitude_corr = 0.0;
+    cfac_p->latitude_corr = 0.0;
+    cfac_p->pressure_alt_corr = 0.0;
+    cfac_p->radar_alt_corr = 0.0;
+    cfac_p->ew_gndspd_corr = 0.0;
+    cfac_p->ns_gndspd_corr = 0.0;
+    cfac_p->vert_vel_corr = 0.0;
+    cfac_p->heading_corr = 0.0;
+    cfac_p->roll_corr = 0.0;
+    cfac_p->pitch_corr = 0.0;
+    cfac_p->drift_corr = 0.0;
+    cfac_p->rot_angle_corr = 0.0;
+    cfac_p->tilt_corr = 0.0;
 
     /*
        Populate struct Dorade_SWIB swib block
@@ -403,12 +443,6 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
        Populate dat array.
      */
 
-    if ( !Dorade_Sweep_AllocDat(swp_p, num_parms, num_rays_d, num_cells) ) {
-	fprintf(stderr, "Could not allocate data array.\n");
-	status = SIGMET_MEM_FAIL;
-	goto error;
-    }
-    dat_p = swp_p->dat;
     num_bins = num_cells;
     ray_p = NULL;
     if ( !(ray_p = MALLOC(num_bins * sizeof(float)))) {
@@ -420,22 +454,45 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	*r_p = NAN;
     }
     for (p = 0; p < num_parms; p++) {
-	if ( strlen(vol_p->dat[p].data_type_s) == 0 ) {
+	data_type_s = vol_p->dat[p].data_type_s;
+	if ( strlen(data_type_s) == 0 ) {
 	    continue;
 	}
+	if ( Sigmet_DataType_GetN(data_type_s, &sig_type)
+		&& soloii_abbrv[sig_type] ) {
+	    p_d = Dorade_Parm_Idx(swp_p, soloii_abbrv[sig_type]);
+	} else {
+	    p_d = Dorade_Parm_Idx(swp_p, data_type_s);
+	}
+	if ( p_d == -1 ) {
+	    fprintf(stderr, "Could not find parameter %s in sweep.\n",
+		    data_type_s);
+	    status = SIGMET_BAD_VOL;
+	    goto error;
+	}
+	swp_p->dat[p_d] = Dorade_Alloc2F(num_rays, num_cells);
+	if ( !swp_p->dat[p_d] ) {
+	    fprintf(stderr, "Failed to allocate memory for data array with %d "
+		    "parameters, %d rays, and %d cells.\n",
+		    num_parms, num_rays, num_cells);
+	    status = SIGMET_MEM_FAIL;
+	    goto error;
+	}
+	dat_p = swp_p->dat[p_d];
 	for (r = 0; r < num_rays_d; r++) {
 	    if ( vol_p->ray_hdr[s][r].ok ) {
 		status = Sigmet_Vol_GetRayDat(vol_p, p, s, r, &ray_p);
 		if ( (status != SIGMET_OK) ) {
 		    fprintf(stderr, "Could not retrieve ray data "
 			    "from Sigmet volume\n");
+		    status = SIGMET_BAD_VOL;
 		    goto error;
 		}
 		for (c = 0; c < num_cells; c++) {
 		    if (isfinite(ray_p[c])) {
-			dat_p[p][r][c] = ray_p[c];
+			dat_p[r][c] = ray_p[c];
 		    } else {
-			dat_p[p][r][c] = DORADE_BAD_F;
+			dat_p[r][c] = NAN;
 		    }
 		}
 	    }
