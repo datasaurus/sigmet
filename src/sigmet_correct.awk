@@ -2,9 +2,8 @@
 #
 #	sigmet_correct.awk --
 #		This awk script reads correction descriptions and generates
-#		sigmet_raw commands that apply the corrections. Commands
-#		should be trailed with a sigmet_raw socket name. This script
-#		is auxiliary to the sigmet_correct script.
+#		sigmet_raw commands that apply the corrections.
+#		This script is auxiliary to the sigmet_correct script.
 #		
 # Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
 # 
@@ -43,36 +42,35 @@
     sub(" *$", "", description)
     sub("^ *", "", unit)
     sub(" *$", "", unit)
-    printf "sigmet_raw new_field \"%s\" -d \"%s\" -u \"%s\" %s\n",
-	    data_type, description, unit, sock
+    printf "new_field \"%s\" -d \"%s\" -u \"%s\"\n",
+	    data_type, description, unit
 }
 /Copy [0-9A-Za-z_]+ to [0-9A-Za-z_]+/ {
-    printf "sigmet_raw set_field %s 0.0 %s\n", $4, sock
-    printf "sigmet_raw add %s %s %s\n", $4, $2, sock
+    printf "set_field %s 0.0\n", $4
+    printf "add %s %s\n", $4, $2
 }
 /Add [0-9.Ee-]+ to [0-9A-Za-z_]+/ {
-    printf "sigmet_raw add %s %f %s\n", $4, $2, sock
+    printf "add %s %f\n", $4, $2
 }
 /Multiply [0-9A-Za-z_]+ by [0-9.Ee-]+/ {
-    printf "sigmet_raw mul %s %f %s\n", $2, $4, sock
+    printf "mul %s %f\n", $2, $4
 }
 /Increment time by [0-9.Ee-]+ seconds/ {
-    printf "sigmet_raw incr_time %f %s\n", $4, sock
+    printf "incr_time %f\n", $4
 }
 /Radar lat = [0-9Ee.-]+/ {
-    printf "sigmet_raw radar_lat %f %s\n", $4, sock
+    printf "radar_lat %f\n", $4
 }
 /Radar lon = [0-9Ee.-]+/ {
-    printf "sigmet_raw radar_lon %f %s\n", $4, sock
+    printf "radar_lon %f\n", $4
 }
 /Add [0-9Ee.-]+ degrees to all azimuths/ {
-    printf "sigmet_raw shift_az %f %s\n", $2, sock
+    printf "shift_az %f\n", $2
 }
 /Delete / {
     for (n = 2; n <= NF; n++) {
-	printf "if sigmet_raw volume_headers %s | grep -q '%s|types';then", \
-		sock, $n
-	printf " sigmet_raw del_field %s %s;", $n, sock
+	printf "if volume_headers | grep -q '%s|types';then", $n
+	printf " del_field %s;", $n
 	printf "else echo Not deleting %s, not in volume 1>&2 | : ;fi\n", $n
     }
 }

@@ -1,8 +1,8 @@
 #!/bin/sh
 #
 #	sigmet_correct --
-#		Apply correction information for sigmet_raw daemon using the
-#		current working directory. See sigmet_correct (1).
+#		Apply correction information to a sigmet_raw file.
+#		See sigmet_correct (1).
 #
 # Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
 # 
@@ -30,24 +30,18 @@
 #
 # Please send feedback to dev0@trekix.net
 
-if [ $# -ne 2 ]
+if [ $# -ne 1 ]
 then
-    echo "Usage: $0 correction_file socket" 1>&2
+    echo "Usage: $0 correction_file" 1>&2
     exit 1
 fi
 corr_fl=$1
-sock=$2
 if ! test -f $corr_fl
 then
     echo "$0: no readable corrections file named $corr_fl" 1>&2
     exit 1
 fi
-if ! test -S $sock
-then
-    echo "%0: $sock is not a socket" 1>&2
-    exit 1
-fi
-sigmet_correct.awk -v sock="$sock" $corr_fl \
+sigmet_correct.awk $corr_fl \
 | while read l
 do
     eval $l
