@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.131 $ $Date: 2013/02/06 22:35:47 $
+   .	$Revision: 1.132 $ $Date: 2013/03/06 22:35:37 $
  */
 
 #include "unix_defs.h"
@@ -1642,7 +1642,7 @@ static int dorade_cb(int argc, char *argv[])
 			sigmet_err(sig_stat));
 		goto error;
 	    }
-	    if ( !Dorade_Sweep_Write(&swp) ) {
+	    if ( !Dorade_Sweep_Write(&swp, NULL) ) {
 		fprintf(stderr, "%s: could not write DORADE file for sweep "
 			"%d of volume\n", argv0, s);
 		goto error;
@@ -1657,7 +1657,7 @@ static int dorade_cb(int argc, char *argv[])
 		    sigmet_err(sig_stat));
 	    goto error;
 	}
-	if ( !Dorade_Sweep_Write(&swp) ) {
+	if ( !Dorade_Sweep_Write(&swp, NULL) ) {
 	    fprintf(stderr, "%s: could not write DORADE file for sweep "
 		    "%d of volume\n", argv0, s);
 	    goto error;
