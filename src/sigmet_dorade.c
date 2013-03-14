@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.61 $ $Date: 2013/03/06 22:38:16 $
+   .	$Revision: 1.62 $ $Date: 2013/03/14 20:27:08 $
  */
 
 #include <string.h>
@@ -242,7 +242,7 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
        Populate parm blocks
      */
 
-    parm_p = NULL;
+    parm_p = prev_parm = NULL;
     for (p = 0; p < num_parms; p++) {
 	data_type_s = vol_p->dat[p].data_type_s;
 	if ( Sigmet_DataType_GetN(data_type_s, &sig_type)
