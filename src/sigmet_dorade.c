@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.60 $ $Date: 2013/02/01 18:30:40 $
+   .	$Revision: 1.61 $ $Date: 2013/03/06 22:38:16 $
  */
 
 #include <string.h>
@@ -268,8 +268,8 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	prev_parm = parm_p;
 	Dorade_PARM_Init(parm_p);
 	strncpy(parm_p->parm_nm, data_type_s, 8);
-	strncpy(parm_p->param_description, vol_p->dat[p].descr, 40);
-	strncpy(parm_p->param_units, vol_p->dat[p].unit, 8);
+	strncpy(parm_p->parm_description, vol_p->dat[p].descr, 40);
+	strncpy(parm_p->parm_units, vol_p->dat[p].unit, 8);
 	parm_p->xmitted_freq = round(1.0e-9 * 2.9979e8 / wave_len);
 	parm_p->recvr_bandwidth = 1.0e-3 * vol_p->ih.tc.tci.bandwidth;
 	parm_p->pulse_width
