@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.212 $ $Date: 2013/01/15 22:38:17 $
+   .	$Revision: 1.213 $ $Date: 2013/01/30 19:05:32 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1485,15 +1485,15 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		    goto error;
 		}
 	    }
-	    vol_p->sweep_hdr[sweep_num].ok = 1;
 	    sweep_num = n;
+	    s = sweep_num - 1;
+	    r = 0;
+	    vol_p->sweep_hdr[s].ok = 1;
 	    if (sweep_num > num_sweeps) {
 		fprintf(stderr, "%d: volume has excess sweeps.\n", getpid());
 		sig_stat = SIGMET_BAD_FILE;
 		goto error;
 	    }
-	    s = sweep_num - 1;
-	    r = 0;
 
 	    /*
 	       If sweep number from <ingest_data_header> has gone back to 0,
@@ -1516,7 +1516,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 	    month = get_sint16(rec + 32);
 	    day = get_sint16(rec + 34);
 	    if (year < 1900 || month == 0 || day == 0) {
-		vol_p->sweep_hdr[sweep_num].ok = 0;
+		vol_p->sweep_hdr[s].ok = 0;
 	    }
 
 	    /*
@@ -1525,7 +1525,7 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 
 	    swpTm = Tm_CalToJul(year, month, day, 0, 0, sec);
 	    if ( swpTm == 0.0 ) {
-		vol_p->sweep_hdr[sweep_num].ok = 0;
+		vol_p->sweep_hdr[s].ok = 0;
 	    }
 	    angle = Sigmet_Bin2Rad(get_uint16(rec + 46));
 	    vol_p->sweep_hdr[s].time = swpTm;
