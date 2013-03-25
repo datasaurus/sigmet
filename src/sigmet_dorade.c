@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.62 $ $Date: 2013/03/14 20:27:08 $
+   .	$Revision: 1.63 $ $Date: 2013/03/14 20:31:15 $
  */
 
 #include <string.h>
@@ -108,6 +108,11 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
     if ( s > vol_p->ih.ic.num_sweeps ) {
 	fprintf(stderr, "Sweep index out of range.\n");
 	status = SIGMET_RNG_ERR;
+	goto error;
+    }
+    if ( !vol_p->sweep_hdr[s].ok ) {
+	fprintf(stderr, "Sweep %d is bad.\n", s);
+	status = SIGMET_BAD_VOL;
 	goto error;
     }
 
