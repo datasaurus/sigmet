@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.132 $ $Date: 2013/03/06 22:35:37 $
+   .	$Revision: 1.133 $ $Date: 2013/03/14 20:27:53 $
  */
 
 #include "unix_defs.h"
@@ -1578,9 +1578,13 @@ static int outlines_cb(int argc, char *argv[])
 		    cnr[7] = ord = GeogBeamHt(r0, tl1, re);
 		    cnr[6] = re * asin(r0 * cos(tl1) / (re + ord));
 		}
-		fprintf(out, "gate %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f\n",
-			cnr[0], cnr[1], cnr[2], cnr[3], cnr[4],
-			cnr[5], cnr[6], cnr[7]);
+		if ( isfinite(cnr[0] + cnr[1] + cnr[2] + cnr[3]
+			    + cnr[4] + cnr[5] + cnr[6] + cnr[7]) ) {
+		    fprintf(out, "gate "
+			    "%.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f\n",
+			    cnr[0], cnr[1], cnr[2], cnr[3], cnr[4],
+			    cnr[5], cnr[6], cnr[7]);
+		}
 	    }
 	}
     }
