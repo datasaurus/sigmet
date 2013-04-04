@@ -4,12 +4,15 @@
 #	Print bin outlines as SVG polygons.
 #
 # Usage:
-#	sigmet_svg [-f] [-d] [-b bounds] [-x pixels] [-y pixels] [-w pixels] --
-#	    data_type colors_file sweep_index volume_file
+#	sigmet_svg [-f] [-d] [-o] [-b bounds]
+#		[-x pixels] [-y pixels] [-w pixels] --
+#		data_type colors_file sweep_index volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
 #	-d		- make a standalone svg file. Default is to make
 #			  an svg element.
+#	-o		- send output to a file with a reasonable name
+#			  instead of standard output. Implies -d
 #	-b		- Limits of plot in plot coordinates (not display
 #			  coordinates). bounds must be a string of form
 #			  x_min=value,x_max=value,y_min=value,y_max=value
@@ -84,7 +87,8 @@ x_min=
 x_max=
 y_min=
 y_max=
-while getopts :fdb:x:y:w: opt
+out_fl=
+while getopts :fdb:x:y:w:o opt
 do
     case "$opt"
     in
@@ -96,6 +100,10 @@ do
 	    ;;
 	d)
 	    doc="-d"
+	    ;;
+	o)
+	    doc="-d"
+	    out_fl=1
 	    ;;
 	x)
 	    x_dpy=$OPTARG
@@ -189,8 +197,23 @@ check_num "sweep y max" $y_max
 width=`echo "$x_max - $x_min" | bc -l`
 height=`echo "$y_max - $y_min" | bc -l`
 
+# Make name for output file
+if test $out_fl
+then
+    sig_raw sweep_headers
+    sweep_angle=`awk '/sweep +'${sweep_index}' / {printf "%.1f", $5}' $out`
+    out_fl="${vol}.${data_type}.${sweep_angle}.svg"
+    doc="-d"
+fi
+
 # Print outlines.
 sig_raw outlines $fill $data_type $color_fl $sweep_index &
-cart_svg $doc $x_dpy $y_dpy $w_dpy -- $x_min $y_min $width $height \
-	sigmet_svg.awk $out
+if test $out_fl
+then
+    cart_svg $doc $x_dpy $y_dpy $w_dpy -- $x_min $y_min $width $height \
+	    sigmet_svg.awk $out > $out_fl
+else
+    cart_svg $doc $x_dpy $y_dpy $w_dpy -- $x_min $y_min $width $height \
+	    sigmet_svg.awk $out
+fi
 exit 0
