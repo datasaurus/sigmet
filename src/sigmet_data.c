@@ -31,7 +31,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.39 $ $Date: 2012/11/08 21:24:49 $
+   .	$Revision: 1.40 $ $Date: 2012/11/13 22:50:24 $
  */
 
 #include <stdlib.h>
@@ -129,7 +129,7 @@ static char *unit[SIGMET_NTYPES] = {
 };
 
 /*
-   Storage formats from data_types.h for Sigmet data types.
+   Storage formats for Sigmet data types.
    Index with enum Sigmet_DataTypeN.
  */
 
