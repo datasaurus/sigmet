@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.213 $ $Date: 2013/01/30 19:05:32 $
+   .	$Revision: 1.214 $ $Date: 2013/03/25 21:43:47 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1806,13 +1806,15 @@ enum SigmetStatus Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
 	double *tilt0, double *tilt1, int fill)
 {
     struct Sigmet_Ray_Hdr *ray_hdr;
+    int num_rays;
     int r;
     double m_per_cm = 0.01;
 
     if ( !vol_p ) {
 	return SIGMET_BAD_ARG;
     }
-    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+    num_rays = vol_p->ih.ic.num_rays;
+    for (r = 0; r < num_rays; r++) {
 	az0[r] = az1[r] = tilt0[r] = tilt1[r] = NAN;
     }
     if ( s >= vol_p->num_sweeps_ax || !vol_p->sweep_hdr[s].ok ) {
@@ -1822,71 +1824,86 @@ enum SigmetStatus Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
     *r00_p = m_per_cm * vol_p->ih.tc.tri.rng_1st_bin;
     *dr_p = m_per_cm * vol_p->ih.tc.tri.step_out;
     if ( fill ) {
+	int r_prev, r_curr, r_next;	/* Previous, current, and next good
+					   rays. Ray boundaries will go from
+					   center of previous to center of next
+					   ray */
+
 	if ( Sigmet_Vol_IsPPI(vol_p) ) {
 	    double az1_prev, az0_curr, az1_curr, az0_next;
 
-	    if ( ray_hdr[0].ok ) {
-		az0[0] = ray_hdr[0].az0;
-		az1_curr = ray_hdr[0].az1;
-		az0_next = ray_hdr[1].az0;
-		az1[0] = 0.5 * (az1_curr + GeogLonR(az0_next, az1_curr));
-		tilt0[0] = ray_hdr[0].tilt0;
-		tilt1[0] = ray_hdr[0].tilt1;
+	    for (r_prev = 0; !ray_hdr[r_prev].ok; r_prev++ ) {
 	    }
-	    for (r = 1; r < vol_p->ih.ic.num_rays - 1; r++) {
-		if ( ray_hdr[r].ok ) {
-		    az1_prev = ray_hdr[r - 1].az1;
-		    az0_curr = ray_hdr[r].az0;
-		    az1_curr = ray_hdr[r].az1;
-		    az0_next = ray_hdr[r + 1].az0;
-		    az0[r] = 0.5 * (az0_curr + GeogLonR(az1_prev, az0_curr));
-		    az1[r] = 0.5 * (az1_curr + GeogLonR(az0_next, az1_curr));
-		    tilt0[r] = ray_hdr[r].tilt0;
-		    tilt1[r] = ray_hdr[r].tilt1;
+	    if ( r_prev == num_rays ) {
+		return SIGMET_BAD_VOL;
+	    }
+	    for (r_next = r_prev + 1; !ray_hdr[r_next].ok; r_next++ ) {
+	    }
+	    if ( r_next == num_rays ) {
+		return SIGMET_BAD_VOL;
+	    }
+	    az0[r_prev] = ray_hdr[r_prev].az0;
+	    az1_curr = ray_hdr[r_prev].az1;
+	    az0_next = ray_hdr[r_next].az0;
+	    az1[r_prev] = 0.5 * (az1_curr + GeogLonR(az0_next, az1_curr));
+	    tilt0[r_prev] = ray_hdr[r_prev].tilt0;
+	    tilt1[r_prev] = ray_hdr[r_prev].tilt1;
+	    r_curr = r_next;
+	    for (r_next = r_curr + 1; !ray_hdr[r_next].ok; r_next++) {
+	    }
+	    while (r_next < num_rays) {
+		az1_prev = ray_hdr[r_prev].az1;
+		az0_curr = ray_hdr[r_curr].az0;
+		az1_curr = ray_hdr[r_curr].az1;
+		az0_next = ray_hdr[r_next].az0;
+		az0[r_curr] = 0.5 * (az0_curr + GeogLonR(az1_prev, az0_curr));
+		az1[r_curr] = 0.5 * (az1_curr + GeogLonR(az0_next, az1_curr));
+		tilt0[r_curr] = ray_hdr[r_curr].tilt0;
+		tilt1[r_curr] = ray_hdr[r_curr].tilt1;
+		r_prev = r_curr;
+		r_curr = r_next;
+		for (r_next = r_curr + 1; !ray_hdr[r_next].ok; r_next++) {
 		}
-	    }
-	    if ( ray_hdr[r].ok ) {
-		az1_prev = ray_hdr[r - 1].az1;
-		az0_curr = ray_hdr[r].az0;
-		az0[r] = 0.5 * (az0_curr + GeogLonR(az1_prev, az0_curr));
-		az1[r] = ray_hdr[r].az1;
-		tilt0[r] = ray_hdr[r].tilt0;
-		tilt1[r] = ray_hdr[r].tilt1;
 	    }
 	} else if ( Sigmet_Vol_IsRHI(vol_p) ) {
 	    double tilt1_prev, tilt0_curr, tilt1_curr, tilt0_next;
 
-	    if ( ray_hdr[0].ok ) {
-		az0[0] = ray_hdr[0].az0;
-		az1[0] = ray_hdr[0].az1;
-		tilt0[0] = ray_hdr[0].tilt0;
-		tilt1_curr = ray_hdr[0].tilt1;
-		tilt0_next = ray_hdr[1].tilt0;
-		tilt1[0] = 0.5 * (tilt1_curr + tilt0_next);
+	    for (r_prev = 0; !ray_hdr[r_prev].ok; r_prev++ ) {
 	    }
-	    for (r = 1; r < vol_p->ih.ic.num_rays - 1; r++) {
-		if ( ray_hdr[r].ok ) {
-		    az0[r] = ray_hdr[r].az0;
-		    az1[r] = ray_hdr[r].az1;
-		    tilt1_prev = ray_hdr[r - 1].tilt1;
-		    tilt0_curr = ray_hdr[r].tilt0;
-		    tilt1_curr = ray_hdr[r].tilt1;
-		    tilt0_next = ray_hdr[r + 1].tilt0;
-		    tilt0[r] = 0.5 * (tilt1_prev + tilt0_curr);
-		    tilt1[r] = 0.5 * (tilt1_curr + tilt0_next);
+	    if ( r_prev == num_rays ) {
+		return SIGMET_BAD_VOL;
+	    }
+	    for (r_next = r_prev + 1; !ray_hdr[r_next].ok; r_next++ ) {
+	    }
+	    if ( r_next == num_rays ) {
+		return SIGMET_BAD_VOL;
+	    }
+	    az0[r_prev] = ray_hdr[r_prev].az0;
+	    az1[r_prev] = ray_hdr[r_prev].az1;
+	    tilt0[r_prev] = ray_hdr[r_prev].tilt0;
+	    tilt1_curr = ray_hdr[r_prev].tilt1;
+	    tilt0_next = ray_hdr[r_next].tilt0;
+	    tilt1[r_prev] = 0.5 * (tilt1_curr + tilt0_next);
+	    r_curr = r_next;
+	    for (r_next = r_curr + 1; !ray_hdr[r_next].ok; r_next++) {
+	    }
+	    while (r_next < num_rays) {
+		az0[r_curr] = ray_hdr[r_curr].az0;
+		az1[r_curr] = ray_hdr[r_curr].az1;
+		tilt1_prev = ray_hdr[r_prev].tilt1;
+		tilt0_curr = ray_hdr[r_curr].tilt0;
+		tilt1_curr = ray_hdr[r_curr].tilt1;
+		tilt0_next = ray_hdr[r_next].tilt0;
+		tilt0[r_curr] = 0.5 * (tilt1_prev + tilt0_curr);
+		tilt1[r_curr] = 0.5 * (tilt1_curr + tilt0_next);
+		r_prev = r_curr;
+		r_curr = r_next;
+		for (r_next = r_curr + 1; !ray_hdr[r_next].ok; r_next++) {
 		}
-	    }
-	    if ( ray_hdr[r].ok ) {
-		az0[r] = ray_hdr[r].az0;
-		az1[r] = ray_hdr[r].az1;
-		tilt1_prev = ray_hdr[r - 1].tilt1;
-		tilt0_curr = ray_hdr[r].tilt0;
-		tilt0[r] = 0.5 * (tilt1_prev + tilt0_curr);
-		tilt1[r] = ray_hdr[r].tilt1;
 	    }
 	}
     } else {
-	for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
+	for (r = 0; r < num_rays; r++) {
 	    if ( ray_hdr[r].ok ) {
 		az0[r] = ray_hdr[r].az0;
 		az1[r] = ray_hdr[r].az1;
