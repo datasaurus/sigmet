@@ -4,15 +4,20 @@
 #	Print bin outlines as SVG polygons.
 #
 # Usage:
-#	sigmet_svg [-f] [-d] [-o] [-b bounds]
+#	sigmet_svg [-f] [-d] [-o] [-k] [-b bounds]
 #		[-x pixels] [-y pixels] [-w pixels] --
 #		data_type colors_file sweep_index volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
-#	-d		- make a standalone svg file. Default is to make
+#	-d		- make a standalone svg document. Default is to make
 #			  an svg element.
 #	-o		- send output to a file with a reasonable name
-#			  instead of standard output. Implies -d
+#			  instead of standard output. Implies -d.
+#			  Default is to print SVG code to standard output.
+#			  File name will be sent to standard output
+#			  instead of svg code.
+#	-k		- make a kml file with a reasonable name.
+#			  geog command must be in path.
 #	-b		- Limits of plot in plot coordinates (not display
 #			  coordinates). bounds must be a string of form
 #			  x_min=value,x_max=value,y_min=value,y_max=value
@@ -30,10 +35,6 @@
 #	sweep_index	- index of sweep in volume. First sweep is 0.
 #	volume_file	- Sigmet raw product file
 #
-# Environment variables
-#	SIGMET_RAW_IMG_SZ	- (optional) image width, pixels
-#
-# The SVG code goes to standard output.
 #
 # Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
 # 
@@ -87,8 +88,9 @@ x_min=
 x_max=
 y_min=
 y_max=
-out_fl=
-while getopts :fdb:x:y:w:o opt
+svg_fl=
+kml=
+while getopts :fdb:x:y:w:ok opt
 do
     case "$opt"
     in
@@ -103,7 +105,10 @@ do
 	    ;;
 	o)
 	    doc="-d"
-	    out_fl=1
+	    svg_fl=1
+	    ;;
+	k)
+	    kml=1
 	    ;;
 	x)
 	    x_dpy=$OPTARG
@@ -176,20 +181,42 @@ sig_raw () {
     printf "open %s\n%s\nclose\n" "$out" "$*" > "$in"
 }
 
+# Override radar location, if desired
+if test $RADAR_LAT
+then
+    radar_lat=$RADAR_LAT
+    sig_raw radar_lat $radar_lat
+    cat $out > /dev/null
+fi
+if test $RADAR_LON
+then
+    radar_lon=$RADAR_LON
+    sig_raw radar_lon $radar_lon
+    cat $out > /dev/null
+fi
+
 # Assign sweep bounds to x_min, x_max, y_min, and y_max if not set from
 # command line.
 sig_raw sweep_bnds $sweep_index
 eval `cat $out | awk '
-/x_min +[0-9.Ee-]+ +x_max +[0-9.Ee-]+ +y_min +[0-9.Ee-]+ +y_max +[0-9.Ee-]+/ {
-    x_min = $2;
-    x_max = $4;
-    y_min = $6;
-    y_max = $8;
-    printf "if ! test $x_min;then x_min=%s;fi; ", x_min;
-    printf "if ! test $x_max;then x_max=%s;fi; ", x_max;
-    printf "if ! test $y_min;then y_min=%s;fi; ", y_min;
-    printf "if ! test $y_max;then y_max=%s;fi;\n", y_max;
-}'`
+    /x_min/ {
+	x_min = $2;
+    }
+    /x_max/ {
+	x_max = $2;
+    }
+    /y_min/ {
+	y_min = $2;
+    }
+    /y_max/ {
+	y_max = $2;
+    }
+    END {
+	printf "if ! test $x_min;then x_min=%s;fi; ", x_min;
+	printf "if ! test $x_max;then x_max=%s;fi; ", x_max;
+	printf "if ! test $y_min;then y_min=%s;fi; ", y_min;
+	printf "if ! test $y_max;then y_max=%s;fi;\n", y_max;
+    }'`
 check_num "sweep x min" $x_min
 check_num "sweep x max" $x_max
 check_num "sweep y min" $y_min
@@ -197,23 +224,66 @@ check_num "sweep y max" $y_max
 width=`echo "$x_max - $x_min" | bc -l`
 height=`echo "$y_max - $y_min" | bc -l`
 
+# Save volume headers
+eval `sig_raw vol_hdr`
+sig_raw sweep_headers
+sweep_angle=`awk '/sweep +'${sweep_index}' / {printf "%.1f", $5}' $out`
+
 # Make name for output file
-if test $out_fl
+if test $svg_fl
 then
-    sig_raw sweep_headers
-    sweep_angle=`awk '/sweep +'${sweep_index}' / {printf "%.1f", $5}' $out`
-    out_fl="${vol}.${data_type}.${sweep_angle}.svg"
+    svg_fl="${vol}.${data_type}.${sweep_angle}.svg"
     doc="-d"
 fi
 
 # Print outlines.
 sig_raw outlines $fill $data_type $color_fl $sweep_index &
-if test $out_fl
+if test $svg_fl
 then
     cart_svg $doc $x_dpy $y_dpy $w_dpy -- $x_min $y_min $width $height \
-	    sigmet_svg.awk $out > $out_fl
+	    sigmet_svg.awk $out > $svg_fl
+    echo $svg_fl
 else
     cart_svg $doc $x_dpy $y_dpy $w_dpy -- $x_min $y_min $width $height \
 	    sigmet_svg.awk $out
 fi
+
+# Convert meters to great circle degrees
+a0=`geog rearth`
+export a0
+meter_deg() {
+    echo $1 / $a0 \* 180.0 / 3.1415927 | bc -l
+}
+
+# If desired, make KML. Icon element must be made later.
+kml_tmpl='<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <GroundOverlay>
+    <name>%s</name>
+    <description>%s</description>
+    <LatLonBox>
+      <north>%.5f</north>
+      <south>%.5f</south>
+      <west>%.5f</west>
+      <east>%.5f</east>
+    </LatLonBox>
+    <Icon></Icon>
+  </GroundOverlay>
+</kml>
+'
+if test $kml
+then
+    d=`meter_deg $y_max`
+    north=`geog step $radar_lon $radar_lat 0.0 $d | awk '{printf $1}'`
+    d=`meter_deg $y_min`
+    south=`geog step $radar_lon $radar_lat 0.0 $d | awk '{printf $1}'`
+    d=`meter_deg $x_min`
+    west=`geog step $radar_lon $radar_lat 90.0 $d | awk '{printf $2}'`
+    d=`meter_deg $x_max`
+    east=`geog step $radar_lon $radar_lat 90.0 $d | awk '{printf $2}'`
+    kml_fl="${vol}.${data_type}.${sweep_angle}.kml"
+    printf "$kml_tmpl" $vol "$DESCRIPTION" $north $south $west $east \
+	    > $kml_fl
+fi
+
 exit 0

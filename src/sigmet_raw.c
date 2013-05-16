@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.133 $ $Date: 2013/03/14 20:27:53 $
+   .	$Revision: 1.134 $ $Date: 2013/04/04 21:55:48 $
  */
 
 #include "unix_defs.h"
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
 		"All rights reserved.\n"
 		"Usage: %s raw_product_file [command_file]\n"
 		"See sigmet_raw (1) for more information.\n",
-		argv0, SIGMET_VERSION, argv0);
+		argv0, SIGMET_RAW_VERSION, argv0);
 	exit(EXIT_SUCCESS);
     } else if ( argc == 2 ) {
 	vol_fl_nm = argv[1];
@@ -259,34 +259,82 @@ int main(int argc, char *argv[])
     if ( strcmp(script_nm, "-") == 0 ) {
 	script = stdin;
     } else {
-	int i_script;			/* Script file descriptor */
-	struct stat buf;		/* Script file information */
+	struct stat buf;		/* Information for input script */
 
-	if ( (i_script = open(script_nm, O_RDONLY)) == -1
-		|| !(script = fdopen(i_script, "r")) ) {
-	    fprintf(stderr, "%s: could not open %s for reading.\n%s\n",
-		    argv0, script_nm, strerror(errno));
-	    exit(EXIT_FAILURE);
-	}
-	if ( fstat(i_script, &buf) == -1 ) {
+	if ( stat(script_nm, &buf) == -1 ) {
 	    fprintf(stderr, "%s: could not get information about %s.\n%s\n",
 		    argv0, script_nm, strerror(errno));
 	    exit(EXIT_FAILURE);
 	}
 	if ( (buf.st_mode & S_IFMT) & S_IFIFO ) {
-	    int o_script;		/* File descriptor for writing to
-					   script fifo. Nothing will be
-					   written to it. Having this
-					   descriptor keeps process from
-					   exiting when a single input
-					   command sends EOF. */
+	    /*
+	       Commands will come from fifo. Go to background.
+	     */
+
+	    pid_t pid;			/* Return from fork */
 
 	    daemon = 1;
-	    if ( (o_script = open(script_nm, O_WRONLY)) == -1 ) {
-		fprintf(stderr, "%s: could not open fifo %s for writng.\n%s\n",
+	    pid = fork();
+	    if ( pid ==  -1 ) {
+		fprintf(stderr, "%s: could not fork to daemon mode.\n%s\n",
+			argv0, strerror(errno));
+		exit(EXIT_FAILURE);
+	    } else if ( pid > 0 ) {
+		/*
+		   Parent process. Open the fifo for writing. This will
+		   keep the child from blocking when it opens the fifo
+		   for reading.  Then exit, putting child process into
+		   background.
+		 */
+
+		if ( open(script_nm, O_WRONLY) == -1 ) {
+		    fprintf(stderr, "%s: could not open fifo %s "
+			    "for writing.\n%s\n", argv0, script_nm,
+			    strerror(errno));
+		    exit(EXIT_FAILURE);
+		}
+		exit(EXIT_SUCCESS);
+	    } else {
+		/*
+		   Child process, which will run the rest of the program.
+		   Open the input fifo for reading. Also open the input fifo
+		   for writing. Nothing will be written to it. Having a
+		   permanent file descriptor will keep process from exiting
+		   when a client process sends EOF to the fifo.
+		 */
+
+		int i_script;		/* File descriptor for input script */
+
+		if ( !handle_signals() ) {
+		    fprintf(stderr, "%s: background child could not set up "
+			    "signal management.", argv0);
+		    exit(EXIT_FAILURE);
+		}
+		if ( (i_script = open(script_nm, O_RDONLY)) == -1
+			|| !(script = fdopen(i_script, "r")) ) {
+		    fprintf(stderr, "%s: could not open %s for reading.\n%s\n",
+			    argv0, script_nm, strerror(errno));
+		    exit(EXIT_FAILURE);
+		}
+		if ( open(script_nm, O_WRONLY) == -1 ) {
+		    fprintf(stderr, "%s: could not open fifo %s "
+			    "for writing.\n%s\n", argv0, script_nm,
+			    strerror(errno));
+		    exit(EXIT_FAILURE);
+		}
+		fclose(stdin);
+	    }
+	} else {
+	    /*
+	       Commands will come from a regular file.
+	     */
+
+	    if ( !(script = fopen(script_nm, "r")) ) {
+		fprintf(stderr, "%s: could not open %s for reading.\n%s\n",
 			argv0, script_nm, strerror(errno));
 		exit(EXIT_FAILURE);
 	    }
+	    daemon = 0;
 	}
     }
 
@@ -1228,7 +1276,7 @@ static int sweep_bnds_cb(int argc, char *argv[])
 	    return 0;
 	}
     }
-    fprintf(out, "x_min %lf x_max %lf y_min %lf y_max %lf\n",
+    fprintf(out, "x_min %lf\nx_max %lf\ny_min %lf\ny_max %lf\n",
 	    x_min, x_max, y_min, y_max);
     return 1;
 }
@@ -1240,7 +1288,7 @@ static int radar_lon_cb(int argc, char *argv[])
     double lon;				/* New longitude, degrees */
 
     if ( argc == 1 ) {
-	printf("%lf\n", Sigmet_Vol_RadarLon(&vol, NULL) * DEG_PER_RAD);
+	fprintf(out, "%lf\n", Sigmet_Vol_RadarLon(&vol, NULL) * DEG_PER_RAD);
 	return 1;
     } else if ( argc == 2 ) {
 	lon_s = argv[1];
@@ -1250,7 +1298,7 @@ static int radar_lon_cb(int argc, char *argv[])
 	    return 0;
 	}
 	lon = GeogLonR(lon * RAD_PER_DEG, M_PI);
-	printf("%lf\n", Sigmet_Vol_RadarLon(&vol, &lon) * DEG_PER_RAD);
+	fprintf(out, "%lf\n", Sigmet_Vol_RadarLon(&vol, &lon) * DEG_PER_RAD);
 	return 1;
     } else {
 	fprintf(stderr, "Usage: %s new_lon\n", argv0);
@@ -1265,7 +1313,7 @@ static int radar_lat_cb(int argc, char *argv[])
     double lat;				/* New latitude, degrees */
 
     if ( argc == 1 ) {
-	printf("%lf\n", Sigmet_Vol_RadarLat(&vol, NULL) * DEG_PER_RAD);
+	fprintf(out, "%lf\n", Sigmet_Vol_RadarLat(&vol, NULL) * DEG_PER_RAD);
 	return 1;
     } else if ( argc == 2 ) {
 	lat_s = argv[1];
@@ -1275,7 +1323,7 @@ static int radar_lat_cb(int argc, char *argv[])
 	    return 0;
 	}
 	lat = GeogLatN(lat * RAD_PER_DEG);
-	printf("%lf\n", Sigmet_Vol_RadarLat(&vol, &lat) * DEG_PER_RAD);
+	fprintf(out, "%lf\n", Sigmet_Vol_RadarLat(&vol, &lat) * DEG_PER_RAD);
 	return 1;
     } else {
 	fprintf(stderr, "Usage: %s new_lat\n", argv0);
