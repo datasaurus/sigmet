@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.3 $ $Date: 2012/01/24 22:52:59 $
+   .	$Revision: 1.4 $ $Date: 2012/09/26 20:41:12 $
  */
 
 #include <stdlib.h>
@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
 
     if ( argc == 2 && strcmp(argv[1], "-v") == 0 ) {
 	printf("%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
-		"All rights reserved.\n", argv[0], SIGMET_VERSION);
+		"All rights reserved.\n", argv[0], SIGMET_RAW_VERSION);
 	return EXIT_SUCCESS;
     }
     if ( argc == 1 ) {

@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.13 $ $Date: 2012/12/01 16:52:55 $
+   .	$Revision: 1.14 $ $Date: 2013/01/24 19:49:00 $
  */
 
 #include "unix_defs.h"
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
     } else if ( argc == 2 ) {
 	if ( strcmp(argv[1], "-v") == 0 ) {
 	    printf("%s version %s\nCopyright (c) 2011, Gordon D. Carrie.\n"
-		    "All rights reserved.\n", argv[0], SIGMET_VERSION);
+		    "All rights reserved.\n", argv[0], SIGMET_RAW_VERSION);
 	    return EXIT_SUCCESS;
 	} else if ( strcmp(argv[1], "-a") == 0 ) {
 	    abbrv = 1;

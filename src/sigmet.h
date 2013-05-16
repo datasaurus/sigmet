@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.133 $ $Date: 2013/01/04 21:33:20 $
+   .	$Revision: 1.134 $ $Date: 2013/03/14 20:29:13 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -38,7 +38,7 @@
 #ifndef SIGMET_H_
 #define SIGMET_H_
 
-#define SIGMET_VERSION "1.4"
+#define SIGMET_RAW_VERSION "1.4"
 
 #include "unix_defs.h"
 #include <float.h>
