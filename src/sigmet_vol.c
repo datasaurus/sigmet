@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.214 $ $Date: 2013/03/25 21:43:47 $
+   .	$Revision: 1.215 $ $Date: 2013/04/04 20:54:24 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1628,9 +1628,9 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		tilt1_i = get_uint16(ray_buf + 6);
 
 		vol_p->ray_hdr[s][r].az0 = Sigmet_Bin2Rad(az0_i);
-		vol_p->ray_hdr[s][r].tilt0 = Sigmet_Bin2Rad(tilt0_i);
+		vol_p->ray_hdr[s][r].tilt0 = GeogLatN(Sigmet_Bin2Rad(tilt0_i));
 		vol_p->ray_hdr[s][r].az1 = Sigmet_Bin2Rad(az1_i);
-		vol_p->ray_hdr[s][r].tilt1 = Sigmet_Bin2Rad(tilt1_i);
+		vol_p->ray_hdr[s][r].tilt1 = GeogLatN(Sigmet_Bin2Rad(tilt1_i));
 
 		vol_p->ray_hdr[s][r].ok
 		    = !(az0_i == az1_i && tilt0_i == tilt1_i);
