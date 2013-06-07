@@ -1,0 +1,60 @@
+#!/bin/sh
+#
+#	sigmet_fdupes --
+#		Search for redundant sigmet volumes.
+#
+# This process recursively searches the current working directory for
+# file names that suggest a Sigmet raw product volume,
+# e.g. SR1100622010856.RAW7GZF. Volume file names that suggest the same radar
+# and time are compared. Names of volume files that contain the same volume are
+# printed to standard output.
+
+# zcmp and bzcmp must be in PATH.
+
+# Return the inode of a file
+lsi() {
+    if test "$*"
+    then
+	ls -i "$*" | awk '{print $1}'
+    fi
+}
+
+# Compare files given as arguments. Print those that are identical to the first.
+cmps() {
+    f1=$1
+    w1=$f1
+    nl=""
+    shift
+    for f2 in "$@"
+    do
+	if test "`lsi $f1`" -ne "`lsi $f2`" && { zcmp $f1 $f2 || bzcmp $f1 $f2; }
+	then
+	    printf "%s %s " "$w1" "$f2"
+	    w1=""
+	    nl="\n"
+	fi
+    done
+    printf "$nl"
+}
+
+find . -type f \
+    \( -name '*.RAW????' -o -name '*.RAW????.gz' -o -name '*.RAW????*.bz2' \) \
+| awk 'BEGIN {
+	    ymd = "[0-9][0-9][0-9]";
+	    hms = "[0-9][0-9][0-9]";
+	}
+	{
+	    if ( match($0, "[0-9A-Za-z_-]+" ymd hms "\.RAW....") ) {
+		m = substr($0, RSTART, RLENGTH);
+		matches[m] = matches[m] " " $0;
+	    }
+	}
+	END {
+	    for (m in matches) {
+		print matches[m];
+	    }
+	}' \
+| while read files
+do
+    eval cmps $files
+done
