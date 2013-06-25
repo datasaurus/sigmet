@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.134 $ $Date: 2013/04/04 21:55:48 $
+   .	$Revision: 1.135 $ $Date: 2013/05/16 19:42:30 $
  */
 
 #include "unix_defs.h"
@@ -1040,9 +1040,23 @@ static int data_cb(int argc, char *argv[])
 		Sigmet_Vol_DataTypeHdrs(&vol, y, &data_type_s, NULL, NULL);
 		fprintf(out, "%s. sweep %d\n", data_type_s, s);
 		for (r = 0; r < num_rays; r++) {
-		    if ( Sigmet_Vol_BadRay(&vol, s, r) ) {
-			continue;
+		    if ( Sigmet_Vol_GoodRay(&vol, s, r) ) {
+			fprintf(out, "ray %d: ", r);
+			num_bins = Sigmet_Vol_NumBins(&vol, s, r);
+			for (b = 0; b < num_bins; b++) {
+			    fprintf(out, "%f ",
+				    Sigmet_Vol_GetDatum(&vol, y, s, r, b));
+			}
+			fprintf(out, "\n");
 		    }
+		}
+	    }
+	}
+    } else if ( s == all && r == all && b == all ) {
+	for (s = 0; s < num_sweeps; s++) {
+	    fprintf(out, "%s. sweep %d\n", data_type_s, s);
+	    for (r = 0; r < num_rays; r++) {
+		if ( Sigmet_Vol_GoodRay(&vol, s, r) ) {
 		    fprintf(out, "ray %d: ", r);
 		    num_bins = Sigmet_Vol_NumBins(&vol, s, r);
 		    for (b = 0; b < num_bins; b++) {
@@ -1053,13 +1067,10 @@ static int data_cb(int argc, char *argv[])
 		}
 	    }
 	}
-    } else if ( s == all && r == all && b == all ) {
-	for (s = 0; s < num_sweeps; s++) {
-	    fprintf(out, "%s. sweep %d\n", data_type_s, s);
-	    for (r = 0; r < num_rays; r++) {
-		if ( Sigmet_Vol_BadRay(&vol, s, r) ) {
-		    continue;
-		}
+    } else if ( r == all && b == all ) {
+	fprintf(out, "%s. sweep %d\n", data_type_s, s);
+	for (r = 0; r < num_rays; r++) {
+	    if ( Sigmet_Vol_GoodRay(&vol, s, r) ) {
 		fprintf(out, "ray %d: ", r);
 		num_bins = Sigmet_Vol_NumBins(&vol, s, r);
 		for (b = 0; b < num_bins; b++) {
@@ -1068,22 +1079,9 @@ static int data_cb(int argc, char *argv[])
 		fprintf(out, "\n");
 	    }
 	}
-    } else if ( r == all && b == all ) {
-	fprintf(out, "%s. sweep %d\n", data_type_s, s);
-	for (r = 0; r < num_rays; r++) {
-	    if ( Sigmet_Vol_BadRay(&vol, s, r) ) {
-		continue;
-	    }
-	    fprintf(out, "ray %d: ", r);
-	    num_bins = Sigmet_Vol_NumBins(&vol, s, r);
-	    for (b = 0; b < num_bins; b++) {
-		fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
-	    }
-	    fprintf(out, "\n");
-	}
     } else if ( b == all ) {
 	fprintf(out, "%s. sweep %d, ray %d: ", data_type_s, s, r);
-	if ( !Sigmet_Vol_BadRay(&vol, s, r) ) {
+	if ( Sigmet_Vol_GoodRay(&vol, s, r) ) {
 	    num_bins = Sigmet_Vol_NumBins(&vol, s, r);
 	    for (b = 0; b < num_bins; b++) {
 		fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
@@ -1091,7 +1089,7 @@ static int data_cb(int argc, char *argv[])
 	    fprintf(out, "\n");
 	}
     } else {
-	if ( !Sigmet_Vol_BadRay(&vol, s, r) ) {
+	if ( Sigmet_Vol_GoodRay(&vol, s, r) ) {
 	    fprintf(out, "%s. sweep %d, ray %d, bin %d: ",
 		    data_type_s, s, r, b);
 	    fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
@@ -1145,7 +1143,7 @@ static int bdata_cb(int argc, char *argv[])
 	for (b = 0; b < num_bins; b++) {
 	    ray_p[b] = NAN;
 	}
-	if ( !Sigmet_Vol_BadRay(&vol, s, r) ) {
+	if ( Sigmet_Vol_GoodRay(&vol, s, r) ) {
 	    sig_stat = Sigmet_Vol_GetRayDat(&vol, y, s, r, &ray_p);
 	    if ( sig_stat != SIGMET_OK ) {
 		fprintf(stderr, "%s: could not get ray data "

@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.215 $ $Date: 2013/04/04 20:54:24 $
+   .	$Revision: 1.216 $ $Date: 2013/05/23 21:57:20 $
    .
    .	Reference: IRIS Programmers Manual
  */
@@ -1787,10 +1787,25 @@ double Sigmet_Vol_RadarLat(struct Sigmet_Vol *vol_p, double *lat_p)
     return GeogLatN(Sigmet_Bin4Rad(vol_p->ih.ic.latitude));
 }
 
-int Sigmet_Vol_BadRay(struct Sigmet_Vol *vol_p, int s, int r)
+int Sigmet_Vol_GoodRay(struct Sigmet_Vol *vol_p, int s, int r)
 {
-    return (vol_p && s < vol_p->num_sweeps_ax && r < vol_p->ih.ic.num_rays)
-	? (vol_p->ray_hdr[s][r].az0 == vol_p->ray_hdr[s][r].az1) : 1;
+    switch (vol_p->ih.tc.tni.scan_mode) {
+	case PPI_S:
+	case PPI_C:
+	    return vol_p
+		&& s < vol_p->num_sweeps_ax
+		&& r < vol_p->ih.ic.num_rays
+		&& vol_p->ray_hdr[s][r].az0 != vol_p->ray_hdr[s][r].az1;
+	case RHI:
+	    return vol_p
+		&& s < vol_p->num_sweeps_ax
+		&& r < vol_p->ih.ic.num_rays
+		&& vol_p->ray_hdr[s][r].tilt0 != vol_p->ray_hdr[s][r].tilt1;
+	case MAN_SCAN:
+	case FILE_SCAN:
+	    return 0;
+    }
+    return 0;
 }
 
 /*

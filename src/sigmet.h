@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.134 $ $Date: 2013/03/14 20:29:13 $
+   .	$Revision: 1.135 $ $Date: 2013/05/16 19:50:55 $
    .
    .	Reference: IRIS Programmer's Manual, February 2009.
  */
@@ -644,7 +644,7 @@ void Sigmet_Vol_LzCpy(struct Sigmet_Vol *, struct Sigmet_Vol *);
 double Sigmet_Vol_RadarLon(struct Sigmet_Vol *, double *);
 double Sigmet_Vol_RadarLat(struct Sigmet_Vol *, double *);
 int Sigmet_Vol_NearSweep(struct Sigmet_Vol *, double);
-int Sigmet_Vol_BadRay(struct Sigmet_Vol *, int, int);
+int Sigmet_Vol_GoodRay(struct Sigmet_Vol *, int, int);
 enum SigmetStatus Sigmet_Vol_RayGeom(struct Sigmet_Vol *, int ,
 	double *, double *, double *, double *, double *, double *, int);
 double Sigmet_Vol_BinStart(struct Sigmet_Vol *, int);
