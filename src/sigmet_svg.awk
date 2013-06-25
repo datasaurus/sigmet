@@ -32,7 +32,8 @@ BEGIN {
     close_poly = "";
 }
 /color/ {
-    printf "%s<path style=\"fill: %s;\" d=\"\n", close_poly, $2;
+    printf "%s<path style=\"fill: %s; %s\" d=\"\n",
+	    close_poly, $2, ENVIRON["SIGMET_SVG_STYLE"];
     close_poly = "\"/>\n";
 }
 /gate/ {
