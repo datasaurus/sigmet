@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.63 $ $Date: 2013/03/14 20:31:15 $
+   .	$Revision: 1.64 $ $Date: 2013/03/25 21:42:22 $
  */
 
 #include <string.h>
@@ -225,13 +225,13 @@ enum SigmetStatus Sigmet_Vol_ToDorade(struct Sigmet_Vol *vol_p, int s,
 	    radd_p->eff_unamb_vel = 0.25 * wave_len * prf;
 	    break;
 	case TWO_THREE:
-	    radd_p->eff_unamb_vel = 0.25 * wave_len * 1.5 * prf * 2;
+	    radd_p->eff_unamb_vel = 0.25 * wave_len * prf * 2;
 	    break;
 	case THREE_FOUR:
-	    radd_p->eff_unamb_vel = 0.25 * wave_len * 4.0 / 3.0 * prf * 3;
+	    radd_p->eff_unamb_vel = 0.25 * wave_len * prf * 3;
 	    break;
 	case FOUR_FIVE:
-	    radd_p->eff_unamb_vel = 0.25 * wave_len * (1.25 * prf) * 4;
+	    radd_p->eff_unamb_vel = 0.25 * wave_len * prf * 4;
 	    break;
     }
     radd_p->eff_unamb_range = 0.5 * 2.9979e5 / prf;	/* km */
