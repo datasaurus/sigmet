@@ -3,7 +3,7 @@
 # Usage:
 #	sigmet_svg [-f] [-d] [-o] [-k] [-b bounds]
 #		[-x pixels] [-y pixels] [-w pixels] --
-#		data_type colors_file sweep_index volume_file
+#		data_types sweep_index volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
 #	-b		- Limits of plot in plot coordinates (not display
@@ -17,12 +17,13 @@
 #	-m		- margins around plot area, given as
 #			  top=value,left=value. Right and bottom margins
 #			  are determined from font and legend sizes.
-#	data_type	- data type (e.g. DB_DBZ, DB_ZDR).
-#	colors_file	- specify color for each data interval. Should be
-#			  formatted for sigmet_raw outlines command.
-#	sweep_index	- index of sweep in volume. First sweep is 0.
+#	data_types	- data type or types (e.g. DB_DBZ, 'DB_DBZ,DB_ZDR').
+#	sweep_angle	- desired tilt or azimuth. Image will show sweep
+#			  nearest sweep_angle.
 #	volume_file	- Sigmet raw product file
 #
+# For each data type in data_types, a color table will be sought from a file
+# named ${data_type}.clrs or ${SIGMET_COLOR_DIR}/${data_type}.clrs.
 #
 # Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
 # 
@@ -119,25 +120,17 @@ check_num "top margin" $top
 check_num "left margin" $left
 
 shift `expr $OPTIND - 1`
-if [ $# -ne 4 ]
+if [ $# -ne 3 ]
 then
     {
 	printf "Usage: $0 [-f] [-d] [-b bounds] [-x pixels] [-y pixels]"
-	printf " [-w pixels] -- data_type colors_file sweep_index volume_file\n"
+	printf " [-w pixels] -- data_types sweep_angle volume_file\n"
     } 1>&2
     exit 1
 fi
-data_type="$1"
-color_fl="$2"
-sweep_index="$3"
-vol_path="$4"
-
-# Check for color table
-if ! test -f "$color_fl"
-then
-    echo "$0: could not find color file $color_fl" 1>&2
-    exit 1
-fi
+data_types=`echo "$1" | sed 's/,/ /g'`
+sweep_angle="$2"
+vol_path="$3"
 
 # Arrange for sigmet_raw termination and clean up on any exit.
 # sigmet_raw is started below.
@@ -177,6 +170,8 @@ eval `cat $out`
 
 # Assign sweep bounds to x_min, x_max, y_min, and y_max if not set from
 # command line.
+sig_raw near_sweep $sweep_angle
+sweep_index=`cat $out`
 sig_raw sweep_bnds $sweep_index
 eval `cat $out | awk '
     /x_min/ {
@@ -225,70 +220,90 @@ then
 else
     y_label='North-south (m)'
 fi
-caption="`basename $vol_path`"
 
 # Send SVG plot parameters and data to the xyplot.awk command.
-{
-    printf 'x0=%f\n'	$x_min
-    printf 'y0=%f\n'	$y_min
-    printf 'dx=%f\n'	$dx
-    printf 'dy=%f\n'	$dy
-    printf 'doc_width=%d\n' $doc_width
-    printf 'top=%d\n'	$top
-    printf 'right=%d\n'	$right
-    printf 'bottom=%d\n' $bottom
-    printf 'left=%d\n'	$left
-    printf 'font_sz=%d\n' $font_sz
+for data_type in $data_types
+do
+    vol=`basename "$vol_path"`
+    caption="$vol $data_type at $sweep_angle degrees"
+    file_nm=`printf "%s_%s_%.1f.svg" $vol $data_type $sweep_angle`
+    color_fl=${data_type}_CLRS
 
-    echo start_plot
+    # Find color table file
+    if test -f ${data_type}.clrs
+    then
+	color_fl=${data_type}.clrs
+    elif test -f ${SIGMET_COLOR_DIR}/${data_type}.clrs
+    then
+	color_fl=${SIGMET_COLOR_DIR}/${data_type}.clrs
+    else
+	echo "$0: could not find color file for $data_type" 1>&2
+	exit 1
+    fi
+    
+    {
+	printf 'x0=%f\n'	$x_min
+	printf 'y0=%f\n'	$y_min
+	printf 'dx=%f\n'	$dx
+	printf 'dy=%f\n'	$dy
+	printf 'doc_width=%d\n' $doc_width
+	printf 'top=%d\n'	$top
+	printf 'right=%d\n'	$right
+	printf 'bottom=%d\n' $bottom
+	printf 'left=%d\n'	$left
+	printf 'font_sz=%d\n' $font_sz
 
-    sig_raw outlines $fill $data_type $color_fl $sweep_index &
-    sigmet_svg.awk $out
+	echo start_plot
 
-    echo end_plot
+	sig_raw outlines $fill $data_type $color_fl $sweep_index &
+	sigmet_svg.awk $out
 
-    # Caption for x axis
-    x_px=`echo "$left + $plot_width / 2" | bc -l`
-    y_px=`echo "$top + $plot_height + 5 * $font_sz" | bc -l`
-    printf '<text\n'
-    printf '    x="%.1f" y="%.1f"\n' $x_px $y_px
-    printf '    font-size="%.0f"\n' $font_sz
-    printf '    text-anchor="middle">'
-    printf '%s' "$x_label"
-    printf '</text>\n'
+	echo end_plot
 
-    # Label y axis
-    x_px=`echo "$left - 8 * $font_sz" | bc -l`
-    y_px=`echo "$top + $plot_height / 2" | bc -l`
-    printf '<g transform="matrix(0.0, -1.0, 1.0, 0.0,'
-    printf ' %.1f, %.1f)">\n' $x_px $y_px
-    printf '    <text\n'
-    printf '        x="0.0" y="0.0"\n'
-    printf '        font-size="%.0f"\n' $font_sz
-    printf '        text-anchor="middle">'
-    printf '%s' "$y_label"
-    printf '</text>\n'
-    printf '</g>\n'
+	# Caption for x axis
+	x_px=`echo "$left + $plot_width / 2" | bc -l`
+	y_px=`echo "$top + $plot_height + 5 * $font_sz" | bc -l`
+	printf '<text\n'
+	printf '    x="%.1f" y="%.1f"\n' $x_px $y_px
+	printf '    font-size="%.0f"\n' $font_sz
+	printf '    text-anchor="middle">'
+	printf '%s' "$x_label"
+	printf '</text>\n'
 
-    # Figure caption
-    x_px=`echo "$left + $plot_width / 2" | bc -l`
-    y_px=`echo "$top + $plot_height + 8.5 * $font_sz" | bc -l`
-    printf '<text\n'
-    printf '    x="%.1f" y="%.1f"\n' $x_px $y_px
-    printf '    font-size="%.0f"\n' $font_sz
-    printf '    text-anchor="middle">'
-    printf '%s' "$caption"
-    printf '</text>\n'
+	# Label y axis
+	x_px=`echo "$left - 8 * $font_sz" | bc -l`
+	y_px=`echo "$top + $plot_height / 2" | bc -l`
+	printf '<g transform="matrix(0.0, -1.0, 1.0, 0.0,'
+	printf ' %.1f, %.1f)">\n' $x_px $y_px
+	printf '    <text\n'
+	printf '        x="0.0" y="0.0"\n'
+	printf '        font-size="%.0f"\n' $font_sz
+	printf '        text-anchor="middle">'
+	printf '%s' "$y_label"
+	printf '</text>\n'
+	printf '</g>\n'
 
-    # Color legend
-    x_px=`echo "$left + $plot_width + 18" | bc -l`
-    y_px=`echo "$top + 9" | bc -l`
-    printf '<g transform="translate(%.1f %.1f)">\n' $x_px $y_px
-    color_legend $legend_width $legend_height $font_sz < $color_fl
-    printf '</g>\n'
+	# Figure caption
+	x_px=`echo "$left + $plot_width / 2" | bc -l`
+	y_px=`echo "$top + $plot_height + 8.5 * $font_sz" | bc -l`
+	printf '<text\n'
+	printf '    x="%.1f" y="%.1f"\n' $x_px $y_px
+	printf '    font-size="%.0f"\n' $font_sz
+	printf '    text-anchor="middle">'
+	printf '%s' "$caption"
+	printf '</text>\n'
 
-    echo end
+	# Color legend
+	x_px=`echo "$left + $plot_width + 18" | bc -l`
+	y_px=`echo "$top + 9" | bc -l`
+	printf '<g transform="translate(%.1f %.1f)">\n' $x_px $y_px
+	color_legend $legend_width $legend_height $font_sz < $color_fl
+	printf '</g>\n'
 
-} | xyplot.awk
+	echo end
+
+    } | xyplot.awk > $file_nm
+    echo $file_nm
+done
 
 exit 0
