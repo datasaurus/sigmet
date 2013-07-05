@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.135 $ $Date: 2013/05/16 19:42:30 $
+   .	$Revision: 1.136 $ $Date: 2013/06/25 17:35:48 $
  */
 
 #include "unix_defs.h"
@@ -52,6 +52,7 @@
 #include "hash.h"
 #include "str.h"
 #include "tm_calc_lib.h"
+#include "get_colors.h"
 #include "bisearch_lib.h"
 #include "geog_lib.h"
 #include "sigmet.h"
@@ -386,9 +387,7 @@ int main(int argc, char *argv[])
 			}
 		    }
 		    fprintf(stderr, "\n");
-		    exit(EXIT_FAILURE);
-		}
-		if ( !cb1v[n](argc1, argv1) ) {
+		} else if ( !cb1v[n](argc1, argv1) ) {
 		    fprintf(stderr, "%s: %s failed.\n", argv0, cmd);
 		}
 		break;
@@ -1364,16 +1363,12 @@ static int outlines_cb(int argc, char *argv[])
     char *data_type_s;			/* Data type abbreviation */
     char *clr_fl_nm;			/* Name of file with color specifiers
 					   and bounds */
-    FILE *clr_fl;			/* Input stream for color file */
     int num_colors;			/* Number of colors */
     int num_bnds;			/* Number of boundaries */
     char *s_s;				/* Sweep index, as a string */
     int s;				/* Sweep index */
-    char (*colors)[COLOR_NM_LEN_A] = NULL; /* Color names, e.g. "#rrggbb" */
-    char bnd[FLOAT_STR_LEN_A];		/* String representation of a boundary
-					   value, .e.g "1.23", or "-inf" */
+    char **colors = NULL;		/* Color names, e.g. "#rrggbb" */
     float *bnds = NULL;			/* Bounds for each color */
-    char *format;			/* Conversion specifier */
     double r00, dr;			/* Range to first bin, bin step, m. */
     double *az0 = NULL, *az1;		/* Ray start, stop azimuths, radians */
     double *tilt0, *tilt1;		/* Ray start, stop tilts, radians */
@@ -1418,97 +1413,13 @@ static int outlines_cb(int argc, char *argv[])
 
     /*
        Get colors from color file.
-       Format --
-       number_of_colors bound color bound color ... color bound
-
-       Number of colors must be a positive integer
-       First bound must be "-inf" or a float value
-       Last bound must be a float value or "inf"
-       All other bounds must be float values.
-       Colors are strings with up to COLOR_NM_LEN - 1 characters.
      */
 
-    if ( !(clr_fl = fopen(clr_fl_nm, "r")) ) {
-	fprintf(stderr, "%s: could not open %s for reading.\n%s\n",
-		argv0, clr_fl_nm, strerror(errno));
-	goto error;
-    }
-    if ( fscanf(clr_fl, " %d", &num_colors) != 1 ) {
-	fprintf(stderr, "%s: could not get color count from %s.\n%s\n",
-		argv0, clr_fl_nm, strerror(errno));
-	goto error;
-    }
-    if ( num_colors < 1) {
-	fprintf(stderr, "%s: must have more than one color.\n%s\n",
-		argv0, strerror(errno));
+    if ( !GetColors(clr_fl_nm, &num_colors, &colors, &bnds) ) {
+	fprintf(stderr, "%s: could not get colors.\n", argv0);
 	goto error;
     }
     num_bnds = num_colors + 1;
-    if ( !(colors = CALLOC((size_t)num_colors, COLOR_NM_LEN_A)) ) {
-	fprintf(stderr, "%s: could not allocate %d colors.\n",
-		argv0, num_colors);
-	goto error;
-    }
-    if ( !(bnds = CALLOC((size_t)(num_bnds), sizeof(double))) ) {
-	fprintf(stderr, "%s: could not allocate %d color table bounds.\n",
-		argv0, num_bnds);
-	goto error;
-    }
-
-    /*
-       First bound and color.
-     */
-
-    format = " %" FLOAT_STR_LEN_S "s %" COLOR_NM_LEN_S "s";
-    if ( fscanf(clr_fl, format, bnd, colors) == 2 ) {
-	if ( strcmp(bnd, "-inf") == 0 ) {
-	    bnds[0] = -FLT_MAX;
-	} else if ( sscanf(bnd, "%f", bnds) == 1 ) {
-	    ;
-	} else {
-	    fprintf(stderr, "%s: reading first color, expected number or "
-		    "\"-inf\" for minimum value, got %s.\n", argv0, bnd);
-	    goto error;
-	}
-    } else {
-	fprintf(stderr, "%s: could not read first color and bound from %s.\n",
-		argv0, clr_fl_nm);
-	goto error;
-    }
-
-    /*
-       Second through next to last bounds and colors.
-     */
-
-    format = " %f %" COLOR_NM_LEN_S "s";
-    for (c = 1; c < num_colors; c++) {
-	if ( fscanf(clr_fl, format, bnds + c, colors + c) != 2 ) {
-	    fprintf(stderr, "%s: could not read color and bound at index %d "
-		    "from %s.\n", argv0, c, clr_fl_nm);
-	    goto error;
-	}
-    }
-
-    /*
-       Last bound.
-     */
-
-    format = " %" FLOAT_STR_LEN_S "s";
-    if ( fscanf(clr_fl, format, bnd) == 1 ) {
-	if ( sscanf(bnd, "%f", bnds + c) == 1 ) {
-	    ;
-	} else if ( strcmp(bnd, "inf") == 0 ) {
-	    bnds[c] = FLT_MAX;
-	} else {
-	    fprintf(stderr, "%s: reading final color, expected number or "
-		    "\"inf\" for boundary, got %s\n", argv0, bnd);
-	    goto error;
-	}
-    } else {
-	fprintf(stderr, "%s: could not read final bound from %s\n",
-		argv0, clr_fl_nm);
-	goto error;
-    }
 
     /*
        Get sweep data and ray geometry.
