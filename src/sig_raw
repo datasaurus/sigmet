@@ -1,30 +1,22 @@
 #!/bin/sh
+#
+#	sigmet_raw.sh --
+#		Send a command to a sigmet_raw daemon. Print the result.
+#
+# Usage:
+#	sigmet_raw.sh in_fifo out_fifo command [args ...]
+#
+# A sigmet_raw process running in daemon mode should be read commands from
+# in_fifo and printing results to out_fifo.
 
-# Locate Sigmet volumes
-sig_dir=$1
-if ! test -d "$sig_dir"
+if [ $# -lt 3 ]
 then
-    echo "$sig_dir not a directory"
+    echo "Usage: $0 in_fifo out_fifo command [args ...]" 1>&2
     exit 1
 fi
-
-# sigmet_raw should be listening to named pipe created with
-#	mkfifo $sf
-#	./sigmet_raw $sf > tmp/sigmet_raw.out &
-sf="tmp/sigmet_raw.in"
-if ! test -p $sf
-then
-    echo "No pipe for sigmet_raw commands"
-    exit 1
-fi
-
-# Uncompress volumes and feed to sigmet_raw
-for v in ${sig_dir}/*RAW*.gz ${sig_dir}/*raw*.gz
-do
-    if test -f $v
-    then
-	echo "Reading $v"
-	printf 'read %s\ndata DB_DBZ 0 4 30\n' $v > $sf
-	echo "Done with $v"
-    fi
-done
+in=$1
+out=$2
+shift
+shift
+printf "open %s\n%s\nclose\n" "$out" "$*" > "$in"
+cat $out
