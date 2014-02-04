@@ -240,11 +240,11 @@ fi
 sig_raw outlines $fill $data_type $color_fl $sweep_index &
 if test $svg_fl
 then
-    cart_svg $doc $x_dpy $y_dpy $w_dpy -- $x_min $y_min $width $height \
+    xyplot $doc $x_dpy $y_dpy $w_dpy -- $x_min $y_min $width $height \
 	    sigmet_svg.awk $out > $svg_fl
     echo $svg_fl
 else
-    cart_svg $doc $x_dpy $y_dpy $w_dpy -- $x_min $y_min $width $height \
+    xyplot $doc $x_dpy $y_dpy $w_dpy -- $x_min $y_min $width $height \
 	    sigmet_svg.awk $out
 fi
 
