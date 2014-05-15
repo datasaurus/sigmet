@@ -1,6 +1,7 @@
 #!/usr/bin/awk -f
 #
-# Helper for sigmet_svg, converts 'sigmet_raw outlines' output to svg code.
+# This script puts polygon specifiers from 'sigmet_raw outlines' into SVG
+# polygon elements.
 #
 # Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
 # 
