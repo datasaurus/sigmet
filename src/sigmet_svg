@@ -147,8 +147,7 @@ trap cleanup KILL
 
 # Load the sigmet volume into memory by running sigmet_raw in daemon mode.
 # Commands that need information from the daemon will write requests to the
-# "in" fifo, and read results from "out" fifo using the sig_raw function,
-# defined below.
+# "in" fifo, and read results from "out" fifo using the sig_raw function.
 vol_fl=`basename $vol_path`
 vol=`echo $vol_fl | sed -e 's/\.gz$//' -e 's/\.bz2$//'`
 in=.${vol}.$$.in
@@ -156,24 +155,13 @@ out=.${vol}.$$.out
 mkfifo $in $out
 sigmet_raw ${vol_path} $in &
 
-# sig_raw --
-#	This function tells the sigmet_raw daemon to run a command and send the
-#	output to the out fifo. If there will be a lot of output, run in the
-#	background to prevent blocking.
-sig_raw () {
-    printf "open %s\n%s\nclose\n" "$out" "$*" > "$in"
-}
-
 # Store volume headers
-sig_raw vol_hdr
-eval `cat $out`
+eval `sig_raw $in $out vol_hdr`
 
 # Assign sweep bounds to x_min, x_max, y_min, and y_max if not set from
 # command line.
-sig_raw near_sweep $sweep_angle
-sweep_index=`cat $out`
-sig_raw sweep_bnds $sweep_index
-eval `cat $out | awk '
+sweep_index=`sig_raw $in $out near_sweep $sweep_angle`
+eval `sig_raw $in $out sweep_bnds $sweep_index | awk '
     /x_min/ {
 	x_min = $2;
     }
@@ -255,8 +243,8 @@ do
 
 	echo start_plot
 
-	sig_raw outlines $fill $data_type $color_fl $sweep_index &
-	sigmet_svg.awk $out
+	sig_raw $in $out outlines $fill $data_type $color_fl $sweep_index \
+	| sigmet_svg.awk
 
 	echo end_plot
 

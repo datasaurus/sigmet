@@ -1,10 +1,10 @@
 #!/bin/sh
 #
-#	sigmet_raw.sh --
+#	sig_raw --
 #		Send a command to a sigmet_raw daemon. Print the result.
 #
 # Usage:
-#	sigmet_raw.sh in_fifo out_fifo command [args ...]
+#	sig_raw in_fifo out_fifo command [args ...]
 #
 # A sigmet_raw process running in daemon mode should be read commands from
 # in_fifo and printing results to out_fifo.
