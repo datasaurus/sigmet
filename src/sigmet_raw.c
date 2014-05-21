@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.136 $ $Date: 2013/06/25 17:35:48 $
+   .	$Revision: 1.137 $ $Date: 2013/07/05 22:55:45 $
  */
 
 #include "unix_defs.h"
@@ -1641,7 +1641,7 @@ error:
 
 static int set_proj(void)
 {
-    double lon, lat;			/* Radar location */
+    double lon, lat;			/* Radar location, degrees */
     char *proj_s;			/* Environment projection description */
     char dflt_proj_s[LEN];		/* Default projection description */
 
@@ -1656,8 +1656,8 @@ static int set_proj(void)
     } else {
 	/* Set default projection */
 
-	lon = Sigmet_Vol_RadarLon(&vol, NULL);
-	lat = Sigmet_Vol_RadarLat(&vol, NULL);
+	lon = DEG_PER_RAD * Sigmet_Vol_RadarLon(&vol, NULL);
+	lat = DEG_PER_RAD * Sigmet_Vol_RadarLat(&vol, NULL);
 	if ( snprintf(dflt_proj_s, LEN,
 		    "CylEqDist %.9g %.9g", lon, lat) > LEN
 		|| !Sigmet_Proj_Set(dflt_proj_s) ) {
