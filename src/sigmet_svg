@@ -3,7 +3,7 @@
 # Usage:
 #	sigmet_svg [-f] [-d] [-o] [-k] [-b bounds]
 #		[-x pixels] [-y pixels] [-w pixels] --
-#		data_types sweep_index volume_file
+#		data_types sweep_angle volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
 #	-b		- Limits of plot in plot coordinates (not display
@@ -24,6 +24,10 @@
 #
 # For each data type in data_types, a color table will be sought from a file
 # named ${data_type}.clrs or ${SIGMET_COLOR_DIR}/${data_type}.clrs.
+#
+# If SIGMET_JS is set, it must specify the path to Javascript file to use
+# with the SVG plot. It will be inserted into the SVG file as an attribute
+# of a script element.
 #
 # Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
 # 
@@ -76,8 +80,8 @@ y_max=
 doc_width=1400
 font_sz=18
 legend_width=64
-top=64
-left=198
+top=48
+left=80
 
 # Parse command line
 while getopts :fdb:x:y:w:ok opt
@@ -138,7 +142,7 @@ cleanup() {
     echo > $out &
     cat $out > /dev/null
     echo exit > $in
-    rm -f $in $out
+    rm -f $in $out $color_legends $svg_prefix
 }
 trap cleanup EXIT
 trap cleanup QUIT
@@ -188,8 +192,8 @@ dx=`echo "$x_max - $x_min" | bc -l`
 dy=`echo "$y_max - $y_min" | bc -l`
 
 # Determine remaining dimensions of document and plot
-right=`echo "$legend_width + 12 * $font_sz" | bc -l`
-bottom=`echo "12 * $font_sz" | bc -l`
+right=`echo "$legend_width + 8 * $font_sz" | bc -l`
+bottom=`echo "6 * $font_sz" | bc -l`
 plot_width=`echo "$doc_width - $left - $right" | bc -l`
 plot_height=`echo "$plot_width * $dy / $dx" | bc -l`
 doc_height=`echo "$plot_height + $top + $bottom" | bc -l`
@@ -209,7 +213,7 @@ else
     y_label='North-south (m)'
 fi
 
-# Send SVG plot parameters and data to the xyplot.awk command.
+# Send SVG plot parameters and data to the xyplot command.
 for data_type in $data_types
 do
     vol=`basename "$vol_path"`
@@ -228,70 +232,43 @@ do
 	echo "$0: could not find color file for $data_type" 1>&2
 	exit 1
     fi
-    
+
+    # Create a fifo for optional Javascript
+    if test $SIGMET_JS
+    then
+	svg_prefix=.${vol}.script.$$.in
+	mkfifo $svg_prefix
+	{
+	    printf '<script type="application/ecmascript"'
+	    printf ' xlink:href="%s" />\n' $SIGMET_JS
+	} > $svg_prefix &
+	js_opt="-p $svg_prefix"
+    fi
+
+    # Make a file, acutally a fifo, with SVG code for the color legend.
+    x_px=`echo "$left + $plot_width + 18" | bc -l`
+    y_px=`echo "$top + 9" | bc -l`
+    color_legend=.${vol}.${data_type}.$$.in
+    color_legends="${color_legends} $color_legend"
+    mkfifo $color_legend
     {
-	printf 'x0=%f\n'	$x_min
-	printf 'y0=%f\n'	$y_min
-	printf 'dx=%f\n'	$dx
-	printf 'dy=%f\n'	$dy
-	printf 'doc_width=%d\n' $doc_width
-	printf 'top=%d\n'	$top
-	printf 'right=%d\n'	$right
-	printf 'bottom=%d\n' $bottom
-	printf 'left=%d\n'	$left
-	printf 'font_sz=%d\n' $font_sz
-
-	echo start_plot
-
-	sig_raw $in $out outlines $fill $data_type $color_fl $sweep_index \
-	| sigmet_svg.awk
-
-	echo end_plot
-
-	# Caption for x axis
-	x_px=`echo "$left + $plot_width / 2" | bc -l`
-	y_px=`echo "$top + $plot_height + 5 * $font_sz" | bc -l`
-	printf '<text\n'
-	printf '    x="%.1f" y="%.1f"\n' $x_px $y_px
-	printf '    font-size="%.0f"\n' $font_sz
-	printf '    text-anchor="middle">'
-	printf '%s' "$x_label"
-	printf '</text>\n'
-
-	# Label y axis
-	x_px=`echo "$left - 8 * $font_sz" | bc -l`
-	y_px=`echo "$top + $plot_height / 2" | bc -l`
-	printf '<g transform="matrix(0.0, -1.0, 1.0, 0.0,'
-	printf ' %.1f, %.1f)">\n' $x_px $y_px
-	printf '    <text\n'
-	printf '        x="0.0" y="0.0"\n'
-	printf '        font-size="%.0f"\n' $font_sz
-	printf '        text-anchor="middle">'
-	printf '%s' "$y_label"
-	printf '</text>\n'
-	printf '</g>\n'
-
-	# Figure caption
-	x_px=`echo "$left + $plot_width / 2" | bc -l`
-	y_px=`echo "$top + $plot_height + 8.5 * $font_sz" | bc -l`
-	printf '<text\n'
-	printf '    x="%.1f" y="%.1f"\n' $x_px $y_px
-	printf '    font-size="%.0f"\n' $font_sz
-	printf '    text-anchor="middle">'
-	printf '%s' "$caption"
-	printf '</text>\n'
-
-	# Color legend
-	x_px=`echo "$left + $plot_width + 18" | bc -l`
-	y_px=`echo "$top + 9" | bc -l`
-	printf '<g transform="translate(%.1f %.1f)">\n' $x_px $y_px
+	printf '<svg\n'
+	printf '    id="color_legend"\n'
+	printf '    x="%f"\n' $x_px
+	printf '    y="%f">\n' $y_px
 	color_legend $legend_width $legend_height $font_sz < $color_fl
-	printf '</g>\n'
+	printf '</svg>\n'
+    } > $color_legend &
 
-	echo end
-
-    } | xyplot.awk > $file_nm
+    sig_raw $in $out outlines $fill $data_type $color_fl $sweep_index	\
+	| sigmet_svg.awk						\
+	| xyplot -l $left -r $right -t $top -b $bottom			\
+		-w $doc_width -f $font_sz -m 3 -n 3			\
+		-X "$x_label" -Y "$y_label" -s $color_legend		\
+		$js_opt -- $x_min $x_max $y_min $y_max			\
+    > $file_nm
     echo $file_nm
+    rm -f $color_legend
 done
 
 exit 0
