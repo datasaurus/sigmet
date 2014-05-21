@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Convert Sigmet volume to DORADE sweep files.
+#
+# Usage:
+#	sigmet_dorade sigmet_raw_file
+#
+# Sweep files will appear in the current working directory.
+
+if [ $# -ne 1 ]
+then
+    echo "Usage: $0 sigmet_raw_file" 1>&2
+    exit 1
+fi
+raw_fl=$1
+sigmet_raw $raw_fl << END
+new_field DM -d "Returned power" -u "dBZ" -v DB_DBZ
+new_field LOGR -d "log10 of distance along beam" -u "none" -v r_beam
+log10 LOGR
+mul LOGR 20.0
+sub DM LOGR
+del_field LOGR
+dorade
+END
