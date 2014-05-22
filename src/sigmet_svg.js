@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.1 $ $Date: 2014/05/21 22:05:11 $
+   .	$Revision: 1.2 $ $Date: 2014/05/22 19:22:24 $
  */
 
 /*
@@ -647,6 +647,7 @@ window.addEventListener("load", function (evt)
 	var e, elems = document.getElementsByClassName("interactive");
 	for (e = 0; e < elems.length; e++) {
 	    elems[e].setAttribute("visibility", "visible");
+	    elems[e].setAttribute("display", "inline");
 	}
 
 	/*
