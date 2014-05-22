@@ -54,6 +54,8 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 # Please send feedback to dev0@trekix.net
+#
+#	$Revision: $ $Date: $
 
 # This function checks whether a value is a number
 check_num() {
