@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.3 $ $Date: 2014/05/22 19:36:43 $
+   .	$Revision: 1.4 $ $Date: 2014/05/22 20:30:42 $
  */
 
 /*
@@ -805,18 +805,7 @@ window.addEventListener("load", function (evt)
 	while ( yAxis.lastChild ) {
 	    yAxis.removeChild(yAxis.lastChild);
 	}
-	var cart = get_cart();
-	root.setAttribute("width", this.innerWidth);
-	root.setAttribute("height", this.innerHeight);
-	plot.setAttribute("width", this.innerWidth - leftMgn - rghtMgn);
-	plot.setAttribute("height", this.innerHeight - topMgn - btmMgn);
-	plotArea.setAttribute("width", this.innerWidth - leftMgn - rghtMgn);
-	plotArea.setAttribute("height", this.innerHeight - topMgn - btmMgn);
-	setXform(cart);
-	update_background();
-	var legendX = leftMgn + plot.width.baseVal.value + 24;
-	color_legend.setAttribute("x", legendX);
-	update_axes();
+	resize.call(this, {});
 
 	}, false);			/* Done defining load callback */
 
