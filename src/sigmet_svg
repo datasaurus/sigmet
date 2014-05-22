@@ -82,6 +82,7 @@ font_sz=18
 legend_width=64
 top=48
 left=80
+prx=6					# Precision in labels
 
 # Parse command line
 while getopts :fdb:x:y:w:ok opt
@@ -263,7 +264,7 @@ do
     sig_raw $in $out outlines $fill $data_type $color_fl $sweep_index	\
 	| sigmet_svg.awk						\
 	| xyplot -l $left -r $right -t $top -b $bottom			\
-		-w $doc_width -f $font_sz -m 3 -n 3			\
+		-w $doc_width -f $font_sz -m $prx -n $prx		\
 		-X "$x_label" -Y "$y_label" -s $color_legend		\
 		$js_opt -- $x_min $x_max $y_min $y_max			\
     > $file_nm
