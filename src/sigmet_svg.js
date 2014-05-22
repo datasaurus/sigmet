@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.54 $ $Date: 2014/05/13 21:21:20 $
+   .	$Revision: 1.1 $ $Date: 2014/05/21 22:05:11 $
  */
 
 /*
@@ -60,8 +60,8 @@ window.addEventListener("load", function (evt)
 	var pad;
 
 	/* Number of significant digits in axis labels */
-	var x_prx = 3;
-	var y_prx = 3;
+	var x_prx = 6;
+	var y_prx = 6;
 
 	/*
 	   If keep_margins is true, plot will resize with window to preserve
@@ -241,9 +241,7 @@ window.addEventListener("load", function (evt)
 	/* Print x with precision prx, removing trailing "." and 0's */
 	function to_prx(x, prx)
 	{
-	    var s = x.toPrecision(prx);
-	    s = s.replace(/0+$/, "");
-	    return s.replace(/\.?$/, "");
+	    return Number(x.toPrecision(prx));
 	}
 
 	/*
@@ -272,19 +270,27 @@ window.addEventListener("load", function (evt)
 	}
 
 	/*
-	   Hide label, which must be a label object with text and tick elements.
-	   The elements still exist in the document.
+	   Show a label, which must be a label object with text and tick
+	   members. The element will still exist in the document.
+	 */ 
+
+	function show_label(label)
+	{
+	    label.lbl.setAttribute("visibility", "visible");
+	    label.tick.setAttribute("visibility", "visible");
+	    label.lbl.textContent = "";
+	}
+
+	/*
+	   Hide label, which must be a label object with text and tick members.
+	   The element will still exist in the document.
 	 */ 
 
 	function hide_label(label)
 	{
-	    label.lbl.setAttribute("x", -80.0);
-	    label.lbl.setAttribute("y", -80.0);
+	    label.lbl.setAttribute("visibility", "hidden");
+	    label.tick.setAttribute("visibility", "hidden");
 	    label.lbl.textContent = "";
-	    label.tick.setAttribute("x1", -80.0);
-	    label.tick.setAttribute("x2", -90.0);
-	    label.tick.setAttribute("y1", -80.0);
-	    label.tick.setAttribute("y2", -90.0);
 	}
 
 	/*
@@ -327,6 +333,7 @@ window.addEventListener("load", function (evt)
 		}
 		x = cart_x_to_svg(coords[l]);
 		if ( plotLeft <= x && x <= plotRght ) {
+		    show_label(x_labels[l]);
 		    x_labels[l].lbl.setAttribute("x", x);
 		    x_labels[l].lbl.setAttribute("y", y);
 		    x_labels[l].lbl.textContent = to_prx(coords[l], x_prx);
@@ -388,6 +395,7 @@ window.addEventListener("load", function (evt)
 		}
 		y = cart_y_to_svg(coords[l]);
 		if ( plotSVGY <= y && y <= plotBtm ) {
+		    show_label(y_labels[l]);
 		    y_labels[l].lbl.setAttribute("x", x);
 		    y_labels[l].lbl.setAttribute("y", y);
 		    y_labels[l].lbl.textContent = to_prx(coords[l], y_prx);
