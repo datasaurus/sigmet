@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.2 $ $Date: 2014/05/22 19:22:24 $
+   .	$Revision: 1.3 $ $Date: 2014/05/22 19:36:43 $
  */
 
 /*
@@ -62,13 +62,6 @@ window.addEventListener("load", function (evt)
 	/* Number of significant digits in axis labels */
 	var x_prx = 6;
 	var y_prx = 6;
-
-	/*
-	   If keep_margins is true, plot will resize with window to preserve
-	   margins. If false, plot will remain at prescribed size.
-	 */
-
-	var keep_margins = true;
 
 	/*
 	 *************************************************************
@@ -744,9 +737,9 @@ window.addEventListener("load", function (evt)
 	    var currRootWidth = root.width.baseVal.value;
 	    var currRootHeight = root.height.baseVal.value;
 	    var newRootWidth = innerWidth;
-	    var newRootHeight = innerHeight
+	    var newRootHeight = innerHeight;
 
-		var currPlotWidth = plot.width.baseVal.value;
+	    var currPlotWidth = plot.width.baseVal.value;
 	    var currPlotHeight = plot.height.baseVal.value;
 	    var newPlotWidth = newRootWidth - leftMgn - rghtMgn;
 	    var newPlotHeight = newRootHeight - topMgn - btmMgn;
@@ -783,9 +776,7 @@ window.addEventListener("load", function (evt)
 	    color_legend.setAttribute("x", leftMgn + newPlotWidth + 24);
 
 	}
-	if ( keep_margins ) {
-	    this.addEventListener("resize", resize, true);
-	}
+	this.addEventListener("resize", resize, true);
 
 	/* Print button */
 	print.addEventListener("click", function (evt) {
@@ -814,19 +805,17 @@ window.addEventListener("load", function (evt)
 	while ( yAxis.lastChild ) {
 	    yAxis.removeChild(yAxis.lastChild);
 	}
-	if ( keep_margins ) {
-	    var cart = get_cart();
-	    root.setAttribute("width", this.innerWidth);
-	    root.setAttribute("height", this.innerHeight);
-	    plot.setAttribute("width", this.innerWidth - leftMgn - rghtMgn);
-	    plot.setAttribute("height", this.innerHeight - topMgn - btmMgn);
-	    plotArea.setAttribute("width", this.innerWidth - leftMgn - rghtMgn);
-	    plotArea.setAttribute("height", this.innerHeight - topMgn - btmMgn);
-	    setXform(cart);
-	    update_background();
-	    var legendX = leftMgn + plot.width.baseVal.value + 24;
-	    color_legend.setAttribute("x", legendX);
-	}
+	var cart = get_cart();
+	root.setAttribute("width", this.innerWidth);
+	root.setAttribute("height", this.innerHeight);
+	plot.setAttribute("width", this.innerWidth - leftMgn - rghtMgn);
+	plot.setAttribute("height", this.innerHeight - topMgn - btmMgn);
+	plotArea.setAttribute("width", this.innerWidth - leftMgn - rghtMgn);
+	plotArea.setAttribute("height", this.innerHeight - topMgn - btmMgn);
+	setXform(cart);
+	update_background();
+	var legendX = leftMgn + plot.width.baseVal.value + 24;
+	color_legend.setAttribute("x", legendX);
 	update_axes();
 
 	}, false);			/* Done defining load callback */
