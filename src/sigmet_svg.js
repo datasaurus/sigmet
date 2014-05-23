@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.6 $ $Date: 2014/05/23 19:59:21 $
+   .	$Revision: 1.7 $ $Date: 2014/05/23 20:33:49 $
  */
 
 /*
@@ -807,7 +807,9 @@ window.addEventListener("load", function (evt)
 	    update_axes();
 
 	    /* Adjust location of color legend */
-	    color_legend.setAttribute("x", leftMgn + newPlotWidth + 24);
+	    var transform = color_legend.transform.baseVal.getItem(0);
+	    transform.setTranslate(leftMgn + newPlotWidth + 24,
+		    transform.matrix.f);
 
 	}
 	this.addEventListener("resize", resize, true);
