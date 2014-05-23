@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.5 $ $Date: 2014/05/22 21:05:50 $
+   .	$Revision: 1.6 $ $Date: 2014/05/23 19:59:21 $
  */
 
 /*
@@ -704,6 +704,7 @@ window.addEventListener("load", function (evt)
 
 	function zoom_plot(s)
 	{
+	    var dx, dy;
 	    var cart = get_cart();
 
 	    /*
@@ -711,17 +712,19 @@ window.addEventListener("load", function (evt)
 	       Otherwise, zoom about center.
 	     */
 
-	    if ( (cart.left == 0.0 || cart.rght == 0.0)
-		    && (cart.btm == 0.0 || cart.top == 0.0) ) {
+	    dx = Math.abs(cart.rght - cart.left) / 128.0;
+	    dy = Math.abs(cart.top - cart.btm) / 128.0;
+	    if ( (Math.abs(cart.left) < dx || Math.abs(cart.rght) < dx)
+		    && (Math.abs(cart.btm) < dy || Math.abs(cart.top) < dy) ) {
 		cart.left *= s;
 		cart.rght *= s;
 		cart.btm *= s;
 		cart.top *= s;
 	    } else {
-		var dx = (cart.rght - cart.left) * (1.0 - s) / 2.0;
+		dx = (cart.rght - cart.left) * (1.0 - s) / 2.0;
 		cart.left += dx;
 		cart.rght -= dx;
-		var dy = (cart.top - cart.btm) * (1.0 - s) / 2.0;
+		dy = (cart.top - cart.btm) * (1.0 - s) / 2.0;
 		cart.btm += dy;
 		cart.top -= dy;
 	    }
@@ -757,7 +760,7 @@ window.addEventListener("load", function (evt)
 	    var currPlotHeight = plot.height.baseVal.value;
 	    var newPlotWidth = newRootWidth - leftMgn - rghtMgn;
 	    var newPlotHeight = newRootHeight - topMgn - btmMgn;
-	    var delta;
+	    var delta, dx, dy;
 
 	    var cart = get_cart();
 
@@ -766,8 +769,10 @@ window.addEventListener("load", function (evt)
 	       Otherwise, zoom about center.
 	     */
 
-	    if ( (cart.left == 0.0 || cart.rght == 0.0)
-		    && (cart.btm == 0.0 || cart.top == 0.0) ) {
+	    dx = Math.abs(cart.rght - cart.left) / 128.0;
+	    dy = Math.abs(cart.top - cart.btm) / 128.0;
+	    if ( (Math.abs(cart.left) < dx || Math.abs(cart.rght) < dx)
+		    && (Math.abs(cart.btm) < dy || Math.abs(cart.top) < dy) ) {
 		delta = newRootWidth / currRootWidth;
 		cart.left *= delta;
 		cart.rght *= delta;
