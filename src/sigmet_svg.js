@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.4 $ $Date: 2014/05/22 20:30:42 $
+   .	$Revision: 1.5 $ $Date: 2014/05/22 21:05:50 $
  */
 
 /*
@@ -705,12 +705,26 @@ window.addEventListener("load", function (evt)
 	function zoom_plot(s)
 	{
 	    var cart = get_cart();
-	    var dx = (cart.rght - cart.left) * (1.0 - s) / 2.0;
-	    cart.left += dx;
-	    cart.rght -= dx;
-	    var dy = (cart.top - cart.btm) * (1.0 - s) / 2.0;
-	    cart.btm += dy;
-	    cart.top -= dy;
+
+	    /*
+	       If origin is at a corner, zoom about it.
+	       Otherwise, zoom about center.
+	     */
+
+	    if ( (cart.left == 0.0 || cart.rght == 0.0)
+		    && (cart.btm == 0.0 || cart.top == 0.0) ) {
+		cart.left *= s;
+		cart.rght *= s;
+		cart.btm *= s;
+		cart.top *= s;
+	    } else {
+		var dx = (cart.rght - cart.left) * (1.0 - s) / 2.0;
+		cart.left += dx;
+		cart.rght -= dx;
+		var dy = (cart.top - cart.btm) * (1.0 - s) / 2.0;
+		cart.btm += dy;
+		cart.top -= dy;
+	    }
 	    setXform(cart);
 	    for (var c = 0; c < plot.childNodes.length; c++) {
 		zoom_attrs(plot.childNodes[c], s);
@@ -743,22 +757,37 @@ window.addEventListener("load", function (evt)
 	    var currPlotHeight = plot.height.baseVal.value;
 	    var newPlotWidth = newRootWidth - leftMgn - rghtMgn;
 	    var newPlotHeight = newRootHeight - topMgn - btmMgn;
+	    var delta;
 
 	    var cart = get_cart();
-	    var mPerPx;
-	    var delta;			/* Increase in plot width or height,
-					   Cartesian coordinates */
 
-	    /* Update Cartesian limits using current plot rectangle */
-	    mPerPx = (cart.rght - cart.left) / currPlotWidth;
-	    delta = (newRootWidth - currRootWidth) * mPerPx;
-	    cart.left -= delta / 2;
-	    cart.rght += delta / 2;
+	    /*
+	       If origin is at a corner, zoom about it.
+	       Otherwise, zoom about center.
+	     */
 
-	    mPerPx = (cart.top - cart.btm) / currPlotHeight;
-	    delta = (newRootHeight - currRootHeight) * mPerPx;
-	    cart.top += delta / 2;
-	    cart.btm -= delta / 2;
+	    if ( (cart.left == 0.0 || cart.rght == 0.0)
+		    && (cart.btm == 0.0 || cart.top == 0.0) ) {
+		delta = newRootWidth / currRootWidth;
+		cart.left *= delta;
+		cart.rght *= delta;
+		delta = newRootHeight / currRootHeight;
+		cart.btm *= delta;
+		cart.top *= delta;
+	    } else {
+		var mPerPx;
+
+		/* Update Cartesian limits using current plot rectangle */
+		mPerPx = (cart.rght - cart.left) / currPlotWidth;
+		delta = (newRootWidth - currRootWidth) * mPerPx;
+		cart.left -= delta / 2;
+		cart.rght += delta / 2;
+
+		mPerPx = (cart.top - cart.btm) / currPlotHeight;
+		delta = (newRootHeight - currRootHeight) * mPerPx;
+		cart.top += delta / 2;
+		cart.btm -= delta / 2;
+	    }
 
 	    /* Adjust plot rectangle */
 	    root.setAttribute("width", newRootWidth);
