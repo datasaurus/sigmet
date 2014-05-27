@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.137 $ $Date: 2013/07/05 22:55:45 $
+   .	$Revision: 1.138 $ $Date: 2014/05/21 22:33:39 $
  */
 
 #include "unix_defs.h"
@@ -1486,7 +1486,8 @@ static int outlines_cb(int argc, char *argv[])
 
     BiSearch_FDataToList(dat, num_rays * num_bins, bnds, num_bnds, lists);
     for (c = 0; c < num_colors; c++) {
-	if ( strcmp(colors[c], TRANSPARENT) != 0 ) {
+	if ( BiSearch_1stIndex(lists, c) != -1
+		&& strcmp(colors[c], TRANSPARENT) != 0 ) {
 	    fprintf(out, "color %s\n", colors[c]);
 	    for (d = BiSearch_1stIndex(lists, c);
 		    d != -1;
