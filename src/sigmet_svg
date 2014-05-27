@@ -55,7 +55,7 @@
 #
 # Please send feedback to dev0@trekix.net
 #
-#	$Revision: $ $Date: $
+#	$Revision: 1.6 $ $Date: 2014/05/22 19:24:27 $
 
 # This function checks whether a value is a number
 check_num() {
@@ -255,12 +255,11 @@ do
     color_legends="${color_legends} $color_legend"
     mkfifo $color_legend
     {
-	printf '<svg\n'
+	printf '<g\n'
 	printf '    id="color_legend"\n'
-	printf '    x="%f"\n' $x_px
-	printf '    y="%f">\n' $y_px
+	printf '    transform="translate(%f,%f)">\n' $x_px $y_px
 	color_legend $legend_width $legend_height $font_sz < $color_fl
-	printf '</svg>\n'
+	printf '</g>\n'
     } > $color_legend &
 
     sig_raw $in $out outlines $fill $data_type $color_fl $sweep_index	\
