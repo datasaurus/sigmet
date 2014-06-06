@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.7 $ $Date: 2014/05/23 20:33:49 $
+   .	$Revision: 1.8 $ $Date: 2014/05/23 21:52:32 $
  */
 
 /*
@@ -831,7 +831,7 @@ window.addEventListener("load", function (evt)
 
 	/*
 	   Redraw with javascript. This prevents sudden changes
-	   in the image if the static document produced by xyplot.awk
+	   in the image if the static document produced by pisa.awk
 	   noticeably differs from the Javascript rendition.
 	 */
 

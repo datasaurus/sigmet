@@ -232,7 +232,7 @@ fi
 cat_svg() { cat > $1; }
 rsvg_convert() { rsvg-convert /dev/stdin > $1; }
 
-# Send SVG plot parameters and data to the xyplot.awk command.
+# Send SVG plot parameters and data to the pisa.awk command.
 for data_type in $data_types
 do
     vol=`basename "$vol_path"`
@@ -328,7 +328,7 @@ do
 
 	echo end
 
-    } | xyplot.awk | $out_cmd
+    } | pisa.awk | $out_cmd
     echo $out_fl
 done
 
