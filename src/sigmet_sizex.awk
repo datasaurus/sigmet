@@ -1,9 +1,10 @@
 #!/usr/bin/awk -f
 #
-# Estimate amount of memory a volume needs from "sigmet_raw vol_hdr" output.
+# Estimate amount of memory a volume needs given output from
+# "sigmet_raw vol_hdr" or "sigmet_hdr -a".
 #
 # Usage example - estimate file size in MB:
-#	sz_b=`sigmet_raw vol_hdr $raw_fl | ./sigmet_sizex.awk`
+#	sz_b=`sigmet_raw vol_hdr $raw_fl | sigmet_sizex.awk`
 #	printf 'scale=0;1 + %s / 1024.0 / 1024.0\n' $sz_b | bc
 #
 # Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
