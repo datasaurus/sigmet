@@ -1,22 +1,27 @@
 #!/bin/sh
 #
 #	sig_raw --
-#		Send a command to a sigmet_raw daemon. Print the result.
+#		Send a command to a sigmet_raw daemon. Print the result to
+#		standard output.
 #
 # Usage:
-#	sig_raw in_fifo out_fifo command [args ...]
+#	sig_raw command [args ...]
 #
-# A sigmet_raw process running in daemon mode should be read commands from
-# in_fifo and printing results to out_fifo.
+# A sigmet_raw process running in daemon mode should be reading commands from
+# a fifo identified by the SIGMET_RAW_IN environment variable.
 
-if [ $# -lt 3 ]
+if ! test $SIGMET_RAW_IN
 then
-    echo "Usage: $0 in_fifo out_fifo command [args ...]" 1>&2
+    echo $0: SIGMET_RAW_IN environment variable not set 1>&2
     exit 1
 fi
-in=$1
-out=$2
-shift
-shift
-printf "open %s\n%s\nclose\n" "$out" "$*" > "$in"
+if ! test -p $SIGMET_RAW_IN
+then
+    echo $0: $SIGMET_RAW_IN is not a fifo 1>&2
+    exit 1
+fi
+out=.sig_raw.$$.out
+trap "rm -f $out" EXIT QUIT INT KILL
+mkfifo $out
+printf "open %s\n%s\nclose\n" "$out" "$*" > "$SIGMET_RAW_IN"
 cat $out
