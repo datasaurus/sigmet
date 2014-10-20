@@ -1,0 +1,309 @@
+#!/bin/sh
+#
+#	sigmet_svg_doc --
+#		Create a SVG image of a Sigmet sweep with axes and a color
+#		legend.
+#
+# Requires:
+#	sigmet_raw
+#	sig_raw
+#	pisa
+#
+# Usage:
+#	sigmet_svg [-f] [-b bounds] [-w pixels] [-z pixels] [-l pixels] 
+#		[-m top=pixels[,left=pixels]] --
+#		data_types sweep_angle volume_file
+# where:
+#	-f		- fill gaps between adjacent rays.
+#	-b		- Limits of plot in plot coordinates (not display
+#			  coordinates). bounds must be a string of form
+#			  x_min=value,x_max=value,y_min=value,y_max=value
+#			  Does not have to give all values. For values not
+#			  given, default is to use sweep bounds.
+#	-w		- document width, pixels
+#	-z		- font size, pixels
+#	-l		- width of color cells in legend, pixels
+#	-m		- margins around plot area, given as
+#			  top=value,left=value. Right and bottom margins
+#			  are determined from font and legend sizes.
+#	data_types	- data type or types (e.g. DB_DBZ, 'DB_DBZ,DB_ZDR').
+#	sweep_angle	- desired tilt or azimuth. Image will show sweep
+#			  nearest sweep_angle.
+#	volume_file	- Sigmet raw product file
+#
+# For each data type in data_types, a color table will be sought from a file
+# named ${data_type}.clrs or ${SIGMET_COLOR_DIR}/${data_type}.clrs.
+#
+# If SIGMET_JS is set, it must specify the path to Javascript file to use
+# with the SVG plot. It will be inserted into the SVG file as an attribute
+# of a script element.
+#
+# Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+#
+#	$Revision: 1.8 $ $Date: 2014/06/06 16:56:48 $
+
+# This function checks whether a value is a number
+check_num() {
+    name="$1"
+    val="$2"
+    if ! test $val
+    then
+	printf "%s not set\n" "$name" 1>&2
+	exit 1
+    fi
+    if ! printf '%g' $val > /dev/null 2>&1
+    then
+	printf "$0: expected number for %s, got %s\n" "$name" "$val" 1>&2
+	exit 1
+    fi
+}
+
+# Defaults
+fill=
+x_min=
+x_max=
+y_min=
+y_max=
+doc_width=1400
+font_sz=18
+legend_width=64
+top=48
+left=80
+prx=6					# Precision in labels
+
+# Parse command line
+while getopts :fdb:x:y:w:ok opt
+do
+    case "$opt"
+    in
+	f)
+	    fill="-f"
+	    ;;
+	b)
+	    eval `echo "$OPTARG" | sed 's/,/;/g'`
+	    ;;
+	w)
+	    doc_width=$OPTARG
+	    ;;
+	z)
+	    font_sz=$OPTARG
+	    ;;
+	l)
+	    legend_width=$OPTARG
+	    ;;
+	m)
+	    eval `echo "$OPTARG" | sed 's/,/;/g'`
+	    ;;
+	\?)
+	    echo "$0: unknown option $OPTARG" 1>&2
+	    exit 1
+	    ;;
+    esac
+done
+
+if test $x_min; then check_num "x_min" $x_min; fi
+if test $x_max; then check_num "x_max" $x_max; fi
+if test $y_min; then check_num "y_min" $y_min; fi
+if test $y_max; then check_num "y_max" $y_max; fi
+check_num "display width" $doc_width
+check_num "font size" $font_sz
+check_num "legend width" $legend_width
+check_num "top margin" $top
+check_num "left margin" $left
+
+shift `expr $OPTIND - 1`
+if [ $# -ne 3 ]
+then
+    {
+	printf '$0 [-f] [-b bounds] [-w pixels] [-z pixels] [-l pixels]\n'
+	printf '    [-m top=pixels[,left=pixels]]\n'
+	printf '    -- data_types sweep_angle volume_file\n'
+	printf 'where:\n'
+	printf '  -f          => fill gaps between adjacent rays.\n'
+	printf '  -b          => limits of plot in plot coordinates (not\n'
+	printf '                 display coordinates). bounds must be a\n'
+	printf '                 string of form\n'
+	printf '                 x_min=val,x_max=val,y_min=val,y_max=val\n'
+	printf '                 Does not have to give all values. For values\n'
+	printf '                 not given, default is to use sweep bounds.\n'
+	printf '  -w          => document width, pixels\n'
+	printf '  -z          => font size, pixels\n'
+	printf '  -l          => width of color cells in legend, pixels\n'
+	printf '  -m          => margins around plot area, given as\n'
+	printf '                 top=value,left=value. Right and bottom\n'
+	printf '                 margins are determined from font and legend\n'
+	printf '                 sizes.\n'
+	printf '  data_types  => data types (e.g. DB_DBZ, DB_DBZ,DB_ZDR)\n'
+	printf '  sweep_angle => desired tilt or azimuth, degrees. Image will\n'
+	printf '                 show sweep nearest sweep_angle.\n'
+	printf '  volume_file => Sigmet raw product file\n'
+	printf '\n'
+	printf 'For each data type in data_types, a color table will be\n'
+	printf 'sought from a file named data_type.clrs or\n'
+	printf '${SIGMET_COLOR_DIR}/data_type.clrs.\n'
+	printf '\n'
+	printf 'If SIGMET_JS environment variable is set, it must specify\n'
+	printf 'the path to Javascript file to use with the SVG plot. It\n'
+	printf 'will be inserted into the SVG file as an attribute of a\n'
+	printf 'script element.\n'
+	printf '\n'
+    } 1>&2
+    exit 1
+fi
+data_types=`echo "$1" | sed 's/,/ /g'`
+sweep_angle="$2"
+vol_path="$3"
+
+# Arrange for sigmet_raw termination and clean up on any exit.
+# sigmet_raw is started below.
+cleanup() {
+    echo exit > $in
+    rm -f $in $color_legends $svg_prefix
+}
+trap cleanup EXIT QUIT INT KILL
+
+# Load the sigmet volume into memory by running sigmet_raw in daemon mode.
+vol_fl=`basename $vol_path`
+vol=`echo $vol_fl | sed -e 's/\.gz$//' -e 's/\.bz2$//'`
+in=.${vol}.$$.in
+mkfifo $in
+export SIGMET_RAW_IN=`pwd`/$in
+sigmet_raw ${vol_path} $in &
+
+# Store volume headers
+eval `sig_raw vol_hdr`
+
+# Assign sweep bounds to x_min, x_max, y_min, and y_max if not set from
+# command line.
+sweep_index=`sig_raw near_sweep $sweep_angle`
+eval `sig_raw sweep_bnds $sweep_index | awk '
+    /x_min/ {
+	x_min = $2;
+    }
+    /x_max/ {
+	x_max = $2;
+    }
+    /y_min/ {
+	y_min = $2;
+    }
+    /y_max/ {
+	y_max = $2;
+    }
+    END {
+	printf "if ! test $x_min;then x_min=%s;fi; ", x_min;
+	printf "if ! test $x_max;then x_max=%s;fi; ", x_max;
+	printf "if ! test $y_min;then y_min=%s;fi; ", y_min;
+	printf "if ! test $y_max;then y_max=%s;fi;\n", y_max;
+    }'`
+check_num "sweep x min" $x_min
+check_num "sweep x max" $x_max
+check_num "sweep y min" $y_min
+check_num "sweep y max" $y_max
+sweep_width=`echo "$x_max - $x_min" | bc -l`
+sweep_height=`echo "$y_max - $y_min" | bc -l`
+
+# Determine remaining dimensions of document and plot
+right=`echo "$legend_width + 8 * $font_sz" | bc -l`
+bottom=`echo "6 * $font_sz" | bc -l`
+plot_width=`echo "$doc_width - $left - $right" | bc -l`
+plot_height=`echo "$plot_width * $sweep_height / $sweep_width" | bc -l`
+doc_height=`echo "$plot_height + $top + $bottom" | bc -l`
+legend_height=`echo "$plot_height * 0.75" | bc -l`
+
+# Axis labels, depend on scan type
+if [ "$scan_mode" = "rhi" ]
+then
+    x_label='Distance down range (m)'
+else
+    x_label='East-west (m)'
+fi
+if [ "$scan_mode" = "rhi" ]
+then
+    y_label='Height (m)'
+else
+    y_label='North-south (m)'
+fi
+
+# Send SVG plot parameters and data to the pisa command.
+for data_type in $data_types
+do
+    vol=`basename "$vol_path"`
+    caption="$vol $data_type at $sweep_angle degrees"
+    file_nm=`printf "%s_%s_%.1f.svg" $vol $data_type $sweep_angle`
+    color_fl=${data_type}_CLRS
+
+    # Find color table file
+    if test -f ${data_type}.clrs
+    then
+	color_fl=${data_type}.clrs
+    elif test -f ${SIGMET_COLOR_DIR}/${data_type}.clrs
+    then
+	color_fl=${SIGMET_COLOR_DIR}/${data_type}.clrs
+    else
+	echo "$0: could not find color file for $data_type" 1>&2
+	exit 1
+    fi
+
+    # Create a fifo for optional Javascript
+    if test $SIGMET_JS
+    then
+	svg_prefix=.${vol}.script.$$.in
+	mkfifo $svg_prefix
+	{
+	    printf '<script type="application/ecmascript"'
+	    printf ' xlink:href="%s" />\n' $SIGMET_JS
+	} > $svg_prefix &
+	js_opt="-p $svg_prefix"
+    fi
+
+    # Make a file, acutally a fifo, with SVG code for the color legend.
+    x_px=`echo "$left + $plot_width + 18" | bc -l`
+    y_px=`echo "$top + 9" | bc -l`
+    color_legend=.${vol}.${data_type}.$$.in
+    color_legends="${color_legends} $color_legend"
+    mkfifo $color_legend
+    {
+	printf '<g\n'
+	printf '    id="color_legend"\n'
+	printf '    transform="translate(%f,%f)">\n' $x_px $y_px
+	color_legend $legend_width $legend_height $font_sz < $color_fl
+	printf '</g>\n'
+    } > $color_legend &
+
+    sig_raw outlines $fill $data_type $color_fl $sweep_index	\
+	| sigmet_svg.awk						\
+	| pisa -l $left -r $right -t $top -b $bottom			\
+		-w $doc_width -f $font_sz -m $prx -n $prx		\
+		-X "$x_label" -Y "$y_label" -s $color_legend		\
+		$js_opt -- $x_min $x_max $y_min $y_max			\
+    > $file_nm
+    echo $file_nm
+    rm -f $color_legend
+done
+
+# exit will invoke code defined in trap calls above.
+exit 0
