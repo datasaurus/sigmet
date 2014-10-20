@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.138 $ $Date: 2014/05/21 22:33:39 $
+   .	$Revision: 1.139 $ $Date: 2014/05/27 17:38:42 $
  */
 
 #include "unix_defs.h"
@@ -117,6 +117,7 @@ static FILE *vol_open(const char *, pid_t *);
 static int handle_signals(void);
 static void handler(int signum);
 static char *sigmet_err(enum SigmetStatus);
+static double msec(double);
 
 /*
    Callbacks for the subcommands.
@@ -566,7 +567,7 @@ static int sweep_headers_cb(int argc, char *argv[])
 	    fprintf(stderr, "%s: %s\n", argv0, sigmet_err(sig_stat));
 	}
 	if ( ok ) {
-	    if ( Tm_JulToCal(tm, &yr, &mon, &da, &hr, &min, &sec) ) {
+	    if ( Tm_JulToCal(msec(tm), &yr, &mon, &da, &hr, &min, &sec) ) {
 		fprintf(out, "%04d/%02d/%02d %02d:%02d:%06.3lf ",
 			yr, mon, da, hr, min, sec);
 	    } else {
@@ -611,7 +612,7 @@ static int ray_headers_cb(int argc, char *argv[])
 		    continue;
 		}
 		fprintf(out, "sweep %3d ray %4d | ", s, r);
-		if ( !Tm_JulToCal(tm, &yr, &mon, &da, &hr, &min, &sec) ) {
+		if ( !Tm_JulToCal(msec(tm), &yr, &mon, &da, &hr, &min, &sec) ) {
 		    fprintf(stderr, "%s: bad ray time\n", argv0);
 		    return 0;
 		}
@@ -1706,6 +1707,23 @@ static char *sigmet_err(enum SigmetStatus s)
 	    break;
     }
     return "Unknown error";
+}
+
+/*
+   This function rounds tm, which should be a number of days to millisecond
+   precision.  To prevent round off errors with decimal arithmetic, divide
+   day into 2^27 = 134217728 time units, instead of 86400000 milliseconds.
+ */
+
+static double msec(double tm)
+{
+    double f;			/* Fraction of day in tm */
+    double i;			/* Integer part of tm.
+				   tm = i + f */
+
+    f = modf(tm, &i);
+    f = (int)(f * 134217728.0 + 0.5) / (134217728.0);
+    return i + f;
 }
 
 /*
