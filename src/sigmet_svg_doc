@@ -64,7 +64,7 @@
 #
 # Please send feedback to dev0@trekix.net
 #
-#	$Revision: 1.8 $ $Date: 2014/06/06 16:56:48 $
+#	$Revision: 1.1 $ $Date: 2014/10/20 21:46:25 $
 
 # This function checks whether a value is a number
 check_num() {
@@ -105,6 +105,7 @@ do
 	    ;;
 	b)
 	    eval `echo "$OPTARG" | sed 's/,/;/g'`
+	    bnds="-b $OPTARG"
 	    ;;
 	w)
 	    doc_width=$OPTARG
@@ -187,6 +188,7 @@ cleanup() {
 trap cleanup EXIT QUIT INT KILL
 
 # Load the sigmet volume into memory by running sigmet_raw in daemon mode.
+# Set SIGMET_RAW_IN for subsequent sig_raw calls.
 vol_fl=`basename $vol_path`
 vol=`echo $vol_fl | sed -e 's/\.gz$//' -e 's/\.bz2$//'`
 in=.${vol}.$$.in
@@ -200,25 +202,22 @@ eval `sig_raw vol_hdr`
 # Assign sweep bounds to x_min, x_max, y_min, and y_max if not set from
 # command line.
 sweep_index=`sig_raw near_sweep $sweep_angle`
-eval `sig_raw sweep_bnds $sweep_index | awk '
-    /x_min/ {
-	x_min = $2;
-    }
-    /x_max/ {
-	x_max = $2;
-    }
-    /y_min/ {
-	y_min = $2;
-    }
-    /y_max/ {
-	y_max = $2;
-    }
-    END {
-	printf "if ! test $x_min;then x_min=%s;fi; ", x_min;
-	printf "if ! test $x_max;then x_max=%s;fi; ", x_max;
-	printf "if ! test $y_min;then y_min=%s;fi; ", y_min;
-	printf "if ! test $y_max;then y_max=%s;fi;\n", y_max;
-    }'`
+sweep_angle=`sig_raw sweep_headers \
+	| awk -v i=$sweep_index '
+	    { a[$2] = $5 }
+	    END { print a[i] }
+	'`
+eval `sig_raw sweep_bnds $sweep_index \
+| awk '
+    /x_min/ { printf "x_min_bnd=%f\n", $2; }
+    /x_max/ { printf "x_max_bnd=%f\n", $2; }
+    /y_min/ { printf "y_min_bnd=%f\n", $2; }
+    /y_max/ { printf "y_max_bnd=%f\n", $2; }
+'`
+x_min=${x_min:-${x_min_bnd}}; check_num "sweep x min" $x_min
+x_max=${x_max:-${x_max_bnd}}; check_num "sweep x max" $x_max
+y_min=${y_min:-${y_min_bnd}}; check_num "sweep y min" $y_min
+y_max=${y_max:-${y_max_bnd}}; check_num "sweep y max" $y_max
 check_num "sweep x min" $x_min
 check_num "sweep x max" $x_max
 check_num "sweep y min" $y_min
@@ -295,11 +294,11 @@ do
     } > $color_legend &
 
     sig_raw outlines $fill $data_type $color_fl $sweep_index	\
-	| sigmet_svg.awk						\
-	| pisa -l $left -r $right -t $top -b $bottom			\
-		-w $doc_width -f $font_sz -m $prx -n $prx		\
-		-X "$x_label" -Y "$y_label" -s $color_legend		\
-		$js_opt -- $x_min $x_max $y_min $y_max			\
+	| sigmet_svg.awk					\
+	| pisa -l $left -r $right -t $top -b $bottom		\
+		-w $doc_width -f $font_sz -m $prx -n $prx	\
+		-X "$x_label" -Y "$y_label" -s $color_legend	\
+		$js_opt -- $x_min $x_max $y_min $y_max		\
     > $file_nm
     echo $file_nm
     rm -f $color_legend
