@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.139 $ $Date: 2014/05/27 17:38:42 $
+   .	$Revision: 1.140 $ $Date: 2014/10/20 22:49:49 $
  */
 
 #include "unix_defs.h"
@@ -1357,10 +1357,31 @@ static int shift_az_cb(int argc, char *argv[])
 
 static int outlines_cb(int argc, char *argv[])
 {
-    char *argv0 = argv[0];
-    int num_rays, num_bins;
+    char *argv0 = argv[0];		/* This command */
+    int a;				/* Argument index */
+    int num_rays, num_bins;		/* Number of rays, bins */
     int ppi;				/* If true, volume is ppi */
-    int fill;				/* If true, fill space between rays */
+    int fill = 0;			/* If true, fill space between rays.
+					   Default is to use ray limits obtained
+					   from Sigmet volume. */
+    char *sbnds;			/* Optional sweep bounds, in form
+					   x_min=v,x_max=v,y_min=v,y_max=v
+					   where v is a float value. Not
+					   all bounds bounds need to be
+					   specified. Default is to print
+					   corners of all gates. */
+    double x_min = DBL_MIN;		/* Left boundary. Bin corners will not
+					   be printed if any points in it have
+					   x < x_min */
+    double x_max = DBL_MAX;		/* Left boundary. Bin corners will not
+					   be printed if any points in it have
+					   x > x_max */
+    double y_min = DBL_MIN;		/* Left boundary. Bin corners will not
+					   be printed if any points in it have
+					   y < y_min */
+    double y_max = DBL_MAX;		/* Left boundary. Bin corners will not
+					   be printed if any points in it have
+					   y > y_max */
     char *data_type_s;			/* Data type abbreviation */
     char *clr_fl_nm;			/* Name of file with color specifiers
 					   and bounds */
@@ -1369,7 +1390,7 @@ static int outlines_cb(int argc, char *argv[])
     char *s_s;				/* Sweep index, as a string */
     int s;				/* Sweep index */
     char **colors = NULL;		/* Color names, e.g. "#rrggbb" */
-    float *bnds = NULL;			/* Bounds for each color */
+    float *dbnds = NULL;		/* Data bounds for each color */
     double r00, dr;			/* Range to first bin, bin step, m. */
     double *az0 = NULL, *az1;		/* Ray start, stop azimuths, radians */
     double *tilt0, *tilt1;		/* Ray start, stop tilts, radians */
@@ -1391,21 +1412,50 @@ static int outlines_cb(int argc, char *argv[])
     double cnr[8];			/* Corner coordinates for a bin */
     enum SigmetStatus sig_stat;		/* Return from a Sigmet function */
 
-    if ( argc == 4 ) {
-	fill = 0;
-	data_type_s = argv[1];
-	clr_fl_nm = argv[2];
-	s_s = argv[3];
-    } else if ( argc == 5 && strcmp(argv[1], "-f") == 0 ) {
-	data_type_s = argv[2];
-	clr_fl_nm = argv[3];
-	s_s = argv[4];
-	fill = 1;
-    } else {
-	fprintf(stderr, "Usage: %s [-f] data_type color_file sweep\n",
-		argv0);
+    for (a = 1; a < argc - 3; a++) {
+	if (strcmp(argv[a], "-f") == 0) {
+	    fill = 1;
+	} else if (strcmp(argv[a], "-b") == 0) {
+	    char *sbnd;			/* "x_min=val", "x_max=val", ... */
+
+	    if ( ++a == argc ) {
+		fprintf(stderr, "Usage: %s [-f] "
+			"[-b x_min=v,x_max=v,y_min=v,y_max=v] "
+			"data_type colors_file sweep_index\n", argv0);
+		return 0;
+	    }
+	    sbnds = argv[a];
+	    char *t;			/* Temporary */
+	    for (sbnd = sbnds;
+		    sbnd;
+		    sbnd = (t = strchr(sbnd, ',')) ? t + 1 : NULL) {
+		if ( sscanf(sbnd, "x_min=%lf", &x_min) != 1
+			&& sscanf(sbnd, "x_max=%lf", &x_max) != 1
+			&& sscanf(sbnd, "y_min=%lf", &y_min) != 1
+			&& sscanf(sbnd, "y_max=%lf", &y_max) != 1 ) {
+		    fprintf(stderr, "%s: could not read sweep bounds %s. "
+			    "Bounds must be given in form "
+			    "x_min=value,x_max=value,y_min=value,y_max=value\n",
+			    argv0, sbnds);
+		    return 0;
+		}
+	    }
+	} else if (strcmp(argv[a], "--") == 0) {
+	    a++;
+	    break;
+	} else {
+	    fprintf(stderr, "%s: unknown option %s.\n", argv0, argv[a]);
+	    return 0;
+	}
+    }
+    if ( a != argc - 3 ) {
+	fprintf(stderr, "Usage: %s [-f] [-b x_min=v,x_max=v,y_min=v,y_max=v] "
+		"data_type colors_file sweep_index\n", argv0);
 	return 0;
     }
+    data_type_s = argv[a];
+    clr_fl_nm = argv[a + 1];
+    s_s = argv[a + 2];
     if ( sscanf(s_s, "%d", &s) != 1 ) {
 	fprintf(stderr, "%s: expected integer for sweep index, got %s\n",
 		argv0, s_s);
@@ -1416,7 +1466,7 @@ static int outlines_cb(int argc, char *argv[])
        Get colors from color file.
      */
 
-    if ( !GetColors(clr_fl_nm, &num_colors, &colors, &bnds) ) {
+    if ( !GetColors(clr_fl_nm, &num_colors, &colors, &dbnds) ) {
 	fprintf(stderr, "%s: could not get colors.\n", argv0);
 	goto error;
     }
@@ -1485,7 +1535,7 @@ static int outlines_cb(int argc, char *argv[])
        Skip TRANSPARENT color.
      */
 
-    BiSearch_FDataToList(dat, num_rays * num_bins, bnds, num_bnds, lists);
+    BiSearch_FDataToList(dat, num_rays * num_bins, dbnds, num_bnds, lists);
     for (c = 0; c < num_colors; c++) {
 	if ( BiSearch_1stIndex(lists, c) != -1
 		&& strcmp(colors[c], TRANSPARENT) != 0 ) {
@@ -1538,7 +1588,15 @@ static int outlines_cb(int argc, char *argv[])
 		    cnr[6] = re * asin(r0 * cos(tl1) / (re + ord));
 		}
 		if ( isfinite(cnr[0] + cnr[1] + cnr[2] + cnr[3]
-			    + cnr[4] + cnr[5] + cnr[6] + cnr[7]) ) {
+			    + cnr[4] + cnr[5] + cnr[6] + cnr[7])
+			&& cnr[0] >= x_min && cnr[0] <= x_max
+			&& cnr[2] >= x_min && cnr[2] <= x_max
+			&& cnr[4] >= x_min && cnr[4] <= x_max
+			&& cnr[6] >= x_min && cnr[6] <= x_max
+			&& cnr[1] >= y_min && cnr[1] <= y_max
+			&& cnr[3] >= y_min && cnr[3] <= y_max
+			&& cnr[5] >= y_min && cnr[5] <= y_max
+			&& cnr[7] >= y_min && cnr[7] <= y_max ) {
 		    fprintf(out, "gate "
 			    "%.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f\n",
 			    cnr[0], cnr[1], cnr[2], cnr[3], cnr[4],
@@ -1549,7 +1607,7 @@ static int outlines_cb(int argc, char *argv[])
     }
 
     FREE(colors);
-    FREE(bnds);
+    FREE(dbnds);
     FREE(lists);
     FREE(az0);
     FREE(dat);
@@ -1557,7 +1615,7 @@ static int outlines_cb(int argc, char *argv[])
 
 error:
     FREE(colors);
-    FREE(bnds);
+    FREE(dbnds);
     FREE(lists);
     FREE(az0);
     FREE(dat);
