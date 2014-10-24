@@ -26,7 +26,7 @@
 .\"
 .\" Please address questions and feedback to dev0@trekix.net
 .\"
-.\" $Revision: 1.39 $ $Date: 2013/01/18 23:07:19 $
+.\" $Revision: 1.40 $ $Date: 2013/03/06 22:39:37 $
 .\"
 .Dd $Mdocdate$
 .Dt SIGMET_RAW 1
@@ -431,6 +431,7 @@ Otherwise, it will make one sweep file for sweep
 .It Xo
 .Cm outlines
 .Op Fl f
+.Op Fl b Ar bounds
 .Ar data_type
 .Ar color_file
 .Ar s
@@ -505,6 +506,20 @@ If
 is present, outlines are expanded so that they touch, if necessary.
 Otherwise, the bin outline stated in the file is used, which might
 result in gaps between adjacent bins.
+Option
+.Fl b
+specifies sweep boundaries in form
+.Bd -offset indent
+\fBx_min\fR=\fIvalue\fR,\fBy_max\fR=\fIvalue\fR,\fBy_min\fR=\fIvalue\fR,\fBy_max\fR=\fIvalue\fR
+.Ed
+.Pp
+Outlines will be printed only for bins in which all points satisfy:
+.Bd -offset indent
+\fBx_min\fR <= \fIx\fR <= \fBx_max\fR && \fBy_min\fR <= \fIy\fR <= \fBy_max\fR
+.Ed
+.Pp
+Not all limits are required. If a limit is absent, there is no limit on bins
+in that direction.
 .It Cm dorade Op s
 Writes DORADE sweep files for the volume in the current working directory.
 Option
