@@ -11,7 +11,7 @@
 #
 # Usage:
 #	sigmet_svg [-f] [-b bounds] [-w pixels] [-z pixels] [-l pixels] 
-#		[-m top=pixels[,left=pixels]] --
+#		[-m top=pixels[,left=pixels]] [-j path] --
 #		data_types sweep_angle volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
@@ -26,6 +26,8 @@
 #	-m		- margins around plot area, given as
 #			  top=value,left=value. Right and bottom margins
 #			  are determined from font and legend sizes.
+#	-j		- path to a Javascript file. Output will include a
+#			  script element that refers to the script.
 #	data_types	- data type or types (e.g. DB_DBZ, 'DB_DBZ,DB_ZDR').
 #	sweep_angle	- desired tilt or azimuth. Image will show sweep
 #			  nearest sweep_angle.
@@ -34,9 +36,8 @@
 # For each data type in data_types, a color table will be sought from a file
 # named ${data_type}.clrs or ${SIGMET_COLOR_DIR}/${data_type}.clrs.
 #
-# If SIGMET_JS is set, it must specify the path to Javascript file to use
-# with the SVG plot. It will be inserted into the SVG file as an attribute
-# of a script element.
+# For each data type, this script will create a SVG file
+# with an image of the sweep closest to the given sweep angle.
 #
 # Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
 # 
@@ -64,7 +65,7 @@
 #
 # Please send feedback to dev0@trekix.net
 #
-#	$Revision: 1.1 $ $Date: 2014/10/20 21:46:25 $
+#	$Revision: 1.2 $ $Date: 2014/10/23 22:53:22 $
 
 # This function checks whether a value is a number
 check_num() {
@@ -96,7 +97,7 @@ left=80
 prx=6					# Precision in labels
 
 # Parse command line
-while getopts :fdb:x:y:w:ok opt
+while getopts :fb:w:z:l:m:j: opt
 do
     case "$opt"
     in
@@ -118,6 +119,9 @@ do
 	    ;;
 	m)
 	    eval `echo "$OPTARG" | sed 's/,/;/g'`
+	    ;;
+	j)
+	    java_script=$OPTARG
 	    ;;
 	\?)
 	    echo "$0: unknown option $OPTARG" 1>&2
@@ -268,13 +272,13 @@ do
     fi
 
     # Create a fifo for optional Javascript
-    if test $SIGMET_JS
+    if test $java_script
     then
 	svg_prefix=.${vol}.script.$$.in
 	mkfifo $svg_prefix
 	{
 	    printf '<script type="application/ecmascript"'
-	    printf ' xlink:href="%s" />\n' $SIGMET_JS
+	    printf ' xlink:href="%s" />\n' $java_script
 	} > $svg_prefix &
 	js_opt="-p $svg_prefix"
     fi
@@ -293,15 +297,15 @@ do
 	printf '</g>\n'
     } > $color_legend &
 
-    sig_raw outlines $fill $data_type $color_fl $sweep_index	\
-	| sigmet_svg.awk					\
-	| pisa -l $left -r $right -t $top -b $bottom		\
-		-w $doc_width -f $font_sz -m $prx -n $prx	\
-		-X "$x_label" -Y "$y_label" -s $color_legend	\
-		$js_opt -- $x_min $x_max $y_min $y_max		\
+    sig_raw outlines $fill $bnds $data_type $color_fl $sweep_index	\
+	| sigmet_svg.awk						\
+	| pisa -l $left -r $right -t $top -b $bottom			\
+		-w $doc_width -f $font_sz -m $prx -n $prx		\
+		-X "$x_label" -Y "$y_label" -s $color_legend		\
+		$js_opt -- $x_min $x_max $y_min $y_max			\
     > $file_nm
     echo $file_nm
-    rm -f $color_legend
+    rm -f $color_legend $svg_prefix
 done
 
 # exit will invoke code defined in trap calls above.
