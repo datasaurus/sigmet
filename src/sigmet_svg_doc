@@ -254,7 +254,8 @@ fi
 # Send SVG plot parameters and data to the pisa command.
 for data_type in $data_types
 do
-    vol=`basename "$vol_path"`
+    vol=`basename "$vol_path" .gz`
+    vol=`basename "$vol" .bz2`
     caption="$vol $data_type at $sweep_angle degrees"
     file_nm=`printf "%s_%s_%.1f.svg" $vol $data_type $sweep_angle`
     color_fl=${data_type}_CLRS
