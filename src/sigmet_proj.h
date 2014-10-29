@@ -30,7 +30,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: $ $Date: $
+   .	$Revision: 1.1 $ $Date: 2012/12/06 23:46:23 $
  */
 
 #ifndef _SIGMET_PROJ_H_

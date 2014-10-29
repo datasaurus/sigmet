@@ -29,7 +29,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.37 $ $Date: 2012/01/24 18:51:46 $
+   .	$Revision: 1.38 $ $Date: 2012/09/26 23:20:20 $
  */
 
 #ifndef SIGMET_RAW_H_

@@ -32,7 +32,7 @@
    .
    .	Please send feedback to dev0@trekix.net
    .
-   .	$Revision: 1.216 $ $Date: 2013/05/23 21:57:20 $
+   .	$Revision: 1.217 $ $Date: 2013/06/25 17:32:45 $
    .
    .	Reference: IRIS Programmers Manual
  */
