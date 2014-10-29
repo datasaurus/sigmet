@@ -1,0 +1,9 @@
+#!/bin/sh
+
+make clean
+eval vsn=`awk '/SIGMET_RAW_VERSION/ {print $3}' sigmet.h`
+app_nm=sigmet_raw-$vsn
+cd ../..
+mv sigmet $app_nm
+pax -w -L -x ustar $app_nm | gzip -c > ${app_nm}.tar.gz
+mv $app_nm sigmet

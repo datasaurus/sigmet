@@ -1,0 +1,61 @@
+This directory provides source code, scripts, and documentation for
+programs that access Sigmet data, i.e. data produced by Sigmet RVP
+signal processors.
+
+To build the applications:
+cd src
+(Edit the Makefile)
+make
+make install
+or
+make install PREFIX=_some_other_dir_
+
+src has source code for the applications.
+
+    The binary applications are:
+
+    sigmet_hdr		- prints headers from Sigmet raw product files.
+			  This application prints information about when
+			  the file were recorded, the geometry of the data
+			  (number of sweeps, rays, bins), and other information.
+			  See sigmet_hdr (1) for details.
+    sigmet_raw		- Reads a Sigmet raw product volume and provides
+   			  information about it, and manipulates it, as ordered by
+			  commands read from standard input or a file.
+			  See sigmet_raw (1) for more information.
+    sig_raw		- sends a command to a sigmet_raw process running as
+    			  a daemon, and prints the result.
+    sigmet_good		- determines if a sigmet raw volume is readable.
+    geog		- does cartographic calculations. See geog (1).
+    tm_calc		- does time calculations. See tm_calc (1).
+    hsv			- converts hue/saturation/value color specifiers to
+			  red/green/blue. See hsv (1).
+    bighi,
+    biglo,
+    biglrg,
+    bigsml		- print value ranges with various spacings between the
+    			  values. Helps make color tables. See bighi (1),
+			  biglo (1), biglrg (1).
+    color_legend	- prints SVG code for a color legend.
+
+    The following auxilliary scripts help access, manipulate, and display Sigmet
+    raw volumes.  See the internal documentation for details on usage and hints
+    on how to modify them for other uses.
+
+    sigmet_dorade	- produces DORADE sweep files for a Sigmet raw product
+			  volume. Computes receiver power.
+    sigmet_mkcase.awk	- generates commands to copy or link a set of raw volumes
+    			  to set of directories, one directory per case. A case
+			  is a consecutive sequence of volumes.
+    utm_zone		- computes the UTM zone that contains a given longitude.
+    sigmet_sizex.awk	- estimates the amount of memory a sigmet_raw daemon will
+			  need.
+    sigmet_svg		- generates svg code for a sigmet sweep.
+    sigmet_svg.js	- make sigmet_svg image interactive.
+    sigmet_vol_tm	- reformats volume names so that time information can be
+			  manipulated.
+    sigmet_fdupes	- searches current directory for duplicate Sigmet volumes.
+    raster_clrs		- prints a set of data ranges and color values.
+    pisa		- creates a SVG document with a Cartesian plot.
+
+Please send questions and feedback to dev0@trekix.net .
