@@ -9,7 +9,7 @@
 # Usage:
 #	sigmet_png_kml [-f] [-d] [-o] [-k] [-b bounds]
 #		[-x pixels] [-y pixels] [-w pixels] --
-#		data_type colors_file sweep_index volume_file
+#		data_type colors_file sweep_angle volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
 #	-b		- Limits of plot in plot coordinates (not display
@@ -22,7 +22,8 @@
 #	data_type	- data type (e.g. DB_DBZ, DB_ZDR).
 #	colors_file	- specify color for each data interval. Should be
 #			  formatted for sigmet_raw outlines command.
-#	sweep_index	- index of sweep in volume. First sweep is 0.
+#	sweep_angle	- desired sweep angle. Sweep angle displayed will be
+#			  for nearest sweep.
 #	volume_file	- Sigmet raw product file
 #
 #
@@ -104,13 +105,13 @@ if [ $# -ne 4 ]
 then
     {
 	printf "Usage: $0 [-f] [-d] [-b bounds] [-x pixels] [-y pixels]"
-	printf " [-w pixels] -- data_type colors_file sweep_index volume_file\n"
+	printf " [-w pixels] -- data_type colors_file sweep_angle volume_file\n"
     } 1>&2
     exit 1
 fi
 data_type="$1"
 color_fl="$2"
-sweep_index="$3"
+sweep_angle="$3"
 vol_path="$4"
 
 # Check for color table
@@ -123,10 +124,8 @@ fi
 # Run sigmet_raw. Send commands and read output from fifos. Arrange for
 # sigmet_raw termination and clean up on any exit.
 cleanup() {
-    echo > $out &
-    cat $out > /dev/null
-    echo exit > $in
-    rm -f $in $out
+    sig_raw exit
+    rm -f $in
 }
 trap cleanup EXIT
 trap cleanup QUIT
@@ -135,43 +134,38 @@ trap cleanup KILL
 vol_fl=`basename $vol_path`
 vol=`echo $vol_fl | sed -e 's/\.gz$//' -e 's/\.bz2$//'`
 in=.${vol}.$$.in
-out=.${vol}.$$.out
-mkfifo $in $out
+mkfifo $in
+export SIGMET_RAW_IN=$in
 sigmet_raw ${vol_path} $in &
 
 # Override radar location, if desired
 if test $RADAR_LAT
 then
     radar_lat=$RADAR_LAT
-    sig_raw $in $out radar_lat $radar_lat
+    sig_raw radar_lat $radar_lat
 fi
 if test $RADAR_LON
 then
     radar_lon=$RADAR_LON
-    sig_raw $in $out radar_lon $radar_lon
+    sig_raw radar_lon $radar_lon
 fi
 
 # Assign sweep bounds to x_min, x_max, y_min, and y_max if not set from
 # command line.
-eval `sig_raw $in $out sweep_bnds $sweep_index | awk '
-    /x_min/ {
-	x_min = $2;
-    }
-    /x_max/ {
-	x_max = $2;
-    }
-    /y_min/ {
-	y_min = $2;
-    }
-    /y_max/ {
-	y_max = $2;
-    }
-    END {
-	printf "if ! test $x_min;then x_min=%s;fi; ", x_min;
-	printf "if ! test $x_max;then x_max=%s;fi; ", x_max;
-	printf "if ! test $y_min;then y_min=%s;fi; ", y_min;
-	printf "if ! test $y_max;then y_max=%s;fi;\n", y_max;
-    }'`
+sweep_index=`sig_raw near_sweep $sweep_angle`
+sweep_angle=`sig_raw sweep_headers \
+	| awk -v i=$sweep_index '{ a[$2] = $5 }; END { print a[i] }'`
+eval `sig_raw sweep_bnds $sweep_index \
+| awk '
+    /x_min/ { printf "x_min_bnd=%f\n", $2; }
+    /x_max/ { printf "x_max_bnd=%f\n", $2; }
+    /y_min/ { printf "y_min_bnd=%f\n", $2; }
+    /y_max/ { printf "y_max_bnd=%f\n", $2; }
+'`
+x_min=${x_min:-${x_min_bnd}}; check_num "sweep x min" $x_min
+x_max=${x_max:-${x_max_bnd}}; check_num "sweep x max" $x_max
+y_min=${y_min:-${y_min_bnd}}; check_num "sweep y min" $y_min
+y_max=${y_max:-${y_max_bnd}}; check_num "sweep y max" $y_max
 check_num "sweep x min" $x_min
 check_num "sweep x max" $x_max
 check_num "sweep y min" $y_min
@@ -189,9 +183,7 @@ d=`echo "-$h_dpy / ($y_max - $y_min)" | bc -l`
 f=`echo "$h_dpy * $y_max / ($y_max - $y_min)" | bc -l`
 
 # Save volume headers
-eval `sig_raw $in $out vol_hdr`
-sweep_angle=`sig_raw $in $out sweep_headers \
-	    | awk '/sweep +'${sweep_index}' / {printf "%.1f", $5}'`
+eval `sig_raw vol_hdr`
 
 # Make name for output file
 png_fl="${vol}.${data_type}.${sweep_angle}.png"
@@ -208,10 +200,10 @@ png_fl="${vol}.${data_type}.${sweep_angle}.png"
     printf "    xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
     printf "    id=\"outermost\">\n"
     printf "<g transform=\"matrix(%f %f %f %f %f %f)\">" $a $b $c $d $e $f
-    sig_raw $in $out outlines $fill $data_type $color_fl $sweep_index | sigmet_svg.awk
+    sig_raw outlines $fill $data_type $color_fl $sweep_index | sigmet_svg.awk
     printf "</g>\n"
     printf "</svg>\n"
-} | convert - $png_fl
+} | convert -background '#00000000' - $png_fl
 
 # Convert meters to great circle degrees
 a0=`geog rearth`
@@ -237,13 +229,13 @@ kml_tmpl='<?xml version="1.0" encoding="UTF-8"?>
 </kml>
 '
 d=`meter_deg $y_max`
-north=`geog step $radar_lon $radar_lat 0.0 $d | awk '{printf $1}'`
+north=`geog step $radar_lon $radar_lat 0.0 $d | awk '{printf $2}'`
 d=`meter_deg $y_min`
-south=`geog step $radar_lon $radar_lat 0.0 $d | awk '{printf $1}'`
+south=`geog step $radar_lon $radar_lat 0.0 $d | awk '{printf $2}'`
 d=`meter_deg $x_min`
-west=`geog step $radar_lon $radar_lat 90.0 $d | awk '{printf $2}'`
+west=`geog step $radar_lon $radar_lat 90.0 $d | awk '{printf $1}'`
 d=`meter_deg $x_max`
-east=`geog step $radar_lon $radar_lat 90.0 $d | awk '{printf $2}'`
+east=`geog step $radar_lon $radar_lat 90.0 $d | awk '{printf $1}'`
 kml_fl="${vol}.${data_type}.${sweep_angle}.kml"
 printf "$kml_tmpl" $vol "$DESCRIPTION" $north $south $west $east \
 	> $kml_fl
