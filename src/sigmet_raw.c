@@ -1370,13 +1370,13 @@ static int outlines_cb(int argc, char *argv[])
 					   all bounds bounds need to be
 					   specified. Default is to print
 					   corners of all gates. */
-    double x_min = DBL_MIN;		/* Left boundary. Bin corners will not
+    double x_min = -DBL_MAX;		/* Left boundary. Bin corners will not
 					   be printed if any points in it have
 					   x < x_min */
     double x_max = DBL_MAX;		/* Left boundary. Bin corners will not
 					   be printed if any points in it have
 					   x > x_max */
-    double y_min = DBL_MIN;		/* Left boundary. Bin corners will not
+    double y_min = -DBL_MAX;		/* Left boundary. Bin corners will not
 					   be printed if any points in it have
 					   y < y_min */
     double y_max = DBL_MAX;		/* Left boundary. Bin corners will not
@@ -1569,6 +1569,7 @@ static int outlines_cb(int argc, char *argv[])
 		    lonlat_to_xy(lon, lat, cnr + 4, cnr + 5);
 		    GeogStep(lon_r, lat_r, a1, r0_g, &lon, &lat);
 		    lonlat_to_xy(lon, lat, cnr + 6, cnr + 7);
+
 		} else {
 		    tl0 = tilt0[r];
 		    tl1 = tilt1[r];
