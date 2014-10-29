@@ -48,10 +48,11 @@ LIBS = ${EFENCE_LIBS} -lm
 # Leave the rest of the Makefile alone
 
 EXEC_BINS = sigmet_raw sigmet_hdr geog sigmet_good hsv bighi biglo biglrg \
-	bigsml tm_calc color_legend
-EXEC_SCRIPTS = sig_raw sigmet_mkcase.awk sigmet_sizex.awk pisa sigmet_svg \
-	       sigmet_svg_doc sigmet_png_kml sigmet_dorade sigmet_svg.awk \
-	       sigmet_vol_tm sigmet_fdupes raster_clrs utm_zone dt.awk pisa.awk
+	    bigsml tm_calc color_legend
+EXEC_SCRIPTS = sig_raw sigmet_mkcase.awk sigmet_sizex.awk pisa 		\
+	       sigmet_svg_doc sigmet_png_kml sigmet_dorade		\
+	       sigmet_svg.awk sigmet_vol_tm sigmet_fdupes raster_clrs	\
+	       utm_zone dt.awk pisa.awk
 LIBEXEC_SCRIPTS = sigmet_svg.js
 EXECS = ${EXEC_BINS} ${EXEC_SCRIPTS}
 
