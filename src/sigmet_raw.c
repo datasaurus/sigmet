@@ -2014,3 +2014,4 @@ void handler(int signum)
     }
     _exit(write(STDERR_FILENO, msg, 53) == 53 ?  status : EXIT_FAILURE);
 }
+
