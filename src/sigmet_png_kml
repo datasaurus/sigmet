@@ -26,7 +26,11 @@
 #			  for nearest sweep.
 #	volume_file	- Sigmet raw product file
 #
-# kml file will have local name of png file as the value of its icon element.
+# KML Icon element content will be ${SIGMET_KML_ICON_URL}/${png_fl}
+# SIGMET_KML_ICON_URL is taken from environment.
+# png_fl, basename of the png file, is determined locally.
+# If successful, prints "$png_fl $kml_fl" to standard output.
+# kml_fl, basename of the kml file, is determined locally.
 #
 # Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
 # 
@@ -238,8 +242,8 @@ west=`geog step $radar_lon $radar_lat 90.0 $d | awk '{printf $1}'`
 d=`meter_deg $x_max`
 east=`geog step $radar_lon $radar_lat 90.0 $d | awk '{printf $1}'`
 kml_fl="${vol}.${data_type}.${sweep_angle}.kml"
-printf "$kml_tmpl" $vol "$DESCRIPTION" $north $south $west $east $png_fl \
-	> $kml_fl
+printf "$kml_tmpl" $vol "$DESCRIPTION" $north $south $west $east \
+	${SIGMET_KML_ICON_URL}$png_fl > $kml_fl
 
 echo "$png_fl $kml_fl"
 exit 0
