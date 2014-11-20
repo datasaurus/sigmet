@@ -10,14 +10,14 @@
 # A sigmet_raw process running in daemon mode should be reading commands from
 # a fifo identified by the SIGMET_RAW_IN environment variable.
 
-if ! test $SIGMET_RAW_IN
+if ! test "$SIGMET_RAW_IN"
 then
     echo $0: SIGMET_RAW_IN environment variable not set 1>&2
     exit 1
 fi
-if ! test -p $SIGMET_RAW_IN
+if ! test -p "$SIGMET_RAW_IN"
 then
-    echo $0: $SIGMET_RAW_IN is not a fifo 1>&2
+    echo $0: No fifo named $SIGMET_RAW_IN 1>&2
     exit 1
 fi
 out=.sig_raw.$$.out
