@@ -183,22 +183,47 @@ data_types=`echo "$1" | sed 's/,/ /g'`
 sweep_angle="$2"
 vol_path="$3"
 
-# Arrange for sigmet_raw termination and clean up on any exit.
-# sigmet_raw is started below.
-cleanup() {
-    echo exit > $in
-    rm -f $in $color_legends $svg_prefix
-}
-trap cleanup EXIT QUIT INT KILL
+# If vol_path is a regular file, run sigmet_raw.
+# If vol_path is a fifo, send commands to it.
+if test -f "$vol_path"
+then
+    in=`basename $vol_path | sed -e 's/\.gz$//' -e 's/\.bz2$//'`.$$.in
+    mkfifo $in
+    cleanup() {
+	sig_raw exit
+	rm -f $in $color_legends $svg_prefix
+    }
+    trap cleanup EXIT QUIT INT KILL
+    export SIGMET_RAW_IN=$in
+    sigmet_raw ${vol_path} $in
+elif test -p "$vol_path"
+then
+    export SIGMET_RAW_IN=$vol_path
+else
+    echo $vol_path must be a regular file or fifo. 1>&2
+    exit 1
+fi
 
-# Load the sigmet volume into memory by running sigmet_raw in daemon mode.
-# Set SIGMET_RAW_IN for subsequent sig_raw calls.
-vol_fl=`basename $vol_path`
-vol=`echo $vol_fl | sed -e 's/\.gz$//' -e 's/\.bz2$//'`
-in=.${vol}.$$.in
-mkfifo $in
-export SIGMET_RAW_IN=`pwd`/$in
-sigmet_raw ${vol_path} $in &
+# Create an identifier for the volume.
+vol=`sig_raw volume_headers | awk -F \| '
+    /vol_start_time/ {
+	split($1, dh, " ");
+	split(dh[1], ymd, "/");
+	yr = ymd[1];
+	mon = ymd[2];
+	day = ymd[3];
+	split(dh[2], hms, ":");
+	hr = hms[1];
+	min = hms[2];
+	sec = hms[3];
+    }
+    /su_site_name/ {
+	site = $1;
+    }
+    END {
+	fmt = "%s_%04d%02d%02d%02d%02d%02.0f\n";
+	printf fmt, site, yr, mon, day, hr, min, sec;
+    }'`
 
 # Store volume headers
 eval `sig_raw vol_hdr`

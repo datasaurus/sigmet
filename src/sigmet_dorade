@@ -5,6 +5,10 @@
 # Usage:
 #	sigmet_dorade sigmet_raw_file
 #
+# If sigmet_raw_file is a regular file, it should a valid argument to the
+# sigmet_raw command. If sigmet_raw_file is a fifo, a sigmet_raw process should
+# be reading commands from it. See sigmet_raw (1).
+#
 # Sweep files will appear in the current working directory.
 
 if [ $# -ne 1 ]
@@ -12,8 +16,10 @@ then
     echo "Usage: $0 sigmet_raw_file" 1>&2
     exit 1
 fi
-raw_fl=$1
-sigmet_raw $raw_fl << END
+raw_fl="$1"
+
+# Commands to make dorade sweep files.
+cmds='
 new_field DM -d "Returned power" -u "dBZ" -v DB_DBZ
 new_field LOGR -d "log10 of distance along beam" -u "none" -v r_beam
 log10 LOGR
@@ -21,4 +27,16 @@ mul LOGR 20.0
 sub DM LOGR
 del_field LOGR
 dorade
-END
+'
+
+# Send commands to sigmet_raw
+if test -f "$raw_fl"
+then
+    printf "%s" "$cmds" | sigmet_raw "$raw_fl"
+elif test -p "$raw_fl"
+then
+    printf "%s" "$cmds" > "$raw_fl"
+else
+    echo $raw_fl must be a regular file or fifo. 1>&2
+    exit 1
+fi
