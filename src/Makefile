@@ -56,7 +56,7 @@ EXEC_SCRIPTS = sig_raw sigmet_mkcase.awk sigmet_sizex.awk pisa 		\
 LIBEXEC_SCRIPTS = sigmet_svg.js
 EXECS = ${EXEC_BINS} ${EXEC_SCRIPTS}
 
-CP = cp -f
+CP = cp -p -f
 RM = rm -fr
 
 .SUFFIXES : .o
