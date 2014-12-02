@@ -1,0 +1,58 @@
+.\"
+.\" Copyright (c) 2010 Gordon D. Carrie
+.\" All rights reserved
+.\"
+.\" Please address questions and feedback to dev0@trekix.net
+.\"
+.\" $Revision: 1.1 $ $Date: 2014/10/16 19:13:36 $
+.\"
+.Dd $Mdocdate$
+.Dt RASTER_CLRS 1
+.Os Unix
+.Sh NAME
+.Nm color_legend
+.Nd print SVG code for a color legend
+.Sh SYNOPSIS
+.Nm color_legend
+.Op Fl h
+.Ar width
+.Ar height
+.Ar font_sz
+.Op Ar font_color
+.Sh DESCRIPTION
+This application makes a color legend. It reads data boundaries and color
+specifications from standard input, which must be in the following format:
+.Bd -literal
+    n
+    min color_1
+    min_2 color_2
+    ...
+    min_(n-1) color_(n-1)
+    min_n color_n
+    max
+
+.Ed
+The 
+.Nm raster_clrs
+script, which should have come in the same distribution, prints this format.
+Output will be code for a table illustrating the given colors and values, as
+a set of SVG elements.  The legend bars and text together will occupy a
+rectangle with dimensions
+.Ar width
+by
+.Ar height
+display units.
+Text will be
+.Ar font_sz
+display units tall.
+Optional
+.Ar font_color
+specifies a color for fonts and boundaries. Default output defines color legend
+elements only. Option
+.Fl h
+requests additional elements and headers for a stand alone SVG document.
+.Sh SEE ALSO
+.Xr raster_clrs 1
+.Sh AUTHOR
+.An Gordon Carrie
+.Ad dev0@trekix.net

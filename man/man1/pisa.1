@@ -1,0 +1,133 @@
+.\"
+.\" Copyright (c) 2014, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\"
+.\"
+.\" Please address questions and feedback to dev0@trekix.net
+.\"
+.\" $Revision: $ $Date: $
+.\"
+.Dd $Mdocdate$
+.Dt PISA 1
+.Os Unix
+.Sh NAME
+.Nm pisa
+.Nd Creates an SVG document with a Cartesian plot in it.
+.Sh SYNOPSIS
+.Nm pisa
+.Op Fl d Ar title
+.Op Fl l Ar pixels
+.Op Fl r Ar pixels
+.Op Fl t Ar pixels
+.Op Fl b Ar pixels
+.Op Fl w Ar pixels
+.Op Fl h Ar pixels
+.Op Fl f Ar pixels
+.Op Fl m Ar precison
+.Op Fl n Ar precison
+.Op Fl X Ar string
+.Op Fl Y Ar string
+.Op Fl p Ar prefix_file
+.Op Fl s Ar suffix_file
+.Op Fl y Ar style_sheet
+.Ar x_left
+.Ar x_rght
+.Ar y_btm
+.Ar y_top
+.Sh DESCRIPTION
+This script creates an SVG document with a Cartesian plot, axes, labels,
+and optional elements. The plot area will be bounded by
+.Ar x_left ,
+.Ar x_rght ,
+.Ar y_btm ,
+.Ar y_top ,
+on the left, right, bottom, and top edges, respectively, all specified in
+Cartesian coordinates. The process will print to standard output code for a
+SVG document with the specified options and defaults. It will define a plot
+element transformed to the specified Cartesian coordinate system. Then it
+will pass standard input to standard output. Standard input should contain
+SVG elements to place in the plot area. Locations in these elements should
+be specified in Cartesian coordinates. The transformation for the plot element
+will flip and scale the elements so that they are properly displayed in the
+plot area. At end of input, the process will print code to finish the document.
+.Sh OPTIONS
+.Bl -tag -width flag
+.It Fl d
+title of document svg element
+.It Fl l
+space between left edge of document and left edge of plot area, pixels.
+.It Fl r
+space between right edge of document and right edge of plot area, pixels.
+right margin, pixels.
+.It Fl t
+space between top edge of document and top edge of plot area, pixels.
+.It Fl b
+space between bottom edge of document and bottom edge of plot area, pixels.
+.It Fl w
+document width, pixels.
+.It Fl h
+document height, pixels.
+.It Fl f
+font size, pixels.
+.It Fl m
+number of significant figures in x axis labels.
+.It Fl n
+number of significant figures in y axis labels.
+.It Fl X
+x axis title
+.It Fl Y
+y axis title
+.It Fl p
+File with SVG code to print before the plot. This could contain SVG code for
+elements to render under the plot. It could also contain meta data, such as
+links to script files.
+.It Fl s
+File with SVG code to print after the plot. This could contain SVG code for
+elements to render on top of the plot. It could also contain meta data, such as
+links to script files.
+.It Fl y
+path to a CSS style sheet.
+.El
+.Sh ATTRIBUTES
+Certain SVG elements will have the following
+.Em id
+attributes, accessible to scripts and style sheets:
+.Bl -tag -width PlotBoundary
+.It Em PlotRect
+Plot rectangle
+.It Em PlotBoundary
+Border around the plot area
+.It Em plot
+SVG element with the Cartesian plot
+.El
+.Sh CAVEATS
+The plot area uses Cartesian coordinates for everything. Therefore, graphical
+dimensions, such as font-size and stroke-width, should use some appropriate
+Cartesian size, not pixels.
+.Sh ETYMOLOGY
+.Nm pisa
+is Choctaw for
+.Ql view .
+.Sh AUTHOR
+Gordon Carrie (dev0@trekix.net)

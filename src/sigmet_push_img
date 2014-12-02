@@ -1,0 +1,63 @@
+#!/bin/sh
+#
+# Send images and kml files, if any, for sweep angle angl
+# to server at url dest every dt seconds.
+
+angl="2.0"
+dt=17
+
+# Host information
+starbuck="starbuck.nwc.ou.edu"
+starbuck_user="carr7857"
+smartr="10.197.1.189"
+smartr_user="gcarrie"
+key="$HOME/.ssh/id_rsa.gdc.w"
+dest="/data1/www/html/smartr2/images"
+port=3303
+
+# Make list of files send here.
+log_dir="${HOME}/var"
+sent="${log_dir}/sent_imgs"
+log_fl="${log_dir}/push_img.log"
+err_fl="${log_dir}/push_img.err"
+mkdir -p $log_dir
+touch $sent $log_fl $err_fl
+
+# This script will send latest kml and png files from this directory
+today=`date +"%Y%m%d"`
+img_dir="img/${today}"
+
+# Start ssh agent. Ensure agent terminates on exit.
+trap "ssh-agent -k" EXIT
+trap "ssh-agent -k" TERM
+trap "ssh-agent -k" QUIT
+trap "ssh-agent -k" KILL
+eval `ssh-agent -s`
+ssh-add $key
+
+# Send png and kml files every dt seconds.
+while :
+do
+    {
+	# Identify latest png file or png and kml files.
+	latest_img=`sigmet_latest_img`
+	if test $latest_img
+	then
+	    img=`basename $latest_img .png`
+	    img_fls="`ls ${img_dir}/${img}*`"
+
+	    # Send them
+	    if ! grep -q $img $sent
+	    then
+		echo `date -u`: sending $img_fls
+		ssh -f -l $smartr_user -L ${port}:${smartr}:22 $starbuck \
+			sleep 10
+		scp -l $smartr_user -P $port $img_fls localhost:$dest &
+		echo $img >> $sent
+	    else
+		echo "`date -u`: up to date"
+	    fi
+	fi
+    } > $log_fl 2> $err_fl
+    sleep $dt
+done

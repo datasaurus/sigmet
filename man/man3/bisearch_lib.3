@@ -1,0 +1,127 @@
+.\" 
+.\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\" 
+.\" Please address questions and feedback to dev0@trekix.net
+.\" 
+.\" $Revision: 1.12 $ $Date: 2014/01/08 17:18:45 $
+.\"
+.Pp
+.Dd $Mdocdate$
+.Dt BISEARCH_LIB 3
+.Os UNIX
+.Sh NAME
+.Nm BiSearch_DDataToList,
+.Nm BiSearch_FDataToList,
+.Nm BiSearch_1stIndex,
+.Nm BiSearch_NextIndex
+.Nd collect data from monotonic arrays into bins with bisection
+.Sh SYNOPSIS
+.Fd "#include <bisearch_lib.h>"
+.Ft void
+.Fn *BiSearch_DDataToList "double *data" "int n_data" "double *bnds" "int n_bnds" "int *lists"
+.Ft void
+.Fn *BiSearch_FDataToList "float *data" "int n_data" "float *bnds" "int n_bnds" "int *lists"
+.Ft int
+.Fn BiSearch_1stIndex "int *lists" "int n_interval"
+.Ft int
+.Fn BiSearch_NextIndex "int *lists" "int n_datum"
+.Sh DESCRIPTION
+.Pp
+.Fn BiSearch_DDataToList
+and
+.Fn BiSearch_FDataToList
+bin values from
+.Fa data
+into intervals bounded by values from monotonic array
+.Fa bnds .
+.Fa data
+and
+.Fa bnds
+have
+.Fa n_data
+and
+.Fa n_bnds
+elements, respectively. Indeces of elements from
+.Fa data
+that share the same interval from
+.Fa bnds
+are collected into linked lists returned in
+.Fa lists ,
+which must point to storage for
+.Fa n_bnds
++
+.Fa n_data
+.Li int
+values.
+.Pp
+.Fn BiSearch_1stIndex
+returns the index of the first element from a data array that falls within
+interval
+.Fa n_interval
+of a bounds array given to
+.Fn BiSearch_DDataToList
+or
+.Fn BiSearch_FDataToList .
+.Fa lists
+must be a return value from
+.Fn BiSearch_DDataToList
+or
+.Fn BiSearch_FDataToList .
+.Pp
+.Fn BiSearch_NextIndex
+returns the index of the next element from a data array that falls within
+the same interval as element
+.Fa n_datum
+of the data array, or
+.Li -1
+if no more values from data occupy the interval.
+.Fa lists
+must be a return value from
+.Fn BiSearch_DDataToList
+or
+.Fn BiSearch_FDataToList .
+.Pp
+Here is a usage example.
+.Bd -literal -offset indent
+    BiSearch_DDataToList(xx, nx, bnds, n_bnds, lists);
+    n_intvls = n_bnds - 1;
+    for (n = 0; n < n_intvls; n++) {
+	int i;				/* Interval index */
+
+	printf("Interval bounded by %.2f to %.2f ", bnds[n], bnds[n + 1]);
+	printf("contains ");
+	for (i = BiSearch_1stIndex(lists, n); i != -1; ) {
+	    printf("%.2f ", xx[i]);
+	    i = BiSearch_NextIndex(lists, i);
+	}
+	printf("\\n");
+    }
+.Ed
+.Pp
+.Sh SEE ALSO
+.Xr bsearch 3
+.Sh AUTHOR
+.An "Gordon Carrie"
+.Aq dev0@trekix.net

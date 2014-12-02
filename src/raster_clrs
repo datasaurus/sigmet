@@ -1,0 +1,103 @@
+#!/bin/sh
+#
+#-	raster_clrs --
+#-		Print a sequence of data boundaries and colors for
+#-		raster plotting. See raster_clrs (1).
+#
+#	Requires hsv, bighi, biglo, bigsml, and biglrg applications.
+#
+#	Copyright (c) 2010 Gordon D. Carrie
+#	All rights reserved.
+#
+#	$Revision: 1.8 $ $Date: 2014/10/16 16:51:19 $
+
+# Determine format for data values
+fmt="%g"
+if [ $# -ge 3 -a "$1" = "-f" ]
+then
+    shift
+    fmt=$1
+    shift
+fi
+fmt=${fmt}'\n'
+
+# Parse rest of command line
+if [ $# -eq 3 ]
+then
+    # raster_clrs bnd1 bnd2 n_colors
+    bnd1=$1
+    bnd2=$2
+    n_clr=$3
+    step="uniform"
+elif [ $# -eq 4 ]
+then
+    # raster_clrs bnd1 bnd2 n_colors step
+    bnd1=$1
+    bnd2=$2
+    n_clr=$3
+    step=$4
+else
+    echo "Usage: raster_clrs -f format bnd1 bnd2 n_colors [step]"
+    exit 1
+fi
+
+# Angles on hue color wheel
+h0=540
+h1=300
+
+# Create temporary files
+app_nm=`basename $0`
+btmp="/tmp/${app_nm}.$$.btmp"
+ctmp="/tmp/${app_nm}.$$.ctmp"
+trap "rm -f $btmp $ctmp" EXIT QUIT TERM KILL
+touch $btmp $ctmp
+
+# Send data values to btmp file
+case $step in
+    (uniform) {
+	awk -v bnd1=$bnd1 -v bnd2=$bnd2 -v n_clr=$n_clr -v fmt="$fmt" \
+		   'BEGIN {
+		       s = (bnd2 - bnd1) / n_clr;
+		       d = bnd1;
+		       for (n = 0; n < n_clr; n++) {
+			   printf fmt, d;
+			   d += s;
+		       }
+		       printf fmt, bnd2;
+		   }' > $btmp
+    }
+    ;; 
+    (biglo) {
+	biglo $bnd1 $bnd2 ` expr $n_clr + 1` \
+	    | awk '{printf "'$fmt'", $2}' > $btmp
+    }
+    ;;
+    (bighi) {
+	bighi $bnd1 $bnd2 ` expr $n_clr + 1` \
+	    | awk '{printf "'$fmt'", $2}' > $btmp
+    }
+    ;;
+    (bigsml) {
+	bigsml $bnd1 $bnd2 ` expr $n_clr + 1` \
+	    | awk '{printf "'$fmt'", $2}' > $btmp
+    }
+    ;;
+    (biglrg) {
+	biglrg $bnd1 $bnd2 ` expr $n_clr + 1` \
+	    | awk '{printf "'$fmt'", $2}' > $btmp
+    }
+    ;;
+    (*) {
+	echo "$0: step must be one of biglo bighi bigsml biglrg"
+	    exit 1
+    }
+esac
+
+# Header
+echo "$n_clr"
+
+# Send color specifiers to ctmp file
+hsv $h0 $h1 $n_clr | awk '{print $5}' > $ctmp
+
+# Merge data values and color specifiers
+paste $btmp $ctmp

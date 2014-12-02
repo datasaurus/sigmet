@@ -1,0 +1,80 @@
+.\"
+.\" Copyright (c) 2010 Gordon D. Carrie
+.\" All rights reserved
+.\"
+.\" Please address questions and feedback to dev0@trekix.net
+.\"
+.\" $Revision: $ $Date: $
+.\"
+.Dd $Mdocdate$
+.Dt RASTER_CLRS 1
+.Os Unix
+.Sh NAME
+.Nm raster_clrs
+.Nd print a sequence of colors and data interval bounds
+.Sh SYNOPSIS
+.Nm raster_clrs
+.Op Fl f Ar format
+.Ar min
+.Ar max
+.Ar n
+.Op Ar step
+.Sh DESCRIPTION
+This application prints a list of data values and associated rainbow colors
+suitable for raster plotting. Separate applications
+.Nm hsv ,
+.Nm bighi ,
+.Nm biglo ,
+.Nm bigsml ,
+and
+.Nm biglrg
+must be in current path.
+.Pp
+Optional
+.Ar step
+gives type of step. Must be one of:
+.Bl -item -offset indent
+.It
+.Ar uniform
+Steps will be uniform. This is the default.
+.It
+.Ar biglo
+Steps will be bigger at low, less postive or more negative, values.
+.It
+.Ar bighi
+Steps will be bigger at high, more positive or less negative, values.
+.It
+.Ar biglrg
+Steps will be bigger at values with larger absolute value.
+.It
+.Ar bigsml
+Steps will be bigger at values with smaller absolute value.
+.El
+.Pp
+Optional
+.Ar format
+gives a
+.Nm fprintf
+style format for data values.
+.Pp
+Output will be:
+.Bd -literal
+    n
+    min color_1
+    min_2 color_2
+    ...
+    min_(n-1) color_(n-1)
+    min_n color_n
+    max
+.Ed
+The output will specify
+.Ar n
+colors bounded by a sequence of
+.Ar n
++\ 1 float values.
+.Sh FILES
+.Nm raster_clrs
+is a shell script.
+.Sh AUTHOR
+.An Gordon Carrie
+.Ad dev0@trekix.net

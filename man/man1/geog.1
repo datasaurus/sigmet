@@ -1,0 +1,134 @@
+.\" 
+.\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\" 
+.\" Please address questions and feedback to dev0@trekix.net
+.\" 
+.\" $Revision: 1.25 $ $Date: 2014/10/08 09:14:03 $
+.\"
+.TH geog 1 "geography application"
+.SH NAME
+geog \- geography application
+.SH SYNOPSIS
+\fBgeog\fP \fIgeog_command\fP [\fIgeog_command_options ...\fP]
+.SH DESCRIPTION
+The \fBgeog\fP application calculates distances and angles on Earth's surface.
+
+Angles are measured in degrees.
+
+The \fIgeog_command\fP argument determines \fBgeog\fP's behavior.
+\fBgeog_command\fP must be one of the following.
+.TP
+\fBgeog\fP \fBdms\fP \fId\fP
+Prints degrees minutes and seconds corresponding to \fId\fP degrees.
+.TP
+\fBgeog\fP \fBrearth\fP
+Prints radius of the Earth.
+.TP
+\fBgeog\fP \fBlonr\fP \fIlon\fP \fIreflon\fP 
+Computes a longitude equivalent to \fIlon\fP in a longitude domain
+centered about \fIreflon\fP.  It prints a value that equals
+\fIlon\fP\ +\ 2\ *\ pi\ *\ i for some integer i, and is in the interval
+[\fIreflon\fP\ -\ pi,\ \fIreflon\fP\ +\ pi).
+.TP
+\fBgeog\fP \fBlatn\fP \fIlat\fP
+Computes the principle latitude corresponding to \fIlat\fP.  It prints
+the latitude reached by going \fIlat\fP degrees north of the Equator.
+.TP
+\fBgeog\fP \fBdist\fP \fIlon1\fP \fIlat1\fP \fIlon2\fP \fIlat2\fP
+Computes the distance in great circle degrees from the point with geographic
+coordinates \fIlon1\fP \fIlat1\fP to the point with coordinates \fIlon2\fP
+\fIlat2\fP.
+.TP
+\fBgeog\fP \fBsum_dist\fP
+Computes the distance for a track given as "longitude latitude" pairs read from
+standard input. Result is given in great circle degrees.
+.TP
+\fBgeog\fP \fBaz\fP \fIlon1\fP \fIlat1\fP \fIlon2\fP \fIlat2\fP
+Computes the azimuth from the point with geographic coordinates
+\fIlon1\fP \fIlat1\fP to the point with coordinates \fIlon2\fP \fIlat2\fP.
+.TP
+\fBgeog\fP \fBstep\fP [\fIlon\fP \fIlat\fP \fIdir\fP \fIdist\fP]
+Computes the longitude and latitude of the point in direction \fIdir\fP and
+distance \fIdist\fP great circle degrees from point with coordinates
+\fIlon\fP \fIlat\fP.
+
+If \fIlon\fP \fIlat\fP \fIdir\fP \fIdist\fP are not given on the command line,
+values are read from standard input.  There will be one line of output for
+every four values read in.
+.TP
+\fBgeog\fP \fBbeam_ht\fP \fIdistance\fP \fItilt\fP \fIearth_radius\fP
+Computes the height attained after travelling distance \fIdistance\fP
+along a beam at angle \fItilt\fP above horizontal, assuming Earth radius
+\fIearth_radius\fP.  \fId\fP and \fIearth_radius\fP must use the same unit,
+which will also be the unit of the result.
+.TP
+\fBgeog\fP \fBcontain_pt\fP \fIlon\fP \fIlat\fP \fIlon1\fP \fIlat1\fP \fIlon2\fP \fIlat2\fP ...
+Prints "\fBin\fP" if point \fIlon\fP \fIlat\fP is contained in the polygon
+defined by \fIlon1\fP \fIlat1\fP \fIlon2\fP \fIlat2\fP ... Otherwise, it
+prints "\fBout\fP".
+.TP
+\fBgeog\fP \fBcontain_pts\fP \fIlon1\fP \fIlat1\fP \fIlon2\fP \fIlat2\fP ...
+Stores a polygon defined by \fIlon1\fP \fIlat1\fP \fIlon2\fP \fIlat2\fP ...
+Then it reads lines from standard input. If a line starts with a pair of
+float values specifying the latitude and longitude of a point in the
+polygon, the input line is printed to standard output.
+.TP
+\fBgeog\fP \fBvproj\fP \fIrlon\fP \fIrlat\fP \fIaz\fP \fIearth_radius\fP
+This subcommand projects points onto a vertical plane.
+The vertical plane rises above the great circle oriented at azimuth \fIaz\fP
+from the point with geographic coordinates \fIrlon\fP \fIrlat\fP.
+The process will then read from standard input lines of form:
+.nf
+
+lon lat z
+
+.fi
+giving the longitude, latitude, and altitude of points to project.
+For each line of input, standard output will receive a line of form:
+.nf
+
+x y z
+
+.fi
+where \fIx\fP gives the projection of the point along the plane, \fIy\fP gives
+the perpendicular distance from the plane to the point, and \fIz\fP simply
+repeats the vertical coordinate. \fIearth_radius\fP gives radius
+of the Earth in altitude units.
+.TP
+\fBgeog\fP \fBlonlat_to_xy\fP \fIprojection\fP
+transforms longitudes and latitudes to map coordinates using
+\fIprojection\fP, which must be a character string intelligible to
+\fBGeogProjSetFmStr\fP. See \fBgeog_proj\fP (3). The longitudes
+and latitudes are read from standard input.
+.TP
+\fBgeog\fP \fBxy_to_lonlat\fP \fIprojection\fP
+transforms map coordinates to longitudes and latitudes using
+\fIprojection\fP, which must be a character string intelligible to
+\fBGeogProjSetFmStr\fP. See \fBgeog_proj\fP (3). The map coordinates
+are read from standard input.
+.SH SEE ALSO
+\fBgeog_lib\fP (3), \fBprintf\fP (1)
+.SH AUTHOR
+Gordon Carrie (dev0@trekix.net)

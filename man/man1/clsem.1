@@ -1,0 +1,82 @@
+.Dd March 14, 2011
+.Os UNIX
+.Dt CLSEM 1
+.Sh CLSEM
+.Nm clsem
+.Nd Command line interface to System 7 semaphore facility.
+.Sh SYNOPSIS
+.Nm clsem
+.Fl V
+.Nm clsem
+.Fl c
+.Ar path
+.Op Ar id
+.Nm clsem
+.Ar i
+.Ar path
+.Op Ar id
+.Nm clsem
+.Fl v
+.Ar path
+.Op Ar id
+.Nm clsem
+.Fl d
+.Ar path
+.Op Ar id
+.Sh DESCRIPTION
+The
+.Nm clsem
+utility provides a command line interface to the Unix System 7 semaphore
+facility.
+.Bl -ohang
+.It Nm clsem Fl V
+prints version information and exits.
+.It Nm clsem Fl c Ar path Op Ar id
+creates a new semaphore keyed to the file system entry at
+.Ar path .
+A single character
+.Ar id
+can further differentiate the semaphore. The semaphore is initialized with value
+.Dv 0 .
+The specified semaphore must not already exist.  If successful, this command
+prints the semaphore identifier.
+.It Nm clsem Ar i Ar path Op Ar id
+increments the semaphore by integer
+.Ar i .
+The
+.Nm clsem
+process blocks if a negative increment would make the semaphore value negative.
+See
+.Xr semop 2 .
+.It Nm clsem Fl v Ar path Op Ar id
+prints the value of the semaphore.
+.It Nm clsem Fl d Ar path Op Ar id
+deletes the semaphore.
+.Ar path
+remains.
+.El
+.Sh SEE ALSO
+.Xr ipcs 1 ,
+.Xr ipcrm 1 ,
+.Xr semctl 2 ,
+.Xr semop 2
+.Sh STANDARDS
+The Open Group Base Specifications Issue 7.
+IEEE Std 1003.1#-2008
+.Sh CAVEATS
+If
+.Ar path
+is deleted, the semaphore still exists, but
+.Nm clsem
+can no longer access it.  In this case, the semaphore must be eventually found
+and deleted with calls to
+.Xr ipcs 1
+and
+.Xr ipcrm 1 .
+.Sh BUGS
+Same as
+.Xr ftok 3
+and
+.Xr semctl 3 .
+.Sh AUTHORS
+.An "Gordon D. Carrie" Aq dev0 at trekix.net

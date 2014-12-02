@@ -1,0 +1,179 @@
+.\" 
+.\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\" 
+.\" Please address questions and feedback to dev0@trekix.net
+.\" 
+.\" $Revision: 1.23 $ $Date: 2011/11/28 16:11:23 $
+.\"
+.TH alloc 3 "Allocators with optional diagnostics"
+.SH NAME
+Tkx_Malloc, Tkx_Calloc, Tkx_ReAlloc, Tkx_Free, MALLOC, CALLOC, REALLOC, FREE \- allocators with optional diagnostics
+.SH SYNOPSIS
+.nf
+\fB#include "alloc.h"\fP
+\fBvoid * Tkx_Malloc(size_t\fP \fIs\fP, \fBchar *\fP\fIf\fP, \fBint\fP \fIl\fP);
+\fBvoid * Tkx_Calloc(size_t\fP \fIn\fP, \fBsize_t\fP \fIs\fP, \fBchar *\fP\fIf\fP, \fBint\fP \fIl\fP);
+\fBvoid * Tkx_ReAlloc(void *\fP\fIp\fP, \fBsize_t\fP \fIs\fP, \fBchar *\fP\fIf\fP, \fBint\fP \fIl\fP);
+\fBvoid Tkx_Free(void *\fP\fIp\fP, \fBchar *\fP\fIf\fP, \fBint\fP \fIl\fP);
+\fBvoid * MALLOC(size_t\fP \fIs\fP\fB);\fP
+\fBvoid * CALLOC(size_t\fP \fIn\fP\fB, size_t\fP \fIs\fP\fB);\fP
+\fBvoid * REALLOC(void *\fP \fIp\fP\fB, size_t\fP \fIs\fP\fB);\fP
+\fBvoid FREE(void *\fP \fIp\fP\fB);\fP
+.fi
+.SH DESCRIPTION
+\fBTkx_Malloc\fP, \fBTkx_Calloc\fP, \fBTkx_ReAlloc\fP, and \fBTkx_Free\fP
+allocate and free memory using the standard library memory management functions,
+and perform optional diagnostic tasks described below.  They are normally called
+with macros \fBMALLOC\fP, \fBCALLOC\fP, \fBREALLOC\fP, and \fBFREE\fP.
+
+\fBTkx_Malloc\fP calls \fBmalloc\fP with argument \fIs\fP and returns the result.
+\fBTkx_Calloc\fP calls \fBcalloc\fP with arguments \fIn\fP and \fIs\fP and
+returns the result.  \fBTkx_ReAlloc\fP calls \fBrealloc\fP with arguments
+\fIp\fP and \fIs\fP and returns the result.  \fBTkx_Free\fP calls \fBfree\fP
+with argument \fIp\fP.  Allocations made with \fBTkx_Malloc\fP, \fBTkx_Calloc\fP,
+and \fBTkx_ReAlloc\fP should be freed with \fBTkx_Free\fP.
+
+Arguments \fIf\fP and \fIl\fP are assumed to be set to compiler macros
+\fB__FILE__\fP and \fB__LINE__\fP.  The functions use these values in diagnostic
+output or failure simulations.  The macro for each function normally provides
+\fIf\fP and \fIl\fP.
+
+\fBMALLOC(\fP\fIs\fP\fB)\fP is a macro for
+
+.nf
+.in +5
+\fBTkx_Malloc(\fP\fIs\fP, \fB__FILE__\fP, \fB__LINE__)\fP
+.in -5
+.fi
+
+\fBCALLOC(\fP\fIn\fP, \fIs\fP\fB)\fP is a macro for 
+
+.nf
+.in +5
+\fBalloc_tkx(\fP\fIn\fP, \fIs\fP, \fB__FILE__\fP, \fB__LINE__)\fP
+.in -5
+.fi
+
+\fBREALLOC(\fP\fIx\fP, \fIs\fP\fB)\fP is a macro for 
+
+.nf
+.in +5
+\fBTkx_ReAlloc(\fP\fIx\fP, \fIs\fP, \fB__FILE__\fP, \fB__LINE__)\fP
+.in -5
+.fi
+
+\fBFREE(\fP\fIx\fP\fB)\fP is a macro for 
+
+.nf
+.in +5
+\fBTkx_Free(\fP\fIx\fP, \fB__FILE__\fP, \fB__LINE__)\fP
+.in -5
+.fi
+
+
+\fBMALLOC\fP, \fBCALLOC\fP, \fBREALLOC\fP and \fBFREE\fP behave like
+\fBmalloc\fP, \fBcalloc\fP, \fBrealloc\fP, and \fBfree\fP respectively.
+Allocations made with \fBMALLOC\fP, \fBCALLOC\fP, \fBREALLOC\fP should be freed
+with \fBFREE\fP.
+.SH OPTIONAL DIAGNOSTICS
+If the \fBMEM_DEBUG\fP environment variable is defined, the macros also
+arrange for output of diagnostic information.  The diagnostic output can
+help identify memory leaks.
+
+If \fBMEM_DEBUG\fP represents an integer, it is interpreted as a file descriptor.
+Thus, in the following example, \fBapp\fP will send diagnostic information to
+file descriptor \fB2\fP (standard error).
+
+.nf
+.in +5
+\fBexport MEM_DEBUG=\fP\fI2\fP
+\fBapp\fP
+.in -5
+.fi
+
+Otherwise, \fBMEM_DEBUG\fP is interpreted as a file name.  Diagnostic output
+will go to this file, over-writing any previous contents.
+In the following example, \fBapp\fP will send diagnostic information to
+file \fBapp.mem.out\fP
+
+.nf
+.in +5
+\fBexport MEM_DEBUG=app.mem.out\fP
+\fBapp\fP
+.in -5
+.fi
+
+When \fBMALLOC\fP or \fBCALLOC\fP allocates memory with \fBMEM_DEBUG\fP defined,
+it prints a line of form:
+
+.nf
+.ti +5
+\fIaddress\fP \fB(\fP\fIcounter\fP\fB)\fP \fBallocated at\fP \fIfile\fP\fB:\fP\fIline\fP
+.fi
+
+If \fBREALLOC\fP returns \fIp\fP, it prints a line of form:
+
+.nf
+.ti +5
+\fIaddress\fP \fB(\fP\fIcounter\fP\fB)\fP \fBreallocated at\fP \fIfile\fP\fB:\fP\fIline\fP
+.fi
+
+If \fBREALLOC\fP returns a new address, it prints two lines of form:
+
+.nf
+.in +5
+\fIaddress\fP \fB(\fP\fIcounter\fP\fB)\fP \fBfreed by realloc at\fP \fIfile\fP\fB:\fP\fIline\fP
+\fIaddress\fP \fB(\fP\fIcounter\fP\fB)\fP \fBallocated by realloc at\fP \fIfile\fP\fB:\fP\fIline\fP
+.in -5
+.fi
+
+When \fBFREE\fP frees memory, it prints a line of form:
+
+.nf
+.ti +5
+\fIaddress\fP \fB(\fP\fIcounter\fP\fB)\fP \fBfreed at\fP \fIfile\fP\fB:\fP\fIline\fP
+.fi
+
+Above, \fIaddress\fP is the address of the new or modified allocation,
+\fIcounter\fP is the number of times one of the allocation macros has been
+called, and \fIfile\fP and \fIline\fP identify the C source file and line
+number where the call occurred.
+
+The resulting output gives a history of allocations and calls to free made by
+the process.  The \fBchkalloc\fP application can scan this output and report on
+any allocations made that have not been freed when the process exits.  These
+are assumed to be memory leaks, and the diagnostic output can help find where
+and when they occurred.
+.SH SIMULATING ALLOCATION FAILURES
+If environment variable \fBMEM_FAIL\fP exists and has form
+\fIfile\fP\fB:\fP\fIline\fP, and line \fIline\fP of source file \fIfile\fP has
+a call to \fBMALLOC\fP, \fBCALLOC\fP, or \fBREALLOC\fP, then the allocator will
+always return \fBNULL\fP.  This exercises code branches that handle allocation
+failures.
+.SH SEE ALSO
+\fBmalloc\fP (3), \fBcalloc\fP (3), \fBrealloc\fP (3), \fBfree\fP (3),
+\fBchkalloc\fP (1)
+.SH AUTHOR
+Gordon Carrie (dev0@trekix.net)

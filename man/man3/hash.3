@@ -1,0 +1,101 @@
+.\" 
+.\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\" 
+.\" Please address questions and feedback to dev0@trekix.net
+.\" 
+.\" $Revision: 1.13 $ $Date: 2013/02/20 18:40:25 $
+.\"
+.TH hash 3 "Hash tables"
+.SH NAME
+Hash_Init, Hash_Clear, Hash_Add, Hash_Set, Hash_Get, Hash_Print, Hash_Adj, Hash_Rm, Hash_Sz \- general hash table functions
+.SH SYNOPSIS
+.nf
+\fBint\fP \fBHash_Init(\fP\fBstruct Hash_Tbl *\fP\fItblP\fP, \fBunsigned\fP \fIn_buckets\fP);
+\fBvoid\fP \fBHash_Clear(\fP\fBstruct Hash_Tbl *\fP\fItblP\fP);
+\fBunsigned\fP \fBHash\fP(\fBconst char *\fP\fIkey\fP, \fBunsigned\fP \fIn_buckets\fP);
+\fBint\fP \fBHash_Add(\fP\fBstruct Hash_Tbl *\fP\fItblP\fP, \fBconst char *\fP\fIkey\fP, \fBvoid\fP *\fIval\fP);
+\fBint\fP \fBHash_Set(\fP\fBstruct Hash_Tbl *\fP\fItblP\fP, \fBconst char *\fP\fIkey\fP, \fBvoid\fP *\fIval\fP);
+\fBvoid\fP *\fBHash_Get(\fP\fBstruct Hash_Tbl *\fP\fItblP\fP, \fBconst char *\fP\fIkey\fP);
+\fBvoid\fP \fBHash_Print\fP(\fBstruct Hash_Tbl *\fP\fItblP\fP);
+\fBint\fP \fBHash_Adj(\fP\fBstruct Hash_Tbl *\fP\fItblP\fP, \fBunsigned\fP \fIn_buckets_2\fP);
+\fBvoid\fP \fBHash_Rm(\fP\fBstruct Hash_Tbl *\fP\fItblP\fP, \fBconst char *\fP\fIkey\fP);
+\fBvoid\fP \fBHash_Sz(\fP\fBstruct Hash_Tbl *\fP\fItblP\fP, \fBunsigned\fP *\fIn_bucketsP\fP, \fBunsigned *\fP\fIn_entriesP\fP,
+	\fBunsigned\fP *\fIbiggestP\fP);
+.fi
+.SH DESCRIPTION
+\fBHash_Init\fP initializes a new hash table at \fItblP\fP. The value at \fItblP\fP
+should be garbage.  \fIn_buckets\fP gives the number of buckets.  Table will not
+grow, and may become slow to access, if the number of entries exceeds
+the number of buckets.  If \fIn_buckets\fP > 0, memory is allocated in the table,
+and the table is ready for use.  If \fIn_buckets\fP == 0, no memory is allocated,
+and the table is initialized with bogus values.  The table is not safe for use, but
+is safe to give to \fBHash_Clear\fP. If successful, it returns true. If
+something goes wrong, it prints an error message to stderr
+and returns false.
+
+\fBHash_Clear\fP empties the hash table at \fItblP\fP, which should have been
+initialized with a call to \fBHash_Init\fP.  Memory associated with the table is
+freed and the table is reinitialized with no buckets.
+
+\fBHash\fP computes a hash table index given key \fIkey\fP and number of buckets
+\fIn_buckets\fP. Return value is a pseudo-random integer in range
+\fB[0,\ \fP\fIn_buckets\fP\fB)\fP.
+
+\fBHash_Add\fP attempts to create an entry in the hash table at \fItblP\fP with key
+\fIkey\fP and corresponding value \fIval\fP.  It returns true if it succeeds.  If
+the table already has an entry for \fIkey\fP, or if something goes wrong,
+\fBHash_Add\fP returns false and prints an error message to stderr.
+
+\fBHash_Set\fP creates or sets an entry in the hash table at \fItblP\fP with key
+\fIkey\fP and corresponding value \fIval\fP.  It returns true if it succeeds.
+If something goes wrong, \fBHash_Set\fP returns false and prints an error message
+to stderr.
+
+\fBHash_Get\fP retrieves the value from the hash table at \fItblP\fP corresponding
+to \fIkey\fP.  If \fItblP\fP has an entry for \fIkey\fP, the corresponding value is
+copied to address \fIlp\fP and \fBHash_Get\fP returns true.  Otherwise,
+\fBHash_Get\fP returns false.
+
+\fBHash_Print\fP \fItblP\fP prints the hash table at \fItblP\fP to standard
+output.  For each bucket, there will be an output line of form:
+.nf
+
+    \fB[(\fP\fIkey1 value1\fP\fB)(\fP\fIkey2 value2\fP\fB)\fP...\fB]\fP
+
+.fi
+A line of form \fB[]\fP indicates an empty bucket.
+
+\fBHash_Adj\fP sets the number of buckets in the hash table at \fItblP\fP to
+\fIn_buckets2\fP.  It returns true if it succeeds.  If something goes wrong,
+\fBHash_Adj\fP returns false and prints an error message to stderr.
+
+\fBHash_Rm\fP removes the entry with key \fIkey\fP from the hash table at
+\fItblP\fP.
+
+\fBHash_Sz\fP retrieves information about the size of the hash table at \fItblP\fP.
+It copies the number of buckets to address \fIn_bucketsP\fP, the number of entries
+to address \fIn_entriesP\fP, and the number of entries in the biggest bucket to
+address \fIbiggestP\fP.  It quietly does nothing if \fItblP\fP is
+\fBNULL\fP.

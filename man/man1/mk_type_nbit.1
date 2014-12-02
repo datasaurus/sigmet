@@ -1,0 +1,58 @@
+.\" 
+.\" Manual for mk_type_nbit application.
+.\"
+.\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\" 
+.\" Please address questions and feedback to dev0@trekix.net
+.\" 
+.\" $Revision: 1.6 $ $Date: 2011/11/28 16:43:20 $
+.\"
+.TH mk_type_nbit 1 "Type headers"
+.SH NAME
+mk_type_nbit \- create a header file with explicitly sized types
+.SH SYNOPSIS
+\fBmk_type_nbit\fP [> \fBtype_nbit.h\fP]
+.SH DESCRIPTION
+\fBmk_type_nbit\fP prints a header file of typedef's that associates standard
+C integer types with locally defined types whose sizes are explicitly given in
+the type name.
+.PP
+A line in \fBtype_nbit.h\fP of form:
+"\fBtypedef\fP\ \fIc-type\fP\ \fBU\fP\fIn\fP\fBBIT\fP;"
+declares an unsigned integer type with \fIn\fP bits that is equivalent to built in
+C type \fBc-type\fP.
+.PP
+A line in \fBtype_nbit.h\fP of form:
+"\fBtypedef\fP\ \fIc-type\fP\ \fBI\fP\fIn\fP\fBBIT\fP;"
+declares a unsigned integer type with \fIn\fP bits that is equivalent to built in
+C type \fBc-type\fP.
+.PP
+\fBtype_nbit.h\fP also defines several macros that perform bit and byte swapping.
+\fBSWAP2BYT\fP swaps 2 bytes.
+\fBSWAP4BYT\fP swaps 2 bytes.
+\fBSWAP16IBT\fP swaps 16 bits.
+\fBSWAP32BIT\fP swaps 32 bits.
+.SH AUTHOR
+Gordon Carrie (dev0@trekix.net)

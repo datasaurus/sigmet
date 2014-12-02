@@ -1,0 +1,57 @@
+.\" 
+.\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\" 
+.\" Please address questions and feedback to dev0@trekix.net
+.\" 
+.\" $Revision: 1.6 $ $Date: 2011/11/28 16:43:20 $
+.\"
+.TH swap 3 "Byte swapping"
+.SH NAME
+Swap_On, Swap_Off, Toggle_Swap, Swap_2Byt, Swap_4Byt \- functions that enable and perform byte swapping.
+.SH SYNOPSIS
+.nf
+\fBvoid\fP \fBSwap_Off\fP(\fBvoid\fP)
+\fBvoid\fP \fBSwap_On\fP(\fBvoid\fP)
+\fBvoid\fP \fBToggle_Swap\fP(\fBvoid\fP)
+\fBvoid\fP \fBSwap_2Byt\fP(\fBvoid\fP *\fIp\fP)
+\fBvoid\fP \fBSwap_4Byt\fP(\fBvoid\fP *\fIp\fP)
+\fBvoid\fP \fBSwap_16Bit\fP(\fBvoid\fP *\fIp\fP)
+\fBvoid\fP \fBSwap_32Bit\fP(\fBvoid\fP *\fIp\fP)
+.fi
+.SH DESCRIPTION
+These functions enable byte swapping.
+.PP
+\fBSwap_On\fP causes \fBSwap_2Byt\fP, \fBSwap_4Byt\fP, \fBSwap_16Bit\fP
+and \fBSwap_32Bit\fP to swap groups of bits or bytes.
+\fBSwap_Off\fP causes \fBSwap_2Byt\fP, \fBSwap_4Byt\fP, \fBSwap_16Bit\fP
+and \fBSwap_32Bit\fP to do nothing.
+\fBToggle_Swap\fP turns on byte swapping if it is off, and vice versa.
+.PP
+If swapping is enabled, \fBSwap_2Byt\fP swaps two bytes at \fIp\fP,
+\fBSwap_4Byt\fP swaps four bytes at \fIp\fP, \fBSwap_16Bit\fP swaps the
+pair of 8-bit fields at \fIp\fP, and \fBSwap_32Bit\fP swaps 4 8-bit fields
+at \fIp\fP.
+.SH AUTHOR
+Gordon Carrie (dev0@trekix.net)

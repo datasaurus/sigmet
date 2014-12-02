@@ -1,0 +1,87 @@
+.\" 
+.\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\" 
+.\" Please address questions and feedback to dev0@trekix.net
+.\"
+.\" $Revision: 1.10 $ $Date: 2014/10/20 22:54:51 $
+.\"
+.Dd $Mdocdate$
+.Dt tm_calc 1
+.Os UNIX
+.Nm NAME
+.Nm Tm_CalToJul
+.Nm Tm_JulToCal
+.Nd basic time conversions.
+.Sh SYNOPSIS
+.Fd "#include <tm_calc_lib.h>"
+.Ft double
+.Fn Tm_CalToJul "int year" "int month" "int day" "int hour" "int minute" "double second"
+.Ft int
+.Fn Tm_JulToCal "double julian_day" "int *year" "int *month" "int *day" "int *hour" "int *minute" "double *second"
+.Sh DESCRIPTION
+These functions convert back and forth between calendar and clock time
+representations and Julian days.
+.Pp
+.Fn Tm_CalToJul
+returns the Julian day corresponding to
+.Fa year
+.Fa month
+.Fa day
+.Fa hour
+.Fa minute
+.Fa second .
+.Pp
+.Fn Tm_JulToCal
+puts the calendar and clock time values for Julian time
+.Fa julian_day
+into
+.Fa year
+.Fa month
+.Fa day
+.Fa hour
+.Fa minute
+.Fa second .
+It quietly skips
+.Dv NULL
+pointers.
+If successful, it returns true.  If something goes wrong,
+it prints an error message to standard error and returns
+false.
+.Sh SEE ALSO
+.Xr tm_calc 1 ,
+.Rs
+.%A H. F. Fliegel and T. C. Van Flandern
+.%T Letters to the editor: a machine algorithm for processing calendar dates.
+.%J Communications of the ACM archive
+.%V 11
+.%N 10
+.%D October 1968
+.%P 657
+.%O ISSN:0001-0782 
+.Re
+.Sh KEYWORDS
+time calendar julian
+.Sh AUTHOR
+Gordon Carrie (dev0@trekix.net)

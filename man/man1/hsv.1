@@ -1,0 +1,27 @@
+.\" 
+.\" Copyright (c) 2009 Gordon D. Carrie
+.\" All rights reserved
+.\" 
+.\" Please address questions and feedback to dev0@trekix.net
+.\" 
+.\" $Revision: 1.3 $ $Date: 2012/09/13 19:41:27 $
+.\"
+.TH hsv 1 "hue saturation value"
+.SH NAME
+hsv \- rgb values for a sequence of hues.
+.SH SYNOPSIS
+\fBhsv\fP [\fB-s\fP \fIsaturation\fP] [\fB-v\fP \fIvalue\fP] \fIhue0\fP \fIhue1\fP \fIn_colors\fP
+.SH DESCRIPTION
+This application prints red-green-blue values for a sequence of \fIn_colors\fP
+hues from \fIhue0\fP to \fIhue1\fP, given as angles in degrees on a color
+cylinder.  Optional \fIsaturation\fP and \fIvalue\fP control amount of gray
+and brightness.  Output lines have form:
+.nf
+    \fIhue\fP\ \fIsaturation\fP\ \fIvalue\fP\ \fB=>\fP\ \fB#\fP\fIrrggbb\fP\
+.fi
+where red, green, and blue values are in the range [0,1].
+.SH SEE ALSO
+N. C. Schaller , "Color Conversion Algorithms", downloaded from
+http://www.cs.rit.edu/~ncs/color/t_convert.html
+.SH AUTHOR
+Gordon Carrie (dev0@trekix.net)

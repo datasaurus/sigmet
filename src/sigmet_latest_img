@@ -1,0 +1,28 @@
+#!/bin/sh
+#
+# Make image for the latest sweep
+# Requires sigmet_png_kml
+
+data_type=DB_DBZ
+color_fl=${data_type}.clrs
+sweep_angle=2.0
+
+# sigmet_png_kml inserts this into the URL of the KML Icon element
+SIGMET_KML_ICON_URL="http://smartr.metr.ou.edu/smartr2/img/"
+export SIGMET_KML_ICON_URL
+
+top_dir=${HOME}/dc3/SR2
+vol_dir=${top_dir}/raw/
+img_dir=${top_dir}/img/
+mkdir -p $img_dir
+
+curr_vol=`ls ${vol_dir} | tail -n 1`
+if ! test -f $curr_png
+then
+    {
+	cd $img_dir
+	eval `sigmet_png_kml $data_type $color_fl $sweep_angle $curr_vol \
+	    | awk '{print "curr_png=" $1 "; curr_kml=" $2}'`
+    }
+    echo $curr_png
+fi

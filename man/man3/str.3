@@ -1,0 +1,124 @@
+.\" 
+.\" Copyright (c) 2011, Gordon D. Carrie. All rights reserved.
+.\" 
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\" 
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\" 
+.\" Please address questions and feedback to dev0@trekix.net
+.\" 
+.\" $Revision: 1.20 $ $Date: 2012/08/30 18:52:49 $
+.\"
+.TH str 3 "String manipulation functions"
+.SH NAME
+Str_Esc, Str_Words \- manipulate strings
+.SH SYNOPSIS
+.nf
+\fB#include "str.h"\fP
+\fBchar *Str_Esc(char *\fP\fIs\fP\fB);\fP
+\fBchar\fP ** \fBStr_Words\fP(\fBchar\fP *\fIln\fP, \fBchar\fP **\fIargv\fP, \fBint\fP *\fIargc\fP);
+\fBchar\fP * \fBStr_Append\fP(\fBchar\fP *\fIdest\fP, \fBsize_t\fP *\fIl\fP, \fBsize_t\fP *\fIlx\fP, \fBchar\fP *\fIsrc\fP, \fBsize_t\fP \fIn\fP);
+\fBint\fP \fBStr_GetLn\fP(\fBFILE\fP *\fIin\fP, \fBchar\fP \fIeol\fP, \fBchar\fP **\fIln\fP, \fBint\fP *\fIl_max\fP);
+.fi
+.SH DESCRIPTION
+\fBStr_Esc\fP replaces escape sequences in \fIs\fP with their corresponding ASCII
+characters.
+The following escape sequences are recognized.
+.ta 8m
+.br
+\fB\\a\fP	becomes a single <bell> character.
+.br
+\fB\\b\fP	becomes a single <backspace> character.
+.br
+\fB\\f\fP	becomes a single <form-feed> character.
+.br
+\fB\\n\fP	becomes a single <new-line> character.
+.br
+\fB\\r\fP	becomes a single <carriage return> character.
+.br
+\fB\\t\fP	becomes a single <tab> character.
+.br
+\fB\\v\fP	becomes a single <vertical tab> character.
+.br
+\fB\\'\fP	becomes a single <single quote> character.
+.br
+\fB\\\\ \fP	becomes a single backslash character.
+.br
+.in +8m
+.ti -8m
+\fB\\0\fP\fInum\fP	becomes the character whose ASCII value is \fInum\fP, where \fInum\fP is an integer given as 1, 2, or 3 octal digits.
+.in -8m
+The (possibly modified) string is returned.
+
+\fBStr_Words\fP splits \fBnul\fP terminated string \fIln\fP into words.
+A word is a contiguous sequence of non-whitespace characters,
+or a contiguous sequence of any characters bounded by a matching pair of quotes
+(\fB"\fP or \fB'\fP).
+If modifies \fIln\fP in place as follows.
+Runs of whitespace between words are replaced with single \fBnul\fP characters,
+and quotes bounding words are deleted.
+Return value is a \fBNULL\fP terminated array of pointers to the start of each
+word in \fIln\fP.
+The number of words found is placed at \fIargc\fP. 
+
+If \fIargv\fP is \fBNULL\fP upon entry, a new allocation is made and its address
+is returned.  Memory for the returned array should eventually be freed with a call
+to \fBfree\fP.
+
+If \fIargv\fP is not \fBNULL\fP, it should point to an allocation made with
+\fBmalloc\fP, \fBcalloc\fP, or \fBrealloc\fP with storage for
+*\fIargc\fP\ \fB\ +\ 1\fP strings. \fBStr_Words\fP may reallocate \fIargv\fP
+with \fBrealloc\fP and update *\fIargc\fP if it finds more than *\fIargc\fP words.
+The (possibly new) allocation is returned.
+
+If something goes wrong, \fBNULL\fP is returned, \fIargv\fP is freed,
+\fI*argc\fP is set to \fB-1\fP, and an error message is printed to standard error.
+
+\fBStr_Append\fP copies \fIn\fP characters from \fIsrc\fP to \fIdest\ +\ *l\fP and
+appends a \fBnul\fP.  At entry, \fIdest\fP should point to storage for *\fIlx\fP
+characters allocated by \fBmalloc\fP, \fBcalloc\fP, or \fBrealloc\fP.  If space is
+insufficient, it adjusts the allocation with \fBrealloc\fP and updates \fIlx\fP.
+To avoid excessive allocation adjustments, it usually allocates extra space at
+\fIdest\fP.
+Return value is \fIdest\fP or a new allocation.  Upon return, *\fIl\fP indicates
+the number of characters at \fIdest\fP, excluding the terminating \fBnul\fP.  If
+something goes wrong, \fBStr_Append\fP returns \fBNULL\fP.  Callers that provide
+a non-\fBNULL\fP \fIdest\fP should not assign the return value to \fIdest\fP
+until the caller has verified a valid return value.  (This is similar to using
+realloc.) An error message will be printed to standard error.
+
+\fBStr_GetLn\fP reads characters from input stream \fIin\fP until it encounters
+end of line character \fIeol\fP or end of file.  The resulting string is placed
+at *\fIln\fP with a \fBnul\fP terminator instead of the end of line character, and
+the allocation size, including the terminating \fBnul\fP, is stored at \fIl_max\fP.
+If, upon entry, *\fIln\fP is \fBNULL\fP, the string will be returned in a new
+allocation.  The memory should eventually be freed with a call to \fBfree\fP.
+If *\fIln\fP is not \fBNULL\fP, it is assumed to point to storage for
+*\fIl_max\fP\ +\ \fB1\fP characters, allocated with \fBmalloc\fP, \fBcalloc\fP,
+or \fBrealloc\fP.  \fBStr_GetLn\fP will store characters at the given memory,
+clobbering any previous contents.  If it encounters more than
+*\fIl_max\fP\ -\ \fB1\fP characters, it will increase the allocation with
+\fBrealloc\fP and update *\fIl_max\fP.  If \fBStr_GetLn\fP encounters \fIeol\fP,
+it returns \fB1\fP.  If it encounters end of file, if returns \fBEOF\fP.
+If something goes wrong, \fBStr_GetLn\fP, frees *\fIln\fP returns \fB0\fP, and
+prints an error message to standard error.
+.SH AUTHOR
+Gordon Carrie (dev0@trekix.net)
