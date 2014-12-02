@@ -19,7 +19,8 @@
 #			  coordinates). bounds must be a string of form
 #			  x_min=value,x_max=value,y_min=value,y_max=value
 #			  Does not have to give all values. For values not
-#			  given, default is to use sweep bounds.
+#			  given, default is to use sweep bounds. Units are
+#			  same as sigmet_raw sweep_bnds command.
 #	-w		- document width, pixels
 #	-z		- font size, pixels
 #	-l		- width of color cells in legend, pixels
