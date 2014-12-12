@@ -134,6 +134,8 @@ then
     } 1>&2
     exit 1
 fi
+
+# Validate input
 if test $prefix && ! test -r $prefix
 then
     echo "$0: no readable prefix file named $prefix" 1>&2
@@ -153,6 +155,7 @@ check_num "y coordinate of bottom edge of plot" $y_btm
 y_top=$1; shift
 check_num "y coordinate of top edge of plot" $y_top
 
+# Send information to pisa.awk
 {
     for sheet in $style_sheets
     do
