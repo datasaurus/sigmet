@@ -1,63 +1,75 @@
 #!/bin/sh
 #
-# Send images and kml files, if any, for sweep angle angl
+# Send images and kml files, if any, for sweep angle swp_angl
 # to server at url dest every dt seconds.
 
-angl="2.0"
 dt=17
 
-# Host information
+# What to display in the images
+dat_typ="DB_DBZ"
+color_dir="${HOME}/libdata/"
+color_fl="${color_dir}${dat_typ}.clrs"
+swp_angl="2.0"
+
+# Local directories for Sigmet volumes and images
+top_dir="${HOME}/dc3/SR2/"
+vol_dir="${top_dir}raw/"
+img_dir="${top_dir}img/"
+mkdir -p $img_dir
+
+# Remote hosts and directories for Sigmet images and kml files
 starbuck="starbuck.nwc.ou.edu"
 starbuck_user="carr7857"
 smartr="10.197.1.189"
 smartr_user="gcarrie"
-key="$HOME/.ssh/id_rsa.gdc.w"
-dest="/data1/www/html/smartr2/images"
+key="${HOME}/.ssh/id_rsa.gdc.w"
+dest_rdir="smartr2/images/"
+dest="/data1/www/html/${dest_rdir}"
 port=3303
 
-# Make list of files send here.
-log_dir="${HOME}/var"
-sent="${log_dir}/sent_imgs"
-log_fl="${log_dir}/push_img.log"
-err_fl="${log_dir}/push_img.err"
+# sigmet_png_kml inserts this into the URL of the KML Icon element
+SIGMET_KML_ICON_URL="http://smartr.metr.ou.edu/${dest_rdir}"
+export SIGMET_KML_ICON_URL
+
+# Log and error files
+log_dir="${HOME}/var/"
+log_fl="${log_dir}push_img.log"
+err_fl="${log_dir}push_img.err"
 mkdir -p $log_dir
+
+# Put a list of processed volumes into sent.
+sent="${log_dir}sent_vols"
+
 touch $sent $log_fl $err_fl
 
 # This script will send latest kml and png files from this directory
 today=`date +"%Y%m%d"`
-img_dir="img/${today}"
+img_dir="${img_dir}/${today}/"
 
 # Start ssh agent. Ensure agent terminates on exit.
-trap "ssh-agent -k" EXIT
-trap "ssh-agent -k" TERM
-trap "ssh-agent -k" QUIT
-trap "ssh-agent -k" KILL
+trap "ssh-agent -k" EXIT TERM QUIT KILL
 eval `ssh-agent -s`
 ssh-add $key
 
-# Send png and kml files every dt seconds.
+# Process volume every dt seconds.
 while :
 do
     {
-	# Identify latest png file or png and kml files.
-	latest_img=`sigmet_latest_img`
-	if test $latest_img
+	# Identify current volume. If it is not listed in the sent file,
+	# create and send image and kml files for it.
+	curr_vol=`ls $vol_dir | tail -n 1`
+	if ! grep -q $vol $sent
 	then
-	    img=`basename $latest_img .png`
-	    img_fls="`ls ${img_dir}/${img}*`"
-
-	    # Send them
-	    if ! grep -q $img $sent
-	    then
-		echo `date -u`: sending $img_fls
-		ssh -f -l $smartr_user -L ${port}:${smartr}:22 $starbuck \
-			sleep 10
-		scp -l $smartr_user -P $port $img_fls localhost:$dest &
-		echo $img >> $sent
-	    else
-		echo "`date -u`: up to date"
-	    fi
+	    cd $img_dir
+	    eval `sigmet_png_kml $dat_typ $color_fl $swp_angl $curr_vol \
+		    | awk '{print "curr_png=" $1 "; curr_kml=" $2}'`
+	    echo `date -u`: sending $curr_png
+	    ssh -f -l $smartr_user -L ${port}:${smartr}:22 $starbuck sleep 10
+	    scp -l $smartr_user -P $port $curr_png $curr_kml localhost:$dest &
+	    echo $curr_vol >> $sent
+	else
+	    echo "`date -u`: up to date"
 	fi
-    } > $log_fl 2> $err_fl
+    } >> $log_fl 2>> $err_fl
     sleep $dt
 done
