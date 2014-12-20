@@ -1632,10 +1632,8 @@ enum SigmetStatus Sigmet_Vol_Read(FILE *f, struct Sigmet_Vol *vol_p)
 		vol_p->ray_hdr[s][r].az1 = Sigmet_Bin2Rad(az1_i);
 		vol_p->ray_hdr[s][r].tilt1 = GeogLatN(Sigmet_Bin2Rad(tilt1_i));
 
-		vol_p->ray_hdr[s][r].ok
-		    = !(az0_i == az1_i && tilt0_i == tilt1_i);
-
 		nbins = vol_p->ray_hdr[s][r].num_bins = get_sint16(ray_buf + 8);
+		vol_p->ray_hdr[s][r].ok = (nbins > 0);
 		if ( !vol_p->xhdr ) {
 		    unsigned sec = get_uint16(ray_buf + 10);
 
