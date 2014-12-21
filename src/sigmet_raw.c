@@ -966,6 +966,7 @@ static int data_cb(int argc, char *argv[])
 {
     char *argv0 = argv[0];
     int num_types, num_sweeps, num_rays, num_bins;
+    int num_bins_max;			/* Number of bins in longest ray */
     int s, y, r, b;
     char *data_type_s;
     int all = -1;
@@ -1029,7 +1030,17 @@ static int data_cb(int argc, char *argv[])
 		argv0, r);
 	return 0;
     }
-    if ( b != all && b >= Sigmet_Vol_NumBins(&vol, s, -1) ) {
+    if ( s == all ) {
+	num_bins_max = -1;
+	for (int s_ = 0; s_ < num_sweeps; s_++) {
+	    if ( Sigmet_Vol_NumBins(&vol, s_, -1) > num_bins_max ) {
+		num_bins_max = Sigmet_Vol_NumBins(&vol, s_, -1);
+	    }
+	}
+    } else {
+	num_bins_max = Sigmet_Vol_NumBins(&vol, s, -1);
+    }
+    if ( b != all && b >= num_bins_max ) {
 	fprintf(stderr, "%s: bin index %d out of range for volume\n",
 		argv0, b);
 	return 0;
@@ -1052,9 +1063,11 @@ static int data_cb(int argc, char *argv[])
 			    fprintf(out, "%f ",
 				    Sigmet_Vol_GetDatum(&vol, y, s, r, b));
 			}
+			for ( ; b < num_bins_max; b++) {
+			    fprintf(out, "%f ", NAN);
+			}
 		    } else {
-			num_bins = Sigmet_Vol_NumBins(&vol, s, -1);
-			for (b = 0; b < num_bins; b++) {
+			for (b = 0; b < num_bins_max; b++) {
 			    fprintf(out, "%f ", NAN);
 			}
 		    }
@@ -1073,9 +1086,11 @@ static int data_cb(int argc, char *argv[])
 			fprintf(out, "%f ",
 				Sigmet_Vol_GetDatum(&vol, y, s, r, b));
 		    }
+		    for ( ; b < num_bins_max; b++) {
+			fprintf(out, "%f ", NAN);
+		    }
 		} else {
-		    num_bins = Sigmet_Vol_NumBins(&vol, s, -1);
-		    for (b = 0; b < num_bins; b++) {
+		    for (b = 0; b < num_bins_max; b++) {
 			fprintf(out, "%f ", NAN);
 		    }
 		}
@@ -1091,9 +1106,11 @@ static int data_cb(int argc, char *argv[])
 		for (b = 0; b < num_bins; b++) {
 		    fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
 		}
+		for ( ; b < num_bins_max; b++) {
+		    fprintf(out, "%f ", NAN);
+		}
 	    } else {
-		num_bins = Sigmet_Vol_NumBins(&vol, s, -1);
-		for (b = 0; b < num_bins; b++) {
+		for (b = 0; b < num_bins_max; b++) {
 		    fprintf(out, "%f ", NAN);
 		}
 	    }
@@ -1106,9 +1123,11 @@ static int data_cb(int argc, char *argv[])
 	    for (b = 0; b < num_bins; b++) {
 		fprintf(out, "%f ", Sigmet_Vol_GetDatum(&vol, y, s, r, b));
 	    }
+	    for ( ; b < num_bins_max; b++) {
+		fprintf(out, "%f ", NAN);
+	    }
 	} else {
-	    num_bins = Sigmet_Vol_NumBins(&vol, s, -1);
-	    for (b = 0; b < num_bins; b++) {
+	    for (b = 0; b < num_bins_max; b++) {
 		fprintf(out, "%f ", NAN);
 	    }
 	}
