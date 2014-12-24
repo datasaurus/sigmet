@@ -1,0 +1,56 @@
+.\"
+.\" Copyright (c) 2014, Gordon D. Carrie. All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\"
+.\"     * Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"     * Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+.\" "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+.\" LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+.\" A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+.\" HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+.\" TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+.\" PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+.\" LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+.\" NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+.\" SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\"
+.\"
+.\" Please address questions and feedback to dev0@trekix.net
+.\"
+.Dd $Mdocdate$
+.Dt SIG_RAW 1
+.Os Unix
+.Sh NAME
+.Nm sig_raw
+.Nd interact with a
+.Nm sigmet_raw
+daemon.
+.Sh SYNOPSIS
+.Nm sig_raw
+.Ar command
+.Op Ar args
+.Sh DESCRIPTION
+This convenience script sends
+.Ar command
+to a
+.Nm sigmet_raw
+process running in daemon mode. See
+.Xr sigmet_raw 1
+for discussion of known commands.  It prints the result to standard output. The
+.Nm sigmet_raw
+daemon must be reading commands from a fifo identified by the
+.Ev SIGMET_RAW_IN
+environment variable.
+.Sh SEE ALSO
+.Xr sigmet_raw 1
+.Sh AUTHOR
+Gordon Carrie (dev0@trekix.net)
