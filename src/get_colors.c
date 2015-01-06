@@ -3,7 +3,7 @@
    -		Get colors from color file at path clr_fl_nm.
    -
    .
-   .	Format --
+   .	clr_fl_nm must have format --
    .	number_of_colors bound color bound color ... color bound
    .	
    .	Number of colors must be a positive integer
@@ -12,11 +12,13 @@
    .	
    .	Number of colors, colors and bounds are placed at num_colors_p,
    .	colors_p, and bnds_p.
+   .
    .	If function succeeds, colors_p will receive an array dimensioned
    .	[*num_colors_p][COLOR_NM_LEN_S] with the color names. bnds_p will
-   .	receive [*num_colors_p + 1] bounds. Caller must eventually free
+   .	receive [*num_colors_p + 1] bounds. Caller must eventually FREE
    .	storage for returned arrays with FREE, viz. FREE(*colors_p),
    .	FREE(bnds_p).
+
    .	Copyright (c) 2013, Gordon D. Carrie. All rights reserved.
    .	
    .	Redistribution and use in source and binary forms, with or without

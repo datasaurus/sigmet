@@ -39,6 +39,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <limits.h>
+#include "alloc.h"
 #include "str.h"
 
 /* Largest possible number of elements in array of strings */
@@ -115,8 +116,8 @@ char ** Str_Words(char *ln, char **argv, int *argc)
 	v = argv;
 	cx = *argc;
 	if (cx < 2) {
-	    if ( !(t = (char **)realloc(v, 2 * sizeof(char *))) ) {
-		free(v);
+	    if ( !(t = (char **)REALLOC(v, 2 * sizeof(char *))) ) {
+		FREE(v);
 		*argc = -1;
 		fprintf(stderr, "Could not allocate word array.\n");
 		return NULL;
@@ -126,7 +127,7 @@ char ** Str_Words(char *ln, char **argv, int *argc)
 	}
     } else {
 	cx = 2;
-	if ( !(v = (char **)calloc((size_t)cx, sizeof(char *))) ) {
+	if ( !(v = (char **)CALLOC((size_t)cx, sizeof(char *))) ) {
 	    *argc = -1;
 	    fprintf(stderr, "Could not allocate word array.\n");
 	    return NULL;
@@ -144,8 +145,8 @@ char ** Str_Words(char *ln, char **argv, int *argc)
 		if (c + 1 > cx) {
 		    cx2 = 3 * cx / 2 + 4;
 		    sz = (size_t)cx2 * sizeof(char *);
-		    if (cx2 > mx || !(t = (char **)realloc(v, sz)) ) {
-			free(v);
+		    if (cx2 > mx || !(t = (char **)REALLOC(v, sz)) ) {
+			FREE(v);
 			*argc = -1;
 			fprintf(stderr, "Could not allocate word array.\n");
 			return NULL;
@@ -163,7 +164,7 @@ char ** Str_Words(char *ln, char **argv, int *argc)
 
 		if ( !e ) {
 		    fprintf(stderr, "Unbalanced quote.\n");
-		    free(v);
+		    FREE(v);
 		    *argc = -1;
 		    return NULL;
 		}
@@ -179,8 +180,8 @@ char ** Str_Words(char *ln, char **argv, int *argc)
     *q = '\0';
     *argc = c;
     sz = (size_t)(c + 1) * sizeof(char *);
-    if ( (c + 1) > mx || !(t = (char **)realloc(v, sz)) ) {
-	free(v);
+    if ( (c + 1) > mx || !(t = (char **)REALLOC(v, sz)) ) {
+	FREE(v);
 	*argc = -1;
 	fprintf(stderr, "Could not allocate word array.\n");
 	return NULL;
@@ -202,7 +203,7 @@ char * Str_Append(char *dest, size_t *l, size_t *lx, char *src, size_t n)
 	while (tx < lx2) {
 	    tx = (tx * 3) / 2 + 4;
 	}
-	if ( !(t = realloc(dest, tx)) ) {
+	if ( !(t = REALLOC(dest, tx)) ) {
 	    fprintf(stderr, "Could not grow string for appending.\n");
 	    return NULL;
 	}
@@ -224,7 +225,7 @@ int Str_GetLn(FILE *in, char eol, char **ln, size_t *l_max)
 
     if ( !*ln ) {
 	nx = 4;
-	if ( !(t = (char *)malloc((size_t)nx)) ) {
+	if ( !(t = (char *)MALLOC((size_t)nx)) ) {
 	    fprintf(stderr, "Could not allocate memory for line.\n");
 	    return 0;
 	}
@@ -236,14 +237,14 @@ int Str_GetLn(FILE *in, char eol, char **ln, size_t *l_max)
     while ( (i = fgetc(in)) != EOF && (i != eol) ) {
 	c = i;
 	if ( !(t1 = Str_Append(t, &n, &nx, &c, (size_t)1)) ) {
-	    free(t);
+	    FREE(t);
 	    fprintf(stderr, "Could not append input character to string.\n");
 	    return 0;
 	}
 	t = t1;
     }
-    if ( !(*ln = (char *)realloc(t, (size_t)(n + 1))) ) {
-	free(t);
+    if ( !(*ln = (char *)REALLOC(t, (size_t)(n + 1))) ) {
+	FREE(t);
 	*ln = NULL;
 	*l_max = 0;
 	fprintf(stderr, "Could not reallocate memory for line.\n");
