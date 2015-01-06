@@ -52,8 +52,8 @@ void RGBtoHSV(double r, double g, double b, double *h, double *s, double *v)
 	*h = 2 + (b - r) / delta;	/* between cyan & yellow */
     } else {
 	*h = 4 + (r - g) / delta;	/* between magenta & cyan */
-    *h *= 60;				/* degrees */
     }
+    *h *= 60;				/* degrees */
     if ( *h < 0 ) {
 	*h += 360;
     }
