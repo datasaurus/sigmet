@@ -7,15 +7,24 @@ dt=17
 
 # What to display in the images
 dat_typ="DB_DBZ"
-color_dir="${HOME}/libdata/"
-color_fl="${color_dir}${dat_typ}.clrs"
 swp_angl="2.0"
 
 # Local directories for Sigmet volumes and images
-top_dir="${HOME}/dc3/SR2/"
-vol_dir="${top_dir}raw/"
-img_dir="${top_dir}img/"
+top_dir="`pwd`"
+vol_dir="${top_dir}/raw1/"
+img_dir="${top_dir}/img/"
 mkdir -p $img_dir
+
+# Color files. sigmet_png_kml needs them.
+color_fl="${top_dir}/libdata/${dat_typ}.clrs"
+
+# Log and error files
+log_dir="${top_dir}/var/"
+#log_fl="${log_dir}/push_img.log"
+#err_fl="${log_dir}/push_img.err"
+log_fl=/dev/stdout
+err_fl=/dev/stderr
+mkdir -p $log_dir
 
 # Remote hosts and directories for Sigmet images and kml files
 starbuck="starbuck.nwc.ou.edu"
@@ -23,7 +32,7 @@ starbuck_user="carr7857"
 smartr="10.197.1.189"
 smartr_user="gcarrie"
 key="${HOME}/.ssh/id_rsa.gdc.w"
-dest_rdir="smartr2/images/"
+dest_rdir="dc3/img"
 dest="/data1/www/html/${dest_rdir}"
 port=3303
 
@@ -31,20 +40,13 @@ port=3303
 SIGMET_KML_ICON_URL="http://smartr.metr.ou.edu/${dest_rdir}"
 export SIGMET_KML_ICON_URL
 
-# Log and error files
-log_dir="${HOME}/var/"
-log_fl="${log_dir}push_img.log"
-err_fl="${log_dir}push_img.err"
-mkdir -p $log_dir
-
 # Put a list of processed volumes into sent.
 sent="${log_dir}sent_vols"
 
 touch $sent $log_fl $err_fl
 
 # This script will send latest kml and png files from this directory
-today=`date +"%Y%m%d"`
-img_dir="${img_dir}/${today}/"
+img_dir="${img_dir}/"
 
 # Start ssh agent. Ensure agent terminates on exit.
 trap "ssh-agent -k" EXIT TERM QUIT KILL
@@ -57,19 +59,34 @@ do
     {
 	# Identify current volume. If it is not listed in the sent file,
 	# create and send image and kml files for it.
-	curr_vol=`ls $vol_dir | tail -n 1`
-	if ! grep -q $vol $sent
+	echo "Checking $vol_dir"
+	curr_vol=`ls $vol_dir/*.RAW???? | tail -n 1`
+	echo "Found $curr_vol"
+	if ! grep -q "$curr_vol" $sent
 	then
 	    cd $img_dir
-	    eval `sigmet_png_kml $dat_typ $color_fl $swp_angl $curr_vol \
+	    eval `sigmet_png_kml -f $dat_typ $color_fl $swp_angl $curr_vol \
 		    | awk '{print "curr_png=" $1 "; curr_kml=" $2}'`
-	    echo `date -u`: sending $curr_png
-	    ssh -f -l $smartr_user -L ${port}:${smartr}:22 $starbuck sleep 10
-	    scp -l $smartr_user -P $port $curr_png $curr_kml localhost:$dest &
-	    echo $curr_vol >> $sent
+	    if ls -s "$curr_png" 2> /dev/null \
+	    | awk '
+		BEGIN {status = 1}
+		{if ($1 > 0) status = 0}
+		END {exit status}'
+	    then
+		echo "`date -u`: sending $curr_png $curr_kml"
+		ssh -f -l $starbuck_user -L ${port}:${smartr}:22 $starbuck \
+			sleep 10
+		(
+		    if scp -P $port $curr_png $curr_kml \
+			    ${smartr_user}@localhost:$dest
+		    then
+			echo $curr_vol >> $sent
+		    fi
+		) &
+	    fi
 	else
 	    echo "`date -u`: up to date"
 	fi
-    } >> $log_fl 2>> $err_fl
+    } > $log_fl 2> $err_fl
     sleep $dt
 done
