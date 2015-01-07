@@ -234,8 +234,8 @@ png_fl="${vol}.${data_type}.${sweep_angle}.png"
     sig_raw outlines $fill $data_type $color_fl $sweep_index | sigmet_svg.awk
     printf "</g>\n"
     printf "</svg>\n"
-} | rsvg-convert -o $png_fl
-# | convert -background '#00000000' - $png_fl
+} | convert -background '#00000000' - $png_fl
+# rsvg-convert -o $png_fl
 
 # Convert meters to great circle degrees
 a0=`geog rearth`
@@ -269,8 +269,13 @@ west=`geog step $radar_lon $radar_lat 90.0 $d | awk '{printf $1}'`
 d=`meter_deg $x_max`
 east=`geog step $radar_lon $radar_lat 90.0 $d | awk '{printf $1}'`
 kml_fl="${vol}.${data_type}.${sweep_angle}.kml"
-printf "$kml_tmpl" $vol "$DESCRIPTION" $north $south $west $east \
-	${SIGMET_KML_ICON_URL}$png_fl > $kml_fl
+if test "$SIGMET_KML_ICON_URL"
+then
+    icon="${SIGMET_KML_ICON_URL}/$png_fl"
+else
+    icon="$png_fl"
+fi
+printf "$kml_tmpl" $vol "$DESCRIPTION" $north $south $west $east $icon > $kml_fl
 
 echo "$png_fl $kml_fl"
 exit 0
