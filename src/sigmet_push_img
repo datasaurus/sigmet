@@ -3,36 +3,40 @@
 # Send images and kml files, if any, for sweep angle swp_angl
 # to server at url dest every dt seconds.
 
-dt=17
+dt=13
+
+# Send images for the last nvol volumes. In other words, if the
+# process resumes after a network outage, do not try to send everything.
+nvols=10
 
 # What to display in the images
 dat_typ="DB_DBZ"
 swp_angl="2.0"
 
 # Local directories for Sigmet volumes and images
-top_dir="`pwd`"
-vol_dir="${top_dir}/raw1/"
+top_dir="${HOME}/iris_data"
+vol_dir="${top_dir}/product_raw/"
 img_dir="${top_dir}/img/"
 mkdir -p $img_dir
 
 # Color files. sigmet_png_kml needs them.
-color_fl="${top_dir}/libdata/${dat_typ}.clrs"
+color_fl="${HOME}/libdata/${dat_typ}.clrs"
 
 # Log and error files
-log_dir="${top_dir}/var/"
+log_dir="${HOME}/var/"
+mkdir -p $log_dir
 #log_fl="${log_dir}/push_img.log"
 #err_fl="${log_dir}/push_img.err"
 log_fl=/dev/stdout
 err_fl=/dev/stderr
-mkdir -p $log_dir
 
 # Remote hosts and directories for Sigmet images and kml files
 starbuck="starbuck.nwc.ou.edu"
-starbuck_user="carr7857"
+starbuck_user="smartr"
 smartr="10.197.1.189"
-smartr_user="gcarrie"
-key="${HOME}/.ssh/id_rsa.gdc.w"
-dest_rdir="dc3/img"
+smartr_user="smartr2"
+key="${HOME}/.ssh/id_dsa_smartr2.2014"
+dest_rdir="smartr2/images"
 dest="/data1/www/html/${dest_rdir}"
 port=3303
 
@@ -44,9 +48,6 @@ export SIGMET_KML_ICON_URL
 sent="${log_dir}sent_vols"
 
 touch $sent $log_fl $err_fl
-
-# This script will send latest kml and png files from this directory
-img_dir="${img_dir}/"
 
 # Start ssh agent. Ensure agent terminates on exit.
 trap "ssh-agent -k" EXIT TERM QUIT KILL
@@ -60,33 +61,38 @@ do
 	# Identify current volume. If it is not listed in the sent file,
 	# create and send image and kml files for it.
 	echo "Checking $vol_dir"
-	curr_vol=`ls $vol_dir/*.RAW???? | tail -n 1`
-	echo "Found $curr_vol"
-	if ! grep -q "$curr_vol" $sent
-	then
-	    cd $img_dir
-	    eval `sigmet_png_kml -f $dat_typ $color_fl $swp_angl $curr_vol \
-		    | awk '{print "curr_png=" $1 "; curr_kml=" $2}'`
-	    if ls -s "$curr_png" 2> /dev/null \
-	    | awk '
-		BEGIN {status = 1}
-		{if ($1 > 0) status = 0}
-		END {exit status}'
+	curr_vols=`ls -1 $vol_dir/*.RAW???? 2> /dev/null | tail -n $nvols`
+	for curr_vol in $curr_vols
+	do
+	    if test "$curr_vol" && ! grep -q "$curr_vol" $sent
 	    then
-		echo "`date -u`: sending $curr_png $curr_kml"
-		ssh -f -l $starbuck_user -L ${port}:${smartr}:22 $starbuck \
-			sleep 10
-		(
-		    if scp -P $port $curr_png $curr_kml \
-			    ${smartr_user}@localhost:$dest
-		    then
-			echo $curr_vol >> $sent
-		    fi
-		) &
+		echo "Creating images for $curr_vol"
+		cd $img_dir
+		eval `sigmet_png_kml -f $dat_typ $color_fl $swp_angl $curr_vol \
+			| awk '{print "curr_png=" $1 "; curr_kml=" $2}'`
+
+		# If image file exists and has non-zero size, upload it.
+		if ls -s "$curr_png" 2> /dev/null \
+		| awk '
+		    BEGIN {status = 1}
+		    {if ($1 > 0) status = 0}
+		    END {exit status}'
+		then
+		    echo "`date -u`: sending $curr_png $curr_kml"
+		    ssh -f -l $starbuck_user -L ${port}:${smartr}:22 $starbuck \
+			    sleep 10
+		    (
+			if scp -P $port $curr_png $curr_kml \
+				${smartr_user}@localhost:$dest
+			then
+			    echo $curr_vol >> $sent
+			fi
+		    ) &
+		fi
+	    else
+		echo "`date -u`: `basename $curr_vol` up to date"
 	    fi
-	else
-	    echo "`date -u`: up to date"
-	fi
+	done
     } > $log_fl 2> $err_fl
     sleep $dt
 done
