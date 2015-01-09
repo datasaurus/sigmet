@@ -254,6 +254,28 @@ int main(int argc, char *argv[])
     }
 
     /*
+       Load the volume
+     */
+
+    Sigmet_Vol_Init(&vol);
+    lpid = -1;
+    if ( !(vol_fl = vol_open(vol_fl_nm, &lpid)) ) {
+	fprintf(stderr, "%s: could not open file %s for reading.\n%s\n",
+		argv0, vol_fl_nm, strerror(errno));
+	exit(EXIT_FAILURE);
+    }
+    sig_stat = Sigmet_Vol_Read(vol_fl, &vol);
+    fclose(vol_fl);
+    if ( lpid != -1 ) {
+	waitpid(lpid, NULL, 0);
+    }
+    if ( sig_stat != SIGMET_OK ) {
+	fprintf(stderr, "%s: could not read volume.\n%s\n",
+		argv0, sigmet_err(sig_stat));
+	exit(EXIT_FAILURE);
+    }
+
+    /*
        If commands will come from a script file, open it.
        If script file is a fifo, set daemon mode.
      */
@@ -338,28 +360,6 @@ int main(int argc, char *argv[])
 	    }
 	    daemon = 0;
 	}
-    }
-
-    /*
-       Load the volume
-     */
-
-    Sigmet_Vol_Init(&vol);
-    lpid = -1;
-    if ( !(vol_fl = vol_open(vol_fl_nm, &lpid)) ) {
-	fprintf(stderr, "%s: could not open file %s for reading.\n%s\n",
-		argv0, vol_fl_nm, strerror(errno));
-	exit(EXIT_FAILURE);
-    }
-    sig_stat = Sigmet_Vol_Read(vol_fl, &vol);
-    fclose(vol_fl);
-    if ( lpid != -1 ) {
-	waitpid(lpid, NULL, 0);
-    }
-    if ( sig_stat != SIGMET_OK ) {
-	fprintf(stderr, "%s: could not read volume.\n%s\n",
-		argv0, sigmet_err(sig_stat));
-	exit(EXIT_FAILURE);
     }
 
     /*
