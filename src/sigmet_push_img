@@ -64,7 +64,9 @@ do
 	curr_vols=`ls -1 $vol_dir/*.RAW???? 2> /dev/null | tail -n $nvols`
 	for curr_vol in $curr_vols
 	do
-	    if test "$curr_vol" && ! grep -q "$curr_vol" $sent
+	    if ! grep -q "$curr_vol" $sent		\
+		    && sigmet_good "$curr_vol"		\
+		    && sigmet_hdr -a $curr_vol | grep -q 'scan_mode.*ppi'
 	    then
 		echo "Creating images for $curr_vol"
 		cd $img_dir
