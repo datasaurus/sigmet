@@ -184,21 +184,22 @@ data_types=`echo "$1" | sed 's/,/ /g'`
 sweep_angle="$2"
 vol_path="$3"
 
-# If vol_path is a regular file, run sigmet_raw.
-# If vol_path is a fifo, send commands to it.
 if test -f "$vol_path"
 then
+    # If vol_path is a regular file, start a sigmet_raw daemon for it.
     in=`basename $vol_path | sed -e 's/\.gz$//' -e 's/\.bz2$//'`.$$.in
     mkfifo $in
-    cleanup() {
-	sig_raw exit
-	rm -f $in $color_legends $svg_prefix
-    }
-    trap cleanup EXIT QUIT INT KILL
+    if ! sigmet_raw ${vol_path} $in
+    then
+	rm -f $in;
+	exit 1
+    fi
+    trap "sig_raw exit; rm -f $in;" EXIT QUIT INT KILL
     export SIGMET_RAW_IN=$in
-    sigmet_raw ${vol_path} $in
 elif test -p "$vol_path"
 then
+    # If vol_path is a fifo, assume a sigmet_raw daemon is monitoring it.
+    # Send commands to vol_path.
     export SIGMET_RAW_IN=$vol_path
 else
     echo $vol_path must be a regular file or fifo. 1>&2
