@@ -115,7 +115,8 @@ static int (*lonlat_to_xy)(double, double, double *, double *)
 static int set_proj(void);
 static FILE *vol_open(const char *, pid_t *);
 static int handle_signals(void);
-static void handler(int signum);
+static void handler(int);
+static void parent_handler(int);
 static char *sigmet_err(enum SigmetStatus);
 static double msec(double);
 
@@ -275,11 +276,7 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
     }
 
-    /*
-       If commands will come from a script file, open it.
-       If script file is a fifo, set daemon mode.
-     */
-
+    /* Open the script file */
     if ( strcmp(script_nm, "-") == 0 ) {
 	script = stdin;
     } else {
@@ -290,34 +287,91 @@ int main(int argc, char *argv[])
 		    argv0, script_nm, strerror(errno));
 	    exit(EXIT_FAILURE);
 	}
-	if ( (buf.st_mode & S_IFMT) & S_IFIFO ) {
-	    /*
-	       Commands will come from fifo. Go to background.
-	     */
 
-	    pid_t pid;			/* Return from fork */
+	/*
+	   If commands will come from fifo, go to daemon mode.
+	   Fork twice. After the first fork, parent exits, putting
+	   the daemon into the background. After the second fork,
+	   child process executes sigmet raw commands. Parent monitors
+	   the fifo and signals the child to exit if the fifo disappears
+	   from the file system.
+	 */
+
+	if ( (buf.st_mode & S_IFMT) & S_IFIFO ) {
+
+	    pid_t pid;			/* Return value from fork */
+	    int i_script;		/* File descriptor for commands */
 
 	    daemon = 1;
+
+	    pid = fork();
+	    if ( pid == -1 ) {
+		fprintf(stderr, "%s: could not fork to daemon mode.\n%s\n",
+			argv0, strerror(errno));
+		exit(EXIT_FAILURE);
+	    } else if ( pid > 0 ) {
+		/* Grandparent exits */
+		exit(EXIT_SUCCESS);
+	    }
 	    pid = fork();
 	    if ( pid ==  -1 ) {
 		fprintf(stderr, "%s: could not fork to daemon mode.\n%s\n",
 			argv0, strerror(errno));
 		exit(EXIT_FAILURE);
 	    } else if ( pid > 0 ) {
+		/* Parent process, monitors fifo */
+
+		unsigned s = 8;		/* Check for fifo this often */
+		pid_t child = pid;
+		struct sigaction act;
+
 		/*
-		   Parent process. Open the fifo for writing. This will
-		   keep the child from blocking when it opens the fifo
-		   for reading.  Then exit, putting child process into
-		   background.
+		   Open the fifo for writing. This will keep the child from
+		   blocking when it opens the fifo for reading. It will also
+		   ensure the fifo continues to exist if unlinked.
 		 */
 
-		if ( open(script_nm, O_WRONLY) == -1 ) {
+		if ( (i_script = open(script_nm, O_WRONLY)) == -1 ) {
 		    fprintf(stderr, "%s: could not open fifo %s "
 			    "for writing.\n%s\n", argv0, script_nm,
 			    strerror(errno));
 		    exit(EXIT_FAILURE);
 		}
-		exit(EXIT_SUCCESS);
+
+		/* Call parent_handler function if child exits */ 
+		memset(&act, 0, sizeof(struct sigaction));
+		if ( sigfillset(&act.sa_mask) == -1 ) {
+		    fprintf(stderr, "%s: daemon monitor could not set up "
+			    "signal management.\n%s\n", argv0, strerror(errno));
+		    kill(child, SIGKILL);
+		    waitpid(child, NULL, WNOHANG);
+		    exit(EXIT_FAILURE);
+		}
+		act.sa_handler = parent_handler;
+		if ( sigaction(SIGCHLD, &act, NULL) == -1 ) {
+		    fprintf(stderr, "%s: daemon monitor could not wait "
+			    "for child.\n%s\n", argv0, strerror(errno));
+		    kill(child, SIGKILL);
+		    waitpid(child, NULL, WNOHANG);
+		    exit(EXIT_FAILURE);
+		}
+
+		/* Monitor the fifo */
+		while (1) {
+		    struct stat buffer;
+
+		    if ( fstat(i_script, &buffer) == -1 ) {
+			fprintf(stderr, "%s: daemon monitor could not get "
+				"fifo status.\n%s\n", argv0, strerror(errno));
+			kill(child, SIGKILL);
+			exit(EXIT_FAILURE);	/* Unless parent_handler */
+		    }
+		    if ( buffer.st_nlink == 0 ) {
+			kill(child, SIGQUIT);
+			exit(EXIT_SUCCESS);	/* Unless parent_handler */
+		    }
+		    sleep(s);
+		}
 	    } else {
 		/*
 		   Child process, which will run the rest of the program.
@@ -326,8 +380,6 @@ int main(int argc, char *argv[])
 		   permanent file descriptor will keep process from exiting
 		   when a client process sends EOF to the fifo.
 		 */
-
-		int i_script;		/* File descriptor for input script */
 
 		if ( !handle_signals() ) {
 		    fprintf(stderr, "%s: background child could not set up "
@@ -1974,10 +2026,6 @@ int handle_signals(void)
 	perror(NULL);
 	return 0;
     }
-    if ( sigaction(SIGQUIT, &act, NULL) == -1 ) {
-	perror(NULL);
-	return 0;
-    }
     if ( sigaction(SIGPIPE, &act, NULL) == -1 ) {
 	perror(NULL);
 	return 0;
@@ -1988,6 +2036,10 @@ int handle_signals(void)
      */
 
     act.sa_handler = handler;
+    if ( sigaction(SIGQUIT, &act, NULL) == -1 ) {
+	perror(NULL);
+	return 0;
+    }
     if ( sigaction(SIGTERM, &act, NULL) == -1 ) {
 	perror(NULL);
 	return 0;
@@ -2021,10 +2073,11 @@ int handle_signals(void)
 }
 
 /*
+   Default signal handler.
    For exit signals, attempt to print an error message.
  */
 
-void handler(int signum)
+static void handler(int signum)
 {
     char *msg;
     int status = EXIT_FAILURE;
@@ -2059,3 +2112,11 @@ void handler(int signum)
     _exit(write(STDERR_FILENO, msg, 53) == 53 ?  status : EXIT_FAILURE);
 }
 
+/*
+   This handler tells a deamon to exit if its child does.
+ */
+
+static void parent_handler(int signum)
+{
+    _exit(EXIT_SUCCESS);
+}

@@ -73,13 +73,11 @@ command. If
 .Ar command_file
 is a fifo (see
 .Xr mkfifo 1 )
-then the
+then
 .Nm sigmet_raw
-process runs until it reads an
+runs in the background until it reads an
 .Cm exit
-command. If the fifo is deleted, the
-.Nm sigmet_raw
-process will continue running until terminated with a signal.
+command from the fifo, or the fifo disappears from the file system.
 .Sh COMMANDS
 .Bl -tag -width open
 .It Cm commands
@@ -98,7 +96,7 @@ the previous file is closed.
 Closes a file opened with an earlier call to
 .Cm open ,
 if any. Subsequent output goes to standard out.
-.Cm exit
+.It Cm exit
 Tells the
 .Nm sigmet_raw
 process to exit.

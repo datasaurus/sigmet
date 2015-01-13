@@ -38,7 +38,7 @@
 #ifndef SIGMET_H_
 #define SIGMET_H_
 
-#define SIGMET_RAW_VERSION "1.6"
+#define SIGMET_RAW_VERSION "1.7"
 
 #include "unix_defs.h"
 #include <float.h>
