@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 
     if ( scanf(" %u", &n_clrs) != 1 ) {
 	fprintf(stderr, "%s: could not find number of colors. First line of "
-		"input should be \"raster num_colors\"", cmd);
+		"input should be \"num_colors\"", cmd);
 	exit(EXIT_FAILURE);
     }
     n_vals = n_clrs + 1;
