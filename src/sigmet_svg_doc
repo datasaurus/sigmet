@@ -29,6 +29,11 @@
 #			  are determined from font and legend sizes.
 #	-j		- path to a Javascript file. Output will include a
 #			  script element that refers to the script.
+#	-o		- name of output file. If none is given, SVG output
+#			  goes to a file with a suitable name. If output
+#			  goes to a file, script prints the name of the file
+#			  to standard output. If output file name is "-",
+#			  SVG goes to standard output.
 #	data_type	- Sigmet data type, e.g. DB_DBZ
 #	colors_file	- specify color for each data interval. Should be
 #			  formatted for sigmet_raw outlines command.
@@ -96,10 +101,11 @@ legend_width=64
 top=48
 left=80
 java_script=
+out_fl=
 prx=6					# Precision in labels
 
 # Parse command line
-while getopts :fb:w:z:l:m:j: opt
+while getopts :fb:w:z:l:m:j:o: opt
 do
     case "$opt"
     in
@@ -120,10 +126,13 @@ do
 	    legend_width=$OPTARG
 	    ;;
 	m)
-	    eval `echo "$OPTARG" | sed 's/,/;/g'`
+	    eval `echo $OPTARG | sed 's/,/;/g'`
 	    ;;
 	j)
-	    java_script=$OPTARG
+	    java_script="$OPTARG"
+	    ;;
+	o)
+	    out_fl="$OPTARG"
 	    ;;
 	\?)
 	    echo "$0: unknown option $OPTARG" 1>&2
@@ -165,6 +174,12 @@ then
 	printf '                 margins are determined from font and legend\n'
 	printf '                 sizes.\n'
 	printf '  -j          => URI of a javascript file\n'
+	printf '  -o          => name of output file. If none is given, SVG\n'
+	printf '                 output goes to a file with a suitable name.\n'
+	printf '                 If output goes to a file, script prints the\n'
+	printf '                 name of the file to standard output. If\n'
+	printf '                 output file name is "-", SVG goes to\n'
+	printf '                 standard output.\n'
 	printf '  data_type   => data type e.g. DB_DBZ\n'
 	printf '  colors_file => specify color for each data interval. Should\n'
 	printf '                 be readable with sigmet_raw outlines.\n.'
@@ -281,8 +296,10 @@ else
 fi
 
 # Send SVG plot parameters and data to the pisa command.
-caption="$vol $data_type at $sweep_angle degrees"
-file_nm=`printf "%s_%s_%.1f.svg" $vol $data_type $sweep_angle`
+if ! test "$out_fl"
+then
+    out_fl=`printf "%s_%s_%.1f.svg" $vol $data_type $sweep_angle`
+fi
 
 # Create a fifo for optional Javascript
 if test $java_script
@@ -310,14 +327,21 @@ mkfifo $color_legend
     printf '</g>\n'
 } > $color_legend &
 
-sig_raw outlines $fill $bnds $data_type $color_fl $sweep_index	\
-    | sigmet_svg.awk						\
-    | pisa -l $left -r $right -t $top -b $bottom		\
-	    -w $doc_width -f $font_sz -m $prx -n $prx		\
-	    -X "$x_label" -Y "$y_label" -s $color_legend	\
-	    $js_opt -- $x_min $x_max $y_min $y_max		\
-> $file_nm
-echo $file_nm
+outlines() {
+    sig_raw outlines $fill $bnds $data_type $color_fl $sweep_index	\
+	| sigmet_svg.awk						\
+	| pisa -l $left -r $right -t $top -b $bottom			\
+		-w $doc_width -f $font_sz -m $prx -n $prx		\
+		-X "$x_label" -Y "$y_label" -s $color_legend		\
+		$js_opt -- $x_min $x_max $y_min $y_max
+}
+if [ "$out_fl" = "-" ]
+then
+    outlines
+else
+    outlines > $out_fl
+    echo $out_fl
+fi
 rm -f $color_legend $svg_prefix
 
 # exit will invoke code defined in trap calls above.
