@@ -12,7 +12,7 @@
 # Usage:
 #	sigmet_svg [-f] [-b bounds] [-w pixels] [-z pixels] [-l pixels] 
 #		[-m top=pixels[,left=pixels]] [-j path] --
-#		data_types sweep_angle volume_file
+#		data_type colors_file sweep_angle volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
 #	-b		- Limits of plot in plot coordinates (not display
@@ -29,15 +29,15 @@
 #			  are determined from font and legend sizes.
 #	-j		- path to a Javascript file. Output will include a
 #			  script element that refers to the script.
-#	data_types	- data type or types (e.g. DB_DBZ, 'DB_DBZ,DB_ZDR').
+#	data_type	- Sigmet data type, e.g. DB_DBZ
+#	colors_file	- specify color for each data interval. Should be
+#			  formatted for sigmet_raw outlines command.
 #	sweep_angle	- desired tilt or azimuth. Image will show sweep
 #			  nearest sweep_angle.
-#	volume_file	- Sigmet raw product file
+#	volume_file	- either a path that sigmet_raw can read, or a fifo
+#			  that provides commands to a sigmet_raw daemon.
 #
-# For each data type in data_types, a color table will be sought from a file
-# named ${data_type}.clrs or ${SIGMET_COLOR_DIR}/${data_type}.clrs.
-#
-# For each data type, this script will create a SVG file
+# If successful, this script will create a SVG file
 # with an image of the sweep closest to the given sweep angle.
 #
 # Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
@@ -95,6 +95,7 @@ font_sz=18
 legend_width=64
 top=48
 left=80
+java_script=
 prx=6					# Precision in labels
 
 # Parse command line
@@ -142,12 +143,12 @@ check_num "top margin" $top
 check_num "left margin" $left
 
 shift `expr $OPTIND - 1`
-if [ $# -ne 3 ]
+if [ $# -ne 4 ]
 then
     {
 	printf '$0 [-f] [-b bounds] [-w pixels] [-z pixels] [-l pixels]\n'
 	printf '    [-m top=pixels[,left=pixels]]\n'
-	printf '    -- data_types sweep_angle volume_file\n'
+	printf '    -- data_type colors_file sweep_angle volume_file\n'
 	printf 'where:\n'
 	printf '  -f          => fill gaps between adjacent rays.\n'
 	printf '  -b          => limits of plot in plot coordinates (not\n'
@@ -163,31 +164,34 @@ then
 	printf '                 top=value,left=value. Right and bottom\n'
 	printf '                 margins are determined from font and legend\n'
 	printf '                 sizes.\n'
-	printf '  data_types  => data types (e.g. DB_DBZ, DB_DBZ,DB_ZDR)\n'
+	printf '  -j          => URI of a javascript file\n'
+	printf '  data_type   => data type e.g. DB_DBZ\n'
+	printf '  colors_file => specify color for each data interval. Should\n'
+	printf '                 be readable with sigmet_raw outlines.\n.'
 	printf '  sweep_angle => desired tilt or azimuth, degrees. Image will\n'
 	printf '                 show sweep nearest sweep_angle.\n'
 	printf '  volume_file => Sigmet raw product file\n'
 	printf '\n'
-	printf 'For each data type in data_types, a color table will be\n'
-	printf 'sought from a file named data_type.clrs or\n'
-	printf '${SIGMET_COLOR_DIR}/data_type.clrs.\n'
-	printf '\n'
-	printf 'If SIGMET_JS environment variable is set, it must specify\n'
-	printf 'the path to Javascript file to use with the SVG plot. It\n'
-	printf 'will be inserted into the SVG file as an attribute of a\n'
-	printf 'script element.\n'
-	printf '\n'
     } 1>&2
     exit 1
 fi
-data_types=`echo "$1" | sed 's/,/ /g'`
-sweep_angle="$2"
-vol_path="$3"
+data_type="$1"
+color_fl="$2"
+sweep_angle="$3"
+vol_path="$4"
 
+# Check for color table
+if ! test -f "$color_fl"
+then
+    echo "$0: could not find color file $color_fl" 1>&2
+    exit 1
+fi
+
+# If vol_path is a regular file, start a sigmet_raw daemon for it.
+# If vol_path is a fifo, assume a sigmet_raw daemon is monitoring it.
 if test -f "$vol_path"
 then
-    # If vol_path is a regular file, start a sigmet_raw daemon for it.
-    in=`basename $vol_path | sed -e 's/\.gz$//' -e 's/\.bz2$//'`.$$.in
+    in=.`basename $vol_path | sed -e 's/\.gz$//' -e 's/\.bz2$//'`.$$.in
     mkfifo $in
     if ! sigmet_raw ${vol_path} $in
     then
@@ -198,8 +202,6 @@ then
     export SIGMET_RAW_IN=$in
 elif test -p "$vol_path"
 then
-    # If vol_path is a fifo, assume a sigmet_raw daemon is monitoring it.
-    # Send commands to vol_path.
     export SIGMET_RAW_IN=$vol_path
 else
     echo $vol_path must be a regular file or fifo. 1>&2
@@ -279,62 +281,44 @@ else
 fi
 
 # Send SVG plot parameters and data to the pisa command.
-for data_type in $data_types
-do
-    vol=`basename "$vol_path" .gz`
-    vol=`basename "$vol" .bz2`
-    caption="$vol $data_type at $sweep_angle degrees"
-    file_nm=`printf "%s_%s_%.1f.svg" $vol $data_type $sweep_angle`
-    color_fl=${data_type}_CLRS
+caption="$vol $data_type at $sweep_angle degrees"
+file_nm=`printf "%s_%s_%.1f.svg" $vol $data_type $sweep_angle`
 
-    # Find color table file
-    if test -f ${data_type}.clrs
-    then
-	color_fl=${data_type}.clrs
-    elif test -f ${SIGMET_COLOR_DIR}/${data_type}.clrs
-    then
-	color_fl=${SIGMET_COLOR_DIR}/${data_type}.clrs
-    else
-	echo "$0: could not find color file for $data_type" 1>&2
-	exit 1
-    fi
-
-    # Create a fifo for optional Javascript
-    if test $java_script
-    then
-	svg_prefix=.${vol}.script.$$.in
-	mkfifo $svg_prefix
-	{
-	    printf '<script type="application/ecmascript"'
-	    printf ' xlink:href="%s" />\n' $java_script
-	} > $svg_prefix &
-	js_opt="-p $svg_prefix"
-    fi
-
-    # Make a file, acutally a fifo, with SVG code for the color legend.
-    x_px=`echo "$left + $plot_width + 18" | bc -l`
-    y_px=`echo "$top + 9" | bc -l`
-    color_legend=.${vol}.${data_type}.$$.in
-    color_legends="${color_legends} $color_legend"
-    mkfifo $color_legend
+# Create a fifo for optional Javascript
+if test $java_script
+then
+    svg_prefix=.${vol}.script.$$.in
+    mkfifo $svg_prefix
     {
-	printf '<g\n'
-	printf '    id="color_legend"\n'
-	printf '    transform="translate(%f,%f)">\n' $x_px $y_px
-	color_legend $legend_width $legend_height $font_sz < $color_fl
-	printf '</g>\n'
-    } > $color_legend &
+	printf '<script type="application/ecmascript"'
+	printf ' xlink:href="%s" />\n' $java_script
+    } > $svg_prefix &
+    js_opt="-p $svg_prefix"
+fi
 
-    sig_raw outlines $fill $bnds $data_type $color_fl $sweep_index	\
-	| sigmet_svg.awk						\
-	| pisa -l $left -r $right -t $top -b $bottom			\
-		-w $doc_width -f $font_sz -m $prx -n $prx		\
-		-X "$x_label" -Y "$y_label" -s $color_legend		\
-		$js_opt -- $x_min $x_max $y_min $y_max			\
-    > $file_nm
-    echo $file_nm
-    rm -f $color_legend $svg_prefix
-done
+# Make a file, acutally a fifo, with SVG code for the color legend.
+x_px=`echo "$left + $plot_width + 18" | bc -l`
+y_px=`echo "$top + 9" | bc -l`
+color_legend=.${vol}.${data_type}.$$.in
+color_legends="${color_legends} $color_legend"
+mkfifo $color_legend
+{
+    printf '<g\n'
+    printf '    id="color_legend"\n'
+    printf '    transform="translate(%f,%f)">\n' $x_px $y_px
+    color_legend $legend_width $legend_height $font_sz < $color_fl
+    printf '</g>\n'
+} > $color_legend &
+
+sig_raw outlines $fill $bnds $data_type $color_fl $sweep_index	\
+    | sigmet_svg.awk						\
+    | pisa -l $left -r $right -t $top -b $bottom		\
+	    -w $doc_width -f $font_sz -m $prx -n $prx		\
+	    -X "$x_label" -Y "$y_label" -s $color_legend	\
+	    $js_opt -- $x_min $x_max $y_min $y_max		\
+> $file_nm
+echo $file_nm
+rm -f $color_legend $svg_prefix
 
 # exit will invoke code defined in trap calls above.
 exit 0
