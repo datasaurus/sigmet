@@ -54,6 +54,9 @@ trap "ssh-agent -k" EXIT TERM QUIT KILL
 eval `ssh-agent -s`
 ssh-add $key
 
+ssh -f -l $starbuck_user -L ${port}:${smartr}:22 $starbuck sleep 10
+ssh -f -p 3303 localhost cat
+
 # Process volume every dt seconds.
 while :
 do
@@ -81,8 +84,6 @@ do
 		    END {exit status}'
 		then
 		    echo "`date -u`: sending $curr_png $curr_kml"
-		    ssh -f -l $starbuck_user -L ${port}:${smartr}:22 $starbuck \
-			    sleep 10
 		    (
 			if scp -P $port $curr_png $curr_kml \
 				${smartr_user}@localhost:$dest
