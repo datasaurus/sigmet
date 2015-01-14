@@ -100,7 +100,7 @@ font_sz=18
 legend_width=64
 top=48
 left=80
-java_script=
+js_fl=
 out_fl=
 prx=6					# Precision in labels
 
@@ -129,7 +129,7 @@ do
 	    eval `echo $OPTARG | sed 's/,/;/g'`
 	    ;;
 	j)
-	    java_script="$OPTARG"
+	    js_fl="$OPTARG"
 	    ;;
 	o)
 	    out_fl="$OPTARG"
@@ -202,6 +202,16 @@ then
     exit 1
 fi
 
+cleanup() {
+    if test -f "$vol_path"
+    then
+	sig_raw exit
+	rm -f "$in"
+    fi
+    rm -f "$color_legend_svg" "$js_svg"
+}
+trap cleanup EXIT QUIT INT KILL
+
 # If vol_path is a regular file, start a sigmet_raw daemon for it.
 # If vol_path is a fifo, assume a sigmet_raw daemon is monitoring it.
 if test -f "$vol_path"
@@ -213,7 +223,6 @@ then
 	rm -f $in;
 	exit 1
     fi
-    trap "sig_raw exit; rm -f $in;" EXIT QUIT INT KILL
     export SIGMET_RAW_IN=$in
 elif test -p "$vol_path"
 then
@@ -302,37 +311,36 @@ then
 fi
 
 # Create a fifo for optional Javascript
-if test $java_script
+if test $js_fl
 then
-    svg_prefix=.${vol}.script.$$.in
-    mkfifo $svg_prefix
+    js_svg=".${vol}.script.$$.in"
+    mkfifo $js_svg
     {
 	printf '<script type="application/ecmascript"'
-	printf ' xlink:href="%s" />\n' $java_script
-    } > $svg_prefix &
-    js_opt="-p $svg_prefix"
+	printf ' xlink:href="%s" />\n' $js_fl
+    } > $js_svg &
+    js_opt="-p $js_svg"
 fi
 
 # Make a file, acutally a fifo, with SVG code for the color legend.
 x_px=`echo "$left + $plot_width + 18" | bc -l`
 y_px=`echo "$top + 9" | bc -l`
-color_legend=.${vol}.${data_type}.$$.in
-color_legends="${color_legends} $color_legend"
-mkfifo $color_legend
+color_legend_svg=".${vol}.${data_type}.$$.in"
+mkfifo $color_legend_svg
 {
     printf '<g\n'
     printf '    id="color_legend"\n'
     printf '    transform="translate(%f,%f)">\n' $x_px $y_px
     color_legend $legend_width $legend_height $font_sz < $color_fl
     printf '</g>\n'
-} > $color_legend &
+} > $color_legend_svg &
 
 outlines() {
     sig_raw outlines $fill $bnds $data_type $color_fl $sweep_index	\
 	| sigmet_svg.awk						\
 	| pisa -l $left -r $right -t $top -b $bottom			\
 		-w $doc_width -f $font_sz -m $prx -n $prx		\
-		-X "$x_label" -Y "$y_label" -s $color_legend		\
+		-X "$x_label" -Y "$y_label" -s "$color_legend_svg"	\
 		$js_opt -- $x_min $x_max $y_min $y_max
 }
 if [ "$out_fl" = "-" ]
@@ -342,7 +350,7 @@ else
     outlines > $out_fl
     echo $out_fl
 fi
-rm -f $color_legend $svg_prefix
 
-# exit will invoke code defined in trap calls above.
+cleanup
+trap - EXIT
 exit 0
