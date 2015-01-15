@@ -314,8 +314,13 @@ else
 fi
 
 # Put SVG code for caption and optional Javascript link into a prefix file
-caption="$site_name $sweep_date $sweep_time $data_type at $sweep_angle degrees"
-x_px=`echo "$left + 12" | bc -l`
+c1="${site_name}. "
+c2="Lon Lat: $radar_lon deg $radar_lat deg. "
+c3="Time: $sweep_date $sweep_time. "
+c4="Moment: $data_type. "
+c5="Angle: $sweep_angle deg."
+caption="${c1}${c2}${c3}${c4}${c5}"
+x_px=`echo "$left + 3 * $font_sz" | bc -l`
 y_px=`echo "$top + 2 * $font_sz" | bc -l`
 pfx_svg=".${vol}.pfx.$$.in"
 mkfifo $pfx_svg
