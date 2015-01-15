@@ -1488,8 +1488,9 @@ static int outlines_cb(int argc, char *argv[])
     char **colors = NULL;		/* Color names, e.g. "#rrggbb" */
     float *dbnds = NULL;		/* Data bounds for each color */
     double r00, dr;			/* Range to first bin, bin step, m. */
-    double *az0 = NULL, *az1;		/* Ray start, stop azimuths, radians */
+    double *az0, *az1;			/* Ray start, stop azimuths, radians */
     double *tilt0, *tilt1;		/* Ray start, stop tilts, radians */
+    double *buf = NULL;			/* Memory for az0, az1, tilt0, tilt1 */
     double a0, a1, tl0, tl1;		/* Members of az0, az1, tilt0, tilt1 */
     double r0, r1;			/* Distance along beam to start, end of 
 					   a bin */
@@ -1590,11 +1591,12 @@ static int outlines_cb(int argc, char *argv[])
 		argv0, data_type_s);
 	goto error;
     }
-    if ( !(az0 = CALLOC(4 * num_rays, sizeof(double))) ) {
+    if ( !(buf = CALLOC(4 * num_rays, sizeof(double))) ) {
 	fprintf(stderr, "%s: failed to allocate memory for ray limits "
 		"for %d rays.\n", argv0, num_rays);
 	goto error;
     }
+    az0 = buf;
     az1 = az0 + num_rays;
     tilt0 = az1 + num_rays;
     tilt1 = tilt0 + num_rays;
@@ -1706,7 +1708,7 @@ static int outlines_cb(int argc, char *argv[])
     FREE(colors);
     FREE(dbnds);
     FREE(lists);
-    FREE(az0);
+    FREE(buf);
     FREE(dat);
     return 1;
 
@@ -1714,7 +1716,7 @@ error:
     FREE(colors);
     FREE(dbnds);
     FREE(lists);
-    FREE(az0);
+    FREE(buf);
     FREE(dat);
     return 0;
 }
