@@ -208,7 +208,7 @@ cleanup() {
 	sig_raw exit
 	rm -f "$in"
     fi
-    rm -f "$color_legend_svg" "$js_svg"
+    rm -f "$pfx_svg" "$color_legend_svg"
 }
 trap cleanup EXIT QUIT INT KILL
 
@@ -259,10 +259,17 @@ eval `sig_raw vol_hdr`
 # Assign sweep bounds to x_min, x_max, y_min, and y_max if not set from
 # command line.
 sweep_index=`sig_raw near_sweep $sweep_angle`
-sweep_angle=`sig_raw sweep_headers \
+eval `sig_raw sweep_headers \
 	| awk -v i=$sweep_index '
-	    { a[$2] = $5 }
-	    END { print a[i] }
+	    {
+		sweep_date[$2] = $3;
+		sweep_time[$2] = $4;
+		sweep_angle[$2] = $5;
+	    }
+	    END {
+		printf "sweep_date=%s;sweep_time=%s;sweep_angle=%s\n", \
+			sweep_date[i], sweep_time[i], sweep_angle[i];
+	    }
 	'`
 eval `sig_raw sweep_bnds $sweep_index \
 | awk '
@@ -283,11 +290,13 @@ sweep_width=`echo "$x_max - $x_min" | bc -l`
 sweep_height=`echo "$y_max - $y_min" | bc -l`
 
 # Determine remaining dimensions of document and plot
+# top1 holds specified height of top margin plus space for caption
+top1=`echo "$top + 3 * $font_sz" | bc -l`
 right=`echo "$legend_width + 8 * $font_sz" | bc -l`
 bottom=`echo "6 * $font_sz" | bc -l`
 plot_width=`echo "$doc_width - $left - $right" | bc -l`
 plot_height=`echo "$plot_width * $sweep_height / $sweep_width" | bc -l`
-doc_height=`echo "$plot_height + $top + $bottom" | bc -l`
+doc_height=`echo "$plot_height + $top1 + $bottom" | bc -l`
 legend_height=`echo "$plot_height * 0.75" | bc -l`
 
 # Axis labels, depend on scan type
@@ -304,23 +313,20 @@ else
     y_label='North-south (m)'
 fi
 
-# Send SVG plot parameters and data to the pisa command.
-if ! test "$out_fl"
-then
-    out_fl=`printf "%s_%s_%.1f.svg" $vol $data_type $sweep_angle`
-fi
-
-# Create a fifo for optional Javascript
-if test $js_fl
-then
-    js_svg=".${vol}.script.$$.in"
-    mkfifo $js_svg
-    {
+# Put SVG code for caption and optional Javascript link into a prefix file
+caption="$site_name $sweep_date $sweep_time $data_type at $sweep_angle degrees"
+x_px=`echo "$left + 12" | bc -l`
+y_px=`echo "$top + 2 * $font_sz" | bc -l`
+pfx_svg=".${vol}.pfx.$$.in"
+mkfifo $pfx_svg
+{
+    printf '<text x="%f" y="%f">%s</text>\n\n' $x_px $y_px "$caption"
+    if test $js_fl
+    then
 	printf '<script type="application/ecmascript"'
-	printf ' xlink:href="%s" />\n' $js_fl
-    } > $js_svg &
-    js_opt="-p $js_svg"
-fi
+	printf ' xlink:href="%s" />\n\n' $js_fl
+    fi
+} > $pfx_svg &
 
 # Make a file, acutally a fifo, with SVG code for the color legend.
 x_px=`echo "$left + $plot_width + 18" | bc -l`
@@ -338,11 +344,16 @@ mkfifo $color_legend_svg
 outlines() {
     sig_raw outlines $fill $bnds $data_type $color_fl $sweep_index	\
 	| sigmet_svg.awk						\
-	| pisa -l $left -r $right -t $top -b $bottom			\
+	| pisa -l $left -r $right -t $top1 -b $bottom			\
 		-w $doc_width -f $font_sz -m $prx -n $prx		\
-		-X "$x_label" -Y "$y_label" -s "$color_legend_svg"	\
-		$js_opt -- $x_min $x_max $y_min $y_max
+		-X "$x_label" -Y "$y_label"				\
+		-p "$pfx_svg" -s "$color_legend_svg"			\
+		-- $x_min $x_max $y_min $y_max
 }
+if ! test "$out_fl"
+then
+    out_fl=`printf "%s_%s_%.1f.svg" $vol $data_type $sweep_angle`
+fi
 if [ "$out_fl" = "-" ]
 then
     outlines
