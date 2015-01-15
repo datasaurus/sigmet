@@ -1838,67 +1838,95 @@ enum SigmetStatus Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
     *dr_p = m_per_cm * vol_p->ih.tc.tri.step_out;
     if ( fill ) {
 	int r_prev, r_curr, r_next;	/* Previous, current, and next good
-					   rays. Ray boundaries will go from
-					   center of previous to center of next
-					   ray */
+					   rays */
 
 	if ( Sigmet_Vol_IsPPI(vol_p) ) {
 	    double az1_prev, az0_curr, az1_curr, az0_next;
 
-	    for (r_prev = 0; !ray_hdr[r_prev].ok; r_prev++ ) {
+	    /* First ray */
+	    for (r_curr = 0;
+		    r_curr < num_rays && !ray_hdr[r_curr].ok;
+		    r_curr++ ) {
 	    }
-	    if ( r_prev == num_rays ) {
+	    if ( r_curr == num_rays ) {
 		return SIGMET_BAD_VOL;
 	    }
-	    for (r_next = r_prev + 1; !ray_hdr[r_next].ok; r_next++ ) {
+	    for (r_next = r_curr + 1;
+		    r_next < num_rays && !ray_hdr[r_next].ok;
+		    r_next++) {
 	    }
 	    if ( r_next == num_rays ) {
 		return SIGMET_BAD_VOL;
 	    }
-	    az0[r_prev] = ray_hdr[r_prev].az0;
-	    az1_curr = ray_hdr[r_prev].az1;
-	    az0_next = ray_hdr[r_next].az0;
-	    az1[r_prev] = 0.5 * (az1_curr + GeogLonR(az0_next, az1_curr));
-	    tilt0[r_prev] = ray_hdr[r_prev].tilt0;
-	    tilt1[r_prev] = ray_hdr[r_prev].tilt1;
+	    az0[r_curr] = ray_hdr[r_curr].az0;
+	    az1_curr = ray_hdr[r_curr].az1;
+	    az0_next = GeogLonR(ray_hdr[r_next].az0, az1_curr);
+	    az1[r_curr] = (az1_curr + az0_next) / 2;
+	    tilt0[r_curr] = ray_hdr[r_curr].tilt0;
+	    tilt1[r_curr] = ray_hdr[r_curr].tilt1;
+
+	    /* Rest of the rays except last */
+	    r_prev = r_curr;
 	    r_curr = r_next;
-	    for (r_next = r_curr + 1; !ray_hdr[r_next].ok; r_next++) {
+	    for (r_next = r_curr + 1;
+		    r_next < num_rays && !ray_hdr[r_next].ok;
+		    r_next++) {
 	    }
 	    while (r_next < num_rays) {
-		az1_prev = ray_hdr[r_prev].az1;
 		az0_curr = ray_hdr[r_curr].az0;
+		az1_prev = GeogLonR(ray_hdr[r_prev].az1, az0_curr);
 		az1_curr = ray_hdr[r_curr].az1;
-		az0_next = ray_hdr[r_next].az0;
-		az0[r_curr] = 0.5 * (az0_curr + GeogLonR(az1_prev, az0_curr));
-		az1[r_curr] = 0.5 * (az1_curr + GeogLonR(az0_next, az1_curr));
+		az0_next = GeogLonR(ray_hdr[r_next].az0, az1_curr);
+		az0[r_curr] = (az1_prev + az0_curr) / 2;
+		az1[r_curr] = (az1_curr + az0_next) / 2;
 		tilt0[r_curr] = ray_hdr[r_curr].tilt0;
 		tilt1[r_curr] = ray_hdr[r_curr].tilt1;
 		r_prev = r_curr;
 		r_curr = r_next;
-		for (r_next = r_curr + 1; !ray_hdr[r_next].ok; r_next++) {
+		for (r_next = r_curr + 1;
+			r_next < num_rays && !ray_hdr[r_next].ok;
+			r_next++) {
 		}
 	    }
+
+	    /* Last ray */
+	    az0_curr = ray_hdr[r_curr].az0;
+	    az1_prev = GeogLonR(ray_hdr[r_prev].az1, az0_curr);
+	    az0[r_curr] = (az1_prev + az0_curr) / 2;
+	    az1[r_curr] = ray_hdr[r_curr].az1;
+	    tilt0[r_curr] = ray_hdr[r_curr].tilt0;
+	    tilt1[r_curr] = ray_hdr[r_curr].tilt1;
 	} else if ( Sigmet_Vol_IsRHI(vol_p) ) {
 	    double tilt1_prev, tilt0_curr, tilt1_curr, tilt0_next;
 
-	    for (r_prev = 0; !ray_hdr[r_prev].ok; r_prev++ ) {
+	    /* First ray */
+	    for (r_curr = 0;
+		    r_curr < num_rays && !ray_hdr[r_curr].ok;
+		    r_curr++ ) {
 	    }
-	    if ( r_prev == num_rays ) {
+	    if ( r_curr == num_rays ) {
 		return SIGMET_BAD_VOL;
 	    }
-	    for (r_next = r_prev + 1; !ray_hdr[r_next].ok; r_next++ ) {
+	    for (r_next = r_curr + 1;
+		    r_next < num_rays && !ray_hdr[r_next].ok;
+		    r_next++) {
 	    }
 	    if ( r_next == num_rays ) {
 		return SIGMET_BAD_VOL;
 	    }
-	    az0[r_prev] = ray_hdr[r_prev].az0;
-	    az1[r_prev] = ray_hdr[r_prev].az1;
-	    tilt0[r_prev] = ray_hdr[r_prev].tilt0;
-	    tilt1_curr = ray_hdr[r_prev].tilt1;
+	    az0[r_curr] = ray_hdr[r_curr].az0;
+	    az1[r_curr] = ray_hdr[r_curr].az1;
+	    tilt0[r_curr] = ray_hdr[r_curr].tilt0;
+	    tilt1_curr = ray_hdr[r_curr].tilt1;
 	    tilt0_next = ray_hdr[r_next].tilt0;
-	    tilt1[r_prev] = 0.5 * (tilt1_curr + tilt0_next);
+	    tilt1[r_curr] = (tilt1_curr + tilt0_next) / 2;
+
+	    /* Rest of rays except last */
+	    r_prev = r_curr;
 	    r_curr = r_next;
-	    for (r_next = r_curr + 1; !ray_hdr[r_next].ok; r_next++) {
+	    for (r_next = r_curr + 1;
+		    r_next < num_rays && !ray_hdr[r_next].ok;
+		    r_next++) {
 	    }
 	    while (r_next < num_rays) {
 		az0[r_curr] = ray_hdr[r_curr].az0;
@@ -1907,13 +1935,19 @@ enum SigmetStatus Sigmet_Vol_RayGeom(struct Sigmet_Vol *vol_p, int s,
 		tilt0_curr = ray_hdr[r_curr].tilt0;
 		tilt1_curr = ray_hdr[r_curr].tilt1;
 		tilt0_next = ray_hdr[r_next].tilt0;
-		tilt0[r_curr] = 0.5 * (tilt1_prev + tilt0_curr);
-		tilt1[r_curr] = 0.5 * (tilt1_curr + tilt0_next);
+		tilt0[r_curr] = (tilt1_prev + tilt0_curr) / 2;
+		tilt1[r_curr] = (tilt1_curr + tilt0_next) / 2;
 		r_prev = r_curr;
 		r_curr = r_next;
 		for (r_next = r_curr + 1; !ray_hdr[r_next].ok; r_next++) {
 		}
 	    }
+
+	    /* Last ray */
+	    az0[r_curr] = ray_hdr[r_curr].az0;
+	    az1[r_curr] = ray_hdr[r_curr].az1;
+	    tilt0[r_curr] = (tilt1[r_prev] + ray_hdr[r_curr].tilt0) / 2;
+	    tilt1[r_curr] = ray_hdr[r_curr].tilt1;
 	}
     } else {
 	for (r = 0; r < num_rays; r++) {
@@ -2111,7 +2145,8 @@ enum SigmetStatus Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p,
     struct Sigmet_Dat *dat_p;
     float ***f;
     int s, r, b;
-    double bin0, bin_step;
+    double bin0;			/* Range to center of 1st bin */
+    double bin_step;
 
     if ( !vol_p || !data_type_s ) {
 	return SIGMET_BAD_ARG;
@@ -2124,7 +2159,7 @@ enum SigmetStatus Sigmet_Vol_Fld_SetRBeam(struct Sigmet_Vol *vol_p,
     dat_p->stor_fmt = SIGMET_FLT;
     f = dat_p->vals.f;
     bin_step = 0.01 * vol_p->ih.tc.tri.step_out;	/* cm -> meter */
-    bin0 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin + 0.5 * bin_step;
+    bin0 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin + bin_step / 2;
     for (s = 0; s < vol_p->ih.ic.num_sweeps; s++) {
 	if ( vol_p->sweep_hdr[s].ok ) {
 	    for (r = 0; r < vol_p->ih.ic.num_rays; r++) {
@@ -3221,7 +3256,7 @@ enum SigmetStatus Sigmet_Vol_PPI_BinOutl(struct Sigmet_Vol *vol_p,
 	az1 = az0;
 	az0 = t;
     }
-    tilt = 0.5 * (vol_p->ray_hdr[s][r].tilt0 + vol_p->ray_hdr[s][r].tilt1);
+    tilt = (vol_p->ray_hdr[s][r].tilt0 + vol_p->ray_hdr[s][r].tilt1) / 2;
     r00 = 0.01 * vol_p->ih.tc.tri.rng_1st_bin;	/* 0.01 converts cm -> m */
     dr = 0.01 * vol_p->ih.tc.tri.step_out;
     r0 = r00 + b * dr;
@@ -3300,10 +3335,10 @@ enum SigmetStatus Sigmet_Vol_PPI_Bnds(struct Sigmet_Vol *vol_p, int s,
 	if ( vol_p->ray_hdr[s][r].ok ) {
 	    az0 = vol_p->ray_hdr[s][r].az0;
 	    az1 = GeogLonR(vol_p->ray_hdr[s][r].az1, az0);
-	    az = 0.5 * (az0 + az1);
+	    az = (az0 + az1) / 2;
 	    tilt0 = vol_p->ray_hdr[s][r].tilt0;
 	    tilt1 = vol_p->ray_hdr[s][r].tilt1;
-	    tilt = 0.5 * (tilt0 + tilt1);
+	    tilt = (tilt0 + tilt1) / 2;
 	    ray_len_g
 		= atan(ray_len * cos(tilt) / (rearth + ray_len * sin(tilt)));
 	    GeogStep(rlon, rlat, az, ray_len_g, &lon, &lat);
@@ -3422,7 +3457,7 @@ enum SigmetStatus Sigmet_Vol_RHI_Bnds(struct Sigmet_Vol *vol_p, int s,
 	if ( vol_p->ray_hdr[s][r].ok ) {
 	    tilt0 = vol_p->ray_hdr[s][r].tilt0;
 	    tilt1 = vol_p->ray_hdr[s][r].tilt1;
-	    tilt = 0.5 * (tilt0 + tilt1);
+	    tilt = (tilt0 + tilt1) / 2;
 	    x = rearth
 		* atan2(ray_len * cos(tilt), rearth + ray_len * sin(tilt));
 	    y = (sqrt(rearth * rearth + 2 * rearth * ray_len * sin(tilt)
