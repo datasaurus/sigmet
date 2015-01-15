@@ -620,12 +620,12 @@ static int sweep_headers_cb(int argc, char *argv[])
 	}
 	if ( ok ) {
 	    if ( Tm_JulToCal(msec(tm), &yr, &mon, &da, &hr, &min, &sec) ) {
-		fprintf(out, "%04d/%02d/%02d %02d:%02d:%06.3lf ",
+		fprintf(out, "%04d/%02d/%02d %02d:%02d:%04.1lf ",
 			yr, mon, da, hr, min, sec);
 	    } else {
 		fprintf(out, "0000/00/00 00:00:00 ");
 	    }
-	    fprintf(out, "%7.3f\n", ang * DEG_PER_RAD);
+	    fprintf(out, "%7.1f\n", ang * DEG_PER_RAD);
 	} else {
 	    fprintf(out, "bad\n");
 	}
