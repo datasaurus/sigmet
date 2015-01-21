@@ -181,16 +181,17 @@ window.addEventListener("load", function (evt)
 	    var x = svg_x_to_cart(evt.clientX);
 	    var y = svg_y_to_cart(evt.clientY);
 	    var az = Math.atan2(y, x);
-	    var s = Math.sqrt(x * x + y * y) / a0;
+	    var delta = Math.sqrt(x * x + y * y) / a0;
 	    var cursorLoc = {};
-	    GeogStep(radarLon, radarLat, az, s, cursorLoc);
+	    GeogStep(radarLon, radarLat, az, delta, cursorLoc);
 	    var lon = cursorLoc.lon * degPerRad;
 	    var lat = cursorLoc.lat * degPerRad;
 	    var ew = (lon > 0.0) ? " E " : " W ";
 	    var ns = (lat > 0.0) ? " N " : " S ";
 	    lon = Math.abs(lon);
 	    lat = Math.abs(lat);
-	    var ht;				// <<<<===== FIX !!!
+	    var ht = 2.0 * a0 * Math.sin(delta / 2.0)
+		* Math.sin(tilt + delta / 2.0) / Math.cos(tilt + delta);
 	    var txt = "Cursor: "
 		+ lon.toFixed(3) + ew
 		+ lat.toFixed(3) + ns
@@ -220,6 +221,7 @@ window.addEventListener("load", function (evt)
 	match = caption.textContent.match(ppiPtn);
 	if ( match ) {
 	    var tilt = match[1] * Math.PI / 180.0;
+	    plot.addEventListener("mousemove", update_ppi_loc, false);
 	}
 
 	/*
@@ -870,10 +872,10 @@ window.addEventListener("load", function (evt)
 	}
 
 	/*
-	   Compute destination point at given separation step and
+	   Compute destination point at given separation delta and
 	   direction dir from point at longitude lon1, latitude lat1.
 	   Destination longitude and latitude will be placed in loc
-	   as lon and lat members. All angles are in radians. step in
+	   as lon and lat members. All angles are in radians. delta in
 	   great circle radians.
 
 	   Ref.
@@ -882,20 +884,20 @@ window.addEventListener("load", function (evt)
 	   cited in: http://www.census.gov/cgi-bin/geo/gisfaq?Q5.1
 	 */
 
-	function GeogStep(lon1, lat1, dir, step, loc)
+	function GeogStep(lon1, lat1, dir, delta, loc)
 	{
 	    var sin_s, sin_d, cos_d, dlon, a, x, y, lon;
 
-	    sin_s = Math.sin(step);
+	    sin_s = Math.sin(delta);
 	    sin_d = Math.sin(dir);
 	    cos_d = Math.cos(dir);
-	    a = 0.5 * (Math.sin(lat1 + step) * (1.0 + cos_d)
-		    + Math.sin(lat1 - step) * (1.0 - cos_d));
+	    a = 0.5 * (Math.sin(lat1 + delta) * (1.0 + cos_d)
+		    + Math.sin(lat1 - delta) * (1.0 - cos_d));
 	    loc.lat = (a > 1.0) ? Math.PI / 2
 		: (a < -1.0) ? -Math.PI / 2 : Math.asin(a);
 	    y = sin_s * sin_d;
-	    x = 0.5 * (Math.cos(lat1 + step) * (1 + cos_d)
-		    + Math.cos(lat1 - step) * (1 - cos_d));
+	    x = 0.5 * (Math.cos(lat1 + delta) * (1 + cos_d)
+		    + Math.cos(lat1 - delta) * (1 - cos_d));
 	    dlon = Math.atan2(y, x);
 	    lon = lon1 + dlon;
 	    if ( loc.lon > Math.PI ) {
