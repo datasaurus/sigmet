@@ -340,7 +340,7 @@ mkfifo $pfx_svg
 
 # Make a file, acutally a fifo, with SVG code for the color legend.
 x_px=`echo "$left + $plot_width + 18" | bc -l`
-y_px=`echo "$top + 9" | bc -l`
+y_px=`echo "$top1 + 9" | bc -l`
 color_legend_svg=".${vol}.${data_type}.$$.in"
 mkfifo $color_legend_svg
 {
