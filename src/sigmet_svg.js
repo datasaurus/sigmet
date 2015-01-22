@@ -75,7 +75,9 @@ window.addEventListener("load", function (evt)
 	var y_prx = 6;
 	function to_prx(x, prx)
 	{
-	    return Number(x.toPrecision(prx));
+	    var s = x.toPrecision(prx);
+	    s = s.replace(/0+$/, "");
+	    return s.replace(/\.?$/, "");
 	}
 
 	/* Objects for plot elements */
@@ -94,6 +96,7 @@ window.addEventListener("load", function (evt)
 	var zoom_in = document.getElementById("zoom_in");
 	var zoom_out = document.getElementById("zoom_out");
 	var print = document.getElementById("print");
+	var cursor_loc = document.getElementById("cursor_loc");
 	var color_legend = document.getElementById("color_legend");
 
 	/*
@@ -148,16 +151,9 @@ window.addEventListener("load", function (evt)
 	}
 
 	/*
-	   Create a text element that displays the Cartesian coordinates
-	   of the cursor location.
+	   Show cursor longitude, latitude, and elevation in cursor_loc element.
 	 */
 
-	var cursor_loc = document.createElementNS(svgNs, "text");
-	cursor_loc.setAttribute("x", "120");
-	cursor_loc.setAttribute("y", "4");
-	cursor_loc.setAttribute("dominant-baseline", "hanging");
-	cursor_loc.textContent = "x y";
-	root.appendChild(cursor_loc);
 	function update_rhi_loc(evt)
 	{
 	    var x = svg_x_to_cart(evt.clientX);
@@ -201,6 +197,7 @@ window.addEventListener("load", function (evt)
 
 	/*
 	   Fetch radar location, sweep type, and sweep angle from the caption.
+	   Set cursor_loc update function appropriate to sweep type.
 	 */
 
 	var caption = document.getElementById("caption");

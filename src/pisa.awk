@@ -837,7 +837,7 @@ function print_header()
     printf "    id=\"print\"\n";
     printf "    class=\"interactive\"\n";
     printf "    visibility=\"hidden\"\n";
-    printf "        display=\"none\"\n";
+    printf "    display=\"none\"\n";
     printf "    x=\"48\"\n";
     printf "    y=\"0\"\n";
     printf "    width=\"60.0\"\n";
@@ -867,8 +867,19 @@ function print_header()
     printf "    </text>\n";
     printf "</svg>\n";
 
-    $0 = "";
+#   Cursor location, not displayed, unless a script modifies it.
+    printf "<text\n";
+    printf "    id=\"cursor_loc\"\n";
+    printf "    class=\"interactive\"\n";
+    printf "    visibility=\"hidden\"\n";
+    printf "    display=\"none\"\n";
+    printf "    x=\"120\"\n";
+    printf "    y=\"4\"\n";
+    printf "    dominant-baseline=\"hanging\">\n";
+    printf "x y\n";
+    printf "</text>\n";
 
+    $0 = "";
 }
 
 /^\s*end\s*$/ {
