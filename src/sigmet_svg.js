@@ -36,13 +36,9 @@
    SVG plot variables and functions persist anonymously in closures.
  */
 
-window.addEventListener("load", function (evt)
-	{
+window.addEventListener("load", function (evt) {
 	"use strict";
 	/*jslint browser:true */
-
-	var svgNs = "http://www.w3.org/2000/svg";
-	var xlinkNs="http://www.w3.org/1999/xlink";
 
 	/*
 	   Compute a0 = Earth radius.
@@ -154,7 +150,7 @@ window.addEventListener("load", function (evt)
 	   class, and sets their visibility to "hidden", to avoid clutter in
 	   static SVG documents. This block makes them visible so that user
 	   can interact with them.
-	*/
+	 */
 
 	var e, elems = document.getElementsByClassName("interactive");
 	for (e = 0; e < elems.length; e++) {
@@ -232,7 +228,7 @@ window.addEventListener("load", function (evt)
 
 	/*
 	   Enable zoom buttons.
-	   
+
 	   Function zoom_plot applies zoom factor s to the plot.
 	   s < 0 => zooming in, s > 0 => zooming out.
 
@@ -698,6 +694,7 @@ window.addEventListener("load", function (evt)
 					   all labels */
 	    var lbl, tick;		/* Label and tick elements */
 	    var bbox;			/* Bounding box for a text label */
+	    var svgNs = "http://www.w3.org/2000/svg";
 
 	    y = xAxis.y.baseVal.value + tick_len + pad + font_sz;
 	    y1 = xAxis.y.baseVal.value;
@@ -758,6 +755,7 @@ window.addEventListener("load", function (evt)
 	    var bbox;			/* Bounding box for an element */
 	    var textHeight;		/* Total display height */
 	    var lbl, tick;
+	    var svgNs = "http://www.w3.org/2000/svg";
 
 	    yAxisRght = yAxis.x.baseVal.value + yAxis.width.baseVal.value;
 	    x = yAxisRght - 1.5 * tick_len;
@@ -919,5 +917,5 @@ window.addEventListener("load", function (evt)
 	}
 	resize.call(this, {});
 
-	}, false);			/* Done defining load callback */
+}, false);			/* Done defining load callback */
 
