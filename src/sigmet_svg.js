@@ -90,6 +90,13 @@ window.addEventListener("load", function (evt) {
 	var yAxisClip = document.getElementById("yAxisClipRect");
 	var yTitle = document.getElementById("yTitle");
 	var yTitleXForm = document.getElementById("yTitleTransform");
+
+	/*
+	   Interactive elements, probably defined in pisa_buttons.svg,
+	   or a document derived from it, and included via a "-p" or "-s"
+	   option to the pisa command.
+	 */
+
 	var zoom_in = document.getElementById("zoom_in");
 	var zoom_out = document.getElementById("zoom_out");
 	var print = document.getElementById("print");

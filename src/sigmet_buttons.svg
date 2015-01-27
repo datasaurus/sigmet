@@ -1,0 +1,205 @@
+<!--
+	sigmet_buttons.svg
+		Define interactive elements for sigmet_svg_doc.
+		Apply with -s option to sigmet_svg_doc.
+
+	Copyright (c) 2015, Gordon D. Carrie. All rights reserved.
+
+	Redistribution and use in source and binary forms, with or without
+	modification, are permitted provided that the following conditions
+	are met:
+
+	* Redistributions of source code must retain the above copyright
+	notice, this list of conditions and the following disclaimer.
+	* Redistributions in binary form must reproduce the above copyright
+	notice, this list of conditions and the following disclaimer in the
+	documentation and/or other materials provided with the distribution.
+
+	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+	"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+	LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+	A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+	HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+	SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+	TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+	PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+	LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+	NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+	SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+	Please send feedback to dev0@trekix.net
+-->
+
+<!-- Links to scripts that use the buttons -->
+<script
+    type="application/ecmascript"
+    xlink:href="file:///home/gcarrie/local/libexec/sigmet_svg.js" />
+<script
+    type="application/ecmascript"
+    xlink:href="file:///home/gcarrie/local/libexec/sigmet_nav_btn.js" />
+
+
+<!-- Zoom in button. It is not displayed, unless a script modifies it. -->
+<svg
+    id="zoom_in"
+    class="interactive"
+    visibility="hidden"
+    display="none"
+    x="0.0"
+    y="0.0"
+    width="24.0"
+    height="24.0">
+    <rect
+	class="interactive"
+	visibility="hidden"
+	display="none"
+	x="1.0"
+	y="1.0"
+	width="22"
+	height="22"
+	stroke="black"
+	stroke-width="1"
+	fill="white" />
+    <circle
+	class="interactive"
+	visibility="hidden"
+	display="none"
+	cx="12.0"
+	cy="12.0"
+	r="6"
+	stroke="black"
+	stroke-width="1"
+	fill="none" />
+    <line
+	class="interactive"
+	visibility="hidden"
+	display="none"
+	x1="16.2426"
+	y1="16.2426"
+	x2="21.0"
+	y2="21.0"
+	stroke="black"
+	stroke-width="1"
+	fill="none" />
+    <text
+	class="interactive"
+	visibility="hidden"
+	display="none"
+	x="12"
+	y="12"
+	cursor="default"
+	text-anchor="middle"
+	dominant-baseline="mathematical"
+	font-size="9"
+	stroke="black"
+	stroke-width="1"
+	fill="none">
++
+    </text>
+</svg>
+
+<!-- Zoom out button. It is not displayed, unless a script modifies it. -->
+<svg
+    id="zoom_out"
+    class="interactive"
+    visibility="hidden"
+    display="none"
+    x="24.0"
+    y="0.0"
+    width="24.0"
+    height="24.0">
+    <rect
+	class="interactive"
+	visibility="hidden"
+	display="none"
+	x="1.0"
+	y="1.0"
+	width="22"
+	height="22"
+	stroke="black"
+	stroke-width="1"
+	fill="white" />
+    <circle
+	class="interactive"
+	visibility="hidden"
+	display="none"
+	cx="12.0"
+	cy="12.0"
+	r="6"
+	stroke="black"
+	stroke-width="1"
+	fill="none" />
+    <line
+	class="interactive"
+	visibility="hidden"
+	display="none"
+	x1="16.2426"
+	y1="16.2426"
+	x2="21.0"
+	y2="21.0"
+	stroke="black"
+	stroke-width="1"
+	fill="none" />
+    <text
+	class="interactive"
+	visibility="hidden"
+	display="none"
+	x="12"
+	y="12"
+	cursor="default"
+	text-anchor="middle"
+	dominant-baseline="mathematical"
+	    font-size="9"
+	stroke="black"
+	stroke-width="1"
+	fill="none">
+-
+    </text>
+</svg>
+
+<!-- Print button. It is not displayed, unless a script modifies it. -->
+<svg
+    id="print"
+    class="interactive"
+    visibility="hidden"
+    display="none"
+    x="48"
+    y="0"
+    width="60.0"
+    height="24.0">
+    <rect
+	class="interactive"
+	visibility="hidden"
+	display="none"
+	x="1.0"
+	y="1.0"
+	width="58"
+	height="22"
+	stroke="black"
+	stroke-width="1"
+	fill="white" />
+    <text
+	class="interactive"
+	visibility="hidden"
+	display="none"
+	x="30"
+	y="18"
+	cursor="default"
+	text-anchor="middle"
+	font-size="12"
+	stroke="black" >
+   PRINT
+    </text>
+</svg>
+
+<!-- Cursor location, not displayed, unless a script modifies it. -->
+<text
+    id="cursor_loc"
+    class="interactive"
+    visibility="hidden"
+    display="none"
+    x="120"
+    y="4"
+    dominant-baseline="hanging">
+x y
+</text>

@@ -11,7 +11,7 @@
 #
 # Usage:
 #	sigmet_svg [-f] [-b bounds] [-w pixels] [-z pixels] [-l pixels] 
-#		[-m top=pixels[,left=pixels]] [-j path] --
+#		[-m top=pixels[,left=pixels]] [-p path] [-s path] --
 #		data_type colors_file sweep_angle volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
@@ -27,8 +27,8 @@
 #	-m		- margins around plot area, given as
 #			  top=value,left=value. Right and bottom margins
 #			  are determined from font and legend sizes.
-#	-j		- path to a Javascript file. Output will include a
-#			  script element that refers to the script.
+#	-p		- prefix option passed to pisa. See pisa (1).
+#	-s		- suffix option passed to pisa. See pisa (1).
 #	-o		- name of output file. If none is given, SVG output
 #			  goes to a file with a suitable name. If output
 #			  goes to a file, script prints the name of the file
@@ -100,12 +100,11 @@ font_sz=18
 legend_width=64
 top=48
 left=80
-js_fl=
 out_fl=
 prx=6					# Precision in labels
 
 # Parse command line
-while getopts :fb:w:z:l:m:j:o: opt
+while getopts :fb:w:z:l:m:p:s:o: opt
 do
     case "$opt"
     in
@@ -128,8 +127,13 @@ do
 	m)
 	    eval `echo $OPTARG | sed 's/,/;/g'`
 	    ;;
-	j)
-	    js_fl="$OPTARG"
+	p)
+	    # Separate paths with | since path names can contain whitespace.
+	    prefixes=${prefixes}"${prefixes:+|}$OPTARG"
+	    ;;
+	s)
+	    # Separate paths with | since path names can contain whitespace.
+	    suffixes=${suffixes}"${suffixes:+|}$OPTARG"
 	    ;;
 	o)
 	    out_fl="$OPTARG"
@@ -173,7 +177,8 @@ then
 	printf '                 top=value,left=value. Right and bottom\n'
 	printf '                 margins are determined from font and legend\n'
 	printf '                 sizes.\n'
-	printf '  -j          => URI of a javascript file\n'
+	printf '  -p          => path to prefix file\n'
+	printf '  -s          => path to suffix file\n'
 	printf '  -o          => name of output file. If none is given, SVG\n'
 	printf '                 output goes to a file with a suitable name.\n'
 	printf '                 If output goes to a file, script prints the\n'
@@ -208,7 +213,7 @@ cleanup() {
 	sig_raw exit
 	rm -f "$in"
     fi
-    rm -f "$pfx_svg" "$color_legend_svg"
+    rm -f "$pfx_svg" "$sfx_svg"
 }
 trap cleanup EXIT QUIT INT KILL
 
@@ -313,7 +318,7 @@ else
     y_label='North-south (m)'
 fi
 
-# Put SVG code for caption and optional Javascript link into a prefix file
+# Put SVG code for caption and optional prefix code into a prefix file (fifo).
 c1="$data_type from ${site_name} "
 c2="at $radar_lon deg lon, $radar_lat deg lat, "
 c3="$sweep_date $sweep_time. "
@@ -331,34 +336,33 @@ mkfifo $pfx_svg
 {
     printf '<text id="caption" x="%f" y="%f">%s</text>\n\n' \
 	    $x_px $y_px "$caption"
-    if test $js_fl
-    then
-	printf '<script type="application/ecmascript"'
-	printf ' xlink:href="%s" />\n\n' $js_fl
-    fi
+    { IFS=\|; cat $prefixes; }
 } > $pfx_svg &
 
-# Make a file, acutally a fifo, with SVG code for the color legend.
+# Put SVG code for color legend and optional suffix code into a suffix
+# file (fifo).
 x_px=`echo "$left + $plot_width + 18" | bc -l`
 y_px=`echo "$top1 + 9" | bc -l`
-color_legend_svg=".${vol}.${data_type}.$$.in"
-mkfifo $color_legend_svg
+sfx_svg=".${vol}.${data_type}.$$.in"
+mkfifo $sfx_svg
 {
     printf '<g\n'
     printf '    id="color_legend"\n'
     printf '    transform="translate(%f,%f)">\n' $x_px $y_px
     color_legend $legend_width $legend_height $font_sz < $color_fl
     printf '</g>\n'
-} > $color_legend_svg &
+    { IFS=\|; cat $suffixes; }
+} > $sfx_svg &
 
+# Send SVG for bin outlines to standard output.
 outlines() {
     sig_raw outlines $fill $bnds $data_type $color_fl $sweep_index	\
 	| sigmet_svg.awk						\
-	| pisa -l $left -r $right -t $top1 -b $bottom			\
-		-w $doc_width -f $font_sz -m $prx -n $prx		\
-		-X "$x_label" -Y "$y_label"				\
-		-p "$pfx_svg" -s "$color_legend_svg"			\
-		-- $x_min $x_max $y_min $y_max
+	| pisa -l $left -r $right -t $top1 -b $bottom 			\
+		    -w $doc_width -f $font_sz -m $prx -n $prx 		\
+		    -X "$x_label" -Y "$y_label"				\
+		    -p $pfx_svg -s $sfx_svg 				\
+		    -- $x_min $x_max $y_min $y_max;
 }
 if ! test "$out_fl"
 then
