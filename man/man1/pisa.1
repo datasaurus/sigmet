@@ -99,15 +99,17 @@ x axis title
 .It Fl Y
 y axis title
 .It Fl p
-File with SVG code to print before the plot. This could contain SVG code for
-elements to render under the plot. It could also contain meta data, such as
-links to script files.
+File with SVG code to print before the plot. Visible elements will appear to
+be under the plot.  It could also contain meta data, such as links to script
+files. This option can be repeated. Referenced files will be concatenated in
+the output.
 .It Fl s
-File with SVG code to print after the plot. This could contain SVG code for
-elements to render on top of the plot. It could also contain meta data, such as
-links to script files.
+File with SVG code to print after the plot. Visible elements will appear to
+be on top of the plot.  It could also contain meta data, such as links to script
+files. This option can be repeated. Referenced files will be concatenated in
+the output.
 .It Fl y
-path to a CSS style sheet.
+path to a CSS style sheet. This option can be repeated.
 .El
 .Sh ATTRIBUTES
 Certain SVG elements will have the following
