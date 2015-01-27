@@ -586,12 +586,15 @@ function print_header()
     printf "        fill=\"white\" />\n";
     printf "\n"
     printf "<!-- Define elements in plot area -->\n";
+    printf "<g id=\"plotElements\">\n"
 }
 
 # When done plotting, terminate plot area. Draw axes and labels.
 # Printing will continue, but subsequent elements will not use
 # plot coordinates.
 /^\s*end_plot\s*$/ {
+    printf "<!-- Terminate plot elements group -->\n"
+    printf "</g>\n";
     printf "<!-- Terminate transform to Cartesian coordinates-->\n"
     printf "</g>\n";
     printf "\n";
