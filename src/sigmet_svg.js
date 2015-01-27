@@ -310,18 +310,21 @@ window.addEventListener("load", function (evt) {
 
 	/* Enable print button */
 	print.addEventListener("click", function (evt) {
-		root.removeChild(zoom_in);
-		root.removeChild(zoom_out);
-		root.removeChild(print);
-		root.removeChild(cursor_loc);
+		var itrc, i;
+
+		itrc = document.getElementsByClassName("interactive");
+		for (i = 0; i < itrc.length; i++) {
+		    itrc[i].setAttribute("visibility", "hidden");
+		    itrc[i].setAttribute("display", "none");
+		}
 		window.print();
 		window.setTimeout(function () {
-		    root.appendChild(zoom_in);
-		    root.appendChild(zoom_out);
-		    root.appendChild(print);
-		    root.appendChild(cursor_loc);
+			for (i = 0; i < itrc.length; i++) {
+			    itrc[i].setAttribute("visibility", "visible");
+			    itrc[i].setAttribute("display", "inline");
+			}
 		    }, 500.0);
-		}, false);
+	    }, false);
 
 	/* Grow plot if window resizes */ 
 	function resize(evt)
