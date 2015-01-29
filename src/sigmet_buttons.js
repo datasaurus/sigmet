@@ -134,7 +134,7 @@ window.addEventListener("load", function (evt) {
 		    return;
 		}
 		var new_doc = request.responseXML;
-		var new_svg = new_doc.rootElement;
+		var new_svg = new_doc.childNodes[1];
 		var new_title = new_svg.getElementById("docTitle");
 		var new_caption = new_svg.getElementById("caption");
 		var new_plot_elems = new_svg.getElementById("plotElements");
