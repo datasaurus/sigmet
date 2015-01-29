@@ -593,6 +593,7 @@ function print_header()
 # Printing will continue, but subsequent elements will not use
 # plot coordinates.
 /^\s*end_plot\s*$/ {
+    $0 = "";
     printf "<!-- Terminate plot elements group -->\n"
     printf "</g>\n";
     printf "<!-- Terminate transform to Cartesian coordinates-->\n"
