@@ -318,7 +318,7 @@ else
     y_label='North-south (m)'
 fi
 
-# Put SVG code for caption and optional prefix code into a prefix file (fifo).
+# Create prefix file (fifo).
 c1="$data_type from ${site_name} "
 c2="at $radar_lon deg lon, $radar_lat deg lat, "
 c3="$sweep_date $sweep_time. "
@@ -334,13 +334,14 @@ y_px=`echo "$top + 2 * $font_sz" | bc -l`
 pfx_svg=".${vol}.pfx.$$.in"
 mkfifo $pfx_svg
 {
+    printf '<title id="docTitle">%s %s %s %s</title>\n' \
+	    $site_name $sweep_date $sweep_time $data_type
     printf '<text id="caption" x="%f" y="%f">%s</text>\n\n' \
 	    $x_px $y_px "$caption"
     { IFS=\|; cat $prefixes; }
 } > $pfx_svg &
 
-# Put SVG code for color legend and optional suffix code into a suffix
-# file (fifo).
+# Create suffix file (fifo).
 x_px=`echo "$left + $plot_width + 18" | bc -l`
 y_px=`echo "$top1 + 9" | bc -l`
 sfx_svg=".${vol}.${data_type}.$$.in"

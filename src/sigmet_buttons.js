@@ -133,18 +133,22 @@ window.addEventListener("load", function (evt) {
 		if ( !request.responseXML ) {
 		    return;
 		}
-		var curr_plot_elems = document.getElementById("plotElements");
-		var curr_caption = document.getElementById("caption");
-		var new_svg = request.responseXML.rootElement;
-		var new_plot_elems = new_svg.getElementById("plotElements");
+		var new_doc = request.responseXML;
+		var new_svg = new_doc.rootElement;
+		var new_title = new_svg.getElementById("docTitle");
 		var new_caption = new_svg.getElementById("caption");
+		var new_plot_elems = new_svg.getElementById("plotElements");
 		if ( !new_plot_elems || !new_caption ) {
 		    hide_updating();
 		    return;
 		}
+		var curr_title = document.getElementById("docTitle");
+		curr_title.textContent = new_title.textContent;
+		var curr_caption = document.getElementById("caption");
+		curr_caption.parentNode.replaceChild(new_caption, curr_caption);
+		var curr_plot_elems = document.getElementById("plotElements");
 		curr_plot_elems.parentNode.replaceChild(
 			new_plot_elems, curr_plot_elems);
-		curr_caption.parentNode.replaceChild(new_caption, curr_caption);
 		curr_url = request.responseXML.URL;
 		hide_updating();
 	    }
