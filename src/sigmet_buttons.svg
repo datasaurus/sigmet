@@ -9,7 +9,7 @@
     xlink:href="file:///home/gcarrie/local/libexec/sigmet_svg.js" />
 <script
     type="application/ecmascript"
-    xlink:href="file:///home/gcarrie/local/libexec/sigmet_nav_btn.js" />
+    xlink:href="file:///home/gcarrie/local/libexec/sigmet_buttons.js" />
 
 <!-- Zoom in button -->
 <svg

@@ -54,7 +54,7 @@ EXEC_SCRIPTS = sig_raw sigmet_mkcase.awk sigmet_sizex.awk pisa 		\
 	       sigmet_svg_doc sigmet_png_kml sigmet_dorade		\
 	       sigmet_svg.awk sigmet_vol_tm sigmet_fdupes raster_clrs	\
 	       utm_zone dt.awk pisa.awk
-LIBEXEC_SCRIPTS = sigmet_svg.js sigmet_nav_btn.js
+LIBEXEC_SCRIPTS = sigmet_svg.js sigmet_buttons.js
 EXECS = ${EXEC_BINS} ${EXEC_SCRIPTS}
 LIBDATA_FILES = sigmet_buttons.svg
 
