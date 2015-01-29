@@ -238,7 +238,6 @@ x y
 <!-- Indicate when page is updating -->
 <svg
     id="updating"
-    class="interactive"
     visibility="hidden"
     display="none"
     x="320.0"
