@@ -37,19 +37,24 @@ window.addEventListener("load", function (evt) {
 	var site = "http://smartr.metr.ou.edu/";
 	var root = site + "smartr2/images/svg";
 
-	/* URL of current image */
+	/* URL of current image. */
 	var curr_url = window.location.href;
 
+	/* Previous and next volume buttons */
+	var prev_btn = document.getElementById("prev_vol");
+	var next_btn = document.getElementById("next_vol");
+
 	/*
-	 * This functions maintain img_ls - a list of image URL's currently
-	 * available at the site. get_img_ls requests a list. Callback
-	 * update_img_ls updates img_ls when with a new list when it arrives.
+	 * These functions maintain img_ls - a list of image URL's currently
+	 * available at the site for the current data type. get_img_ls requests
+	 * a list. Callback update_img_ls updates img_ls when with a new list
+	 * when it arrives.
 	 */
 
 	var img_ls;
 	function get_img_ls(evt)
 	{
-	    var list = site + "/cgi-bin/smartr2/img_idx?";
+	    var list = site + "/cgi-bin/smartr2/img_idx?data_type=" + data_type;
 	    var request = new XMLHttpRequest();
 	    request.open("GET", list, true);
 	    request.onreadystatechange = update_img_ls;
@@ -59,15 +64,33 @@ window.addEventListener("load", function (evt) {
 	{
 	    var xml, n;
 	    var request = this;
+
 	    if ( request.readyState == 4 ) {
 		if ( !request.responseXML ) {
 		    return;
 		}
+
+		/* Update img_ls */
 		xml = request.responseXML.firstChild;
 		img_ls = new Array(0);
 		for (n = 0; n < xml.childNodes.length; n++) {
 		    if ( xml.childNodes[n].nodeName == "img" ) {
 			img_ls.push(root + "/" + xml.childNodes[n].textContent);
+		    }
+		}
+
+		/* If curr_url is at start of list, dim prev button */
+		var color, elem;
+		if ( curr_url == img_ls[0] ) {
+		    color = "#888";
+		} else {
+		    color = "black";
+		}
+		for (n = 0; n < prev_btn.childNodes.length; n++) {
+		    elem = prev_btn.childNodes[n];
+		    if ( elem.tagName == "rect" || elem.tagName == "text"
+			    || elem.tagName == "line" ) {
+			elem.setAttribute("stroke", color);
 		    }
 		}
 	    }
@@ -81,15 +104,15 @@ window.addEventListener("load", function (evt) {
 
 	function show_updating()
 	{
-		var updating = document.getElementById("updating");
-		updating.setAttribute("visibility", "visible");
-		updating.setAttribute("display", "inline");
+	    var updating = document.getElementById("updating");
+	    updating.setAttribute("visibility", "visible");
+	    updating.setAttribute("display", "inline");
 	}
 	function hide_updating()
 	{
-		var updating = document.getElementById("updating");
-		updating.setAttribute("visibility", "hidden");
-		updating.setAttribute("display", "none");
+	    var updating = document.getElementById("updating");
+	    updating.setAttribute("visibility", "hidden");
+	    updating.setAttribute("display", "none");
 	}
 
 	/*
@@ -151,11 +174,10 @@ window.addEventListener("load", function (evt) {
 			new_plot_elems, curr_plot_elems);
 		curr_url = request.responseXML.URL;
 		hide_updating();
+		get_img_ls();
 	    }
 	}
-	var prev_btn = document.getElementById("prev_vol");
 	prev_btn.addEventListener("click", prev_img, false);
-	var next_btn = document.getElementById("next_vol");
 	next_btn.addEventListener("click", next_img, false);
 
 }, false);
