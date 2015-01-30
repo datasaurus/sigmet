@@ -31,7 +31,6 @@ PREFIX=/usr/local
 # Usual places to put things under $PREFIX
 BINDIR=${PREFIX}/bin
 LIBEXEC_DIR = ${PREFIX}/libexec
-LIBDATA_DIR = ${PREFIX}/libdata
 MANDIR=${PREFIX}/share/man
 
 # Compilers and options
@@ -56,7 +55,6 @@ EXEC_SCRIPTS = sig_raw sigmet_mkcase.awk sigmet_sizex.awk pisa 		\
 	       utm_zone dt.awk pisa.awk
 LIBEXEC_SCRIPTS = sigmet_svg.js sigmet_buttons.js
 EXECS = ${EXEC_BINS} ${EXEC_SCRIPTS}
-LIBDATA_FILES = sigmet_buttons.svg
 
 CP = cp -p -f
 RM = rm -fr
@@ -73,8 +71,6 @@ install : ${EXECS}
 	${CP} ${EXECS} ${BINDIR}
 	mkdir -p ${LIBEXEC_DIR}
 	${CP} ${LIBEXEC_SCRIPTS} ${LIBEXEC_DIR}
-	mkdir -p ${LIBDATA_DIR}
-	${CP} ${LIBDATA_FILES} ${LIBDATA_DIR}
 	mkdir -p ${MANDIR}/man1
 	${CP} ../man/man1/*.1 ${MANDIR}/man1
 	mkdir -p ${MANDIR}/man3
