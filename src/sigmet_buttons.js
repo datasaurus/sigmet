@@ -40,6 +40,19 @@ window.addEventListener("load", function (evt) {
 	/* URL of current image. */
 	var curr_url = window.location.href;
 
+	/*
+	 * Get current data type, data_type, from URL, which is assumed to
+	 * give the file name in a form like
+	 * CPOLRVP_20130815235056_DB_DBZ_54.0.svg
+	 */
+
+	var data_type;
+
+	if ( !(data_type = (curr_url.match(/_\d{14}_(DB_[0-9A-Z]+)_/))[1]) ) {
+	    alert("Could not determine data type for " + curr_url);
+	    return;
+	}
+
 	/* Previous and next volume buttons */
 	var prev_btn = document.getElementById("prev_vol");
 	var next_btn = document.getElementById("next_vol");
