@@ -134,15 +134,25 @@ PRINT
     </text>
 </svg>
 
-<!-- Arrow marker, for navigation buttons -->
+<!-- Arrow markers, for navigation buttons -->
 <defs>
   <marker
-      id="arrow" class="arrow"
+      id="arrow"
       viewBox="0 0 10 10"
       refX="0"
       refY="5"
       orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" />
+      <path fill="black" d="M 0 0 L 10 5 L 0 10 z" />
+  </marker>
+</defs>
+<defs>
+  <marker
+      id="dim_arrow"
+      viewBox="0 0 10 10"
+      refX="0"
+      refY="5"
+      orient="auto">
+      <path fill="#888" d="M 0 0 L 10 5 L 0 10 z" />
   </marker>
 </defs>
 

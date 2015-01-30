@@ -47,7 +47,6 @@ window.addEventListener("load", function (evt) {
 	 */
 
 	var data_type;
-
 	if ( !(data_type = (curr_url.match(/_\d{14}_(DB_[0-9A-Z]+)_/))[1]) ) {
 	    alert("Could not determine data type for " + curr_url);
 	    return;
@@ -92,19 +91,35 @@ window.addEventListener("load", function (evt) {
 		    }
 		}
 
-		/* If curr_url is at start of list, dim prev button */
-		var color, elem;
+		/*
+		 * If curr_url is at start of list, dim prev button.
+		 * If curr_url is at end of list, dim next button.
+		 * Otherwise, restore it.
+		 */
+
 		if ( curr_url == img_ls[0] ) {
-		    color = "#888";
+		    color_button(prev_btn, "#888", "url(#dim_arrow)")
+		} else if ( curr_url == img_ls[img_ls.length - 1] ) {
+		    color_button(next_btn, "#888", "url(#dim_arrow)")
 		} else {
-		    color = "black";
+		    color_button(prev_btn, "black", "url(#arrow)")
+		    color_button(next_btn, "black", "url(#arrow)")
 		}
-		for (n = 0; n < prev_btn.childNodes.length; n++) {
-		    elem = prev_btn.childNodes[n];
-		    if ( elem.tagName == "rect" || elem.tagName == "text"
-			    || elem.tagName == "line" ) {
-			elem.setAttribute("stroke", color);
-		    }
+	    }
+	}
+	function color_button(button, color, marker)
+	{
+	    var n, elem;
+
+	    for (n = 0; n < button.childNodes.length; n++) {
+		elem = button.childNodes[n];
+		if ( elem.tagName == "rect"
+			|| elem.tagName == "text"
+			|| elem.tagName == "line" ) {
+		    elem.setAttribute("stroke", color);
+		}
+		if ( elem.tagName == "line" ) {
+		    elem.setAttribute("marker-end", marker);
 		}
 	    }
 	}
