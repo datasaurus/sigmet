@@ -10,10 +10,14 @@
 #	pisa
 #
 # Usage:
-#	sigmet_svg [-f] [-b bounds] [-w pixels] [-z pixels] [-l pixels] 
-#		[-m top=pixels[,left=pixels]] [-p path] [-s path] --
-#		data_type colors_file sweep_angle volume_file
+#	sigmet_svg [-d fragment_type] [-f] [-b bounds] [-w pixels] [-z pixels]
+#		[-l pixels] [-m top=pixels[,left=pixels]] [-p path] [-s path]
+#		-- data_type colors_file sweep_angle volume_file
 # where:
+#	-d		- Type of SVG fragment. If "document", make a
+#			  standalone SVG document. If "inline", make a
+#			  SVG element that can be included in other documents.
+#			  Default is "document".
 #	-f		- fill gaps between adjacent rays.
 #	-b		- Limits of plot in plot coordinates (not display
 #			  coordinates). bounds must be a string of form
@@ -90,6 +94,7 @@ check_num() {
 }
 
 # Defaults
+frag="document"
 fill=
 x_min=
 x_max=
@@ -104,10 +109,13 @@ out_fl=
 prx=6					# Precision in labels
 
 # Parse command line
-while getopts :fb:w:z:l:m:p:s:o: opt
+while getopts :d:fb:w:z:l:m:p:s:o: opt
 do
     case "$opt"
     in
+	d)
+	    frag="$OPTARG"
+	    ;;
 	f)
 	    fill="-f"
 	    ;;
@@ -359,7 +367,7 @@ mkfifo $sfx_svg
 outlines() {
     sig_raw outlines $fill $bnds $data_type $color_fl $sweep_index	\
 	| sigmet_svg.awk						\
-	| pisa -l $left -r $right -t $top1 -b $bottom 			\
+	| pisa -d $frag -l $left -r $right -t $top1 -b $bottom 		\
 		    -w $doc_width -f $font_sz -m $prx -n $prx 		\
 		    -X "$x_label" -Y "$y_label"				\
 		    -p $pfx_svg -s $sfx_svg 				\

@@ -36,7 +36,7 @@
 .Nd Creates an SVG document with a Cartesian plot in it.
 .Sh SYNOPSIS
 .Nm pisa
-.Op Fl d Ar title
+.Op Fl d Ar fragment
 .Op Fl l Ar pixels
 .Op Fl r Ar pixels
 .Op Fl t Ar pixels
@@ -74,7 +74,11 @@ plot area. At end of input, the process will print code to finish the document.
 .Sh OPTIONS
 .Bl -tag -width flag
 .It Fl d
-title of document svg element
+Fragment type. If
+.Ql document ,
+outermost SVG element will include headers for a standalone SVG document. If
+.Ql inline ,
+outermost SVG element will be a bare element to be included in a documents.
 .It Fl l
 space between left edge of document and left edge of plot area, pixels.
 .It Fl r

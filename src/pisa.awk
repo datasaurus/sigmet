@@ -53,6 +53,7 @@
 #
 # Standard input may also include:
 #
+#	fragment "document"|"inline"
 #	doc_height number
 #	x_title string
 #	y_title string
@@ -60,6 +61,10 @@
 #
 # where:
 #	
+#	fragment	SVG fragment type. If "document", output will include
+#			headers for a standalone document. If "inline", output
+#			will specify a bare svg element to be embedded in other
+#			documents. Default is "document".
 #	x_left		Cartesian x coordinate of left edge of plot.
 #	x_rght		Cartesian x coordinate of right edge of plot.
 #	y_btm		Cartesian y coordinate of bottom edge of plot.
@@ -102,7 +107,7 @@
 # Initialize parameters with bogus values or reasonable defaults
 BEGIN {
     FS = "=";
-    title = "";
+    fragment="document"
     num_sheets = 0;
     printing = 0;
     have_header = 0;
@@ -127,8 +132,12 @@ BEGIN {
 }
 
 # Set parameters from standard input
-/^\s*title\s*=/ {
-    title = $2;
+/^\s*fragment\s*=/ {
+    fragment = $2;
+    if ( fragment != "document" && fragment != "inline" ) {
+	printf "fragment type must be \"document\" or \"inline\"\n" > err
+	exit 1;
+    }
 }
 /^\s*style\s*=/ {
     sheet[num_sheets] = $2;
@@ -388,7 +397,7 @@ function print_header()
 	y_title_width = 0.0;
     }
 
-#   Space below plot will have tick mark, padding, label, and possibly title.
+#   Space below plot will have tick mark, padding, label.
     x_axis_ht_px = tick_len + pad + font_sz;
     below_plot = x_axis_ht_px + x_title_ht + bottom;
 
@@ -411,7 +420,7 @@ function print_header()
     }
 
 #   Create a first guess set of labels for the y axis. From this set, determine
-#   width needed for y axis labels, tick marks, and title.
+#   width needed for y axis labels, tick marks.
     n_max = plot_height_px / font_sz / 2;
     axis_lbl(y_btm, y_top, y_prx, n_max, "v", y_labels);
     max_len = 0.0;
@@ -483,20 +492,31 @@ function print_header()
     f = plot_height_px * y_top / (y_top - y_btm);
 
 #   Initialize the SVG document
-    printf "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    for (s = 0; s < num_sheets; s++) {
-	printf "<?xml-stylesheet href=\"%s\" type=\"text/css\"?>\n", sheet[s];
-    }
-    printf "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.0//EN\"\n";
-    printf "   \"http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd\">\n";
-    printf "<svg\n";
-    printf "    width=\"%f\"\n", doc_width;
-    printf "    height=\"%f\"\n", doc_height;
-    printf "    xmlns=\"http://www.w3.org/2000/svg\"\n";
-    printf "    xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n";
-    printf "    id=\"outermost\">\n";
-    if ( length(title) > 0 ) {
-	printf "  <title>%s</title>\n", title;
+    if ( fragment == "document" ) {
+	printf "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+	for (s = 0; s < num_sheets; s++) {
+	    printf "<?xml-stylesheet href=\"%s\" type=\"text/css\"?>\n", sheet[s];
+	}
+	printf "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.0//EN\"\n";
+	printf "    ";
+	printf "\"http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd\">";
+	printf "\n";
+	printf "<svg\n";
+	printf "    width=\"%f\"\n", doc_width;
+	printf "    height=\"%f\"\n", doc_height;
+	printf "    xmlns=\"http://www.w3.org/2000/svg\"\n";
+	printf "    xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n";
+	printf "    id=\"outermost\">\n";
+    } else if ( fragment == "inline" ) {
+	printf "<svg\n";
+	printf "    width=\"%f\"\n", doc_width;
+	printf "    height=\"%f\"\n", doc_height;
+	printf "    xmlns=\"http://www.w3.org/2000/svg\"\n";
+	printf "    xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n";
+	printf "    id=\"outermost\">\n";
+    } else {
+	printf "fragment type must be \"document\" or \"inline\"" > err
+	    exit 1;
     }
     have_header = 1;
 }

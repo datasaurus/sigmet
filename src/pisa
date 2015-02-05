@@ -49,6 +49,7 @@ check_num() {
 # Otherwise, variable specifies plot coordinates.
 
 # Set some defaults
+frag="document"
 font_sz="9.0"	
 left="`echo $font_sz \* 12 | bc -l`"
 right="`echo $font_sz \* 6 | bc -l`"
@@ -65,7 +66,7 @@ do
     case $opt
     in
 	d)
-	    title="$OPTARG"
+	    frag="$OPTARG"
 	    ;;
 	l)
 	    left=$OPTARG
@@ -128,7 +129,7 @@ shift `expr $OPTIND - 1`
 if [ $# -ne 4 ]
 then
     {
-	printf "Usage: $0 [-d title] [-l pixels] [-r pixels]"
+	printf "Usage: $0 [-d fragment] [-l pixels] [-r pixels]"
 	printf " [-t pixels] [-b pixels] [-w pixels] [-h pixels] "
 	printf " [-f pixels] [-m precison] [-n precison]"
 	printf " [-p prefix_file] [-s suffix_file] [-y style_sheet]"
@@ -156,7 +157,7 @@ check_num "y coordinate of top edge of plot" $y_top
 	    echo style="$sheet"
 	done;
     }
-    echo title="$title"
+    echo fragment="$frag"
     echo x_left=$x_left
     echo x_rght=$x_rght
     echo y_btm=$y_btm
@@ -195,3 +196,5 @@ check_num "y coordinate of top edge of plot" $y_top
     fi
     echo 'end'
 } | pisa.awk
+exit $?
+
