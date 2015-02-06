@@ -1,7 +1,7 @@
 /*
    -	sigmet_svg.js --
    -		This script adds interactive behavior to a plot made by
-   -		sigmet_svg_doc.
+   -		sigmet_html.
    -
    .	Copyright (c) 2013, Gordon D. Carrie. All rights reserved.
    .
@@ -41,6 +41,20 @@ window.addEventListener("load", function (evt) {
 	/*jslint browser:true */
 
 	/*
+	   If keep_margins is true, plot will resize with window to preserve
+	   margins. If false, plot will remain at size when loaded.
+
+	   If keep_margins is true, PLOT MUST BE AT TOP AND LEFT OF WINDOW.
+	   When plot is resized, it will leave winBtm pixels at bottom for
+	   other window elements. Elements within winBtm pixels of SVG bottom
+	   edge will always be visible. There may be lower elements, but they
+	   will disappear after a resize event, and must be scrolled into view.
+	 */
+
+	var keep_margins = true;
+	var winBtm = 120.0;
+
+	/*
 	   Compute a0 = Earth radius.
 	   Use 4/3 rule.
 	   Use International Standard Nautical Mile = 1852.0 meters
@@ -78,7 +92,7 @@ window.addEventListener("load", function (evt) {
 	}
 
 	/* Objects for plot elements */
-	var root = document.rootElement;
+	var outSVG = document.getElementById("outermost");
 	var plot = document.getElementById("plot");
 	var plotArea = document.getElementById("PlotRect");
 	var plotBackground = document.getElementById("plotBackground");
@@ -99,7 +113,6 @@ window.addEventListener("load", function (evt) {
 
 	var zoom_in = document.getElementById("zoom_in");
 	var zoom_out = document.getElementById("zoom_out");
-	var print = document.getElementById("print");
 	var cursor_loc = document.getElementById("cursor_loc");
 	var color_legend = document.getElementById("color_legend");
 
@@ -113,19 +126,6 @@ window.addEventListener("load", function (evt) {
 
 	var x_labels = [];
 	var y_labels = [];
-
-	/*
-	   Root element dimensions and margins around plot. Needed for resize
-	   events. rootWidth and rootHght might change during run time. Margins
-	   above and to left of plot area never change.
-	 */
-
-	var rootWidth = root.width.baseVal.value;
-	var rootHght = root.height.baseVal.value;
-	var leftMgn = plot.x.baseVal.value;
-	var rghtMgn = rootWidth - leftMgn - plot.width.baseVal.value;
-	var topMgn = plot.y.baseVal.value;
-	var btmMgn = rootHght - topMgn - plot.height.baseVal.value;
 
 	/*
 	   Coordinates of plot elements before and during drag events.
@@ -151,19 +151,6 @@ window.addEventListener("load", function (evt) {
 	/* Distances axis labels can go beyond plot edges, pixels */ 
 	var xOverHang = xAxis.width.baseVal.value - plot.width.baseVal.value;
 	var yOverHang = yAxis.height.baseVal.value - plot.height.baseVal.value;
-
-	/*
-	   pisa puts some elements, like buttons, into an "interactive"
-	   class, and sets their visibility to "hidden", to avoid clutter in
-	   static SVG documents. This block makes them visible so that user
-	   can interact with them.
-	 */
-
-	var e, elems = document.getElementsByClassName("interactive");
-	for (e = 0; e < elems.length; e++) {
-	    elems[e].setAttribute("visibility", "visible");
-	    elems[e].setAttribute("display", "inline");
-	}
 
 	/* These functions update the cursor location display. */ 
 	function update_rhi_loc(evt)
@@ -308,39 +295,39 @@ window.addEventListener("load", function (evt) {
 	zoom_out.addEventListener("click", 
 		function (evt) { zoom_plot(4.0 / 3.0); }, false);
 
-	/* Enable print button */
-	print.addEventListener("click", function (evt) {
-		var itrc, i;
+	/*
+	   resize function adjusts plot to preserve original margins
+	   if window resizes. leftMgn, rghtMgn, topMgn, and btmMgn store the
+	   original margins.
 
-		itrc = document.getElementsByClassName("interactive");
-		for (i = 0; i < itrc.length; i++) {
-		    itrc[i].setAttribute("visibility", "hidden");
-		    itrc[i].setAttribute("display", "none");
-		}
-		window.print();
-		window.setTimeout(function () {
-			for (i = 0; i < itrc.length; i++) {
-			    itrc[i].setAttribute("visibility", "visible");
-			    itrc[i].setAttribute("display", "inline");
-			}
-		    }, 500.0);
-	    }, false);
+	   Assume, perhaps annoyingly, that svg outermost element fills window
+	   from to right and to bottom. Window elements to the right of and
+	   below svg outermost element will be out of display unless user
+	   scrolls.
 
-	/* Grow plot if window resizes */ 
+	   However, adjust for elements above and to the left of svg outermost.
+	*/
+
+	var leftMgn = plot.x.baseVal.value;
+	var rghtMgn = outSVG.width.baseVal.value - leftMgn
+	    - plot.width.baseVal.value;
+	var topMgn = plot.y.baseVal.value;
+	var btmMgn = outSVG.height.baseVal.value - topMgn
+	    - plot.height.baseVal.value;
 	function resize(evt)
 	{
-	    var innerWidth = this.innerWidth;
-	    var innerHeight = this.innerHeight;
+	    var winWidth = this.innerWidth;
+	    var winHeight = this.innerHeight;
 
-	    var currRootWidth = root.width.baseVal.value;
-	    var currRootHeight = root.height.baseVal.value;
-	    var newRootWidth = innerWidth;
-	    var newRootHeight = innerHeight;
+	    var currSVGWidth = outSVG.width.baseVal.value;
+	    var currSVGHeight = outSVG.height.baseVal.value;
+	    var newSVGWidth = winWidth;
+	    var newSVGHeight = winHeight - winBtm;
 
 	    var currPlotWidth = plot.width.baseVal.value;
 	    var currPlotHeight = plot.height.baseVal.value;
-	    var newPlotWidth = newRootWidth - leftMgn - rghtMgn;
-	    var newPlotHeight = newRootHeight - topMgn - btmMgn;
+	    var newPlotWidth = newSVGWidth - leftMgn - rghtMgn;
+	    var newPlotHeight = newSVGHeight - topMgn - btmMgn;
 	    var delta, dx, dy;
 
 	    var cart = get_cart();
@@ -354,10 +341,10 @@ window.addEventListener("load", function (evt) {
 	    dy = Math.abs(cart.top - cart.btm) / 128.0;
 	    if ( (Math.abs(cart.left) < dx || Math.abs(cart.rght) < dx)
 		    && (Math.abs(cart.btm) < dy || Math.abs(cart.top) < dy) ) {
-		delta = newRootWidth / currRootWidth;
+		delta = newSVGWidth / currSVGWidth;
 		cart.left *= delta;
 		cart.rght *= delta;
-		delta = newRootHeight / currRootHeight;
+		delta = newSVGHeight / currSVGHeight;
 		cart.btm *= delta;
 		cart.top *= delta;
 	    } else {
@@ -365,19 +352,19 @@ window.addEventListener("load", function (evt) {
 
 		/* Update Cartesian limits using current plot rectangle */
 		mPerPx = (cart.rght - cart.left) / currPlotWidth;
-		delta = (newRootWidth - currRootWidth) * mPerPx;
+		delta = (newSVGWidth - currSVGWidth) * mPerPx;
 		cart.left -= delta / 2;
 		cart.rght += delta / 2;
 
 		mPerPx = (cart.top - cart.btm) / currPlotHeight;
-		delta = (newRootHeight - currRootHeight) * mPerPx;
+		delta = (newSVGHeight - currSVGHeight) * mPerPx;
 		cart.top += delta / 2;
 		cart.btm -= delta / 2;
 	    }
 
 	    /* Adjust plot rectangle */
-	    root.setAttribute("width", newRootWidth);
-	    root.setAttribute("height", newRootHeight);
+	    outSVG.setAttribute("width", newSVGWidth);
+	    outSVG.setAttribute("height", newSVGHeight);
 	    plot.setAttribute("width", newPlotWidth);
 	    plot.setAttribute("height", newPlotHeight);
 	    plotArea.setAttribute("width", newPlotWidth);
@@ -393,7 +380,9 @@ window.addEventListener("load", function (evt) {
 		    transform.matrix.f);
 
 	}
-	this.addEventListener("resize", resize, true);
+	if ( keep_margins ) {
+	    this.addEventListener("resize", resize, true);
+	}
 
 	/*
 	   Enable plot dragging.
@@ -925,7 +914,9 @@ window.addEventListener("load", function (evt) {
 	while ( yAxis.lastChild ) {
 	    yAxis.removeChild(yAxis.lastChild);
 	}
-	resize.call(this, {});
+	if ( keep_margins ) {
+	    resize.call(this, {});
+	}
 
 }, false);			/* Done defining load callback */
 
