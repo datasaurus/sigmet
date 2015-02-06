@@ -1,7 +1,7 @@
 /*
    -	sigmet_buttons.js --
    -		Enable navigation buttons in SVG image created by
-   -		sigmet_svg_doc and managed by sigmet_svg.js.
+   -		sigmet_svg and managed by sigmet_svg.js.
    -
    .	Copyright (c) 2015, Gordon D. Carrie. All rights reserved.
    .

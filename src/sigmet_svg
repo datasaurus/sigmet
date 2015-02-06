@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	sigmet_svg_doc --
+#	sigmet_svg --
 #		Create a SVG image of a Sigmet sweep with axes and a color
 #		legend.
 #

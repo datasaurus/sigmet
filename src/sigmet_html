@@ -8,7 +8,7 @@
 #	sigmet_raw
 #	sig_raw
 #	pisa
-#	sigmet_svg_doc
+#	sigmet_svg
 #
 # Usage:
 #	sigmet_html [-f] [-b bounds] [-w pixels] [-z pixels]
@@ -252,7 +252,7 @@ pr_page() {
     { IFS=\|; cat $heads; }
     printf '</head>\n'
     printf '<body>\n'
-    sigmet_svg_doc -d inline $fill $bnds -w $doc_width -z $font_sz	\
+    sigmet_svg -d inline $fill $bnds -w $doc_width -z $font_sz	\
 	    -l $legend_width -m top=${top},left=${left} -o -		\
 	    -- $data_type $color_fl $sweep_angle $in
     printf '<div>\n'
