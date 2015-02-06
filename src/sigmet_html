@@ -1,0 +1,281 @@
+#!/bin/sh
+#
+#	sigmet_html --
+#		Display a Sigmet sweep with axes and a color legend in a web
+#		page.
+#
+# Requires:
+#	sigmet_raw
+#	sig_raw
+#	pisa
+#	sigmet_svg_doc
+#
+# Usage:
+#	sigmet_html [-f] [-b bounds] [-w pixels] [-z pixels]
+#		[-l pixels] [-m top=pixels[,left=pixels]]
+#		-- data_type colors_file sweep_angle volume_file
+# where:
+#	-f		- fill gaps between adjacent rays.
+#	-b		- Limits of plot in plot coordinates (not display
+#			  coordinates). bounds must be a string of form
+#			  x_min=value,x_max=value,y_min=value,y_max=value
+#			  Does not have to give all values. For values not
+#			  given, default is to use sweep bounds. Units are
+#			  same as sigmet_raw sweep_bnds command.
+#	-w		- document width, pixels
+#	-z		- font size, pixels
+#	-l		- width of color cells in legend, pixels
+#	-m		- margins around plot area, given as
+#			  top=value,left=value. Right and bottom margins
+#			  are determined from font and legend sizes.
+#	-h		- file with HTML to put in head, e.g. link to
+#			  sigmet_svg.js. This option may be repeated.
+#	-o		- name of output file. If none is given, SVG output
+#			  goes to a file with a suitable name. If output
+#			  goes to a file, script prints the name of the file
+#			  to standard output. If output file name is "-",
+#			  SVG goes to standard output.
+#	data_type	- Sigmet data type, e.g. DB_DBZ
+#	colors_file	- specify color for each data interval. Should be
+#			  formatted for sigmet_raw outlines command.
+#	sweep_angle	- desired tilt or azimuth. Image will show sweep
+#			  nearest sweep_angle.
+#	volume_file	- either a path that sigmet_raw can read, or a fifo
+#			  that provides commands to a sigmet_raw daemon.
+#
+# If successful, this script will create a SVG file
+# with an image of the sweep closest to the given sweep angle.
+#
+# Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 
+#     * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+# TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Please send feedback to dev0@trekix.net
+#
+#	$Revision: 1.3 $ $Date: 2014/10/29 20:26:24 $
+
+# This function checks whether a value is a number
+check_num() {
+    name="$1"
+    val="$2"
+    if ! test $val
+    then
+	printf "%s not set\n" "$name" 1>&2
+	exit 1
+    fi
+    if ! printf '%g' $val > /dev/null 2>&1
+    then
+	printf "$0: expected number for %s, got %s\n" "$name" "$val" 1>&2
+	exit 1
+    fi
+}
+
+# Defaults
+fill=
+doc_width=1400
+font_sz=18
+legend_width=64
+top=48
+left=80
+out_fl=
+prx=6					# Precision in labels
+
+# Parse command line
+while getopts :fb:w:z:l:m:h:o: opt
+do
+    case "$opt"
+    in
+	f)
+	    fill="-f"
+	    ;;
+	b)
+	    eval `echo "$OPTARG" | sed 's/,/;/g'`
+	    bnds="-b $OPTARG"
+	    ;;
+	w)
+	    doc_width=$OPTARG
+	    ;;
+	z)
+	    font_sz=$OPTARG
+	    ;;
+	l)
+	    legend_width=$OPTARG
+	    ;;
+	m)
+	    eval `echo $OPTARG | sed 's/,/;/g'`
+	    ;;
+	h)
+	    # Separate paths with | since path names can contain whitespace.
+	    heads=${heads}"${heads:+|}$OPTARG"
+	    ;;
+	o)
+	    out_fl="$OPTARG"
+	    ;;
+	\?)
+	    echo "$0: unknown option $OPTARG" 1>&2
+	    exit 1
+	    ;;
+    esac
+done
+
+if test $x_min; then check_num "x_min" $x_min; fi
+if test $x_max; then check_num "x_max" $x_max; fi
+if test $y_min; then check_num "y_min" $y_min; fi
+if test $y_max; then check_num "y_max" $y_max; fi
+check_num "display width" $doc_width
+check_num "font size" $font_sz
+check_num "legend width" $legend_width
+check_num "top margin" $top
+check_num "left margin" $left
+
+shift `expr $OPTIND - 1`
+if [ $# -ne 4 ]
+then
+    {
+	printf 'Usage:\n'
+	printf '    sigmet_html [-f] [-b bounds] [-w pixels] [-z pixels]'
+	printf ' [-l pixels] [-m top=pixels[,left=pixels]]'
+	printf ' [-p path] [-s path]'
+	printf ' -- data_type colors_file sweep_angle volume_file\n'
+	printf '\n'
+    } 1>&2
+    exit 1
+fi
+data_type="$1"
+color_fl="$2"
+sweep_angle="$3"
+vol_path="$4"
+
+# Check for color table
+if ! test -f "$color_fl"
+then
+    echo "$0: could not find color file $color_fl" 1>&2
+    exit 1
+fi
+
+cleanup() {
+    if test -f "$vol_path"
+    then
+	sig_raw exit
+	rm -f "$in"
+    fi
+}
+trap cleanup EXIT QUIT INT KILL
+
+# If vol_path is a regular file, start a sigmet_raw daemon for it.
+# If vol_path is a fifo, assume a sigmet_raw daemon is monitoring it.
+if test -f "$vol_path"
+then
+    in=.`basename $vol_path | sed -e 's/\.gz$//' -e 's/\.bz2$//'`.$$.in
+    mkfifo $in
+    if ! sigmet_raw ${vol_path} $in
+    then
+	rm -f $in;
+	exit 1
+    fi
+    export SIGMET_RAW_IN=$in
+elif test -p "$vol_path"
+then
+    export SIGMET_RAW_IN=$vol_path
+else
+    echo $vol_path must be a regular file or fifo. 1>&2
+    exit 1
+fi
+
+# Create an identifier for the volume.
+vol=`sig_raw volume_headers | awk -F \| '
+    /vol_start_time/ {
+	split($1, dh, " ");
+	split(dh[1], ymd, "/");
+	yr = ymd[1];
+	mon = ymd[2];
+	day = ymd[3];
+	split(dh[2], hms, ":");
+	hr = hms[1];
+	min = hms[2];
+	sec = hms[3];
+    }
+    /su_site_name/ {
+	site = $1;
+    }
+    END {
+	fmt = "%s_%04d%02d%02d%02d%02d%02.0f\n";
+	printf fmt, site, yr, mon, day, hr, min, sec;
+    }'`
+
+# Store volume headers
+eval `sig_raw vol_hdr`
+
+# Obtain sweep information
+sweep_index=`sig_raw near_sweep $sweep_angle`
+eval `sig_raw sweep_headers \
+	| awk -v i=$sweep_index '
+	    {
+		sweep_date[$2] = $3;
+		sweep_time[$2] = $4;
+		sweep_angle[$2] = $5;
+	    }
+	    END {
+		printf "sweep_date=%s;sweep_time=%s;sweep_angle=%s\n", \
+			sweep_date[i], sweep_time[i], sweep_angle[i];
+	    }
+	'`
+
+# This function prints the output.
+pr_page() {
+    printf '<!DOCTYPE html>\n'
+    printf '<html>\n'
+    printf '<head>\n'
+    printf '<title>%s %s %s %s</title>\n' \
+	    $site_name $sweep_date $sweep_time $data_type
+    printf '<meta charset="UTF-8">\n'
+    { IFS=\|; cat $heads; }
+    printf '</head>\n'
+    printf '<body>\n'
+    sigmet_svg_doc -d inline $fill $bnds -w $doc_width -z $font_sz	\
+	    -l $legend_width -m top=${top},left=${left} -o -		\
+	    -- $data_type $color_fl $sweep_angle $in
+    printf '<div>\n'
+    printf '<label>ZOOM</label>\n'
+    printf '<button id="zoom_in">IN</button>\n'
+    printf '<button id="zoom_out">OUT</button>\n'
+    printf '</div>\n'
+    printf '<p id="cursor_loc">Cursor: 0 0</p>\n'
+    printf '</body>\n'
+    printf '</html>\n'
+}
+if ! test "$out_fl"
+then
+    out_fl=`printf "%s_%s_%.1f.html" $vol $data_type $sweep_angle`
+fi
+if [ "$out_fl" = "-" ]
+then
+    pr_page
+else
+    pr_page > $out_fl
+    echo $out_fl
+fi
+
+cleanup
+trap - EXIT
+exit 0
