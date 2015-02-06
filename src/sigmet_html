@@ -13,6 +13,7 @@
 # Usage:
 #	sigmet_html [-f] [-b bounds] [-w pixels] [-z pixels]
 #		[-l pixels] [-m top=pixels[,left=pixels]]
+#		[-h head_file] [-t tail_file]
 #		-- data_type colors_file sweep_angle volume_file
 # where:
 #	-f		- fill gaps between adjacent rays.
@@ -30,11 +31,12 @@
 #			  are determined from font and legend sizes.
 #	-h		- file with HTML to put in head, e.g. link to
 #			  sigmet_svg.js. This option may be repeated.
-#	-o		- name of output file. If none is given, SVG output
+#	-t		- file with HTML to put after the sweep images.
+#	-o		- name of output file. If none is given, HTML output
 #			  goes to a file with a suitable name. If output
 #			  goes to a file, script prints the name of the file
 #			  to standard output. If output file name is "-",
-#			  SVG goes to standard output.
+#			  HTML goes to standard output.
 #	data_type	- Sigmet data type, e.g. DB_DBZ
 #	colors_file	- specify color for each data interval. Should be
 #			  formatted for sigmet_raw outlines command.
@@ -43,7 +45,7 @@
 #	volume_file	- either a path that sigmet_raw can read, or a fifo
 #			  that provides commands to a sigmet_raw daemon.
 #
-# If successful, this script will create a SVG file
+# If successful, this script will create a HTML file
 # with an image of the sweep closest to the given sweep angle.
 #
 # Copyright (c) 2012, Gordon D. Carrie. All rights reserved.
@@ -101,7 +103,7 @@ out_fl=
 prx=6					# Precision in labels
 
 # Parse command line
-while getopts :fb:w:z:l:m:h:o: opt
+while getopts :fb:w:z:l:m:h:t:o: opt
 do
     case "$opt"
     in
@@ -127,6 +129,10 @@ do
 	h)
 	    # Separate paths with | since path names can contain whitespace.
 	    heads=${heads}"${heads:+|}$OPTARG"
+	    ;;
+	t)
+	    # Separate paths with | since path names can contain whitespace.
+	    tails=${tails}"${tails:+|}$OPTARG"
 	    ;;
 	o)
 	    out_fl="$OPTARG"
@@ -255,12 +261,7 @@ pr_page() {
     sigmet_svg -d inline $fill $bnds -w $doc_width -z $font_sz	\
 	    -l $legend_width -m top=${top},left=${left} -o -		\
 	    -- $data_type $color_fl $sweep_angle $in
-    printf '<div>\n'
-    printf '<label>ZOOM</label>\n'
-    printf '<button id="zoom_in">IN</button>\n'
-    printf '<button id="zoom_out">OUT</button>\n'
-    printf '</div>\n'
-    printf '<p id="cursor_loc">Cursor: 0 0</p>\n'
+    { IFS=\|; cat $tails; }
     printf '</body>\n'
     printf '</html>\n'
 }
