@@ -41,20 +41,6 @@ window.addEventListener("load", function (evt) {
 	/*jslint browser:true */
 
 	/*
-	   If keep_margins is true, plot will resize with window to preserve
-	   margins. If false, plot will remain at size when loaded.
-
-	   If keep_margins is true, PLOT MUST BE AT TOP AND LEFT OF WINDOW.
-	   When plot is resized, it will leave winBtm pixels at bottom for
-	   other window elements. Elements within winBtm pixels of SVG bottom
-	   edge will always be visible. There may be lower elements, but they
-	   will disappear after a resize event, and must be scrolled into view.
-	 */
-
-	var keep_margins = true;
-	var winBtm = 120.0;
-
-	/*
 	   Compute a0 = Earth radius.
 	   Use 4/3 rule.
 	   Use International Standard Nautical Mile = 1852.0 meters
@@ -105,16 +91,33 @@ window.addEventListener("load", function (evt) {
 	var yTitle = document.getElementById("yTitle");
 	var yTitleXForm = document.getElementById("yTitleTransform");
 
-	/*
-	   Interactive elements, probably defined in pisa_buttons.svg,
-	   or a document derived from it, and included via a "-p" or "-s"
-	   option to the pisa command.
-	 */
-
+	/* Interactive elements */
 	var zoom_in = document.getElementById("zoom_in");
 	var zoom_out = document.getElementById("zoom_out");
 	var cursor_loc = document.getElementById("cursor_loc");
 	var color_legend = document.getElementById("color_legend");
+
+	/*
+	   If keep_margins is true, plot will resize with window to preserve
+	   margins. If false, plot will remain at size when loaded.
+
+	   If keep_margins is true, PLOT MUST BE AT TOP AND LEFT OF WINDOW.
+	   When plot is resized, it will leave winBtm pixels at bottom for
+	   other window elements. Elements within winBtm pixels of SVG bottom
+	   edge will always be visible. There may be lower elements, but they
+	   will disappear after a resize event, and must be scrolled into view.
+
+	   Set winBtm to size of interactive area.
+	 */
+
+	var keep_margins = true;
+	var winBtm = 60.0;
+	if ( zoom_in ) {
+	    winBtm += zoom_in.clientHeight;
+	}
+	if ( cursor_loc ) {
+	    winBtm += cursor_loc.clientHeight;
+	}
 
 	/*
 	   Axis labels:
@@ -195,29 +198,32 @@ window.addEventListener("load", function (evt) {
 	}
 
 	/*
-	   Fetch radar location, sweep type, and sweep angle from the caption.
-	   Set cursor_loc update function appropriate to sweep type.
+	   If cursor location display is enabled, fetch radar location,
+	   sweep type, and sweep angle from the caption. Set cursor_loc
+	   update function appropriate to sweep type.
 	 */
 
-	var caption = document.getElementById("caption");
-	var lonLatPtn = /([e\d.-]+) deg lon, ([e\d.-]+) deg lat/;
-	var match;
-	match = caption.textContent.match(lonLatPtn);
-	if ( match ) {
-	    var radarLon = match[1] * radPerDeg;
-	    var radarLat = match[2] * radPerDeg;
-	}
-	var rhiPtn = /RHI az = ([e\d.-]+) deg/;
-	match = caption.textContent.match(rhiPtn);
-	if ( match ) {
-	    var az = match[1] * radPerDeg;
-	    plot.addEventListener("mousemove", update_rhi_loc, false);
-	}
-	var ppiPtn = /PPI tilt = ([e\d.-]+) deg/;
-	match = caption.textContent.match(ppiPtn);
-	if ( match ) {
-	    var tilt = match[1] * Math.PI / 180.0;
-	    plot.addEventListener("mousemove", update_ppi_loc, false);
+	if ( cursor_loc ) {
+	    var caption = document.getElementById("caption");
+	    var lonLatPtn = /([e\d.-]+) deg lon, ([e\d.-]+) deg lat/;
+	    var match;
+	    match = caption.textContent.match(lonLatPtn);
+	    if ( match ) {
+		var radarLon = match[1] * radPerDeg;
+		var radarLat = match[2] * radPerDeg;
+	    }
+	    var rhiPtn = /RHI az = ([e\d.-]+) deg/;
+	    match = caption.textContent.match(rhiPtn);
+	    if ( match ) {
+		var az = match[1] * radPerDeg;
+		plot.addEventListener("mousemove", update_rhi_loc, false);
+	    }
+	    var ppiPtn = /PPI tilt = ([e\d.-]+) deg/;
+	    match = caption.textContent.match(ppiPtn);
+	    if ( match ) {
+		var tilt = match[1] * Math.PI / 180.0;
+		plot.addEventListener("mousemove", update_ppi_loc, false);
+	    }
 	}
 
 	/*
@@ -290,23 +296,20 @@ window.addEventListener("load", function (evt) {
 		zoom_attrs(children[c], s);
 	    }
 	}
-	zoom_in.addEventListener("click",
-		function (evt) { zoom_plot(3.0 / 4.0); }, false);
-	zoom_out.addEventListener("click", 
-		function (evt) { zoom_plot(4.0 / 3.0); }, false);
+	if ( zoom_in ) {
+	    zoom_in.addEventListener("click",
+		    function (evt) { zoom_plot(3.0 / 4.0); }, false);
+	}
+	if ( zoom_out ) {
+	    zoom_out.addEventListener("click", 
+		    function (evt) { zoom_plot(4.0 / 3.0); }, false);
+	}
 
 	/*
 	   resize function adjusts plot to preserve original margins
 	   if window resizes. leftMgn, rghtMgn, topMgn, and btmMgn store the
 	   original margins.
-
-	   Assume, perhaps annoyingly, that svg outermost element fills window
-	   from to right and to bottom. Window elements to the right of and
-	   below svg outermost element will be out of display unless user
-	   scrolls.
-
-	   However, adjust for elements above and to the left of svg outermost.
-	*/
+	 */
 
 	var leftMgn = plot.x.baseVal.value;
 	var rghtMgn = outSVG.width.baseVal.value - leftMgn
