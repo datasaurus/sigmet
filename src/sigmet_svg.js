@@ -53,7 +53,7 @@ window.addEventListener("load", function (evt) {
 	var degPerRad = 180.0 / Math.PI;
 
 	/* Lengths of axis tick marks, pixels */
-	var tick = (document.getElementsByClassName("x axis tick"))[0];
+	var tick = (document.getElementsByClassName("xAxisTick"))[0];
 	var tick_len = tick.y2.baseVal.value - tick.y1.baseVal.value;
 
 	/* Label font size, might vary during run time */
@@ -553,7 +553,7 @@ window.addEventListener("load", function (evt) {
 	    cart = get_cart();
 
 	    /* Update font size and padding */
-	    lbl = document.getElementsByClassName("x axis label")[0];
+	    lbl = document.getElementsByClassName("xAxisLabel")[0];
 	    bbox = lbl.getBBox();
 	    font_sz = bbox.height;
 	    pad = xAxis.height.baseVal.value - tick_len - font_sz;
@@ -706,11 +706,11 @@ window.addEventListener("load", function (evt) {
 	    for (l = 0, textLength = 0.0; l < coords.length; l++) {
 		if ( !x_labels[l] ) {
 		    lbl = document.createElementNS(svgNs, "text");
-		    lbl.setAttribute("class", "x axis label");
+		    lbl.setAttribute("class", "xAxisLabel");
 		    lbl.setAttribute("text-anchor", "middle");
 		    xAxis.appendChild(lbl);
 		    tick = document.createElementNS(svgNs, "line");
-		    tick.setAttribute("class", "x axis tick");
+		    tick.setAttribute("class", "xAxisTick");
 		    tick.setAttribute("stroke", "black");
 		    tick.setAttribute("stroke-width", "1");
 		    xAxis.appendChild(tick);
@@ -768,12 +768,12 @@ window.addEventListener("load", function (evt) {
 	    for (l = 0, textHeight = 0.0; l < coords.length; l++) {
 		if ( !y_labels[l] ) {
 		    lbl = document.createElementNS(svgNs, "text");
-		    lbl.setAttribute("class", "y axis label");
+		    lbl.setAttribute("class", "yAxisLabel");
 		    lbl.setAttribute("text-anchor", "end");
 		    lbl.setAttribute("dominant-baseline", "mathematical");
 		    yAxis.appendChild(lbl);
 		    tick = document.createElementNS(svgNs, "line");
-		    tick.setAttribute("class", "y axis tick");
+		    tick.setAttribute("class", "yAxisTick");
 		    tick.setAttribute("stroke", "black");
 		    tick.setAttribute("stroke-width", "1");
 		    yAxis.appendChild(tick);

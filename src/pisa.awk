@@ -79,10 +79,10 @@
 #	bottom		size of the margin below the plot, in pixels.
 #	left		size of the margin left of the plot, in pixels.
 #	font_sz		font size for labels, in pixels.
-#	x_prx		number of significant figures in x axis labels.
-#	y_prx		number of significant figures in y axis labels.
-#	x_title		(optional) x axis label. Cannot contain "=".
-#	y_title		(optional) y axis label. Cannot contain "=".
+#	x_prx		number of significant figures in xAxisLabels.
+#	y_prx		number of significant figures in yAxisLabels.
+#	x_title		(optional) xAxisLabel. Cannot contain "=".
+#	y_title		(optional) yAxisLabel. Cannot contain "=".
 #	start_doc	(optional) indicates no more parameters. The process
 #			will now just pass input to output. Subsequent input
 #			should be SVG code for items under the plot. Coordinates
@@ -420,7 +420,7 @@ function print_header()
     }
 
 #   Create a first guess set of labels for the y axis. From this set, determine
-#   width needed for y axis labels, tick marks.
+#   width needed for yAxisLabels, tick marks.
     n_max = plot_height_px / font_sz / 2;
     axis_lbl(y_btm, y_top, y_prx, n_max, "v", y_labels);
     max_len = 0.0;
@@ -558,7 +558,7 @@ function print_header()
     printf "  </clipPath>\n";
 
 #   X axis geometry and clip path.
-    printf "  <!-- Clip path for x axis labels -->\n";
+    printf "  <!-- Clip path for xAxisLabels -->\n";
     printf "  <clipPath\n";
     printf "    id=\"xAxisClip\">\n";
     printf "    <rect\n";
@@ -570,7 +570,7 @@ function print_header()
     printf "  </clipPath>\n";
 
 #   Y axis geometry and clip path.
-    printf "  <!-- Clip path for y axis labels -->\n";
+    printf "  <!-- Clip path for yAxisLabels -->\n";
     printf "  <clipPath\n";
     printf "    id=\"yAxisClip\">\n";
     printf "    <rect\n";
@@ -652,7 +652,7 @@ function print_header()
     for (x in x_labels) {
 	x_px = plot_x_px + (x - x_left) * px_per_x;
 	printf "  <line\n";
-	printf "      class=\"x axis tick\"\n";
+	printf "      class=\"xAxisTick\"\n";
 	printf "      x1=\"%f\"\n", x_px;
 	printf "      x2=\"%f\"\n", x_px;
 	printf "      y1=\"%f\"\n", x_axis_y_px;
@@ -660,7 +660,7 @@ function print_header()
 	printf "      stroke=\"black\"\n"
 	printf "      stroke-width=\"1\" />\n"
 	printf "  <text\n";
-	printf "      class=\"x axis label\"\n";
+	printf "      class=\"xAxisLabel\"\n";
 	printf "      x=\"%f\"\n", x_px;
 	printf "      y=\"%f\"\n", x_axis_y_px + tick_len + pad + font_sz;
 	printf "      font-size=\"%.1f\"\n", font_sz;
@@ -674,7 +674,7 @@ function print_header()
     if ( x_title_ht > 0.0 ) {
 	printf "<text\n";
 	printf "    id=\"xTitle\"\n";
-	printf "    class=\"x axis label\"\n";
+	printf "    class=\"xAxisLabel\"\n";
 	printf "    x=\"%f\"\n", x_axis_x_px + x_axis_width_px / 2.0;
 	printf "    y=\"%f\"\n", x_axis_y_px + x_axis_ht_px + pad + font_sz;
 	printf "    font-size=\"%.1f\"\n", font_sz;
@@ -700,7 +700,7 @@ function print_header()
     for (y in y_labels) {
 	y_px = top + (y_top - y) * px_per_y;
 	printf "  <line\n";
-	printf "      class=\"y axis tick\"\n";
+	printf "      class=\"yAxisTick\"\n";
 	printf "      x1=\"%f\"\n", x_px;
 	printf "      x2=\"%f\"\n", x_px + tick_len;
 	printf "      y1=\"%f\"\n", y_px;
@@ -708,7 +708,7 @@ function print_header()
 	printf "      stroke=\"black\"\n"
 	printf "      stroke-width=\"1\" />\n"
 	printf "  <text\n";
-	printf "      class=\"y axis label\"\n";
+	printf "      class=\"yAxisLabel\"\n";
 	printf "      x=\"%f\"\n", x_px;
 	printf "      y=\"%f\"\n", y_px;
 	printf "      font-size=\"%.1f\"\n", font_sz;
@@ -729,7 +729,7 @@ function print_header()
 	       x, y;
 	printf "<text\n";
 	printf "    id=\"yTitle\"\n";
-	printf "    class=\"y axis label\"\n";
+	printf "    class=\"yAxisLabel\"\n";
 	printf "    x=\"0.0\"\n";
 	printf "    y=\"0.0\"";
 	printf "    font-size=\"%.1f\"\n", font_sz;
